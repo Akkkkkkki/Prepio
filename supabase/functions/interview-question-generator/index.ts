@@ -28,6 +28,11 @@ interface GeneratedQuestion {
   follow_up_questions: string[];
   star_story_fit: boolean;
   company_context: string;
+  depth_label?: string;
+  good_answer_signals?: string[];
+  weak_answer_signals?: string[];
+  seniority_expectation?: string;
+  sample_answer_outline?: string;
 }
 
 interface QuestionBank {
@@ -39,6 +44,103 @@ interface QuestionBank {
   experience_based_questions: GeneratedQuestion[];
   cultural_fit_questions: GeneratedQuestion[];
 }
+
+const buildStubQuestion = (
+  question: string,
+  type: string,
+  company?: string,
+  role?: string
+): GeneratedQuestion => ({
+  question,
+  type,
+  difficulty: "Medium",
+  rationale: "Covers core competencies while tailoring to the role and company context.",
+  suggested_answer_approach: "Use a concise STAR story with measurable impact.",
+  evaluation_criteria: ["Clarity", "Impact", "Collaboration"],
+  follow_up_questions: ["What tradeoffs did you consider?", "How did you measure success?"],
+  star_story_fit: true,
+  company_context: company ? `Aligns to ${company}'s expectations for ${role ?? "the role"}.` : "Role-aligned context.",
+  depth_label: "Mid-level depth expected",
+  good_answer_signals: [
+    "Clear situation framing",
+    "Specific collaboration details",
+    "Measurable results tied to role goals"
+  ],
+  weak_answer_signals: [
+    "Generic statements without context",
+    "Blaming teammates without ownership"
+  ],
+  seniority_expectation: "Mid-level candidates should show ownership plus collaboration.",
+  sample_answer_outline: "Situation • Challenge • Your actions • Impact metrics • Reflection",
+});
+
+const buildStubQuestionBank = (
+  companyInsights: any,
+  jobRequirements: any,
+  cvAnalysis: any,
+  interviewStage: string
+): QuestionBank => {
+  const company = companyInsights?.name ?? "the company";
+  const role = jobRequirements?.role ?? cvAnalysis?.current_role ?? "the role";
+  return {
+    behavioral_questions: [
+      buildStubQuestion(
+        `Describe a time you navigated ambiguity while shipping a feature for ${company}.`,
+        "behavioral",
+        company,
+        role
+      ),
+    ],
+    technical_questions: [
+      buildStubQuestion(
+        `Walk through how you would design an API to support ${role} workflows.`,
+        "technical",
+        company,
+        role
+      ),
+    ],
+    situational_questions: [
+      buildStubQuestion(
+        `How would you handle conflicting priorities between product and reliability during ${interviewStage}?`,
+        "situational",
+        company,
+        role
+      ),
+    ],
+    company_specific_questions: [
+      buildStubQuestion(
+        `What about ${company}'s culture resonates with you, and how have you demonstrated it?`,
+        "company_specific",
+        company,
+        role
+      ),
+    ],
+    role_specific_questions: [
+      buildStubQuestion(
+        `Tell me about a project that best demonstrates your fit for ${role}.`,
+        "role_specific",
+        company,
+        role
+      ),
+    ],
+    experience_based_questions: [
+      buildStubQuestion(
+        "Share a STAR example where you unblocked a team through technical leadership.",
+        "experience_based",
+        company,
+        role
+      ),
+    ],
+    cultural_fit_questions: [
+      buildStubQuestion(
+        `How do you create inclusive collaboration in cross-functional teams at ${company}?`,
+        "cultural_fit",
+        company,
+        role
+      ),
+    ],
+  };
+};
 
 // AI-powered interview question generation based on all gathered data
 async function generateInterviewQuestions(
@@ -191,6 +293,11 @@ For each question, provide:
 - Potential follow-up questions
 - Whether it's suitable for STAR method
 - Company-specific context (MUST include specific company details)
+- A short depth label explaining how deep the interviewer expects candidates to go
+- A list of \"good answer signals\" (what strong answers include)
+- A list of \"weak answer signals\" (what to avoid)
+- A one-line seniority expectation note
+- A concise sample answer outline the candidate can follow
 
 CRITICAL REQUIREMENTS - STRICTLY ENFORCE:
 - DEEP TAILORING: Every question must reference specific details from:
@@ -218,7 +325,12 @@ You MUST return ONLY valid JSON in this exact structure - no markdown, no additi
       "evaluation_criteria": ["what interviewers look for"],
       "follow_up_questions": ["potential follow-ups"],
       "star_story_fit": true/false,
-      "company_context": "company-specific context"
+      "company_context": "company-specific context",
+      "depth_label": "how deep to go",
+      "good_answer_signals": ["signal 1", "signal 2"],
+      "weak_answer_signals": ["pitfall 1", "pitfall 2"],
+      "seniority_expectation": "what level is expected",
+      "sample_answer_outline": "short outline to follow"
     }
   ],
   "technical_questions": [
@@ -231,7 +343,12 @@ You MUST return ONLY valid JSON in this exact structure - no markdown, no additi
       "evaluation_criteria": ["what interviewers look for"],
       "follow_up_questions": ["potential follow-ups"],
       "star_story_fit": true/false,
-      "company_context": "company-specific context"
+      "company_context": "company-specific context",
+      "depth_label": "how deep to go",
+      "good_answer_signals": ["signal 1", "signal 2"],
+      "weak_answer_signals": ["pitfall 1", "pitfall 2"],
+      "seniority_expectation": "what level is expected",
+      "sample_answer_outline": "short outline to follow"
     }
   ],
   "situational_questions": [
@@ -244,7 +361,12 @@ You MUST return ONLY valid JSON in this exact structure - no markdown, no additi
       "evaluation_criteria": ["what interviewers look for"],
       "follow_up_questions": ["potential follow-ups"],
       "star_story_fit": true/false,
-      "company_context": "company-specific context"
+      "company_context": "company-specific context",
+      "depth_label": "how deep to go",
+      "good_answer_signals": ["signal 1", "signal 2"],
+      "weak_answer_signals": ["pitfall 1", "pitfall 2"],
+      "seniority_expectation": "what level is expected",
+      "sample_answer_outline": "short outline to follow"
     }
   ],
   "company_specific_questions": [
@@ -257,7 +379,12 @@ You MUST return ONLY valid JSON in this exact structure - no markdown, no additi
       "evaluation_criteria": ["what interviewers look for"],
       "follow_up_questions": ["potential follow-ups"],
       "star_story_fit": true/false,
-      "company_context": "company-specific context"
+      "company_context": "company-specific context",
+      "depth_label": "how deep to go",
+      "good_answer_signals": ["signal 1", "signal 2"],
+      "weak_answer_signals": ["pitfall 1", "pitfall 2"],
+      "seniority_expectation": "what level is expected",
+      "sample_answer_outline": "short outline to follow"
     }
   ],
   "role_specific_questions": [
@@ -270,7 +397,12 @@ You MUST return ONLY valid JSON in this exact structure - no markdown, no additi
       "evaluation_criteria": ["what interviewers look for"],
       "follow_up_questions": ["potential follow-ups"],
       "star_story_fit": true/false,
-      "company_context": "company-specific context"
+      "company_context": "company-specific context",
+      "depth_label": "how deep to go",
+      "good_answer_signals": ["signal 1", "signal 2"],
+      "weak_answer_signals": ["pitfall 1", "pitfall 2"],
+      "seniority_expectation": "what level is expected",
+      "sample_answer_outline": "short outline to follow"
     }
   ],
   "experience_based_questions": [
@@ -296,7 +428,12 @@ You MUST return ONLY valid JSON in this exact structure - no markdown, no additi
       "evaluation_criteria": ["what interviewers look for"],
       "follow_up_questions": ["potential follow-ups"],
       "star_story_fit": true/false,
-      "company_context": "company-specific context"
+      "company_context": "company-specific context",
+      "depth_label": "how deep to go",
+      "good_answer_signals": ["signal 1", "signal 2"],
+      "weak_answer_signals": ["pitfall 1", "pitfall 2"],
+      "seniority_expectation": "what level is expected",
+      "sample_answer_outline": "short outline to follow"
     }
   ]
 }`
@@ -351,22 +488,31 @@ serve(async (req) => {
 
     // Get OpenAI API key
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiApiKey) {
-      throw new Error("Missing OpenAI API key");
-    }
+    const useFallback = !openaiApiKey;
 
     console.log("Starting interview question generation for search:", searchId, "stage:", interviewStage, "targetSeniority:", targetSeniority);
 
-    // Generate comprehensive question bank
-    const questionBank = await generateInterviewQuestions(
-      companyInsights,
-      jobRequirements,
-      cvAnalysis,
-      interviewStage,
-      stageDetails,
-      targetSeniority,
-      openaiApiKey
-    );
+    // Generate comprehensive question bank (fallback when offline/CI)
+    let questionBank: QuestionBank;
+    if (useFallback) {
+      console.warn("Using fallback interview question bank (missing OpenAI API key)");
+      questionBank = buildStubQuestionBank(companyInsights, jobRequirements, cvAnalysis, interviewStage);
+    } else {
+      try {
+        questionBank = await generateInterviewQuestions(
+          companyInsights,
+          jobRequirements,
+          cvAnalysis,
+          interviewStage,
+          stageDetails,
+          targetSeniority,
+          openaiApiKey!
+        );
+      } catch (generationError) {
+        console.error("Question generation failed, serving fallback:", generationError);
+        questionBank = buildStubQuestionBank(companyInsights, jobRequirements, cvAnalysis, interviewStage);
+      }
+    }
 
     console.log("Interview question generation completed successfully");
 

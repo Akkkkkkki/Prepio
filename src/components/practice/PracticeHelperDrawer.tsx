@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { buildTransition } from "@/lib/motion";
 
 interface PracticeHelperDrawerProps {
   defaultOpen?: boolean;
@@ -30,7 +31,7 @@ export const PracticeHelperDrawer = ({
       open={isOpen}
       onOpenChange={setIsOpen}
       className={cn(
-        "practice-helper-drawer rounded-2xl border bg-muted/20 shadow-sm",
+        "practice-helper-drawer rounded-2xl border bg-muted/20 shadow-sm motion-surface",
         className
       )}
     >
@@ -49,15 +50,29 @@ export const PracticeHelperDrawer = ({
             {isOpen ? "Hide helpers" : "Show helpers"}
             <ChevronDown
               className={cn(
-                "h-4 w-4 transition-transform",
+                "h-4 w-4",
                 isOpen && "rotate-180"
               )}
+              style={{
+                transition: buildTransition(["transform"], "fast", "easeInOut"),
+              }}
             />
           </Button>
         </CollapsibleTrigger>
       </div>
-      <CollapsibleContent className="border-t p-4">{children}</CollapsibleContent>
+      <CollapsibleContent
+        forceMount
+        className="motion-collapse border-t overflow-hidden data-[state=closed]:pointer-events-none data-[state=closed]:-translate-y-1 data-[state=closed]:opacity-0 data-[state=closed]:max-h-0 data-[state=closed]:p-0 data-[state=open]:max-h-[640px] data-[state=open]:p-4 data-[state=open]:translate-y-0 data-[state=open]:opacity-100"
+        style={{
+          transition: buildTransition(
+            ["opacity", "transform", "max-height", "padding"],
+            "slow",
+            "easeInOut"
+          ),
+        }}
+      >
+        {children}
+      </CollapsibleContent>
     </Collapsible>
   );
 };
-

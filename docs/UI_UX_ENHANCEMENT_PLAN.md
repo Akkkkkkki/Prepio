@@ -55,7 +55,7 @@ Themes were clustered, conflicting recommendations were resolved using standard 
 
 ### 4. Practice Experience
 
-> **Status update (Nov 23, 2025):** Swipe guards, safe-area padding, nav dots, presets/stepper flow, “local preview” voice messaging, and a streamlined interviewer hint strip are now live (`Improve practice usability gestures`, `Practice setup stepper`, `Simplify interviewer focus banner`). Practice experience track is considered complete pending future enhancements. The hint is intentionally lightweight for the MVP; richer UI/UX/content can be revisited when capacity allows.
+> **Status update (Dec 6, 2025):** Desktop practice now uses a two-column layout with a fixed insights rail, compact progress ribbon, and a single sticky CTA footer. The helper drawer was rewritten to focus on “Voice preview” + “Quick notes” with tooltip guidance, and a new Question Insights panel surfaces depth labels, interviewer signals, red flags, and outline guidance sourced from the refreshed question-generation pipeline.
 - **Swipe gestures conflict with scrolling & hints clash with content:** Users trigger actions accidentally and hints overlap.  
   _Action:_ Increase swipe threshold, ignore swipes when vertical scroll > certain delta, and move hints into a dismissible banner shown on the first card only.
 - **Bottom navigation overlays question cards on mobile:** Sticky bar hides input fields.  
@@ -86,10 +86,12 @@ Themes were clustered, conflicting recommendations were resolved using standard 
 - **Hint banner behavior:** Replace inline hint overlays with a dismissible banner anchored at the top of the first card. Persist dismissal for the current session via local state or sessionStorage so returning users aren’t re-prompted mid-run.
 - **Question layout:** Encapsulate question content inside `QuestionFrame` with built-in `pb-24 md:pb-32` so the sticky nav never overlaps fields. Move dot navigation into `BottomPracticeNav`, enlarge dots to 12px with `focus-visible:ring`, and expose stage labels on hover/long-press for accessibility.
 - **Helper stack:** Consolidate voice recorder, note-taking, and reference material into a collapsible helper drawer beneath each card. The drawer defaults open on the first card only, reminding users that recordings are local previews and notes auto-save every 5s.
+- **Insights rail:** Add a dedicated `QuestionInsightsPanel` in the right-hand column (or below helpers on mobile) that highlights depth labels, “great answers include” bullets, red flags, seniority expectations, and a sample outline pulled from the revamped question-generation prompt.
 - **Session wrap-up:** After the final question, show a summary card with ✔ Saved answers status, recommended next actions (“Retry stage 2”, “Share with mentor”), and a CTA to jump straight into research or dashboard review, keeping users inside the ecosystem.
 
 #### 4.4 Developer Implementation Notes
 - **Component reuse:** Build `QuestionFrame`, `BottomPracticeNav`, and `HintBanner` as standalone components under `components/practice/` with Storybook examples; import Tailwind presets via utility classes instead of bespoke CSS.
+- **Rubric data plumbing:** Extend `interview_questions` with `depth_label`, `good_answer_signals`, `weak_answer_signals`, `seniority_expectation`, and `sample_answer_outline`, and update the OpenAI prompt to always return those fields so the insights panel stays populated even when rationale text is short.
 - **Configuration & feature flags:** Gate the new helper drawer and swipe thresholds behind a `practice_v2` flag so rollout can be staged without branching the entire page.
 - **Testing matrix:** Snapshot + interaction tests covering iPhone SE, iPhone 14 Pro, Pixel 7, and desktop breakpoints. Unit-test swipe util to ensure vertical delta short-circuits horizontal actions.
 - **Telemetry hooks:** Fire analytics events (`practice_hint_dismissed`, `practice_swipe_blocked`, `practice_helper_toggle`) to validate that UX changes reduce accidental swipes and repeated hint dismissals.
@@ -112,14 +114,21 @@ Themes were clustered, conflicting recommendations were resolved using standard 
   _Action:_ Provide inline success states (“Saved · 2:14 PM”), allow edits until session completion, and autosave notes with debounce.
 
 ### 7. Motion & Micro-interactions
-- **Hard-cut page transitions make the experience feel static:** Route changes simply swap DOM nodes with no easing.  
-  _Action:_ Wrap router views in a shared fade/slide transition (CSS `transition-all` or a lightweight `framer-motion` wrapper) so Home → Dashboard → Practice flows feel cohesive.
+- **Unified motion system with accessibility guardrails:** Introduce three motion tokens (`fast 120ms`, `base 180ms`, `slow 240ms`) plus easing presets (`ease-out` for entrances, `ease-in-out` for navigation). Wrap animations in `motion-safe` and honor `prefers-reduced-motion`; add a toggle that falls back to opacity-only changes.  
+  _Action:_ Centralize tokens in `styles/motion.css` or `lib/motion.ts` and expose helpers/HOCs so components stay consistent and maintainable.
+- **Route/page transitions feel hard-cut:** Route changes currently swap DOM nodes with no easing.  
+  _Action:_ Wrap the router outlet in a shared fade + slight slide transition (`base` timing). Fade out the previous view, keep skeletons visible during fetch, and fade in the next view. Move focus to the page heading after transition and announce via `aria-live`.
 - **Primary CTAs lack affordance:** Buttons such as “Start Research”, “Start Practice”, and “Save Answer” stay flat on hover/tap.  
-  _Action:_ Add a 150–200 ms scale + shadow shift to these buttons (Tailwind `transition`, `hover:scale-105`, `active:scale-95`) to telegraph interactivity on touch devices.
+  _Action:_ Add a 120–200 ms scale + shadow lift (`hover:scale-103`, `active:scale-97`) with a strong focus ring. For reduced motion, fall back to color/outline only.
 - **Loading states pop in abruptly:** Cards appear fully rendered once data arrives, which breaks perceived performance.  
-  _Action:_ Standardize on a shimmer skeleton for dashboard cards, practice questions, and profile panels using Tailwind keyframes so every major surface has a graceful placeholder.
-- **Dialogs feel disconnected from the app shell:** The progress dialog and sheets simply appear/disappear.  
-  _Action:_ Apply a `scale-95 → scale-100` entrance with backdrop fade (CSS animation or Tailwind `motion-safe` utilities) and pair it with the z-index/scroll-lock plan outlined below.
+  _Action:_ Standardize a shimmer skeleton component for dashboard cards, practice questions, and profile panels with consistent heights to avoid layout shift. Apply a brief opacity-in when replacing skeletons with live content.
+- **Dialogs and overlays feel disconnected:** The progress dialog and sheets simply appear/disappear.  
+  _Action:_ Animate `scale-95 → scale-100` with backdrop fade on open/close (`base` timing), enforce scroll lock on the body, and align with the z-index scale (nav 40, dialog 80+).
+- **Practice experience polish:** Question frames, helper drawers, nav dots, and hint banners animate inconsistently and sometimes conflict with gestures.  
+  _Action:_ Give `QuestionFrame` built-in bottom padding and optional first-load fade (disabled during swipes), animate `BottomPracticeNav` dots with slide/scale, let `HintBanner` fade/slide in once then collapse height on dismiss, and animate `PracticeHelperDrawer` height/opacity with a reduced-motion fallback. Persist helper/hint dismissal per session.
+- **Implementation cadence (low overhead):**  
+  _Action:_ Week 1: add motion tokens/utilities, retrofit buttons/dialogs, skeleton component, and router transition. Week 2: apply practice-specific tweaks, reduced-motion guards, and focus management; add Storybook/interaction tests for motion presets and ARIA paths.  
+  _Guardrails:_ Prefer transform/opacity over layout-changing properties, cap entrance animations to first render, avoid loops, and ensure every animated element retains keyboard/focus clarity.
 
 ---
 
@@ -169,5 +178,4 @@ _Effort assumes two engineers sharing work without over-engineering; backlog can
 ---
 
 Delivering on the P0/P1 items will unblock new users, restore trust in the marketing surface, and stabilize the practice workflow without over-building. Remaining items can be folded into routine polish cycles as the team’s capacity allows.
-
 

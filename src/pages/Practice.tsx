@@ -5,11 +5,11 @@ import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -22,7 +22,6 @@ import {
   Brain,
   Play,
   Settings,
-  Save,
   Mic,
   MicOff,
   Square,
@@ -30,7 +29,8 @@ import {
   Shuffle,
   Star,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  Info
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
 import { sessionSampler } from "@/services/sessionSampler";
@@ -40,6 +40,7 @@ import { QuestionFrame } from "@/components/practice/QuestionFrame";
 import { HintBanner } from "@/components/practice/HintBanner";
 import { BottomPracticeNav } from "@/components/practice/BottomPracticeNav";
 import { PracticeHelperDrawer } from "@/components/practice/PracticeHelperDrawer";
+import { QuestionInsightsPanel } from "@/components/practice/QuestionInsightsPanel";
 
 const SWIPE_THRESHOLD_PX = 60;
 const VERTICAL_SCROLL_SUPPRESSION_DELTA = 12;
@@ -98,6 +99,11 @@ interface EnhancedQuestion {
   follow_up_questions: string[];
   star_story_fit: boolean;
   company_context: string;
+  depth_label?: string;
+  good_answer_signals?: string[];
+  weak_answer_signals?: string[];
+  seniority_expectation?: string;
+  sample_answer_outline?: string;
 }
 
 interface Question {
@@ -116,6 +122,11 @@ interface Question {
   star_story_fit?: boolean;
   company_context?: string;
   category?: string;
+  depth_label?: string;
+  good_answer_signals?: string[];
+  weak_answer_signals?: string[];
+  seniority_expectation?: string;
+  sample_answer_outline?: string;
 }
 
 interface InterviewStage {
@@ -369,6 +380,9 @@ const getInterviewerFocus = (
   };
 };
 
+  const currentQuestion = questions[currentIndex];
+  const currentAnswer = currentQuestion ? answers.get(currentQuestion.id) || "" : "";
+
   // Load stored setup defaults on mount
   useEffect(() => {
     loadPracticeDefaults();
@@ -494,7 +508,12 @@ const getInterviewerFocus = (
                 follow_up_questions: questionObj.follow_up_questions,
                 star_story_fit: questionObj.star_story_fit,
                 company_context: questionObj.company_context,
-                category: questionObj.category
+                category: questionObj.category,
+                depth_label: questionObj.depth_label,
+                good_answer_signals: questionObj.good_answer_signals,
+                weak_answer_signals: questionObj.weak_answer_signals,
+                seniority_expectation: questionObj.seniority_expectation,
+                sample_answer_outline: questionObj.sample_answer_outline
               });
             });
           });
@@ -933,8 +952,6 @@ const getInterviewerFocus = (
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const currentQuestion = questions[currentIndex];
-  const currentAnswer = currentQuestion ? answers.get(currentQuestion.id) || "" : "";
   const progress = questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
   const answeredCount = questions.filter(q => q.answered).length;
   const selectedStagesCount = allStages.filter(stage => stage.selected).length;
@@ -943,6 +960,28 @@ const getInterviewerFocus = (
     company: searchData?.company,
     role: searchData?.role
   });
+
+  const questionInsights = currentQuestion
+    ? {
+        summary: currentQuestion.rationale || interviewerFocus?.summary || currentQuestion.company_context,
+        goodSignals: (currentQuestion.good_answer_signals && currentQuestion.good_answer_signals.length > 0)
+          ? currentQuestion.good_answer_signals
+          : interviewerFocus?.criteria,
+        weakSignals: currentQuestion.weak_answer_signals,
+        answerApproach: currentQuestion.suggested_answer_approach || interviewerFocus?.answerApproach,
+        followUps: (currentQuestion.follow_up_questions && currentQuestion.follow_up_questions.length > 0)
+          ? currentQuestion.follow_up_questions
+          : interviewerFocus?.followUps,
+        depthLabel: currentQuestion.depth_label,
+        seniorityExpectation: currentQuestion.seniority_expectation,
+        sampleAnswerOutline: currentQuestion.sample_answer_outline,
+        meta: {
+          company: searchData?.company,
+          role: searchData?.role,
+          difficulty: currentQuestion.difficulty
+        }
+      }
+    : null;
 
   const answeredLookup = useMemo(() => {
     const lookup: Record<string, boolean> = {};
@@ -956,6 +995,20 @@ const getInterviewerFocus = (
     () => questions.map(q => ({ id: q.id, stage: q.stage_name })),
     [questions]
   );
+
+  const voiceStatus = isRecording
+    ? { label: `Recording ${formatTime(recordingTime)}`, variant: 'destructive' as const }
+    : hasRecording
+      ? { label: `Preview ${formatTime(recordingTime)}`, variant: 'secondary' as const }
+      : { label: 'Mic idle', variant: 'outline' as const };
+
+  const autosaveStatusCopy =
+    autosaveState === 'saving' ? 'Saving…' : autosaveState === 'saved' ? 'Saved locally' : 'Autosave ready';
+
+  const hasTypedAnswer = Boolean(currentAnswer.trim());
+  const canSubmitAnswer = hasTypedAnswer || hasRecording;
+  const primaryCtaLabel = currentIndex >= questions.length - 1 ? 'Save & Finish' : 'Save & Continue';
+  const isPrimaryDisabled = !canSubmitAnswer || isSaving;
 
   // Swipe handlers
   const handleSwipeLeft = () => {
@@ -985,6 +1038,43 @@ const getInterviewerFocus = (
     setSwipeDirection(null);
     setSwipeDelta(0);
   }, [currentIndex]);
+
+  useEffect(() => {
+    if (sessionState !== 'inProgress') return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable)) {
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        if (currentIndex === 0) return;
+        event.preventDefault();
+        previousQuestion();
+      } else if (event.key === 'ArrowRight') {
+        if (!canSubmitAnswer || isSaving) return;
+        event.preventDefault();
+        handleSaveAnswer();
+      } else if (event.key.toLowerCase() === 's') {
+        if (currentIndex >= questions.length - 1) return;
+        event.preventDefault();
+        skipQuestion();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    sessionState,
+    currentIndex,
+    questions.length,
+    previousQuestion,
+    skipQuestion,
+    handleSaveAnswer,
+    canSubmitAnswer,
+    isSaving
+  ]);
 
   // Swipe configuration
   const swipeHandlers = useSwipeable({
@@ -1518,295 +1608,185 @@ const getInterviewerFocus = (
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      <div
-        className="container mx-auto max-w-4xl px-4 py-4"
-        style={{ paddingBottom: "calc(8rem + env(safe-area-inset-bottom))" }}
-      >
-        {/* Compact Header */}
-        <div className="flex flex-col gap-3 mb-4">
-          <div className="flex items-center justify-between">
-            <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}>
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              <span className="hidden sm:inline">Back</span>
+      <div className="container mx-auto max-w-6xl px-4 py-6 pb-32 lg:py-8 lg:pb-40">
+        <div className="space-y-3 mb-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
+            >
+              <ChevronLeft className="h-4 w-4 mr-2" />
+              Back to dashboard
             </Button>
-            
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 bg-muted/50 px-2 py-1 rounded-full text-xs">
-                <Timer className="h-3 w-3" />
-                <span className="font-mono">{formatTime(currentQuestionTime)}</span>
-              </div>
+            <div className="text-sm text-muted-foreground sm:text-right">
+              {searchData?.company && `${searchData.company}`}
+              {searchData?.role && ` • ${searchData.role}`}
             </div>
           </div>
-          
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground mb-2">
-              Question {currentIndex + 1} of {questions.length} • {answeredCount} answered
-            </p>
-            <div className="w-full bg-muted rounded-full h-1.5">
-              <div 
-                className="bg-primary h-1.5 rounded-full transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
+          <div className="rounded-2xl border bg-muted/30 p-4 shadow-sm">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="flex-1">
+                <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                  <span>Session progress</span>
+                  <span>
+                    Q{currentIndex + 1}/{questions.length || 1}
+                  </span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-muted">
+                  <div
+                    className="h-2 rounded-full bg-primary transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <div className="flex items-center gap-1 rounded-full bg-background/80 px-3 py-1 font-mono">
+                  <Timer className="h-4 w-4" />
+                  {formatTime(currentQuestionTime)}
+                </div>
+                <div className="text-muted-foreground">
+                  {answeredCount} answered
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Main Question Card - Mobile Optimized */}
-        <div className="relative mx-auto max-w-2xl">
-          {/* Swipe Indicator Overlay */}
-          {swipeDirection && (
-            <div 
-              className={`absolute inset-0 z-10 flex items-center justify-center pointer-events-none transition-opacity duration-200 ${
-                swipeDirection === 'left' ? 'bg-red-500/20' : 'bg-amber-500/20'
-              }`}
-              style={{
-                opacity: Math.min(Math.abs(swipeDelta) / 100, 0.8),
-                transform: swipeDirection === 'left'
-                  ? `translateX(${Math.min(swipeDelta, 0)}px)`
-                  : `translateX(${Math.max(swipeDelta, 0)}px)`
-              }}
-            >
-              <div className="flex flex-col items-center gap-2 text-lg font-semibold">
-                {swipeDirection === 'left' && (
-                  <>
-                    <ArrowLeft className="h-8 w-8 text-red-600" />
-                    <span className="text-red-600">Skip</span>
-                  </>
-                )}
-                {swipeDirection === 'right' && (
-                  <>
-                    <Star className="h-8 w-8 text-amber-600 fill-current" />
-                    <span className="text-amber-600">Favorite</span>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          <QuestionFrame
-            className={
-              swipeDirection === 'left'
-                ? 'transform -translate-x-2'
-                : swipeDirection === 'right'
-                  ? 'transform translate-x-2'
-                  : ''
-            }
-            {...swipeHandlers}
-          >
-            <CardHeader className="pb-4">
-              {sessionState === 'inProgress' && shouldShowSwipeHint && (
-                <HintBanner onDismiss={handleDismissSwipeHint} />
-              )}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-xs">
-                    {currentQuestion.stage_name}
-                  </Badge>
-                  {currentQuestion.category && (
-                    <Badge variant="outline" className="text-xs">
-                      {currentQuestion.category.replace('_', ' ').toUpperCase()}
-                    </Badge>
-                  )}
-                  {currentQuestion.difficulty && (
-                    <Badge 
-                      variant={currentQuestion.difficulty === 'Hard' ? 'destructive' : 
-                               currentQuestion.difficulty === 'Medium' ? 'default' : 'secondary'}
-                      className="text-xs"
-                    >
-                      {currentQuestion.difficulty}
-                    </Badge>
-                  )}
-                  {currentQuestion.star_story_fit && (
-                    <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
-                      STAR Method
-                    </Badge>
-                  )}
-                </div>
-                {currentQuestion.answered && (
-                  <Badge variant="default" className="bg-green-500/10 text-green-700 border-green-500/20 text-xs">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Answered
-                  </Badge>
-                )}
-              </div>
-              <CardTitle className="text-lg sm:text-xl leading-relaxed mb-4">
-                {currentQuestion.question}
-              </CardTitle>
-              
-              {/* Favorite Button */}
-              <div className="flex items-center gap-2 mb-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleToggleFlag(currentQuestion.id, 'favorite')}
-                  className={`h-7 px-2 ${
-                    questionFlags[currentQuestion.id]?.flag_type === 'favorite'
-                      ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                      : 'text-muted-foreground hover:text-amber-600'
-                  }`}
-                >
-                  <Star className={`h-3.5 w-3.5 ${
-                    questionFlags[currentQuestion.id]?.flag_type === 'favorite' ? 'fill-current' : ''
-                  }`} />
-                </Button>
-              </div>
-              
-              {/* Interviewer context */}
-              {interviewerFocus && (
-                <div className="space-y-2 rounded-xl bg-muted/40 p-3 text-sm">
-                  {(() => {
-                    const metaParts = [
-                      interviewerFocus.meta.role,
-                      interviewerFocus.meta.company,
-                      interviewerFocus.meta.difficulty ? `${interviewerFocus.meta.difficulty} depth expected` : null
-                    ].filter(Boolean);
-                    if (metaParts.length === 0) return null;
-                    return (
-                      <p className="text-xs text-muted-foreground">
-                        {metaParts.join(" • ")}
-                      </p>
-                    );
-                  })()}
-
-                  {interviewerFocus.summary && (
-                    <p className="leading-relaxed text-foreground">
-                      {interviewerFocus.summary}
-                    </p>
-                  )}
-
-                  {interviewerFocus.criteria.length > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-semibold text-foreground">Signals:</span>{" "}
-                      {interviewerFocus.criteria.join(" · ")}
-                    </p>
-                  )}
-
-                  {interviewerFocus.answerApproach && (
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-semibold text-foreground">Approach:</span>{" "}
-                      {interviewerFocus.answerApproach}
-                    </p>
-                  )}
-
-                  {interviewerFocus.followUps.length > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-semibold text-foreground">Possible follow-ups:</span>{" "}
-                      {interviewerFocus.followUps.join(" · ")}
-                    </p>
-                  )}
-                </div>
-              )}
-            </CardHeader>
-            
-            <CardContent className="space-y-4">
-              <PracticeHelperDrawer
-                key={`helpers-${currentQuestion.id}`}
-                defaultOpen={currentIndex === 0}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
+          <section className="relative">
+            {swipeDirection && (
+              <div
+                className={`absolute inset-0 z-10 flex items-center justify-center pointer-events-none transition-opacity duration-200 ${
+                  swipeDirection === 'left' ? 'bg-red-500/20' : 'bg-amber-500/20'
+                }`}
+                style={{
+                  opacity: Math.min(Math.abs(swipeDelta) / 100, 0.8),
+                  transform:
+                    swipeDirection === 'left'
+                      ? `translateX(${Math.min(swipeDelta, 0)}px)`
+                      : `translateX(${Math.max(swipeDelta, 0)}px)`
+                }}
               >
-                <div className="space-y-4">
-                  <div className="space-y-3 rounded-xl bg-gradient-to-r from-primary/5 to-primary/10 p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-sm font-medium">Voice answer (local preview)</h3>
-                        <p className="text-xs text-muted-foreground">
-                          Audio stays on this device until uploads ship.
-                        </p>
-                      </div>
-                      {isRecording && (
-                        <div className="flex items-center gap-2 text-sm text-red-600">
-                          <div className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-                          Recording: {formatTime(recordingTime)}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      {!isRecording && !hasRecording && (
-                        <Button 
-                          onClick={startRecording}
-                          className="flex-1 h-12 bg-primary hover:bg-primary/90"
-                        >
-                          <Mic className="mr-2 h-4 w-4" />
-                          Start Recording
-                        </Button>
-                      )}
-                      
-                      {isRecording && (
-                        <Button 
-                          onClick={stopRecording}
-                          variant="destructive"
-                          className="flex-1 h-12"
-                        >
-                          <Square className="mr-2 h-4 w-4" />
-                          Stop Recording
-                        </Button>
-                      )}
-                      
-                      {hasRecording && !isRecording && (
-                        <div className="flex flex-1 flex-wrap items-center gap-2">
-                          <Button 
-                            onClick={playRecording}
-                            variant="outline"
-                            className="flex-1 h-12 min-w-[140px]"
-                          >
-                            <Play className="mr-2 h-4 w-4" />
-                            Play ({formatTime(recordingTime)})
-                          </Button>
-                          <Button 
-                            onClick={clearRecording}
-                            variant="outline"
-                            size="sm"
-                            className="h-12 px-3"
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            onClick={startRecording}
-                            variant="outline"
-                            size="sm"
-                            className="h-12 px-3"
-                          >
-                            <MicOff className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-sm text-muted-foreground">Notes (optional)</label>
-                      <span
-                        className={`text-xs ${
-                          autosaveState === 'saved' ? 'text-green-600' : 'text-muted-foreground'
-                        }`}
+                <div className="flex flex-col items-center gap-2 text-lg font-semibold">
+                  {swipeDirection === 'left' && (
+                    <>
+                      <ArrowLeft className="h-8 w-8 text-red-600" />
+                      <span className="text-red-600">Skip</span>
+                    </>
+                  )}
+                  {swipeDirection === 'right' && (
+                    <>
+                      <Star className="h-8 w-8 text-amber-600 fill-current" />
+                      <span className="text-amber-600">Favorite</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+            <QuestionFrame
+              className={
+                swipeDirection === 'left'
+                  ? 'transform -translate-x-2'
+                  : swipeDirection === 'right'
+                    ? 'transform translate-x-2'
+                    : ''
+              }
+              {...swipeHandlers}
+            >
+              <CardHeader className="pb-4">
+                {sessionState === 'inProgress' && shouldShowSwipeHint && (
+                  <HintBanner onDismiss={handleDismissSwipeHint} />
+                )}
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-xs">
+                      {currentQuestion.stage_name}
+                    </Badge>
+                    {currentQuestion.category && (
+                      <Badge variant="outline" className="text-xs">
+                        {currentQuestion.category.replace('_', ' ').toUpperCase()}
+                      </Badge>
+                    )}
+                    {currentQuestion.difficulty && (
+                      <Badge
+                        variant={
+                          currentQuestion.difficulty === 'Hard'
+                            ? 'destructive'
+                            : currentQuestion.difficulty === 'Medium'
+                              ? 'default'
+                              : 'secondary'
+                        }
+                        className="text-xs"
                       >
-                        {autosaveState === 'saving'
-                          ? 'Saving…'
-                          : autosaveState === 'saved'
-                            ? 'Saved'
-                            : 'Autosave ready'}
-                      </span>
-                    </div>
-                    <Textarea
-                      value={currentAnswer}
-                      onChange={(e) => handleAnswerChange(e.target.value)}
-                      placeholder="Capture key points or bulleted responses…"
-                      className="min-h-[80px] resize-none text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Notes auto-save locally every 5 seconds and stay with this device until you save the answer.
-                    </p>
+                        {currentQuestion.difficulty}
+                      </Badge>
+                    )}
+                    {currentQuestion.star_story_fit && (
+                      <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                        STAR Method
+                      </Badge>
+                    )}
+                    {currentQuestion.answered && (
+                      <Badge variant="default" className="bg-green-500/10 text-green-700 border-green-500/20 text-xs">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Answered
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={previousQuestion}
+                      disabled={currentIndex === 0}
+                      aria-label="Go to previous question"
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-1" />
+                      Back
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={skipQuestion}
+                      disabled={currentIndex >= questions.length - 1}
+                      aria-label="Skip question"
+                    >
+                      <SkipForward className="h-4 w-4 mr-1" />
+                      Skip
+                    </Button>
                   </div>
                 </div>
-              </PracticeHelperDrawer>
-              
-              {/* Action Buttons */}
-              <div className="space-y-3 pt-2">
+                <CardTitle className="text-lg sm:text-xl leading-relaxed mb-4">
+                  {currentQuestion.question}
+                </CardTitle>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleToggleFlag(currentQuestion.id, 'favorite')}
+                    className={`h-7 px-2 ${
+                      questionFlags[currentQuestion.id]?.flag_type === 'favorite'
+                        ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                        : 'text-muted-foreground hover:text-amber-600'
+                    }`}
+                  >
+                    <Star
+                      className={`h-3.5 w-3.5 ${
+                        questionFlags[currentQuestion.id]?.flag_type === 'favorite' ? 'fill-current' : ''
+                      }`}
+                    />
+                  </Button>
+                </div>
+
+              </CardHeader>
+
+              <CardContent className="pt-2">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={resetCurrentQuestionTimer}
                     className="h-8 px-2"
                   >
@@ -1815,49 +1795,124 @@ const getInterviewerFocus = (
                   </Button>
                   <span>Timer resets when you navigate</span>
                 </div>
-                
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={skipQuestion}
-                    disabled={currentIndex >= questions.length - 1}
-                    className="flex-1 h-11"
-                  >
-                    <SkipForward className="h-4 w-4 mr-2" />
-                    Skip Question
-                  </Button>
-                  <Button
-                    onClick={handleSaveAnswer}
-                    disabled={(!currentAnswer.trim() && !hasRecording) || isSaving}
-                    className="flex-1 h-11 bg-primary hover:bg-primary/90"
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        {currentIndex >= questions.length - 1 ? 'Save Answer' : 'Save & Continue'}
-                      </>
-                    )}
-                  </Button>
+              </CardContent>
+            </QuestionFrame>
+          </section>
+
+          <aside className="space-y-4">
+            <PracticeHelperDrawer
+              key={`helpers-${currentQuestion.id}`}
+              defaultOpen={currentIndex === 0}
+              title="Practice tools"
+              subtitle="Voice preview & quick notes"
+            >
+              <TooltipProvider delayDuration={150}>
+                <div className="space-y-4">
+                  <div className="space-y-3 rounded-2xl border bg-background p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        Voice preview
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="text-muted-foreground transition hover:text-foreground"
+                              aria-label="Voice preview info"
+                            >
+                              <Info className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Audio stays on this device until uploads ship.</TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <Badge variant={voiceStatus.variant} className="text-xs">
+                        {voiceStatus.label}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {!isRecording && !hasRecording && (
+                        <Button onClick={startRecording} className="flex-1 min-w-[140px]">
+                          <Mic className="mr-2 h-4 w-4" />
+                          Start recording
+                        </Button>
+                      )}
+
+                      {isRecording && (
+                        <Button onClick={stopRecording} variant="destructive" className="flex-1 min-w-[140px]">
+                          <Square className="mr-2 h-4 w-4" />
+                          Stop
+                        </Button>
+                      )}
+
+                      {hasRecording && !isRecording && (
+                        <>
+                          <Button onClick={playRecording} variant="outline" className="flex-1 min-w-[140px]">
+                            <Play className="mr-2 h-4 w-4" />
+                            Play
+                          </Button>
+                          <Button onClick={startRecording} variant="outline" className="flex-1 min-w-[140px]">
+                            <MicOff className="mr-2 h-4 w-4" />
+                            Re-record
+                          </Button>
+                          <Button onClick={clearRecording} variant="ghost" size="sm" className="h-10 px-3">
+                            <RotateCcw className="h-4 w-4 mr-1" />
+                            Reset
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-2xl border bg-background p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        Quick notes
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="text-muted-foreground transition hover:text-foreground"
+                              aria-label="Notes info"
+                            >
+                              <Info className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Notes auto-save to this device every few seconds until you submit.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <span className={`text-xs ${autosaveState === 'saved' ? 'text-green-600' : 'text-muted-foreground'}`}>
+                        {autosaveStatusCopy}
+                      </span>
+                    </div>
+                    <Textarea
+                      value={currentAnswer}
+                      onChange={(e) => handleAnswerChange(e.target.value)}
+                      placeholder="Capture bullet points or timing cues…"
+                      className="min-h-[120px] resize-none text-sm"
+                    />
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </QuestionFrame>
+              </TooltipProvider>
+            </PracticeHelperDrawer>
+
+            <QuestionInsightsPanel data={questionInsights} />
+          </aside>
         </div>
 
-        <BottomPracticeNav
-          currentIndex={currentIndex}
-          totalQuestions={questions.length}
-          answeredMap={answeredLookup}
-          questionOrder={questionOrder}
-          onPrev={previousQuestion}
-          onNext={nextQuestion}
-          onJump={jumpToQuestion}
-        />
+        <div className="flex justify-center">
+          <BottomPracticeNav
+            currentIndex={currentIndex}
+            answeredMap={answeredLookup}
+            questionOrder={questionOrder}
+            onJump={jumpToQuestion}
+            primaryLabel={isSaving ? 'Saving…' : primaryCtaLabel}
+            primaryDisabled={isPrimaryDisabled}
+            onPrimaryAction={handleSaveAnswer}
+            isPrimaryLoading={isSaving}
+          />
+        </div>
       </div>
     </div>
   );
