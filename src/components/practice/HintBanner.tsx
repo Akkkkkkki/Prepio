@@ -6,7 +6,7 @@ interface HintBannerProps {
 }
 
 export const HintBanner = ({ onDismiss }: HintBannerProps) => (
-  <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+  <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4 text-xs text-muted-foreground motion-slide-up sm:flex-row sm:items-center sm:justify-between">
     <div className="flex flex-col gap-1 text-foreground sm:flex-row sm:items-center sm:gap-4">
       <span className="flex items-center gap-2 text-sm font-medium">
         <ArrowLeft className="h-3.5 w-3.5" />
@@ -30,4 +30,3 @@ export const HintBanner = ({ onDismiss }: HintBannerProps) => (
     </Button>
   </div>
 );
-

@@ -60,6 +60,8 @@
         "npm:@supabase/supabase-js@^2.52.0",
         "npm:@tailwindcss/typography@~0.5.15",
         "npm:@tanstack/react-query@^5.56.2",
+        "npm:@testing-library/jest-dom@^6.9.1",
+        "npm:@testing-library/react@^16.3.0",
         "npm:@types/node@^22.5.5",
         "npm:@types/react-dom@^18.3.0",
         "npm:@types/react@^18.3.3",
@@ -75,6 +77,7 @@
         "npm:eslint@^9.9.0",
         "npm:globals@^15.9.0",
         "npm:input-otp@^1.2.4",
+        "npm:jsdom@^27.2.0",
         "npm:lovable-tagger@^1.1.7",
         "npm:lucide-react@0.462",
         "npm:next-themes@0.3",
@@ -95,6 +98,7 @@
         "npm:typescript@^5.5.3",
         "npm:vaul@~0.9.3",
         "npm:vite@^5.4.1",
+        "npm:vitest@^4.0.15",
         "npm:zod@^3.23.8"
       ]
     }

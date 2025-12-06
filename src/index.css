@@ -50,6 +50,14 @@ All colors MUST be HSL.
     --info: 210 100% 56%;
     --info-foreground: 0 0% 100%;
 
+    /* Motion tokens */
+    --motion-duration-fast: 120ms;
+    --motion-duration-base: 180ms;
+    --motion-duration-slow: 240ms;
+    --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+    --shadow-lift: 0 14px 40px -24px rgba(15, 23, 42, 0.4);
+
     --radius: 0.75rem;
 
     --sidebar-background: 0 0% 98%;
@@ -118,6 +126,58 @@ All colors MUST be HSL.
 }
 
 @layer utilities {
+  /* Motion + micro-interaction presets */
+  .motion-surface {
+    transition:
+      transform var(--motion-duration-base) var(--motion-ease-out),
+      box-shadow var(--motion-duration-base) var(--motion-ease-out),
+      background-color var(--motion-duration-fast) var(--motion-ease-out),
+      border-color var(--motion-duration-fast) var(--motion-ease-out);
+    will-change: transform, box-shadow;
+  }
+
+  .motion-surface:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lift);
+  }
+
+  .motion-surface:active {
+    transform: translateY(-1px);
+  }
+
+  .motion-cta {
+    transition:
+      transform var(--motion-duration-fast) var(--motion-ease-out),
+      box-shadow var(--motion-duration-fast) var(--motion-ease-out),
+      background-color var(--motion-duration-fast) var(--motion-ease-out);
+    will-change: transform, box-shadow;
+  }
+
+  .motion-cta:hover {
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: var(--shadow-lift);
+  }
+
+  .motion-cta:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  .motion-fade-in {
+    animation: motion-fade-in var(--motion-duration-base) var(--motion-ease-out)
+      both;
+  }
+
+  .motion-slide-up {
+    animation: motion-slide-up var(--motion-duration-base) var(--motion-ease-out)
+      both;
+  }
+
+  .motion-collapse {
+    transition:
+      height var(--motion-duration-slow) var(--motion-ease-in-out),
+      opacity var(--motion-duration-base) var(--motion-ease-in-out);
+  }
+
   /* Modern card perspective and transforms */
   .perspective-1000 {
     perspective: 1000px;
@@ -140,5 +200,56 @@ All colors MUST be HSL.
   
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+}
+
+@keyframes motion-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes motion-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes motion-fade-in-reduced {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-surface,
+  .motion-cta {
+    transition-duration: 0ms;
+    transform: none !important;
+    box-shadow: none;
+  }
+
+  .motion-fade-in,
+  .motion-slide-up {
+    animation-duration: 1ms;
+    animation-timing-function: linear;
+    animation-name: motion-fade-in-reduced;
+  }
+
+  .motion-collapse {
+    transition-duration: 120ms;
   }
 }
