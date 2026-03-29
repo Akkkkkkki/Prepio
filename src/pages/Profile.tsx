@@ -31,8 +31,11 @@ import {
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
 import { useAuthContext } from "@/components/AuthProvider";
+import { ResumeUploadError, buildResumeStoragePath, extractResumeText } from "@/lib/resumeUpload";
 
 type SeniorityLevel = 'junior' | 'mid' | 'senior';
+
+const PROFILE_CV_UPLOAD_ID = "profile-cv-upload";
 
 interface ParsedData {
   personalInfo?: {
@@ -97,6 +100,7 @@ const Profile = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [seniority, setSeniority] = useState<SeniorityLevel | undefined>(undefined);
   const [isSavingSeniority, setIsSavingSeniority] = useState(false);
+  const [isUploadingResume, setIsUploadingResume] = useState(false);
 
   // Load existing CV data and profile settings
   useEffect(() => {
@@ -160,12 +164,66 @@ const Profile = () => {
     loadProfile();
   }, [user]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type === "application/pdf") {
-      console.log("PDF uploaded:", file.name);
-      // TODO: Process PDF and extract text - Phase 3 feature
-      setError("PDF processing is not yet implemented. Please copy and paste your CV text instead.");
+    e.target.value = "";
+
+    if (!file || !user) {
+      return;
+    }
+
+    setError(null);
+    setSuccess(null);
+    setIsUploadingResume(true);
+    setIsAnalyzing(true);
+
+    try {
+      const { text } = await extractResumeText(file);
+      setCvText(text);
+
+      const analysisResult = await searchService.analyzeCV(text);
+      if (!analysisResult.success) {
+        throw new Error(analysisResult.error?.message || "Failed to analyze the uploaded resume");
+      }
+
+      const storagePath = buildResumeStoragePath(user.id, file.name);
+      const uploadResult = await searchService.uploadResumeFile(file, storagePath);
+      if (!uploadResult.success || !uploadResult.path) {
+        throw new Error(uploadResult.error?.message || "Failed to upload the resume PDF");
+      }
+
+      const saveResult = await searchService.saveResume({
+        content: text,
+        parsedData: analysisResult.parsedData,
+        file: {
+          name: file.name,
+          path: uploadResult.path,
+          size: file.size,
+          mimeType: file.type,
+        },
+        source: "upload",
+      });
+
+      if (!saveResult.success) {
+        await searchService.deleteResumeFiles([uploadResult.path]);
+        throw new Error(saveResult.error?.message || "Failed to save the uploaded resume");
+      }
+
+      setParsedData(analysisResult.parsedData as ParsedData);
+      setSuccess("Resume uploaded, parsed, and saved successfully.");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (uploadError) {
+      console.error("Error uploading resume:", uploadError);
+      const message = uploadError instanceof ResumeUploadError
+        ? uploadError.message
+        : uploadError instanceof Error
+          ? uploadError.message
+          : "Failed to process that resume PDF.";
+
+      setError(message);
+    } finally {
+      setIsAnalyzing(false);
+      setIsUploadingResume(false);
     }
   };
 
@@ -214,11 +272,19 @@ const Profile = () => {
     if (!user) return;
 
     if (window.confirm("Are you sure you want to delete your CV? This action cannot be undone.")) {
+      setError(null);
+      setSuccess(null);
+
+      const result = await searchService.deleteResume();
+      if (!result.success) {
+        setError(result.error?.message || "Failed to delete CV");
+        return;
+      }
+
       setCvText("");
       setParsedData(null);
       setSuccess("CV deleted successfully!");
-      // Note: We're not actually deleting from the database here,
-      // just clearing the local state. A future enhancement could add a delete endpoint.
+      setTimeout(() => setSuccess(null), 3000);
     }
   };
 
@@ -690,16 +756,21 @@ const Profile = () => {
                           accept=".pdf"
                           onChange={handleFileUpload}
                           className="hidden"
-                          id="cv-upload"
+                          id={PROFILE_CV_UPLOAD_ID}
                         />
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => document.getElementById('cv-upload')?.click()}
+                          onClick={() => document.getElementById(PROFILE_CV_UPLOAD_ID)?.click()}
+                          disabled={isUploadingResume}
                         >
-                          <FileText className="h-4 w-4 mr-2" />
-                          Upload PDF
+                          {isUploadingResume ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <FileText className="h-4 w-4 mr-2" />
+                          )}
+                          {isUploadingResume ? "Processing PDF..." : "Upload PDF"}
                         </Button>
                       </div>
                     </div>
@@ -726,7 +797,7 @@ const Profile = () => {
                       variant="destructive"
                       size="sm"
                       onClick={handleDelete}
-                      disabled={!cvText.trim()}
+                      disabled={!cvText.trim() || isUploadingResume || isSaving}
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete CV
@@ -734,7 +805,7 @@ const Profile = () => {
                     
                     <Button 
                       onClick={handleSave} 
-                      disabled={!cvText.trim() || isSaving || isAnalyzing}
+                      disabled={!cvText.trim() || isSaving || isAnalyzing || isUploadingResume}
                     >
                       {isAnalyzing ? (
                         <>

@@ -178,6 +178,7 @@ async function fetchStoredResumeContent(supabase: any, userId: string, searchId?
       .from('resumes')
       .select(columns)
       .eq('user_id', userId)
+      .is('search_id', null)
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -220,7 +221,8 @@ async function ensureResumeSnapshotForSearch(
         user_id: userId,
         search_id: searchId,
         content,
-        parsed_data: null
+        parsed_data: null,
+        source: 'search_snapshot'
       })
       .select('id')
       .single();

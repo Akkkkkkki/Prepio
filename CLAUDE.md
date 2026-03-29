@@ -70,11 +70,11 @@ npm run lint         # Run ESLint
 
 ### Supabase Development
 ```bash
-# Generate types from remote database
-npx supabase gen types typescript --project-id vjwrirrqprjzdorignlz > src/types/supabase.ts
+# Generate types from the linked remote database
+npx supabase gen types typescript --linked > src/types/supabase.ts
 
 # Pull current schema snapshot (ALWAYS do this after any database changes)
-npx supabase db pull --project-id vjwrirrqprjzdorignlz > supabase/schema.sql
+npx supabase db pull --linked > supabase/schema.sql
 
 # Local development (if needed)
 npx supabase start   # Start local Supabase
@@ -97,9 +97,11 @@ After ANY database operation:
 3. Creating/modifying tables, functions, or RLS policies
 4. Deploying Edge Functions that use new schema
 
+Do not stop after writing a migration file. If a task adds or changes a migration, immediately run `npx supabase db push` or `npm run db:push` against the linked project in the same work session. If the push fails, capture the exact CLI error and report the blocker.
+
 **Always run:**
 ```bash
-npx supabase db pull --project-id vjwrirrqprjzdorignlz > supabase/schema.sql
+npx supabase db pull --linked > supabase/schema.sql
 git add supabase/schema.sql
 git commit -m "Update schema snapshot after [change description]"
 ```
@@ -285,14 +287,14 @@ The question generation system has been significantly enhanced to provide compre
    # Edit: supabase/migrations/[timestamp]_add_feature_description.sql
    ```
 
-2. **Update local schema and test**:
+2. **Apply the migration immediately**:
    ```bash
    npx supabase db push          # Apply to remote
    ```
 
 3. **Regenerate TypeScript types**:
    ```bash
-   npx supabase gen types typescript --project-id vjwrirrqprjzdorignlz > src/types/supabase.ts
+   npx supabase gen types typescript --linked > src/types/supabase.ts
    ```
 
 4. **Pull and commit schema snapshot** (CRITICAL):
