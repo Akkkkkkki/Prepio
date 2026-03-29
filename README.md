@@ -195,7 +195,7 @@ src/
    
    # Add these variables to .env.local:
    VITE_SUPABASE_URL=your-supabase-url
-   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+   VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your-supabase-publishable-key
    SUPABASE_URL=your-supabase-url
    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
    OPENAI_API_KEY=your-openai-api-key
@@ -693,7 +693,7 @@ Only use this if you need to test function changes locally before deploying.
    ```bash
    # Create .env.local in project root
    VITE_SUPABASE_URL=your-supabase-url
-   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+   VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your-supabase-publishable-key
    SUPABASE_URL=your-supabase-url
    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
    OPENAI_API_KEY=your-openai-api-key

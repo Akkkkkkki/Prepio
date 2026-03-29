@@ -23,7 +23,10 @@ await load({ envPath: ".env.local", export: true });
 // Test Configuration
 // ============================================================================
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "http://localhost:54321";
-const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const supabaseKey =
+  Deno.env.get("SUPABASE_PUBLISHABLE_DEFAULT_KEY") ??
+  Deno.env.get("SUPABASE_ANON_KEY") ??
+  "";
 
 // Test user credentials
 const TEST_USER_EMAIL = Deno.env.get("TEST_USER_EMAIL") ?? "joe.zhounan@gmail.com";
