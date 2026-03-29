@@ -226,7 +226,6 @@ const Profile = () => {
       setIsUploadingResume(false);
     }
   };
-
   const handleSave = async () => {
     if (!user || !cvText.trim()) return;
 
@@ -739,7 +738,7 @@ const Profile = () => {
                     CV / Resume
                   </CardTitle>
                   <CardDescription>
-                    Upload a new PDF or edit your CV text directly
+                    Upload a PDF or paste your CV text directly. Saved resume updates and deletion are both supported here.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -749,7 +748,7 @@ const Profile = () => {
                       <Upload className="h-6 w-6 text-muted-foreground" />
                       <div className="text-center">
                         <p className="text-sm text-muted-foreground mb-2">
-                          Upload PDF to replace current CV
+                          Upload a PDF to replace your current CV, or paste the text below.
                         </p>
                         <input
                           type="file"

@@ -350,7 +350,6 @@ const Home = () => {
       setIsUploadingResume(false);
     }
   };
-
   const handleRestoreProfileResume = () => {
     if (!profileResume?.content) return;
     setFormData(prev => ({ ...prev, cv: profileResume.content }));
@@ -399,6 +398,14 @@ const Home = () => {
               <Alert variant="destructive" className="mb-6">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            {!user && (
+              <Alert className="mb-6">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Sign in before starting research so your results, practice sessions, and saved resume stay attached to your account.
+                </AlertDescription>
               </Alert>
             )}
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -503,7 +510,7 @@ const Home = () => {
                     <Upload className="h-8 w-8 text-muted-foreground" />
                     <div className="text-center">
                       <p className="text-sm text-muted-foreground mb-2">
-                        Upload PDF or paste your CV text below
+                        Upload a PDF or paste your CV text below. Signed-in uploads also update the resume saved on your profile.
                       </p>
                       <input
                         type="file"
@@ -562,13 +569,22 @@ const Home = () => {
                 </p>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full" 
+              <Button
+                type={user ? "submit" : "button"}
+                className="w-full"
                 size="lg"
                 disabled={!formData.company.trim() || isLoading || isUploadingResume}
+                onClick={
+                  user
+                    ? undefined
+                    : () => navigate("/auth", { state: { from: { pathname: "/" } } })
+                }
               >
-                {isLoading ? "Researching..." : "Start Research"}
+                {isLoading
+                  ? "Researching..."
+                  : user
+                    ? "Start Research"
+                    : "Sign In to Start Research"}
               </Button>
             </form>
           </CardContent>
