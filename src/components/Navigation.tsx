@@ -34,7 +34,7 @@ interface SearchHistoryItem {
   created_at: string;
 }
 
-const Navigation = ({ showHistory = false, showSearchSelector = true }: NavigationProps) => {
+const Navigation = ({ showHistory = true, showSearchSelector = true }: NavigationProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -124,9 +124,9 @@ const Navigation = ({ showHistory = false, showSearchSelector = true }: Navigati
   const isActive = (path: string) => location.pathname === path;
 
   const getCurrentSearchDisplay = () => {
-    if (!currentSearchId) return "No search selected";
+    if (!currentSearchId) return "Choose research";
     const currentSearch = searchHistory.find(search => search.id === currentSearchId);
-    if (!currentSearch) return "Search not found";
+    if (!currentSearch) return "Select from history";
     return `${currentSearch.company}${currentSearch.role ? ` - ${currentSearch.role}` : ''}`;
   };
 
@@ -171,24 +171,29 @@ const Navigation = ({ showHistory = false, showSearchSelector = true }: Navigati
             <div className="hidden md:flex items-center gap-4">
               {/* Search Selector */}
               {showSearchSelector && searchHistory.length > 0 && (
-                <Select value={currentSearchId || "none"} onValueChange={handleSearchSelection}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Select search">
-                      {getCurrentSearchDisplay()}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No search selected</SelectItem>
-                    {searchHistory.map((search) => (
-                      <SelectItem key={search.id} value={search.id}>
-                        <div className="flex items-center justify-between w-full">
-                          <span>{search.company}{search.role ? ` - ${search.role}` : ''}</span>
-                          {getStatusBadge(search.status)}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Active research
+                  </p>
+                  <Select value={currentSearchId || "none"} onValueChange={handleSearchSelection}>
+                    <SelectTrigger className="w-[220px]">
+                      <SelectValue placeholder="Choose research">
+                        {getCurrentSearchDisplay()}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Choose research</SelectItem>
+                      {searchHistory.map((search) => (
+                        <SelectItem key={search.id} value={search.id}>
+                          <div className="flex items-center justify-between w-full">
+                            <span>{search.company}{search.role ? ` - ${search.role}` : ''}</span>
+                            {getStatusBadge(search.status)}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
 
               {showHistory && (
@@ -287,15 +292,15 @@ const Navigation = ({ showHistory = false, showSearchSelector = true }: Navigati
                   {/* Mobile Search Selector */}
                   {showSearchSelector && searchHistory.length > 0 && (
                     <div className="mt-6">
-                      <h3 className="font-medium mb-3">Active Search</h3>
+                      <h3 className="font-medium mb-3">Active Research</h3>
                       <Select value={currentSearchId || "none"} onValueChange={handleSearchSelection}>
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select search">
+                          <SelectValue placeholder="Choose research">
                             {getCurrentSearchDisplay()}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">No search selected</SelectItem>
+                          <SelectItem value="none">Choose research</SelectItem>
                           {searchHistory.map((search) => (
                             <SelectItem key={search.id} value={search.id}>
                               {search.company}{search.role ? ` - ${search.role}` : ''}

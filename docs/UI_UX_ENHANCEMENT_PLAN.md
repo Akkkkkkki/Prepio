@@ -1,19 +1,19 @@
 # UI/UX Enhancement Plan
 
-**Date:** November 23, 2025  
+**Date:** March 29, 2026  
 **Prepared by:** AI Assistant  
 **Scope:** All UI/UX feedback to-date for the Hireo interview preparation tool.
 
-## Latest Gap Review — November 27, 2025
+## Latest Gap Review — March 29, 2026
 
 | # | Theme | Gap & Evidence | Impact | Fast Fix |
 | --- | --- | --- | --- | --- |
-| 1 | Guest onboarding | The home form stays fully interactive for logged-out users and only surfaces the “Please sign in” error inside `handleSubmit` (`src/pages/Home.tsx`, lines 88-101), while navigation is hidden whenever `!user` (`Home.tsx`, line 282) and the auth page lacks any persistent nav. | Candidates type long briefs only to be blocked at submit and cannot reach docs/support once redirected. | Gate the form behind a CTA card for guests, reuse the `Navigation` bar on `/` and `/auth` with simplified links, and show context copy (“Sign in to continue to Practice”). |
-| 2 | File upload messaging | Both the landing form and profile editor expose “Upload PDF” buttons even though `handleFileUpload` just logs a TODO (`Home.tsx`, lines 265-271 & 420-444) and `Profile.tsx` throws an error telling users the feature isn’t ready (lines 163-170). | Users believe CV uploads persist server-side; trust drops when nothing happens. | Disable the buttons until processing ships, label them “Coming soon”, and add a one-line privacy note pointing users to the textarea fallback. |
-| 3 | Auth flow clarity | Sign-in and sign-up tabs share the same `formData` state (`src/pages/Auth.tsx`, lines 16-24), so switching tabs preserves passwords; there’s no “Forgot password” link or banner explaining why a user was redirected. | UX feels brittle, and users lack recovery paths when they mistype credentials or follow a protected deep link. | Maintain separate state per tab, add `Forgot password` + `Resend verification` links, and surface the `location.state.from` route (“Sign in to resume Practice”). |
-| 4 | Research history affordances | The navigation component hides its history sheet unless `showHistory` is true, but every page instantiates `<Navigation>` with the default `false` (e.g., `Dashboard.tsx` line 207, `Practice.tsx` line 966, `Profile.tsx` line 279). | There is no accessible way to reopen previous research runs or understand the “Active search” selector, so users recreate work. | Always render the History trigger once a user has searches, and add helper copy/empty states that explain why the selector might be blank. |
+| 1 | Guest onboarding | The home screen now shows an inline sign-in warning and swaps the primary CTA to “Sign In to Start Research”, but guests can still type into the full form and the logged-out shell is still sparse. | The failure is earlier and clearer than before, but the public-first experience still feels half-finished. | Gate the form behind a lighter guest CTA card, add a small public nav, and preserve intent when redirecting to auth. |
+| 2 | File upload messaging | Home and Profile now disable PDF upload with explicit “Coming Soon” copy, which is much more honest, but there is still no resumable file flow. | Trust is better because the UI no longer lies, but the product still needs a real file pipeline. | Keep the buttons disabled until upload ships, and document pasted CV text as the supported path. |
+| 3 | Auth flow clarity | Auth now keeps sign-in and sign-up state separate and shows a redirect banner like “Sign in to continue to Practice”, but recovery affordances are still missing. | Tab switching no longer leaks passwords across forms, though users still lack obvious recovery links. | Add `Forgot password` and `Resend verification`, and keep route-context copy visible. |
+| 4 | Research history affordances | History is now exposed from authenticated navigation and the selector label now reads “Active Research”, but helper copy is still thin. | Returning users can reopen past runs without dead-end TODO buttons. | Add helper text and empty-state explanation around the selector so users understand what it controls. |
 | 5 | Dashboard credibility | “Interview Process Overview” cards display hard-coded placeholders instead of deriving values from `searchData` (`src/pages/Dashboard.tsx`, lines 349-378). | Static “3–4 weeks / Technical + Behavioral” blurs the line between actual intelligence and filler, reducing perceived value. | Show only metrics returned from Supabase (stage count, detected regions, etc.) and hide tiles without real data. |
-| 6 | Profile data management | The “Delete CV” action only clears local state (`Profile.tsx`, lines 213-223) even though the page claims success; a refresh immediately reloads the server-stored resume (`Profile.tsx`, lines 128-151). | Users think their resume was removed when it wasn’t, creating privacy and compliance risk. | Wire the button to a real Supabase delete endpoint (or remove it until ready) and adjust copy to reflect the actual behavior. |
+| 6 | Profile data management | Profile no longer pretends to delete stored data. The action is now framed as “Clear Editor”, but server-backed CV deletion still does not exist. | Privacy expectations are clearer, but true data deletion remains a missing capability. | Ship a real delete endpoint or continue to keep the copy explicitly local-only. |
 
 ---
 
@@ -26,12 +26,12 @@ Themes were clustered, conflicting recommendations were resolved using standard 
 ## Experience Themes & Recommended Actions
 
 ### 1. Access, Onboarding & Communication
-- **Hireo landing unusable for guests:** “Start Research” remains disabled and there is no inline copy explaining that research requires authentication.  
-  _Action:_ Detect `!user` upfront, swap the form for a compact “Sign in to start research” panel with CTA and sample output preview.
+- **Hireo landing still needs a true guest mode:** the page now explains sign-in earlier and uses a sign-in CTA for logged-out users, but the full form remains visible to guests.  
+  _Action:_ Replace the full guest form with a compact CTA + sample-output preview once we are ready to polish the public landing experience.
 - **Navigation disappears for logged-out visitors:** Users lose the ability to reach docs/support once redirected to `/auth`.  
   _Action:_ Always render a lightweight navigation bar (logo + Docs + Support + Sign in) regardless of auth state.
-- **Deep-link redirects lack context:** Visiting `/dashboard`, `/practice`, or `/profile` sends users to `/auth` with no explanation.  
-  _Action:_ Pass the intended route as a query param and surface a banner (“Sign in to continue to Practice”) inside the auth screen.
+- **Deep-link redirects were opaque, now partially fixed:** visiting `/dashboard`, `/practice`, or `/profile` now surfaces a banner on `/auth`, but the public shell still feels abrupt.  
+  _Action:_ Keep the redirect-aware banner and add a lightweight logged-out nav so the auth page feels less dead-ended.
 - **Onboarding void:** No first-time guidance, presets, or empty-state education.  
   _Action:_ Add a three-step “How it works” strip on the home page and contextual empty states that describe the next action.
 
@@ -40,16 +40,16 @@ Themes were clustered, conflicting recommendations were resolved using standard 
   _Action:_ Revert to the default font stack (Tailwind `font-sans`) until the custom font subset is fixed; regression-test Hireo auth copy.
 - **Form bloat and unclear optionality:** Long research form overwhelms users and hides validation.  
   _Action:_ Split into “Required info” and “Advanced options” accordions, add inline validation + character counters, and highlight optional fields.
-- **CV upload UX gaps:** Button implies functionality, but uploads neither persist nor show file names.  
-  _Action:_ Until processing ships, disable the button, label it “Upload PDF (Coming Soon)”, and show privacy copy explaining the roadmap.
-- **Auth tab data leakage:** Shared form state between Sign In/Up causes password bleed and confusing validation.  
-  _Action:_ Maintain independent state per tab and add “Forgot password” + “Back to product” links.
+- **CV upload UX gaps:** The product now disables upload buttons and says “Coming Soon,” which is the right honesty bar until processing exists.  
+  _Action:_ Keep the disabled state and make pasted CV text the default documented flow everywhere.
+- **Auth recovery still shallow:** Separate tab state is now fixed, but the screen still needs recovery links and a clearer path back to the product.  
+  _Action:_ Add “Forgot password”, “Resend verification”, and “Back to product” links.
 
 ### 3. Navigation & Information Architecture
-- **Search selector purpose unclear & empty states weak:** Users do not realize it switches research sessions and it can appear empty.  
-  _Action:_ Rename to “Active Research”, add helper text/tooltip, and show an inline empty state (“Run your first research to see it here”).
-- **History access inconsistent:** Dashboard empty state references a TODO button; navigation history is conditional.  
-  _Action:_ Implement a shared “History” sheet accessible from every page with recent searches, filters, and empty-state guidance.
+- **Search selector purpose still needs polish:** It is now labeled “Active Research”, which is clearer, but it still lacks helper text and stronger empty-state guidance.  
+  _Action:_ Add tooltip/helper copy and an inline empty state (“Run your first research to see it here”).
+- **History access was inconsistent, now materially better:** Dashboard no longer points to a dead TODO path and navigation exposes history across the authenticated app.  
+  _Action:_ Keep the shared history entry point and improve copy around what users should expect there.
 - **Dashboard density:** Stage cards mix durations, guidance, and questions without hierarchy.  
   _Action:_ Collapse secondary details behind accordions and keep primary metrics (stage name, status, recommended action) visible.
 
@@ -178,4 +178,3 @@ _Effort assumes two engineers sharing work without over-engineering; backlog can
 ---
 
 Delivering on the P0/P1 items will unblock new users, restore trust in the marketing surface, and stabilize the practice workflow without over-building. Remaining items can be folded into routine polish cycles as the team’s capacity allows.
-

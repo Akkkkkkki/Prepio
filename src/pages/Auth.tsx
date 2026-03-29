@@ -13,7 +13,12 @@ const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [formData, setFormData] = useState({
+  const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
+  const [signInData, setSignInData] = useState({
+    email: "",
+    password: "",
+  });
+  const [signUpData, setSignUpData] = useState({
     email: "",
     password: "",
     confirmPassword: ""
@@ -22,6 +27,15 @@ const Auth = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signIn, signUp } = useAuthContext();
+  const fromPath = (location.state as { from?: { pathname: string } })?.from?.pathname;
+  const resumeTarget =
+    fromPath === "/practice"
+      ? "Practice"
+      : fromPath === "/profile"
+        ? "Profile"
+        : fromPath === "/dashboard"
+          ? "Dashboard"
+          : null;
   
   // If user is already logged in, redirect them
   useEffect(() => {
@@ -35,6 +49,8 @@ const Auth = () => {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    const formData = mode === "signin" ? signInData : signUpData;
     
     if (mode === 'signup' && formData.password !== formData.confirmPassword) {
       setError("Passwords don't match");
@@ -75,8 +91,12 @@ const Auth = () => {
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = (mode: "signin" | "signup", field: string, value: string) => {
+    if (mode === "signin") {
+      setSignInData(prev => ({ ...prev, [field]: value }));
+    } else {
+      setSignUpData(prev => ({ ...prev, [field]: value }));
+    }
     setError("");
   };
 
@@ -103,7 +123,24 @@ const Auth = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="signin" className="w-full">
+            {resumeTarget && (
+              <Alert className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Sign in to continue to {resumeTarget}.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => {
+                setActiveTab(value as "signin" | "signup");
+                setError("");
+                setSuccess("");
+              }}
+              className="w-full"
+            >
               <TabsList className="grid w-full grid-cols-2 mb-6">
                 <TabsTrigger value="signin">Sign In</TabsTrigger>
                 <TabsTrigger value="signup">Sign Up</TabsTrigger>
@@ -133,8 +170,8 @@ const Auth = () => {
                         id="signin-email"
                         type="email"
                         placeholder="your@email.com"
-                        value={formData.email}
-                        onChange={(e) => handleInputChange('email', e.target.value)}
+                        value={signInData.email}
+                        onChange={(e) => handleInputChange('signin', 'email', e.target.value)}
                         className="pl-10"
                         required
                       />
@@ -149,8 +186,8 @@ const Auth = () => {
                         id="signin-password"
                         type="password"
                         placeholder="••••••••"
-                        value={formData.password}
-                        onChange={(e) => handleInputChange('password', e.target.value)}
+                        value={signInData.password}
+                        onChange={(e) => handleInputChange('signin', 'password', e.target.value)}
                         className="pl-10"
                         required
                       />
@@ -173,8 +210,8 @@ const Auth = () => {
                         id="signup-email"
                         type="email"
                         placeholder="your@email.com"
-                        value={formData.email}
-                        onChange={(e) => handleInputChange('email', e.target.value)}
+                        value={signUpData.email}
+                        onChange={(e) => handleInputChange('signup', 'email', e.target.value)}
                         className="pl-10"
                         required
                       />
@@ -189,8 +226,8 @@ const Auth = () => {
                         id="signup-password"
                         type="password"
                         placeholder="••••••••"
-                        value={formData.password}
-                        onChange={(e) => handleInputChange('password', e.target.value)}
+                        value={signUpData.password}
+                        onChange={(e) => handleInputChange('signup', 'password', e.target.value)}
                         className="pl-10"
                         required
                         minLength={6}
@@ -209,8 +246,8 @@ const Auth = () => {
                         id="confirm-password"
                         type="password"
                         placeholder="••••••••"
-                        value={formData.confirmPassword}
-                        onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                        value={signUpData.confirmPassword}
+                        onChange={(e) => handleInputChange('signup', 'confirmPassword', e.target.value)}
                         className="pl-10"
                         required
                         minLength={6}

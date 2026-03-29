@@ -160,15 +160,6 @@ const Profile = () => {
     loadProfile();
   }, [user]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type === "application/pdf") {
-      console.log("PDF uploaded:", file.name);
-      // TODO: Process PDF and extract text - Phase 3 feature
-      setError("PDF processing is not yet implemented. Please copy and paste your CV text instead.");
-    }
-  };
-
   const handleSave = async () => {
     if (!user || !cvText.trim()) return;
 
@@ -211,14 +202,10 @@ const Profile = () => {
   };
 
   const handleDelete = async () => {
-    if (!user) return;
-
-    if (window.confirm("Are you sure you want to delete your CV? This action cannot be undone.")) {
+    if (window.confirm("Clear the editor? Your saved profile CV will remain unchanged until delete support ships.")) {
       setCvText("");
       setParsedData(null);
-      setSuccess("CV deleted successfully!");
-      // Note: We're not actually deleting from the database here,
-      // just clearing the local state. A future enhancement could add a delete endpoint.
+      setSuccess("Editor cleared. Your saved profile CV was not deleted.");
     }
   };
 
@@ -673,7 +660,7 @@ const Profile = () => {
                     CV / Resume
                   </CardTitle>
                   <CardDescription>
-                    Upload a new PDF or edit your CV text directly
+                    Paste your CV text directly. PDF upload and server-side delete are not shipped yet.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -683,23 +670,16 @@ const Profile = () => {
                       <Upload className="h-6 w-6 text-muted-foreground" />
                       <div className="text-center">
                         <p className="text-sm text-muted-foreground mb-2">
-                          Upload PDF to replace current CV
+                          PDF upload is coming soon. Paste your CV text below for now.
                         </p>
-                        <input
-                          type="file"
-                          accept=".pdf"
-                          onChange={handleFileUpload}
-                          className="hidden"
-                          id="cv-upload"
-                        />
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => document.getElementById('cv-upload')?.click()}
+                          disabled
                         >
                           <FileText className="h-4 w-4 mr-2" />
-                          Upload PDF
+                          Upload PDF (Coming Soon)
                         </Button>
                       </div>
                     </div>
@@ -723,13 +703,13 @@ const Profile = () => {
                   {/* Actions */}
                   <div className="flex items-center justify-between pt-4">
                     <Button
-                      variant="destructive"
+                      variant="outline"
                       size="sm"
                       onClick={handleDelete}
                       disabled={!cvText.trim()}
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
-                      Delete CV
+                      Clear Editor
                     </Button>
                     
                     <Button 
