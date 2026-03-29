@@ -18,8 +18,7 @@ import {
   Brain,
   AlertCircle,
   RefreshCw,
-  Search,
-  History
+  Search
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
 
@@ -204,7 +203,7 @@ const Dashboard = () => {
   if (!searchId) {
     return (
       <div className="min-h-screen bg-background">
-        <Navigation showHistory={false} />
+        <Navigation />
         <div className="container mx-auto px-4 py-8">
 
           <div className="max-w-2xl mx-auto text-center">
@@ -228,14 +227,9 @@ const Dashboard = () => {
                     <Search className="h-4 w-4 mr-2" />
                     Start New Search
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => {/* TODO: Show history */}}
-                    className="w-full"
-                  >
-                    <History className="h-4 w-4 mr-2" />
-                    View Search History
-                  </Button>
+                  <p className="text-sm text-muted-foreground">
+                    Open the History menu in the top bar to jump back into an earlier research run.
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -248,7 +242,7 @@ const Dashboard = () => {
   if (error) {
     return (
       <div className="min-h-screen bg-background">
-        <Navigation showHistory={false} />
+        <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto">
             <CardHeader className="text-center">
@@ -295,7 +289,7 @@ const Dashboard = () => {
     
     return (
       <div className="min-h-screen bg-background">
-        <Navigation showHistory={false} />
+        <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto">
             <CardHeader className="text-center">
@@ -323,7 +317,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation showHistory={false} />
+      <Navigation />
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
