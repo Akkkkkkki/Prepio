@@ -168,7 +168,7 @@ const Home = () => {
       try {
         const status = await searchService.getSearchStatus(searchId);
         if (status) {
-          const newStatus = status.search_status as 'pending' | 'processing' | 'completed' | 'failed';
+          const newStatus = status.status as 'pending' | 'processing' | 'completed' | 'failed';
           setSearchStatus(newStatus);
           
           // Stop polling when complete or failed

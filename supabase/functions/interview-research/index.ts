@@ -1467,7 +1467,7 @@ async function saveToDatabase(
         const { data, error } = await supabase
           .from('searches')
           .update({
-            search_status: 'completed',
+            status: 'completed',
             overall_fit_score: synthesis.comparison_analysis?.overall_fit_score || 0,
             preparation_priorities: synthesis.preparation_guidance?.preparation_priorities || [],
             cv_job_comparison: synthesis.comparison_analysis
@@ -1739,7 +1739,7 @@ serve(async (req: Request) => {
         await supabase
           .from('searches')
           .update({
-            search_status: 'failed',
+            status: 'failed',
             error_message: error instanceof Error ? error.message : 'Unknown error'
           })
           .eq('id', searchId);

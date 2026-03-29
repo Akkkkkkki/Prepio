@@ -7,10 +7,10 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "12.2.3 (519615d)"
+    PostgrestVersion: "14.4"
   }
   graphql_public: {
     Tables: {
@@ -22,10 +22,10 @@ export type Database = {
     Functions: {
       graphql: {
         Args: {
+          extensions?: Json
           operationName?: string
           query?: string
           variables?: Json
-          extensions?: Json
         }
         Returns: Json
       }
@@ -39,228 +39,66 @@ export type Database = {
   }
   public: {
     Tables: {
-      cv_job_comparisons: {
-        Row: {
-          created_at: string
-          experience_gap_analysis: Json
-          id: string
-          interview_prep_strategy: Json
-          overall_fit_score: number
-          personalized_story_bank: Json
-          preparation_priorities: string[] | null
-          search_id: string | null
-          skill_gap_analysis: Json
-          updated_at: string
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          experience_gap_analysis: Json
-          id?: string
-          interview_prep_strategy: Json
-          overall_fit_score?: number
-          personalized_story_bank: Json
-          preparation_priorities?: string[] | null
-          search_id?: string | null
-          skill_gap_analysis: Json
-          updated_at?: string
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          experience_gap_analysis?: Json
-          id?: string
-          interview_prep_strategy?: Json
-          overall_fit_score?: number
-          personalized_story_bank?: Json
-          preparation_priorities?: string[] | null
-          search_id?: string | null
-          skill_gap_analysis?: Json
-          updated_at?: string
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cv_job_comparisons_search_id_fkey"
-            columns: ["search_id"]
-            isOneToOne: false
-            referencedRelation: "searches"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      function_executions: {
-        Row: {
-          created_at: string
-          error_message: string | null
-          execution_time_ms: number | null
-          function_name: string
-          id: string
-          openai_call_ids: string[] | null
-          processed_outputs: Json | null
-          raw_inputs: Json
-          raw_outputs: Json | null
-          search_id: string | null
-          status: string | null
-          tavily_call_ids: string[] | null
-          updated_at: string
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          error_message?: string | null
-          execution_time_ms?: number | null
-          function_name: string
-          id?: string
-          openai_call_ids?: string[] | null
-          processed_outputs?: Json | null
-          raw_inputs: Json
-          raw_outputs?: Json | null
-          search_id?: string | null
-          status?: string | null
-          tavily_call_ids?: string[] | null
-          updated_at?: string
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          error_message?: string | null
-          execution_time_ms?: number | null
-          function_name?: string
-          id?: string
-          openai_call_ids?: string[] | null
-          processed_outputs?: Json | null
-          raw_inputs?: Json
-          raw_outputs?: Json | null
-          search_id?: string | null
-          status?: string | null
-          tavily_call_ids?: string[] | null
-          updated_at?: string
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "function_executions_search_id_fkey"
-            columns: ["search_id"]
-            isOneToOne: false
-            referencedRelation: "searches"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      interview_experiences: {
-        Row: {
-          company_name: string
-          created_at: string
-          difficulty_rating: string | null
-          experience_text: string | null
-          experience_type: string | null
-          id: string
-          interviewer_feedback: string | null
-          process_duration: string | null
-          questions_asked: string[] | null
-          role_title: string | null
-          search_id: string | null
-          source_platform: string | null
-          source_url: string | null
-        }
-        Insert: {
-          company_name: string
-          created_at?: string
-          difficulty_rating?: string | null
-          experience_text?: string | null
-          experience_type?: string | null
-          id?: string
-          interviewer_feedback?: string | null
-          process_duration?: string | null
-          questions_asked?: string[] | null
-          role_title?: string | null
-          search_id?: string | null
-          source_platform?: string | null
-          source_url?: string | null
-        }
-        Update: {
-          company_name?: string
-          created_at?: string
-          difficulty_rating?: string | null
-          experience_text?: string | null
-          experience_type?: string | null
-          id?: string
-          interviewer_feedback?: string | null
-          process_duration?: string | null
-          questions_asked?: string[] | null
-          role_title?: string | null
-          search_id?: string | null
-          source_platform?: string | null
-          source_url?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "interview_experiences_search_id_fkey"
-            columns: ["search_id"]
-            isOneToOne: false
-            referencedRelation: "searches"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       interview_questions: {
         Row: {
           category: string
           company_context: string | null
-          confidence_score: number | null
           created_at: string
+          depth_label: string | null
           difficulty: string
           evaluation_criteria: string[] | null
           follow_up_questions: string[] | null
+          good_answer_signals: string[] | null
           id: string
           question: string
-          question_type: string
           rationale: string | null
-          search_id: string | null
+          sample_answer_outline: string | null
+          search_id: string
+          seniority_expectation: string | null
           stage_id: string
           star_story_fit: boolean | null
           suggested_answer_approach: string | null
-          updated_at: string
-          usage_count: number | null
+          weak_answer_signals: string[] | null
         }
         Insert: {
-          category?: string
+          category: string
           company_context?: string | null
-          confidence_score?: number | null
           created_at?: string
-          difficulty?: string
+          depth_label?: string | null
+          difficulty: string
           evaluation_criteria?: string[] | null
           follow_up_questions?: string[] | null
+          good_answer_signals?: string[] | null
           id?: string
           question: string
-          question_type?: string
           rationale?: string | null
-          search_id?: string | null
+          sample_answer_outline?: string | null
+          search_id: string
+          seniority_expectation?: string | null
           stage_id: string
           star_story_fit?: boolean | null
           suggested_answer_approach?: string | null
-          updated_at?: string
-          usage_count?: number | null
+          weak_answer_signals?: string[] | null
         }
         Update: {
           category?: string
           company_context?: string | null
-          confidence_score?: number | null
           created_at?: string
+          depth_label?: string | null
           difficulty?: string
           evaluation_criteria?: string[] | null
           follow_up_questions?: string[] | null
+          good_answer_signals?: string[] | null
           id?: string
           question?: string
-          question_type?: string
           rationale?: string | null
-          search_id?: string | null
+          sample_answer_outline?: string | null
+          search_id?: string
+          seniority_expectation?: string | null
           stage_id?: string
           star_story_fit?: boolean | null
           suggested_answer_approach?: string | null
-          updated_at?: string
-          usage_count?: number | null
+          weak_answer_signals?: string[] | null
         }
         Relationships: [
           {
@@ -323,72 +161,9 @@ export type Database = {
           },
         ]
       }
-      openai_calls: {
-        Row: {
-          completion_tokens: number | null
-          created_at: string
-          endpoint_url: string
-          error_message: string | null
-          function_name: string
-          id: string
-          model: string
-          prompt_tokens: number | null
-          request_duration_ms: number | null
-          request_payload: Json
-          response_payload: Json | null
-          response_status: number
-          search_id: string | null
-          total_tokens: number | null
-          user_id: string | null
-        }
-        Insert: {
-          completion_tokens?: number | null
-          created_at?: string
-          endpoint_url: string
-          error_message?: string | null
-          function_name: string
-          id?: string
-          model: string
-          prompt_tokens?: number | null
-          request_duration_ms?: number | null
-          request_payload: Json
-          response_payload?: Json | null
-          response_status: number
-          search_id?: string | null
-          total_tokens?: number | null
-          user_id?: string | null
-        }
-        Update: {
-          completion_tokens?: number | null
-          created_at?: string
-          endpoint_url?: string
-          error_message?: string | null
-          function_name?: string
-          id?: string
-          model?: string
-          prompt_tokens?: number | null
-          request_duration_ms?: number | null
-          request_payload?: Json
-          response_payload?: Json | null
-          response_status?: number
-          search_id?: string | null
-          total_tokens?: number | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "openai_calls_search_id_fkey"
-            columns: ["search_id"]
-            isOneToOne: false
-            referencedRelation: "searches"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       practice_answers: {
         Row: {
           answer_time_seconds: number | null
-          audio_url: string | null
           created_at: string
           id: string
           question_id: string
@@ -397,7 +172,6 @@ export type Database = {
         }
         Insert: {
           answer_time_seconds?: number | null
-          audio_url?: string | null
           created_at?: string
           id?: string
           question_id: string
@@ -406,7 +180,6 @@ export type Database = {
         }
         Update: {
           answer_time_seconds?: number | null
-          audio_url?: string | null
           created_at?: string
           id?: string
           question_id?: string
@@ -467,27 +240,27 @@ export type Database = {
       }
       profiles: {
         Row: {
-          avatar_url: string | null
           created_at: string
           email: string | null
           full_name: string | null
           id: string
+          seniority: string | null
           updated_at: string
         }
         Insert: {
-          avatar_url?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id: string
+          seniority?: string | null
           updated_at?: string
         }
         Update: {
-          avatar_url?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id?: string
+          seniority?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -498,7 +271,6 @@ export type Database = {
           created_at: string
           id: string
           parsed_data: Json | null
-          search_id: string | null
           user_id: string
         }
         Insert: {
@@ -506,7 +278,6 @@ export type Database = {
           created_at?: string
           id?: string
           parsed_data?: Json | null
-          search_id?: string | null
           user_id: string
         }
         Update: {
@@ -514,163 +285,150 @@ export type Database = {
           created_at?: string
           id?: string
           parsed_data?: Json | null
-          search_id?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "resumes_search_id_fkey"
-            columns: ["search_id"]
-            isOneToOne: false
-            referencedRelation: "searches"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       scraped_urls: {
         Row: {
           ai_summary: string | null
           company_name: string
           content_quality_score: number | null
-          content_source: string | null
-          content_staleness_days: number | null
-          content_summary: string | null
-          content_type: string | null
-          country: string | null
           created_at: string
-          domain: string
-          experience_metadata: Json | null
-          extracted_insights: string[] | null
-          extracted_questions: string[] | null
-          extraction_method: string | null
-          first_scraped_at: string
+          domain: string | null
+          first_scraped_at: string | null
           full_content: string | null
           id: string
-          language: string | null
           last_reused_at: string | null
-          last_validated_at: string
-          platform_specific_data: Json | null
-          processing_status: string | null
-          raw_html: string | null
           role_title: string | null
-          scraping_method: string | null
-          structured_data: Json | null
           times_reused: number | null
           title: string | null
-          updated_at: string
           url: string
           url_hash: string
-          word_count: number | null
         }
         Insert: {
           ai_summary?: string | null
           company_name: string
           content_quality_score?: number | null
-          content_source?: string | null
-          content_staleness_days?: number | null
-          content_summary?: string | null
-          content_type?: string | null
-          country?: string | null
           created_at?: string
-          domain: string
-          experience_metadata?: Json | null
-          extracted_insights?: string[] | null
-          extracted_questions?: string[] | null
-          extraction_method?: string | null
-          first_scraped_at?: string
+          domain?: string | null
+          first_scraped_at?: string | null
           full_content?: string | null
           id?: string
-          language?: string | null
           last_reused_at?: string | null
-          last_validated_at?: string
-          platform_specific_data?: Json | null
-          processing_status?: string | null
-          raw_html?: string | null
           role_title?: string | null
-          scraping_method?: string | null
-          structured_data?: Json | null
           times_reused?: number | null
           title?: string | null
-          updated_at?: string
           url: string
           url_hash: string
-          word_count?: number | null
         }
         Update: {
           ai_summary?: string | null
           company_name?: string
           content_quality_score?: number | null
-          content_source?: string | null
-          content_staleness_days?: number | null
-          content_summary?: string | null
-          content_type?: string | null
-          country?: string | null
           created_at?: string
-          domain?: string
-          experience_metadata?: Json | null
-          extracted_insights?: string[] | null
-          extracted_questions?: string[] | null
-          extraction_method?: string | null
-          first_scraped_at?: string
+          domain?: string | null
+          first_scraped_at?: string | null
           full_content?: string | null
           id?: string
-          language?: string | null
           last_reused_at?: string | null
-          last_validated_at?: string
-          platform_specific_data?: Json | null
-          processing_status?: string | null
-          raw_html?: string | null
           role_title?: string | null
-          scraping_method?: string | null
-          structured_data?: Json | null
           times_reused?: number | null
           title?: string | null
-          updated_at?: string
           url?: string
           url_hash?: string
-          word_count?: number | null
         }
         Relationships: []
+      }
+      search_artifacts: {
+        Row: {
+          comparison_analysis: Json | null
+          created_at: string
+          id: string
+          preparation_guidance: Json | null
+          raw_research: Json | null
+          search_id: string
+          user_id: string
+        }
+        Insert: {
+          comparison_analysis?: Json | null
+          created_at?: string
+          id?: string
+          preparation_guidance?: Json | null
+          raw_research?: Json | null
+          search_id: string
+          user_id: string
+        }
+        Update: {
+          comparison_analysis?: Json | null
+          created_at?: string
+          id?: string
+          preparation_guidance?: Json | null
+          raw_research?: Json | null
+          search_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "search_artifacts_search_id_fkey"
+            columns: ["search_id"]
+            isOneToOne: true
+            referencedRelation: "searches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       searches: {
         Row: {
           company: string
+          completed_at: string | null
           country: string | null
           created_at: string
-          cv_job_comparison: Json | null
+          error_message: string | null
           id: string
-          overall_fit_score: number | null
-          preparation_priorities: string[] | null
+          progress_pct: number | null
+          progress_step: string | null
           role: string | null
           role_links: string | null
-          search_status: string
-          user_id: string | null
+          started_at: string | null
+          status: string
+          target_seniority: string | null
+          updated_at: string
+          user_id: string
         }
         Insert: {
           company: string
+          completed_at?: string | null
           country?: string | null
           created_at?: string
-          cv_job_comparison?: Json | null
+          error_message?: string | null
           id?: string
-          overall_fit_score?: number | null
-          preparation_priorities?: string[] | null
+          progress_pct?: number | null
+          progress_step?: string | null
           role?: string | null
           role_links?: string | null
-          search_status?: string
-          user_id?: string | null
+          started_at?: string | null
+          status?: string
+          target_seniority?: string | null
+          updated_at?: string
+          user_id: string
         }
         Update: {
           company?: string
+          completed_at?: string | null
           country?: string | null
           created_at?: string
-          cv_job_comparison?: Json | null
+          error_message?: string | null
           id?: string
-          overall_fit_score?: number | null
-          preparation_priorities?: string[] | null
+          progress_pct?: number | null
+          progress_step?: string | null
           role?: string | null
           role_links?: string | null
-          search_status?: string
-          user_id?: string | null
+          started_at?: string | null
+          status?: string
+          target_seniority?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -683,11 +441,9 @@ export type Database = {
           id: string
           query_text: string
           request_duration_ms: number | null
-          response_payload: Json | null
           response_status: number
           results_count: number | null
           search_id: string | null
-          user_id: string | null
         }
         Insert: {
           api_type: string
@@ -697,11 +453,9 @@ export type Database = {
           id?: string
           query_text: string
           request_duration_ms?: number | null
-          response_payload?: Json | null
           response_status: number
           results_count?: number | null
           search_id?: string | null
-          user_id?: string | null
         }
         Update: {
           api_type?: string
@@ -711,11 +465,9 @@ export type Database = {
           id?: string
           query_text?: string
           request_duration_ms?: number | null
-          response_payload?: Json | null
           response_status?: number
           results_count?: number | null
           search_id?: string | null
-          user_id?: string | null
         }
         Relationships: [
           {
@@ -727,103 +479,54 @@ export type Database = {
           },
         ]
       }
-      url_deduplication_metrics: {
+      user_question_flags: {
         Row: {
-          api_calls_saved: number | null
-          cache_hit_count: number | null
           created_at: string | null
+          flag_type: string
           id: string
-          response_time_ms: number | null
-          search_id: string | null
-          total_urls_needed: number | null
+          question_id: string
+          updated_at: string | null
+          user_id: string
         }
         Insert: {
-          api_calls_saved?: number | null
-          cache_hit_count?: number | null
           created_at?: string | null
+          flag_type: string
           id?: string
-          response_time_ms?: number | null
-          search_id?: string | null
-          total_urls_needed?: number | null
+          question_id: string
+          updated_at?: string | null
+          user_id: string
         }
         Update: {
-          api_calls_saved?: number | null
-          cache_hit_count?: number | null
           created_at?: string | null
+          flag_type?: string
           id?: string
-          response_time_ms?: number | null
-          search_id?: string | null
-          total_urls_needed?: number | null
+          question_id?: string
+          updated_at?: string | null
+          user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_question_flags_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "interview_questions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      calculate_openai_cost: {
+      update_search_progress: {
         Args: {
-          model: string
-          prompt_tokens: number
-          completion_tokens: number
+          error_msg?: string
+          new_percentage?: number
+          new_status?: string
+          new_step?: string
+          search_uuid: string
         }
-        Returns: number
-      }
-      find_reusable_urls_fast: {
-        Args: {
-          p_company: string
-          p_role?: string
-          p_country?: string
-          p_max_age_days?: number
-          p_min_quality_score?: number
-        }
-        Returns: {
-          url: string
-          domain: string
-          title: string
-          content_type: string
-          content_quality_score: number
-          times_reused: number
-        }[]
-      }
-      find_reusable_urls_simple: {
-        Args: {
-          p_company_name: string
-          p_role_title?: string
-          p_max_age_days?: number
-          p_min_quality_score?: number
-        }
-        Returns: {
-          id: string
-          url: string
-          title: string
-          content_quality_score: number
-          ai_summary: string
-        }[]
-      }
-      get_cached_content_simple: {
-        Args: { p_urls: string[] }
-        Returns: {
-          url: string
-          content: string
-          title: string
-          content_type: string
-        }[]
-      }
-      get_enhanced_search_results: {
-        Args: { p_search_id: string }
-        Returns: {
-          search_data: Json
-          interview_stages: Json
-          interview_questions: Json
-          cv_job_comparison: Json
-          enhanced_questions: Json
-          interview_experiences: Json
-        }[]
-      }
-      increment_url_reuse_count: {
-        Args: { url_id: string }
         Returns: undefined
       }
     }

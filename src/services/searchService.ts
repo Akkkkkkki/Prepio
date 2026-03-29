@@ -30,7 +30,7 @@ export const searchService = {
           country,
           role_links: roleLinks,
           target_seniority: targetSeniority,
-          search_status: "pending",
+          status: "pending",
         })
         .select()
         .single();
@@ -56,7 +56,7 @@ export const searchService = {
       // Update search status to processing
       await supabase
         .from("searches")
-        .update({ search_status: "processing" })
+        .update({ status: "processing" })
         .eq("id", searchId);
 
       // Call the edge function to process the search (async, no await)
@@ -77,7 +77,7 @@ export const searchService = {
           // Update status to failed if edge function fails
           supabase
             .from("searches")
-            .update({ search_status: "failed" })
+            .update({ status: "failed" })
             .eq("id", searchId);
         }
         // If successful, the edge function will update status to "completed"
@@ -86,7 +86,7 @@ export const searchService = {
         // Update status to failed if call fails
         supabase
           .from("searches")
-          .update({ search_status: "failed" })
+          .update({ status: "failed" })
           .eq("id", searchId);
       });
 
@@ -97,7 +97,7 @@ export const searchService = {
       // Update status to failed
       await supabase
         .from("searches")
-        .update({ search_status: "failed" })
+        .update({ status: "failed" })
         .eq("id", searchId);
       
       return { error, success: false };
@@ -117,7 +117,7 @@ export const searchService = {
     try {
       const { data, error } = await supabase
         .from("searches")
-        .select("id, search_status")
+        .select("id, status")
         .eq("id", searchId)
         .single();
 

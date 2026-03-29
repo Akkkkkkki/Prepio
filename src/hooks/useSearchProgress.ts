@@ -11,7 +11,7 @@ export interface SearchProgress {
   id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   progress_step: string;
-  progress_percentage: number;
+  progress_pct: number;
   error_message?: string;
   started_at?: string;
   completed_at?: string;
@@ -31,9 +31,9 @@ async function fetchSearchProgress(searchId: string): Promise<SearchProgress | n
     .from('searches')
     .select(`
       id,
-      search_status,
+      status,
       progress_step,
-      progress_percentage,
+      progress_pct,
       error_message,
       started_at,
       completed_at,
@@ -52,9 +52,9 @@ async function fetchSearchProgress(searchId: string): Promise<SearchProgress | n
   // Map DB row to SearchProgress interface
   return {
     id: (data as any).id,
-    status: ((data as any).search_status || 'pending') as SearchProgress['status'],
+    status: ((data as any).status || 'pending') as SearchProgress['status'],
     progress_step: (data as any).progress_step || '',
-    progress_percentage: (data as any).progress_percentage || 0,
+    progress_pct: (data as any).progress_pct || 0,
     error_message: (data as any).error_message || undefined,
     started_at: (data as any).started_at || undefined,
     completed_at: (data as any).completed_at || undefined,
@@ -162,9 +162,9 @@ export function useSearchProgress(
                 // Map DB row to SearchProgress interface
                 const progressData: SearchProgress = {
                   id: row.id,
-                  status: (row.search_status || 'pending') as SearchProgress['status'],
+                  status: (row.status || 'pending') as SearchProgress['status'],
                   progress_step: row.progress_step || '',
-                  progress_percentage: row.progress_percentage || 0,
+                  progress_pct: row.progress_pct || 0,
                   error_message: row.error_message || undefined,
                   started_at: row.started_at || undefined,
                   completed_at: row.completed_at || undefined,
@@ -216,7 +216,7 @@ export function useIsSearchProcessing(searchId: string | null) {
     isProcessing: search?.status === 'processing' || search?.status === 'pending',
     isCompleted: search?.status === 'completed',
     isFailed: search?.status === 'failed',
-    progress: search?.progress_percentage || 0,
+    progress: search?.progress_pct || 0,
     currentStep: search?.progress_step || 'Initializing...',
     errorMessage: search?.error_message
   };
@@ -235,7 +235,7 @@ export function useEstimatedCompletionTime(searchId: string | null) {
   const startTime = new Date(search.started_at).getTime();
   const currentTime = Date.now();
   const elapsedTime = currentTime - startTime;
-  const progress = search.progress_percentage || 0;
+  const progress = search.progress_pct || 0;
 
   if (progress <= 0) {
     return null;

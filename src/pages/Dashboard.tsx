@@ -48,7 +48,7 @@ interface SearchData {
   company: string;
   role: string | null;
   country: string | null;
-  search_status: string;
+  status: string;
   created_at: string;
 }
 
@@ -95,10 +95,10 @@ const Dashboard = () => {
         }
         
         // If search is completed, stop loading
-        if (result.search.search_status === 'completed') {
+        if (result.search.status === 'completed') {
           setIsLoading(false);
           setProgress(100);
-        } else if (result.search.search_status === 'failed') {
+        } else if (result.search.status === 'failed') {
           setError("Search processing failed. Please try again.");
           setIsLoading(false);
         }
@@ -129,7 +129,7 @@ const Dashboard = () => {
       // Re-fetch current search data to check status
       const result = await searchService.getSearchResults(searchId);
       if (result.success && result.search) {
-        const currentStatus = result.search.search_status;
+        const currentStatus = result.search.status;
         if (currentStatus === 'pending' || currentStatus === 'processing') {
           await loadSearchData();
           setProgress(prev => Math.min(prev + 5, 95)); // Increment progress while polling
@@ -150,14 +150,14 @@ const Dashboard = () => {
 
   // Progress simulation for pending/processing states
   useEffect(() => {
-    if (searchData?.search_status === 'pending' || searchData?.search_status === 'processing') {
+    if (searchData?.status === 'pending' || searchData?.status === 'processing') {
       const timer = setInterval(() => {
         setProgress(prev => Math.min(prev + 1, 95));
       }, 500);
 
       return () => clearInterval(timer);
     }
-  }, [searchData?.search_status]);
+  }, [searchData?.status]);
 
   const handleStageToggle = (stageId: string) => {
     setStages(prev => 
@@ -291,7 +291,7 @@ const Dashboard = () => {
       completed: "Research complete!"
     };
     
-    const currentStatus = searchData?.search_status || 'pending';
+    const currentStatus = searchData?.status || 'pending';
     
     return (
       <div className="min-h-screen bg-background">

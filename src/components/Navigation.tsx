@@ -30,7 +30,7 @@ interface SearchHistoryItem {
   company: string;
   role: string | null;
   country: string | null;
-  search_status: string;
+  status: string;
   created_at: string;
 }
 
@@ -183,7 +183,7 @@ const Navigation = ({ showHistory = false, showSearchSelector = true }: Navigati
                       <SelectItem key={search.id} value={search.id}>
                         <div className="flex items-center justify-between w-full">
                           <span>{search.company}{search.role ? ` - ${search.role}` : ''}</span>
-                          {getStatusBadge(search.search_status)}
+                          {getStatusBadge(search.status)}
                         </div>
                       </SelectItem>
                     ))}
@@ -229,7 +229,7 @@ const Navigation = ({ showHistory = false, showSearchSelector = true }: Navigati
                             >
                               <div className="flex items-start justify-between mb-2">
                                 <div className="font-medium truncate">{item.company}</div>
-                                {getStatusBadge(item.search_status)}
+                                {getStatusBadge(item.status)}
                               </div>
                               {item.role && (
                                 <div className="text-sm text-muted-foreground mb-1">{item.role}</div>
@@ -328,7 +328,7 @@ const Navigation = ({ showHistory = false, showSearchSelector = true }: Navigati
                             >
                               <div className="flex items-center justify-between">
                                 <div className="font-medium truncate">{item.company}</div>
-                                {getStatusBadge(item.search_status)}
+                                {getStatusBadge(item.status)}
                               </div>
                               {item.role && (
                                 <div className="text-xs text-muted-foreground">{item.role}</div>
