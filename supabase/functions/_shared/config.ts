@@ -329,7 +329,8 @@ export const getMaxTokens = (
 
 
 export const getCompanyTicker = (companyName: string): string => {
-  return RESEARCH_CONFIG.search.companyTickers[companyName.toLowerCase()] || companyName.toUpperCase();
+  const companyTickers = RESEARCH_CONFIG.search.companyTickers as Record<string, string>;
+  return companyTickers[companyName.toLowerCase()] || companyName.toUpperCase();
 };
 
 export const buildSearchQuery = (

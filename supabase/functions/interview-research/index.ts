@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.2";
 import { SearchLogger } from "../_shared/logger.ts";
 import { RESEARCH_CONFIG, getOpenAIModel, getMaxTokens } from "../_shared/config.ts";
 import { ProgressTracker, PROGRESS_STEPS, CONCURRENT_TIMEOUTS, executeWithTimeout } from "../_shared/progress-tracker.ts";
+import { authorizeRequest } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1500,17 +1501,41 @@ serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const tracker = new ProgressTracker("");
+  let tracker: ProgressTracker | null = null;
   let searchId = "";
   let userId = "";
   let logger: SearchLogger | null = null;
 
   try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") || "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
+    );
+    const authResult = await authorizeRequest(req, supabase);
+
+    if (!authResult.ok) {
+      return new Response(authResult.response.body, {
+        status: authResult.response.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
     const requestData: InterviewResearchRequest = await req.json();
 
     searchId = requestData.searchId;
     userId = requestData.userId;
-    tracker.searchId = searchId;
+
+    if (authResult.context.kind === "user" && authResult.context.userId !== userId) {
+      return new Response(
+        JSON.stringify({ success: false, error: "User ID does not match authenticated user" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+
+    tracker = new ProgressTracker(searchId);
     logger = new SearchLogger(searchId, "interview-research", userId);
 
     logger.log("REQUEST_RECEIVED", "INIT", {
@@ -1525,11 +1550,6 @@ serve(async (req: Request) => {
     console.log(`   Company: ${requestData.company}`);
     console.log(`   Role: ${requestData.role || 'Not specified'}`);
     console.log(`   Seniority: ${requestData.targetSeniority || 'Not specified'}`);
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") || "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
-    );
 
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || "";
 
@@ -1748,6 +1768,10 @@ serve(async (req: Request) => {
       } catch (markError) {
         console.error("Failed to mark search as failed:", markError);
       }
+    }
+
+    if (tracker) {
+      await tracker.markFailed(error instanceof Error ? error.message : "Unknown error");
     }
 
     return new Response(

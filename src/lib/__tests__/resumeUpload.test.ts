@@ -3,16 +3,33 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createPdfJsMocks = (options?: { getTextContentError?: Error }) => {
   const destroy = vi.fn().mockResolvedValue(undefined);
   const cleanup = vi.fn().mockResolvedValue(undefined);
-  const getTextContent = options?.getTextContentError
-    ? vi.fn().mockRejectedValue(options.getTextContentError)
-    : vi.fn().mockResolvedValue({
-        items: [
-          {
-            str: "Jane Doe Senior Product Manager Led cross-functional launches, scaled analytics, and shipped hiring workflows across multiple markets.",
-          },
-        ],
-      });
-  const getPage = vi.fn().mockResolvedValue({ getTextContent });
+  const streamReader = {
+    read: options?.getTextContentError
+      ? vi.fn().mockRejectedValue(options.getTextContentError)
+      : vi.fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: {
+              items: [
+                {
+                  str: "Jane Doe Senior Product Manager Led cross-functional launches, scaled analytics, and shipped hiring workflows across multiple markets.",
+                },
+              ],
+              styles: Object.create(null),
+              lang: null,
+            },
+          })
+          .mockResolvedValueOnce({
+            done: true,
+            value: undefined,
+          }),
+    releaseLock: vi.fn(),
+  };
+  const streamTextContent = vi.fn().mockReturnValue({
+    getReader: vi.fn().mockReturnValue(streamReader),
+  });
+  const getTextContent = vi.fn();
+  const getPage = vi.fn().mockResolvedValue({ getTextContent, streamTextContent });
   const loadingTask = {
     destroy,
     promise: Promise.resolve({
@@ -42,6 +59,8 @@ const createPdfJsMocks = (options?: { getTextContentError?: Error }) => {
     getDocument,
     getPage,
     getTextContent,
+    streamReader,
+    streamTextContent,
   };
 };
 
@@ -79,6 +98,8 @@ describe("extractResumeText", () => {
     ).toBeTruthy();
     expect(mocks.cleanup).toHaveBeenCalledTimes(1);
     expect(mocks.destroy).not.toHaveBeenCalled();
+    expect(mocks.streamTextContent).toHaveBeenCalledTimes(1);
+    expect(mocks.streamReader.releaseLock).toHaveBeenCalledTimes(1);
   });
 
   it("rejects unsupported file types", async () => {

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import { Logger } from '../_shared/logging.ts';
 import { getOpenAIModel } from '../_shared/config.ts';
+import { authorizeRequest } from "../_shared/auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -310,20 +311,38 @@ serve(async (req) => {
   }
 
   const executionStartTime = Date.now();
-  let logger: Logger;
+  let logger: Logger | null = null;
   let executionId: string | null = null;
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const authResult = await authorizeRequest(req, supabase);
+
+    if (!authResult.ok) {
+      return new Response(authResult.response.body, {
+        status: authResult.response.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { cvText, userId } = await req.json() as CVAnalysisRequest;
 
     if (!cvText || !userId) {
       throw new Error("Missing required parameters: cvText and userId");
     }
 
-    // Create Supabase client and logger
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    if (authResult.context.kind === "user" && authResult.context.userId !== userId) {
+      return new Response(
+        JSON.stringify({ success: false, error: "User ID does not match authenticated user" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     logger = new Logger(supabase);
 
     // Generate a searchId for this execution (or get from request if available)

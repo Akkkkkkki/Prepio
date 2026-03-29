@@ -1,4 +1,7 @@
 project_id = "vjwrirrqprjzdorignlz"
 
+[functions.cv-analysis]
+verify_jwt = false
+
 [functions.interview-research]
-verify_jwt = true
+verify_jwt = false
