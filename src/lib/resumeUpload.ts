@@ -22,6 +22,21 @@ export interface ExtractedResume {
   text: string;
 }
 
+interface PdfTextItem {
+  str?: string;
+}
+
+interface PdfTextContent {
+  items: PdfTextItem[];
+  styles: Record<string, unknown>;
+  lang: string | null;
+}
+
+interface PdfPage {
+  getTextContent: () => Promise<PdfTextContent>;
+  streamTextContent?: () => ReadableStream<PdfTextContent>;
+}
+
 const normalizeResumeText = (value: string) =>
   value
     .split("\0")
@@ -71,6 +86,40 @@ const getPdfJs = async () => {
   return pdfJsPromise;
 };
 
+const readPdfTextContent = async (page: PdfPage): Promise<PdfTextContent> => {
+  const textStream = page.streamTextContent?.();
+
+  if (!textStream?.getReader) {
+    return page.getTextContent();
+  }
+
+  const reader = textStream.getReader();
+  const textContent: PdfTextContent = {
+    items: [],
+    styles: Object.create(null) as Record<string, unknown>,
+    lang: null,
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        return textContent;
+      }
+
+      if (!textContent.lang && value.lang) {
+        textContent.lang = value.lang;
+      }
+
+      Object.assign(textContent.styles, value.styles);
+      textContent.items.push(...value.items);
+    }
+  } finally {
+    reader.releaseLock?.();
+  }
+};
+
 const extractPdfText = async (file: File): Promise<ExtractedResume> => {
   const pdfjs = await getPdfJs();
   const loadingTask = pdfjs.getDocument({
@@ -85,7 +134,7 @@ const extractPdfText = async (file: File): Promise<ExtractedResume> => {
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
       const page = await pdf.getPage(pageNumber);
-      const textContent = await page.getTextContent();
+      const textContent = await readPdfTextContent(page);
       const pageText = textContent.items
         .map((item) => ("str" in item ? item.str : ""))
         .join(" ")
