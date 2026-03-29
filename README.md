@@ -1,6 +1,6 @@
-# Hireo
+# Preprio
 
-Hireo is an AI-assisted interview prep app. A user signs in, researches a company and role, reviews the generated interview stages, then practices against a stage-specific question set.
+Preprio is an AI-assisted interview prep app. A user signs in, researches a company and role, reviews the generated interview stages, then practices against a stage-specific question set.
 
 This README is intentionally narrow. It documents what the product does today, what is still not shipped, and where the source of truth lives.
 

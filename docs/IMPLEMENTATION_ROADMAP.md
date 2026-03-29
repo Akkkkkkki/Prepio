@@ -25,7 +25,7 @@
 ## Overview
 
 ### Goal
-Modernize Hireo's UI/UX with the new design's visual language and enhanced features while maintaining the current production-ready architecture (Supabase, PostgreSQL, auth, microservices).
+Modernize Preprio's UI/UX with the new design's visual language and enhanced features while maintaining the current production-ready architecture (Supabase, PostgreSQL, auth, microservices).
 
 ### Core Principles
 ✅ **Keep**: Robust backend (Supabase, PostgreSQL, Edge Functions, RLS)

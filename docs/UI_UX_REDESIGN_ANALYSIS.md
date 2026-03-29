@@ -1,4 +1,4 @@
-# UI/UX Redesign Analysis: Current vs. New Hireo Design
+# UI/UX Redesign Analysis: Current vs. New Preprio Design
 
 **Date**: December 9, 2025
 **Analysis By**: Claude Code
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-This document analyzes the UI/UX differences between the current Hireo implementation (OpenAI/Supabase-based) and the new designer-produced version (Gemini-based). The two implementations represent fundamentally different approaches to interview preparation, with significant architectural, feature, and user experience divergences.
+This document analyzes the UI/UX differences between the current Preprio implementation (OpenAI/Supabase-based) and the new designer-produced version (Gemini-based). The two implementations represent fundamentally different approaches to interview preparation, with significant architectural, feature, and user experience divergences.
 
 **Key Finding**: The new design represents a **major architectural shift** from a research-driven, static practice platform to a **real-time, conversational AI interview simulator** with live feedback and dynamic question generation.
 
