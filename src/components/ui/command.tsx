@@ -27,7 +27,7 @@ const CommandDialog = ({ children, ...props }: CommandDialogProps) => {
   return (
     <Dialog {...props}>
       <DialogContent className="overflow-hidden p-0 shadow-lg">
-        <DialogTitle className="sr-only">Command menu</DialogTitle>
+        <DialogTitle className="sr-only">Command Menu</DialogTitle>
         <DialogDescription className="sr-only">
           Search and run available commands.
         </DialogDescription>
