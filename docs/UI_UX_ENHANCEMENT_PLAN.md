@@ -2,7 +2,7 @@
 
 **Date:** March 29, 2026  
 **Prepared by:** AI Assistant  
-**Scope:** All UI/UX feedback to-date for the Hireo interview preparation tool.
+**Scope:** All UI/UX feedback to-date for the Preprio interview preparation tool.
 
 ## Latest Gap Review — March 29, 2026
 
@@ -26,7 +26,7 @@ Themes were clustered, conflicting recommendations were resolved using standard 
 ## Experience Themes & Recommended Actions
 
 ### 1. Access, Onboarding & Communication
-- **Hireo landing still needs a true guest mode:** the page now explains sign-in earlier and uses a sign-in CTA for logged-out users, but the full form remains visible to guests.  
+- **Preprio landing still needs a true guest mode:** the page now explains sign-in earlier and uses a sign-in CTA for logged-out users, but the full form remains visible to guests.  
   _Action:_ Replace the full guest form with a compact CTA + sample-output preview once we are ready to polish the public landing experience.
 - **Navigation disappears for logged-out visitors:** Users lose the ability to reach docs/support once redirected to `/auth`.  
   _Action:_ Always render a lightweight navigation bar (logo + Docs + Support + Sign in) regardless of auth state.
@@ -37,7 +37,7 @@ Themes were clustered, conflicting recommendations were resolved using standard 
 
 ### 2. Copy, Typography & Form Inputs
 - **Global glyph bug:** The letter “s/S” fails to render, making every string look corrupted.  
-  _Action:_ Revert to the default font stack (Tailwind `font-sans`) until the custom font subset is fixed; regression-test Hireo auth copy.
+  _Action:_ Revert to the default font stack (Tailwind `font-sans`) until the custom font subset is fixed; regression-test Preprio auth copy.
 - **Form bloat and unclear optionality:** Long research form overwhelms users and hides validation.  
   _Action:_ Split into “Required info” and “Advanced options” accordions, add inline validation + character counters, and highlight optional fields.
 - **CV upload UX gaps:** The product now disables upload buttons and says “Coming Soon,” which is the right honesty bar until processing exists.  
@@ -145,7 +145,7 @@ Themes were clustered, conflicting recommendations were resolved using standard 
 
 | Priority | Theme | Key Fixes | Effort | Owner |
 | --- | --- | --- | --- | --- |
-| **P0** (Critical) | Rendering & Access | Fix missing glyph bug, gate Hireo form behind auth-aware CTA, always show navigation, add redirect context | 2-3 dev days | Frontend |
+| **P0** (Critical) | Rendering & Access | Fix missing glyph bug, gate Preprio form behind auth-aware CTA, always show navigation, add redirect context | 2-3 dev days | Frontend |
 | **P0** (Critical) | Practice usability | Add content padding under sticky nav, raise swipe threshold, enlarge question dots, clarify swipe hints | 2 dev days | Frontend |
 | **P1** (High) | Forms & Uploads | Progressive disclosure for research form, disable “Upload PDF” until ready, add validation feedback | 3 dev days | Frontend |
 | **P1** (High) | History & IA | Ship cross-page history sheet, rename search selector, improve dashboard empty state | 3-4 dev days | Frontend |
@@ -159,9 +159,9 @@ _Effort assumes two engineers sharing work without over-engineering; backlog can
 ---
 
 ## Quick Wins (≤ 1 week)
-- Re-enable default font stack and smoke-test Hireo auth screens.
+- Re-enable default font stack and smoke-test Preprio auth screens.
 - Render navigation for all users with Sign In / Docs / Support links.
-- Gate Hireo form with inline auth prompt and add sample data card.
+- Gate Preprio form with inline auth prompt and add sample data card.
 - Disable CV upload buttons with “Coming Soon” badge + privacy copy.
 - Increase practice question nav dots to 12px and add bottom padding.
 - Introduce redirect-aware banner on `/auth` (“Sign in to resume Practice”).
@@ -171,7 +171,7 @@ _Effort assumes two engineers sharing work without over-engineering; backlog can
 ## Validation & Follow-Up
 1. **UI verification:** Mobile Safari (iPhone SE + 14 Pro), Android Chrome, Desktop Chrome/Safari/Edge.  
 2. **Accessibility:** Run axe DevTools + manual keyboard walkthrough for home, auth, dashboard, and practice.  
-3. **Analytics hooks:** Track Hireo CTA clicks when unauthenticated to confirm gating reduces dead-end attempts.  
+3. **Analytics hooks:** Track Preprio CTA clicks when unauthenticated to confirm gating reduces dead-end attempts.  
 4. **User testing:** 3 returning users (practice heavy) + 2 new users (landing → auth → dashboard) to confirm improvements reduce confusion.  
 5. **Documentation:** Update `docs/UI_UX_REVIEW*.md` summaries once remediation ships instead of generating new stand-alone reports.
 

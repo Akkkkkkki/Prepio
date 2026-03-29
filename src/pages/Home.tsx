@@ -364,7 +364,7 @@ const Home = () => {
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-2xl mx-auto text-center mb-12">
           <h1 className="text-5xl font-bold tracking-tight mb-4">
-            <span className="text-primary">Hireo</span>
+            <span className="text-primary">Preprio</span>
           </h1>
           <p className="text-xl text-muted-foreground mb-8">
             Get insider insights on any company's interview process. Tailored prep for you and your friends.

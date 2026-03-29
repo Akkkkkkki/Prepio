@@ -1,4 +1,4 @@
-# Hireo - Makefile for Testing
+# Preprio - Makefile for Testing
 # Usage:
 #   make test           - Run all tests (unit + integration)
 #   make test-unit      - Run only unit tests
@@ -7,7 +7,7 @@
 
 # Default target
 help:
-	@echo "Hireo Test Commands:"
+	@echo "Preprio Test Commands:"
 	@echo "  make test              - Run all tests (unit + integration)"
 	@echo "  make test-unit         - Run only unit tests"
 	@echo "  make test-integration  - Run only integration tests (if available)"

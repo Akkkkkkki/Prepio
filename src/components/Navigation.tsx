@@ -146,7 +146,7 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2 font-bold text-xl">
               <Brain className="h-6 w-6 text-primary" />
-              <span className="text-primary">Hireo</span>
+              <span className="text-primary">Preprio</span>
             </Link>
 
             {/* Desktop Navigation */}
@@ -269,7 +269,7 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                 <div className="py-6">
                   <div className="flex items-center gap-2 font-bold text-xl mb-6">
                     <Brain className="h-6 w-6 text-primary" />
-                    <span className="text-primary">Hireo</span>
+                    <span className="text-primary">Preprio</span>
                   </div>
                   
                   <div className="space-y-2">

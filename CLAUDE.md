@@ -4,7 +4,7 @@ Developer and agent notes for this repo.
 
 ## Project Summary
 
-Hireo is an authenticated interview-prep app.
+Preprio is an authenticated interview-prep app.
 
 Primary flow:
 1. Create a research run on [`src/pages/Home.tsx`](./src/pages/Home.tsx)
