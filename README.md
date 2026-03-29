@@ -17,12 +17,10 @@ This README is intentionally narrow. It documents what the product does today, w
   - favorites
   - mobile swipe gestures with scroll suppression
   - a bottom progress nav with safe-area padding
-- Profile lets users save CV text and seniority preferences.
+- Profile lets users save CV text, upload PDF resumes, delete saved resumes, and manage seniority preferences.
 - Search history is available from the authenticated app navigation.
 
 ### What is intentionally not shipped yet
-- PDF upload is not wired up. The UI now says so and keeps those buttons disabled.
-- Server-side CV deletion is not wired up. The profile now exposes a clear-editor action instead of pretending to delete stored data.
 - Audio uploads, transcription, and coaching are not shipped. Practice voice recording stays on-device.
 - Logged-out onboarding is only partially polished. Guests now get earlier sign-in guidance, but the public marketing/auth shell still needs work.
 

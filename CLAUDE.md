@@ -14,17 +14,17 @@ Primary flow:
 
 ## Current Product Truth
 
-These points matter because the older docs in this repo were overstating a few things:
+These points matter because older docs in this repo can drift behind shipped behavior:
 
-- PDF upload is not shipped.
-  Home and Profile now disable those buttons on purpose.
-- Server-side CV deletion is not shipped.
-  Profile exposes a clear-editor action instead of pretending to delete stored data.
+- PDF resume upload is supported.
+  Signed-in users can upload PDFs from Home and Profile, and Home can still parse a PDF locally before sign-in.
+- Profile resume deletion is server-backed.
+  Deleting a profile resume removes the saved row and attempts to remove stored files as part of the same flow.
 - Practice voice recording is local preview only.
   There is no audio upload or transcription path yet.
 - Search history is available in authenticated navigation.
 - Practice supports mobile swipes, but users also have explicit button controls.
-- Auth now shows redirect context when a user is bounced to sign in.
+- Auth shows redirect context when a user is bounced to sign in.
 - Sign-in and sign-up fields are stored separately in the UI.
 
 ## Commands
@@ -51,6 +51,7 @@ Notes:
 npm run functions:serve
 npm run functions:serve-debug
 npm run functions:deploy
+npm run functions:deploy-single FUNCTION_NAME
 npm run db:push
 npm run db:pull
 npm run supabase:start
@@ -134,14 +135,15 @@ Protected-route behavior is defined in [`src/App.tsx`](./src/App.tsx).
 - Auth redirect context exists, but forgot-password and resend-verification affordances are still missing.
 
 ### Profile
-- Paste CV text is the supported path.
-- If you touch CV deletion semantics, be explicit about whether data is local-only or server-backed.
+- Resume text paste and PDF upload are both supported entry points.
+- If you touch resume deletion semantics, keep file cleanup and row cleanup aligned.
 
 ## Schema Workflow
 
 After database changes:
 
 ```bash
+npm run db:push
 npm run db:pull
 ```
 

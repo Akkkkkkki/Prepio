@@ -6,15 +6,18 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, Search, FileText, AlertCircle } from "lucide-react";
+import { Upload, Search, FileText, AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { searchService } from "@/services/searchService";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import Navigation from "@/components/Navigation";
 import ProgressDialog from "@/components/ProgressDialog";
+import { ResumeUploadError, buildResumeStoragePath, extractResumeText } from "@/lib/resumeUpload";
 
 type SeniorityLevel = 'junior' | 'mid' | 'senior';
+
+const HOME_CV_UPLOAD_ID = "home-cv-upload";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -36,6 +39,7 @@ const Home = () => {
   const [profileResume, setProfileResume] = useState<{ content: string; created_at?: string } | null>(null);
   const [isLoadingProfileResume, setIsLoadingProfileResume] = useState(false);
   const [isUsingProfileResume, setIsUsingProfileResume] = useState(false);
+  const [isUploadingResume, setIsUploadingResume] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -262,6 +266,90 @@ const Home = () => {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    setError(null);
+    setIsUploadingResume(true);
+
+    try {
+      const { text } = await extractResumeText(file);
+
+      setFormData((prev) => ({ ...prev, cv: text }));
+      setIsUsingProfileResume(false);
+
+      if (!user) {
+        toast({
+          title: "Resume parsed locally",
+          description: "Sign in to save the uploaded PDF to your profile.",
+          duration: 4000,
+        });
+        return;
+      }
+
+      const analysisResult = await searchService.analyzeCV(text);
+      if (!analysisResult.success) {
+        throw new Error(analysisResult.error?.message || "Failed to analyze the uploaded resume");
+      }
+
+      const storagePath = buildResumeStoragePath(user.id, file.name);
+      const uploadResult = await searchService.uploadResumeFile(file, storagePath);
+      if (!uploadResult.success || !uploadResult.path) {
+        throw new Error(uploadResult.error?.message || "Failed to upload the resume PDF");
+      }
+
+      const saveResult = await searchService.saveResume({
+        content: text,
+        parsedData: analysisResult.parsedData,
+        file: {
+          name: file.name,
+          path: uploadResult.path,
+          size: file.size,
+          mimeType: file.type,
+        },
+        source: "upload",
+      });
+
+      if (!saveResult.success) {
+        await searchService.deleteResumeFiles([uploadResult.path]);
+        throw new Error(saveResult.error?.message || "Failed to save the uploaded resume");
+      }
+
+      setProfileResume({
+        content: text,
+        created_at: saveResult.resume?.created_at,
+      });
+      setIsUsingProfileResume(true);
+
+      toast({
+        title: "Resume uploaded",
+        description: "We saved your PDF, extracted the text, and updated your profile resume.",
+        duration: 4000,
+      });
+    } catch (uploadError) {
+      console.error("Error uploading resume:", uploadError);
+      const message = uploadError instanceof ResumeUploadError
+        ? uploadError.message
+        : uploadError instanceof Error
+          ? uploadError.message
+          : "Failed to process that resume PDF.";
+
+      setError(message);
+      toast({
+        title: "Resume upload failed",
+        description: message,
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      setIsUploadingResume(false);
+    }
+  };
   const handleRestoreProfileResume = () => {
     if (!profileResume?.content) return;
     setFormData(prev => ({ ...prev, cv: profileResume.content }));
@@ -422,16 +510,28 @@ const Home = () => {
                     <Upload className="h-8 w-8 text-muted-foreground" />
                     <div className="text-center">
                       <p className="text-sm text-muted-foreground mb-2">
-                        PDF upload is coming soon. Paste your CV text below or reuse the resume saved on your profile.
+                        Upload a PDF or paste your CV text below. Signed-in uploads also update the resume saved on your profile.
                       </p>
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        id={HOME_CV_UPLOAD_ID}
+                      />
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        disabled
+                        onClick={() => document.getElementById(HOME_CV_UPLOAD_ID)?.click()}
+                        disabled={isUploadingResume}
                       >
-                        <FileText className="h-4 w-4 mr-2" />
-                        Upload PDF (Coming Soon)
+                        {isUploadingResume ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <FileText className="h-4 w-4 mr-2" />
+                        )}
+                        {isUploadingResume ? "Processing PDF..." : "Upload PDF"}
                       </Button>
                     </div>
                   </div>
@@ -473,7 +573,7 @@ const Home = () => {
                 type={user ? "submit" : "button"}
                 className="w-full"
                 size="lg"
-                disabled={!formData.company.trim() || isLoading}
+                disabled={!formData.company.trim() || isLoading || isUploadingResume}
                 onClick={
                   user
                     ? undefined

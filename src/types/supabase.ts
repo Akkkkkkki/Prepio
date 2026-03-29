@@ -269,25 +269,51 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          file_name: string | null
+          file_path: string | null
+          file_size_bytes: number | null
           id: string
+          mime_type: string | null
           parsed_data: Json | null
+          search_id: string | null
+          source: string
           user_id: string
         }
         Insert: {
           content: string
           created_at?: string
+          file_name?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
           id?: string
+          mime_type?: string | null
           parsed_data?: Json | null
+          search_id?: string | null
+          source?: string
           user_id: string
         }
         Update: {
           content?: string
           created_at?: string
+          file_name?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
           id?: string
+          mime_type?: string | null
           parsed_data?: Json | null
+          search_id?: string | null
+          source?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "resumes_search_id_fkey"
+            columns: ["search_id"]
+            isOneToOne: false
+            referencedRelation: "searches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       scraped_urls: {
         Row: {

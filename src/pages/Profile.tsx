@@ -31,8 +31,11 @@ import {
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
 import { useAuthContext } from "@/components/AuthProvider";
+import { ResumeUploadError, buildResumeStoragePath, extractResumeText } from "@/lib/resumeUpload";
 
 type SeniorityLevel = 'junior' | 'mid' | 'senior';
+
+const PROFILE_CV_UPLOAD_ID = "profile-cv-upload";
 
 interface ParsedData {
   personalInfo?: {
@@ -97,6 +100,7 @@ const Profile = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [seniority, setSeniority] = useState<SeniorityLevel | undefined>(undefined);
   const [isSavingSeniority, setIsSavingSeniority] = useState(false);
+  const [isUploadingResume, setIsUploadingResume] = useState(false);
 
   // Load existing CV data and profile settings
   useEffect(() => {
@@ -160,6 +164,68 @@ const Profile = () => {
     loadProfile();
   }, [user]);
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+
+    if (!file || !user) {
+      return;
+    }
+
+    setError(null);
+    setSuccess(null);
+    setIsUploadingResume(true);
+    setIsAnalyzing(true);
+
+    try {
+      const { text } = await extractResumeText(file);
+      setCvText(text);
+
+      const analysisResult = await searchService.analyzeCV(text);
+      if (!analysisResult.success) {
+        throw new Error(analysisResult.error?.message || "Failed to analyze the uploaded resume");
+      }
+
+      const storagePath = buildResumeStoragePath(user.id, file.name);
+      const uploadResult = await searchService.uploadResumeFile(file, storagePath);
+      if (!uploadResult.success || !uploadResult.path) {
+        throw new Error(uploadResult.error?.message || "Failed to upload the resume PDF");
+      }
+
+      const saveResult = await searchService.saveResume({
+        content: text,
+        parsedData: analysisResult.parsedData,
+        file: {
+          name: file.name,
+          path: uploadResult.path,
+          size: file.size,
+          mimeType: file.type,
+        },
+        source: "upload",
+      });
+
+      if (!saveResult.success) {
+        await searchService.deleteResumeFiles([uploadResult.path]);
+        throw new Error(saveResult.error?.message || "Failed to save the uploaded resume");
+      }
+
+      setParsedData(analysisResult.parsedData as ParsedData);
+      setSuccess("Resume uploaded, parsed, and saved successfully.");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (uploadError) {
+      console.error("Error uploading resume:", uploadError);
+      const message = uploadError instanceof ResumeUploadError
+        ? uploadError.message
+        : uploadError instanceof Error
+          ? uploadError.message
+          : "Failed to process that resume PDF.";
+
+      setError(message);
+    } finally {
+      setIsAnalyzing(false);
+      setIsUploadingResume(false);
+    }
+  };
   const handleSave = async () => {
     if (!user || !cvText.trim()) return;
 
@@ -202,10 +268,22 @@ const Profile = () => {
   };
 
   const handleDelete = async () => {
-    if (window.confirm("Clear the editor? Your saved profile CV will remain unchanged until delete support ships.")) {
+    if (!user) return;
+
+    if (window.confirm("Are you sure you want to delete your CV? This action cannot be undone.")) {
+      setError(null);
+      setSuccess(null);
+
+      const result = await searchService.deleteResume();
+      if (!result.success) {
+        setError(result.error?.message || "Failed to delete CV");
+        return;
+      }
+
       setCvText("");
       setParsedData(null);
-      setSuccess("Editor cleared. Your saved profile CV was not deleted.");
+      setSuccess("CV deleted successfully!");
+      setTimeout(() => setSuccess(null), 3000);
     }
   };
 
@@ -660,7 +738,7 @@ const Profile = () => {
                     CV / Resume
                   </CardTitle>
                   <CardDescription>
-                    Paste your CV text directly. PDF upload and server-side delete are not shipped yet.
+                    Upload a PDF or paste your CV text directly. Saved resume updates and deletion are both supported here.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -670,16 +748,28 @@ const Profile = () => {
                       <Upload className="h-6 w-6 text-muted-foreground" />
                       <div className="text-center">
                         <p className="text-sm text-muted-foreground mb-2">
-                          PDF upload is coming soon. Paste your CV text below for now.
+                          Upload a PDF to replace your current CV, or paste the text below.
                         </p>
+                        <input
+                          type="file"
+                          accept=".pdf"
+                          onChange={handleFileUpload}
+                          className="hidden"
+                          id={PROFILE_CV_UPLOAD_ID}
+                        />
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          disabled
+                          onClick={() => document.getElementById(PROFILE_CV_UPLOAD_ID)?.click()}
+                          disabled={isUploadingResume}
                         >
-                          <FileText className="h-4 w-4 mr-2" />
-                          Upload PDF (Coming Soon)
+                          {isUploadingResume ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <FileText className="h-4 w-4 mr-2" />
+                          )}
+                          {isUploadingResume ? "Processing PDF..." : "Upload PDF"}
                         </Button>
                       </div>
                     </div>
@@ -703,18 +793,18 @@ const Profile = () => {
                   {/* Actions */}
                   <div className="flex items-center justify-between pt-4">
                     <Button
-                      variant="outline"
+                      variant="destructive"
                       size="sm"
                       onClick={handleDelete}
-                      disabled={!cvText.trim()}
+                      disabled={!cvText.trim() || isUploadingResume || isSaving}
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
-                      Clear Editor
+                      Delete CV
                     </Button>
                     
                     <Button 
                       onClick={handleSave} 
-                      disabled={!cvText.trim() || isSaving || isAnalyzing}
+                      disabled={!cvText.trim() || isSaving || isAnalyzing || isUploadingResume}
                     >
                       {isAnalyzing ? (
                         <>

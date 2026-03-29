@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
 interface CreateSearchParams {
   company: string;
@@ -8,6 +9,27 @@ interface CreateSearchParams {
   cv?: string;
   targetSeniority?: 'junior' | 'mid' | 'senior';
 }
+
+interface ResumeFileInput {
+  name: string;
+  path: string;
+  size: number;
+  mimeType: string;
+}
+
+type ResumeSource = 'manual' | 'upload' | 'search_snapshot';
+
+const RESUME_FILES_BUCKET = "resume-files";
+
+const getCurrentUser = async () => {
+  const { data: { user }, error } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    throw new Error("No authenticated user");
+  }
+
+  return user;
+};
 
 export const searchService = {
   // Step 1: Create search record only (fast, synchronous)
@@ -275,17 +297,16 @@ export const searchService = {
 
   async getResume(userId: string) {
     try {
-      // First try to get basic resume data
       const { data, error } = await supabase
         .from("resumes")
         .select("*")
         .eq("user_id", userId)
+        .is("search_id", null)
         .order("created_at", { ascending: false })
         .limit(1);
 
       if (error) throw error;
 
-      // Return the first resume if exists, otherwise null
       const resume = data && data.length > 0 ? data[0] : null;
 
       return { resume, success: true };
@@ -297,14 +318,12 @@ export const searchService = {
 
   async analyzeCV(cvText: string) {
     try {
-      const { data: user } = await supabase.auth.getUser();
-      
-      if (!user.user) throw new Error("No authenticated user");
+      const user = await getCurrentUser();
       
       const response = await supabase.functions.invoke("cv-analysis", {
         body: {
           cvText,
-          userId: user.user.id
+          userId: user.id
         }
       });
 
@@ -321,27 +340,162 @@ export const searchService = {
     }
   },
 
-  async saveResume({ content, parsedData }: { content: string; parsedData?: Record<string, unknown> }) {
+  async uploadResumeFile(file: File, path: string) {
     try {
-      const { data: user } = await supabase.auth.getUser();
-      
-      if (!user.user) throw new Error("No authenticated user");
-      
+      const { data, error } = await supabase.storage
+        .from(RESUME_FILES_BUCKET)
+        .upload(path, file, {
+          contentType: file.type,
+          upsert: true,
+        });
+
+      if (error) throw error;
+
+      return { path: data.path, success: true };
+    } catch (error) {
+      console.error("Error uploading resume file:", error);
+      return { error, success: false };
+    }
+  },
+
+  async deleteResumeFiles(paths: string[]) {
+    const uniquePaths = Array.from(new Set(paths.filter(Boolean)));
+
+    if (uniquePaths.length === 0) {
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase.storage
+        .from(RESUME_FILES_BUCKET)
+        .remove(uniquePaths);
+
+      if (error) throw error;
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error deleting resume files:", error);
+      return { error, success: false };
+    }
+  },
+
+  async saveResume({
+    content,
+    parsedData,
+    file,
+    source,
+  }: {
+    content: string;
+    parsedData?: Record<string, unknown>;
+    file?: ResumeFileInput;
+    source?: ResumeSource;
+  }) {
+    try {
+      const user = await getCurrentUser();
+
+      const { data: existingResumes, error: existingError } = await supabase
+        .from("resumes")
+        .select("id, file_name, file_path, file_size_bytes, mime_type")
+        .eq("user_id", user.id)
+        .is("search_id", null)
+        .order("created_at", { ascending: false });
+
+      if (existingError) throw existingError;
+
+      const currentResume = existingResumes?.[0] ?? null;
+      const nextFile = file ?? (currentResume?.file_path
+        ? {
+            name: currentResume.file_name,
+            path: currentResume.file_path,
+            size: currentResume.file_size_bytes,
+            mimeType: currentResume.mime_type,
+          }
+        : null);
+
       const { data, error } = await supabase
         .from("resumes")
         .insert({
           content,
-          parsed_data: (parsedData as any) || null,
-          user_id: user.user.id
+          parsed_data: (parsedData as Json) || null,
+          user_id: user.id,
+          file_name: nextFile?.name ?? null,
+          file_path: nextFile?.path ?? null,
+          file_size_bytes: nextFile?.size ?? null,
+          mime_type: nextFile?.mimeType ?? null,
+          source: source ?? (nextFile ? "upload" : "manual"),
         })
         .select()
         .single();
 
       if (error) throw error;
 
+      if (existingResumes && existingResumes.length > 0) {
+        const idsToDelete = existingResumes.map((resume) => resume.id);
+        const pathsToDelete = existingResumes
+          .map((resume) => resume.file_path)
+          .filter((path): path is string => Boolean(path && path !== nextFile?.path));
+
+        if (pathsToDelete.length > 0) {
+          const cleanupFiles = await this.deleteResumeFiles(pathsToDelete);
+          if (!cleanupFiles.success) {
+            console.warn("Failed to clean up previous resume files:", cleanupFiles.error);
+          }
+        }
+
+        const { error: deleteError } = await supabase
+          .from("resumes")
+          .delete()
+          .in("id", idsToDelete);
+
+        if (deleteError) {
+          console.warn("Failed to clean up previous resume rows:", deleteError);
+        }
+      }
+
       return { resume: data, success: true };
     } catch (error) {
       console.error("Error saving resume:", error);
+      return { error, success: false };
+    }
+  },
+
+  async deleteResume() {
+    try {
+      const user = await getCurrentUser();
+
+      const { data: resumes, error: fetchError } = await supabase
+        .from("resumes")
+        .select("id, file_path")
+        .eq("user_id", user.id)
+        .is("search_id", null);
+
+      if (fetchError) throw fetchError;
+
+      if (!resumes || resumes.length === 0) {
+        return { success: true };
+      }
+
+      const paths = resumes
+        .map((resume) => resume.file_path)
+        .filter((path): path is string => Boolean(path));
+
+      if (paths.length > 0) {
+        const fileDeleteResult = await this.deleteResumeFiles(paths);
+        if (!fileDeleteResult.success) {
+          console.warn("Failed to delete stored resume files:", fileDeleteResult.error);
+        }
+      }
+
+      const { error: deleteError } = await supabase
+        .from("resumes")
+        .delete()
+        .in("id", resumes.map((resume) => resume.id));
+
+      if (deleteError) throw deleteError;
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error deleting resume:", error);
       return { error, success: false };
     }
   },
