@@ -31,6 +31,9 @@ const createPdfJsMocks = (options?: { getTextContentError?: Error }) => {
   vi.doMock("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url", () => ({
     default: "/mock-pdf-worker.js",
   }));
+  vi.doMock("pdfjs-dist/legacy/build/pdf.worker.min.mjs", () => ({
+    WorkerMessageHandler: { setup: vi.fn() },
+  }));
 
   return {
     GlobalWorkerOptions,
@@ -46,6 +49,7 @@ describe("extractResumeText", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    delete (globalThis as typeof globalThis & { pdfjsWorker?: unknown }).pdfjsWorker;
   });
 
   it("loads the legacy pdf.js build and extracts text", async () => {
@@ -68,6 +72,11 @@ describe("extractResumeText", () => {
       useWorkerFetch: false,
     });
     expect(mocks.GlobalWorkerOptions.workerSrc).toBe("/mock-pdf-worker.js");
+    expect(
+      (globalThis as typeof globalThis & {
+        pdfjsWorker?: { WorkerMessageHandler?: unknown };
+      }).pdfjsWorker?.WorkerMessageHandler,
+    ).toBeTruthy();
     expect(mocks.cleanup).toHaveBeenCalledTimes(1);
     expect(mocks.destroy).not.toHaveBeenCalled();
   });

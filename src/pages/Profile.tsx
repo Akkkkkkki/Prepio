@@ -179,22 +179,31 @@ const Profile = () => {
 
     try {
       const { text } = await extractResumeText(file);
+      let parsedInfo: ParsedData | undefined;
+      let analysisUnavailable = false;
+
       setCvText(text);
 
       const analysisResult = await searchService.analyzeCV(text);
-      if (!analysisResult.success) {
-        throw new Error(analysisResult.error?.message || "Failed to analyze the uploaded resume");
+      if (analysisResult.success) {
+        parsedInfo = analysisResult.parsedData as ParsedData;
+      } else {
+        analysisUnavailable = true;
+        console.warn(
+          "CV analysis unavailable during resume upload. Saving extracted text without parsed profile data.",
+          analysisResult.error,
+        );
       }
 
       const storagePath = buildResumeStoragePath(user.id, file.name);
       const uploadResult = await searchService.uploadResumeFile(file, storagePath);
       if (!uploadResult.success || !uploadResult.path) {
-        throw new Error(uploadResult.error?.message || "Failed to upload the resume PDF");
+        throw new Error(uploadResult.error?.message || "Failed to upload the resume file");
       }
 
       const saveResult = await searchService.saveResume({
         content: text,
-        parsedData: analysisResult.parsedData,
+        parsedData: parsedInfo,
         file: {
           name: file.name,
           path: uploadResult.path,
@@ -209,8 +218,12 @@ const Profile = () => {
         throw new Error(saveResult.error?.message || "Failed to save the uploaded resume");
       }
 
-      setParsedData(analysisResult.parsedData as ParsedData);
-      setSuccess("Resume uploaded, parsed, and saved successfully.");
+      setParsedData(parsedInfo ?? null);
+      setSuccess(
+        analysisUnavailable
+          ? "Resume uploaded and saved. Structured profile analysis is temporarily unavailable."
+          : "Resume uploaded, parsed, and saved successfully.",
+      );
       setTimeout(() => setSuccess(null), 3000);
     } catch (uploadError) {
       console.error("Error uploading resume:", uploadError);
@@ -218,7 +231,7 @@ const Profile = () => {
         ? uploadError.message
         : uploadError instanceof Error
           ? uploadError.message
-          : "Failed to process that resume PDF.";
+          : "Failed to process that resume file.";
 
       setError(message);
     } finally {
@@ -235,14 +248,19 @@ const Profile = () => {
     setSuccess(null);
 
     try {
-      // Use AI-powered analysis for better accuracy
       const analysisResult = await searchService.analyzeCV(cvText.trim());
-      
-      if (!analysisResult.success) {
-        throw new Error(analysisResult.error?.message || "Failed to analyze CV");
+      const analysisUnavailable = !analysisResult.success;
+
+      if (analysisUnavailable) {
+        console.warn(
+          "CV analysis unavailable while saving profile resume. Saving text without parsed profile data.",
+          analysisResult.error,
+        );
       }
 
-      const parsedInfo = analysisResult.parsedData;
+      const parsedInfo = analysisResult.success
+        ? (analysisResult.parsedData as ParsedData)
+        : undefined;
       setIsAnalyzing(false);
       
       const result = await searchService.saveResume({
@@ -251,8 +269,12 @@ const Profile = () => {
       });
 
       if (result.success) {
-        setParsedData(parsedInfo);
-        setSuccess("CV saved and analyzed successfully with AI!");
+        setParsedData(parsedInfo ?? null);
+        setSuccess(
+          analysisUnavailable
+            ? "CV saved. Structured profile analysis is temporarily unavailable."
+            : "CV saved and analyzed successfully with AI!",
+        );
         // Clear success message after 3 seconds
         setTimeout(() => setSuccess(null), 3000);
       } else {
@@ -260,7 +282,7 @@ const Profile = () => {
       }
     } catch (err) {
       console.error("Error saving CV:", err);
-      setError("An unexpected error occurred while saving or analyzing CV");
+      setError("An unexpected error occurred while saving the CV");
       setIsAnalyzing(false);
     } finally {
       setIsSaving(false);
