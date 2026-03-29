@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthContext } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
@@ -206,7 +206,12 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                   </SheetTrigger>
                   <SheetContent side="left" className="w-80">
                     <div className="py-6">
-                      <h2 className="text-lg font-semibold mb-4">Search History</h2>
+                      <SheetHeader className="mb-4 text-left">
+                        <SheetTitle>Search History</SheetTitle>
+                        <SheetDescription>
+                          Open one of your previous research runs from the navigation history.
+                        </SheetDescription>
+                      </SheetHeader>
                       
                       {isLoadingHistory ? (
                         <div className="flex items-center justify-center py-8">
@@ -267,6 +272,12 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
               </SheetTrigger>
               <SheetContent side="right">
                 <div className="py-6">
+                  <SheetHeader className="sr-only">
+                    <SheetTitle>Navigation Menu</SheetTitle>
+                    <SheetDescription>
+                      Navigate the app, switch active research, and review recent searches.
+                    </SheetDescription>
+                  </SheetHeader>
                   <div className="flex items-center gap-2 font-bold text-xl mb-6">
                     <Brain className="h-6 w-6 text-primary" />
                     <span className="text-primary">Prepio</span>
