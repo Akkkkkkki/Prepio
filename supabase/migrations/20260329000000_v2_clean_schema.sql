@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- TABLE 1: profiles
 -- Auto-created on signup via trigger. Stores user preferences.
 -- ============================================================================
-CREATE TABLE profiles (
+CREATE TABLE public.profiles (
   id          UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email       TEXT,
   full_name   TEXT,
@@ -227,8 +227,8 @@ CREATE INDEX idx_tavily_search       ON tavily_searches(search_id);
 -- ============================================================================
 
 -- profiles: users see/edit only their own
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-CREATE POLICY profiles_own ON profiles FOR ALL
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY profiles_own ON public.profiles FOR ALL
   USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
 -- searches: users manage their own; service role updates progress
@@ -322,22 +322,31 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Auto-create profile on signup
-CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
 BEGIN
-  INSERT INTO profiles (id, email, full_name)
+  INSERT INTO public.profiles (id, email, full_name)
   VALUES (
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', '')
-  );
+  )
+  ON CONFLICT (id) DO UPDATE
+  SET
+    email = EXCLUDED.email,
+    full_name = EXCLUDED.full_name;
+
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- Auto-update updated_at timestamps
 CREATE OR REPLACE FUNCTION update_updated_at()
@@ -348,7 +357,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER profiles_updated_at BEFORE UPDATE ON profiles
+CREATE TRIGGER profiles_updated_at BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER searches_updated_at BEFORE UPDATE ON searches
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();

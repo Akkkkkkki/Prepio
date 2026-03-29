@@ -117,7 +117,7 @@ This keeps `supabase/schema.sql` as a single source of truth for understanding t
 - **`tailwind.config.ts`**: Tailwind CSS with custom theme and shadcn/ui integration
 
 ### Environment Variables
-- **Frontend**: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (for local dev)
+- **Frontend**: `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY` (for local dev)
 - **Edge Functions**: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `TAVILY_API_KEY`
 - **Management**: Environment secrets managed via Supabase Dashboard → Edge Functions → Settings
 
