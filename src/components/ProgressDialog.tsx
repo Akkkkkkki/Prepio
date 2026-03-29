@@ -37,7 +37,7 @@ const ProgressDialog = ({
 
   // Get actual progress data or use fallbacks
   const searchStatus = search?.status || 'pending';
-  const progressValue = search?.progress_percentage || 0;
+  const progressValue = search?.progress_pct || 0;
   const currentStepText = search?.progress_step || 'Initializing research...';
   const errorMessage = search?.error_message;
 

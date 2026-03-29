@@ -71,10 +71,10 @@ npm run lint         # Run ESLint
 ### Supabase Development
 ```bash
 # Generate types from remote database
-npx supabase gen types typescript --project-id xjjjvefsrkcszhuwtoss > src/types/supabase.ts
+npx supabase gen types typescript --project-id vjwrirrqprjzdorignlz > src/types/supabase.ts
 
 # Pull current schema snapshot (ALWAYS do this after any database changes)
-npx supabase db pull --project-id xjjjvefsrkcszhuwtoss > supabase/schema.sql
+npx supabase db pull --project-id vjwrirrqprjzdorignlz > supabase/schema.sql
 
 # Local development (if needed)
 npx supabase start   # Start local Supabase
@@ -99,7 +99,7 @@ After ANY database operation:
 
 **Always run:**
 ```bash
-npx supabase db pull --project-id xjjjvefsrkcszhuwtoss > supabase/schema.sql
+npx supabase db pull --project-id vjwrirrqprjzdorignlz > supabase/schema.sql
 git add supabase/schema.sql
 git commit -m "Update schema snapshot after [change description]"
 ```
@@ -292,7 +292,7 @@ The question generation system has been significantly enhanced to provide compre
 
 3. **Regenerate TypeScript types**:
    ```bash
-   npx supabase gen types typescript --project-id xjjjvefsrkcszhuwtoss > src/types/supabase.ts
+   npx supabase gen types typescript --project-id vjwrirrqprjzdorignlz > src/types/supabase.ts
    ```
 
 4. **Pull and commit schema snapshot** (CRITICAL):
@@ -449,10 +449,10 @@ The system underwent a major architectural redesign to improve reliability and p
 
 ### Common Issues
 - **CORS errors**: Check Supabase configuration
-- **Type errors**: Regenerate types after schema changes: `npx supabase gen types typescript --project-id xjjjvefsrkcszhuwtoss > src/types/supabase.ts`
+- **Type errors**: Regenerate types after schema changes: `npx supabase gen types typescript --project-id vjwrirrqprjzdorignlz > src/types/supabase.ts`
 - **Auth issues**: Verify Supabase project settings
 - **AI API failures**: Check API keys and rate limits in Supabase Dashboard → Edge Functions → Settings
-- **Function deployment**: Use `npm run functions:deploy` or `npx supabase functions deploy FUNCTION_NAME --project-ref xjjjvefsrkcszhuwtoss`
+- **Function deployment**: Use `npm run functions:deploy` or `npx supabase functions deploy FUNCTION_NAME --project-ref vjwrirrqprjzdorignlz`
 - **Database errors**: Check RLS policies and query performance in Supabase Dashboard
 
 ### Performance

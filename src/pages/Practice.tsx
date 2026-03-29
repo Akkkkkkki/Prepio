@@ -171,7 +171,7 @@ const Practice = () => {
   
   const [questions, setQuestions] = useState<Question[]>([]);
   const [allStages, setAllStages] = useState<InterviewStage[]>([]);
-  const [searchData, setSearchData] = useState<{ search_status: string; company?: string; role?: string } | null>(null);
+  const [searchData, setSearchData] = useState<{ status: string; company?: string; role?: string } | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Map<string, string>>(new Map());
   const [questionTimers, setQuestionTimers] = useState<Map<string, number>>(new Map());
@@ -403,18 +403,18 @@ const getInterviewerFocus = (
           setSearchData(result.search);
           
           // Check if search is still processing
-          if (result.search.search_status === 'pending' || result.search.search_status === 'processing') {
+          if (result.search.status === 'pending' || result.search.status === 'processing') {
             setError(null); // Clear any previous errors
             return; // Don't process stages yet, show processing state
           }
           
-          if (result.search.search_status === 'failed') {
+          if (result.search.status === 'failed') {
             setError("Research processing failed. Please try starting a new search.");
             return;
           }
           
           // Only process stages if search is completed
-          if (result.search.search_status === 'completed' && result.stages) {
+          if (result.search.status === 'completed' && result.stages) {
             // Transform stages data and add selection state
             const transformedStages = result.stages
               .sort((a, b) => a.order_index - b.order_index)
@@ -1196,7 +1196,7 @@ const getInterviewerFocus = (
   }
 
   // Show processing state when research is still being processed
-  if (searchData && (searchData.search_status === 'pending' || searchData.search_status === 'processing')) {
+  if (searchData && (searchData.status === 'pending' || searchData.status === 'processing')) {
     return (
       <div className="min-h-screen bg-background">
         <Navigation />
