@@ -64,9 +64,10 @@ export const extractResumeText = async (file: File): Promise<ExtractedResume> =>
     data: await file.arrayBuffer(),
     useWorkerFetch: false,
   });
+  let pdf: Awaited<typeof loadingTask.promise> | null = null;
 
   try {
-    const pdf = await loadingTask.promise;
+    pdf = await loadingTask.promise;
     const pages: string[] = [];
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
@@ -93,12 +94,20 @@ export const extractResumeText = async (file: File): Promise<ExtractedResume> =>
       text,
     };
   } catch (error) {
+    try {
+      await loadingTask.destroy();
+    } catch {
+      // Ignore teardown errors so the user sees the original extraction failure.
+    }
+
     if (error instanceof ResumeUploadError) {
       throw error;
     }
 
     throw new ResumeUploadError("Failed to read that PDF. Please try another file or paste the CV text.");
   } finally {
-    await loadingTask.destroy();
+    if (pdf) {
+      await pdf.cleanup();
+    }
   }
 };
