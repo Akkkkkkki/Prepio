@@ -279,6 +279,8 @@ const Home = () => {
 
     try {
       const { text } = await extractResumeText(file);
+      let parsedData: Record<string, unknown> | undefined;
+      let analysisUnavailable = false;
 
       setFormData((prev) => ({ ...prev, cv: text }));
       setIsUsingProfileResume(false);
@@ -286,26 +288,32 @@ const Home = () => {
       if (!user) {
         toast({
           title: "Resume parsed locally",
-          description: "Sign in to save the uploaded PDF to your profile.",
+          description: "Sign in to save the uploaded resume file to your profile.",
           duration: 4000,
         });
         return;
       }
 
       const analysisResult = await searchService.analyzeCV(text);
-      if (!analysisResult.success) {
-        throw new Error(analysisResult.error?.message || "Failed to analyze the uploaded resume");
+      if (analysisResult.success) {
+        parsedData = analysisResult.parsedData;
+      } else {
+        analysisUnavailable = true;
+        console.warn(
+          "CV analysis unavailable during resume upload. Saving extracted text without parsed profile data.",
+          analysisResult.error,
+        );
       }
 
       const storagePath = buildResumeStoragePath(user.id, file.name);
       const uploadResult = await searchService.uploadResumeFile(file, storagePath);
       if (!uploadResult.success || !uploadResult.path) {
-        throw new Error(uploadResult.error?.message || "Failed to upload the resume PDF");
+        throw new Error(uploadResult.error?.message || "Failed to upload the resume file");
       }
 
       const saveResult = await searchService.saveResume({
         content: text,
-        parsedData: analysisResult.parsedData,
+        parsedData,
         file: {
           name: file.name,
           path: uploadResult.path,
@@ -327,8 +335,10 @@ const Home = () => {
       setIsUsingProfileResume(true);
 
       toast({
-        title: "Resume uploaded",
-        description: "We saved your PDF, extracted the text, and updated your profile resume.",
+        title: analysisUnavailable ? "Resume uploaded with limited analysis" : "Resume uploaded",
+        description: analysisUnavailable
+          ? "We saved the extracted text and file, but structured profile fields were not refreshed because CV analysis is unavailable right now."
+          : "We saved your resume file, extracted the text, and updated your profile resume.",
         duration: 4000,
       });
     } catch (uploadError) {
@@ -337,7 +347,7 @@ const Home = () => {
         ? uploadError.message
         : uploadError instanceof Error
           ? uploadError.message
-          : "Failed to process that resume PDF.";
+          : "Failed to process that resume file.";
 
       setError(message);
       toast({

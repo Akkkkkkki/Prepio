@@ -6,6 +6,7 @@ const DOCX_MIME_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 type PdfJsModule = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
+type PdfJsWorkerModule = typeof import("pdfjs-dist/legacy/build/pdf.worker.min.mjs");
 
 let pdfJsPromise: Promise<PdfJsModule> | null = null;
 
@@ -40,14 +41,29 @@ const sanitizeFileName = (fileName: string) =>
 export const buildResumeStoragePath = (userId: string, fileName: string) =>
   `${userId}/${Date.now()}-${sanitizeFileName(fileName)}`;
 
+const registerPdfJsWorkerFallback = (workerModule: PdfJsWorkerModule) => {
+  const globalScope = globalThis as typeof globalThis & {
+    pdfjsWorker?: { WorkerMessageHandler?: unknown };
+  };
+
+  if (!globalScope.pdfjsWorker?.WorkerMessageHandler && workerModule.WorkerMessageHandler) {
+    globalScope.pdfjsWorker = {
+      WorkerMessageHandler: workerModule.WorkerMessageHandler,
+    };
+  }
+};
+
 const getPdfJs = async () => {
   if (!pdfJsPromise) {
     pdfJsPromise = Promise.all([
       // The legacy browser build carries the Promise polyfills the modern bundle omits.
       import("pdfjs-dist/legacy/build/pdf.mjs"),
       import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url"),
-    ]).then(([pdfjs, worker]) => {
-      pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+      import("pdfjs-dist/legacy/build/pdf.worker.min.mjs"),
+    ]).then(([pdfjs, workerUrl, workerModule]) => {
+      registerPdfJsWorkerFallback(workerModule);
+
+      pdfjs.GlobalWorkerOptions.workerSrc = workerUrl.default;
       return pdfjs;
     });
   }
@@ -82,6 +98,8 @@ const extractPdfText = async (file: File): Promise<ExtractedResume> => {
 
     return { pageCount: pdf.numPages, text: pages.join("\n\n") };
   } catch (error) {
+    console.error("PDF extraction failed before resume save.", error);
+
     try {
       await loadingTask.destroy();
     } catch {
@@ -108,6 +126,8 @@ const extractDocxText = async (file: File): Promise<ExtractedResume> => {
     const { value } = await mammoth.extractRawText({ arrayBuffer });
     return { pageCount: 1, text: value };
   } catch (error) {
+    console.error("DOCX extraction failed before resume save.", error);
+
     if (error instanceof ResumeUploadError) throw error;
     throw new ResumeUploadError("Failed to read that DOCX. Please try another file or paste the CV text.");
   }
