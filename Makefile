@@ -1,4 +1,4 @@
-# Preprio - Makefile for Testing
+# Prepio - Makefile for Testing
 # Usage:
 #   make test           - Run all tests (unit + integration)
 #   make test-unit      - Run only unit tests
@@ -7,7 +7,7 @@
 
 # Default target
 help:
-	@echo "Preprio Test Commands:"
+	@echo "Prepio Test Commands:"
 	@echo "  make test              - Run all tests (unit + integration)"
 	@echo "  make test-unit         - Run only unit tests"
 	@echo "  make test-integration  - Run only integration tests (if available)"
