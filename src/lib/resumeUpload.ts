@@ -1,6 +1,6 @@
 const MAX_RESUME_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const PDF_MIME_TYPE = "application/pdf";
-type PdfJsModule = typeof import("pdfjs-dist");
+type PdfJsModule = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
 
 let pdfJsPromise: Promise<PdfJsModule> | null = null;
 
@@ -38,8 +38,9 @@ export const buildResumeStoragePath = (userId: string, fileName: string) =>
 const getPdfJs = async () => {
   if (!pdfJsPromise) {
     pdfJsPromise = Promise.all([
-      import("pdfjs-dist"),
-      import("pdfjs-dist/build/pdf.worker.min.mjs?url"),
+      // The legacy browser build carries the Promise polyfills the modern bundle omits.
+      import("pdfjs-dist/legacy/build/pdf.mjs"),
+      import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url"),
     ]).then(([pdfjs, worker]) => {
       pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
       return pdfjs;
