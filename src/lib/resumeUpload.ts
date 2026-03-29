@@ -1,5 +1,10 @@
+import mammoth from "mammoth";
+
 const MAX_RESUME_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const PDF_MIME_TYPE = "application/pdf";
+const DOCX_MIME_TYPE =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 type PdfJsModule = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
 
 let pdfJsPromise: Promise<PdfJsModule> | null = null;
@@ -30,7 +35,7 @@ const sanitizeFileName = (fileName: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "") || "resume.pdf";
+    .replace(/^-|-$/g, "") || "resume";
 
 export const buildResumeStoragePath = (userId: string, fileName: string) =>
   `${userId}/${Date.now()}-${sanitizeFileName(fileName)}`;
@@ -50,15 +55,7 @@ const getPdfJs = async () => {
   return pdfJsPromise;
 };
 
-export const extractResumeText = async (file: File): Promise<ExtractedResume> => {
-  if (file.type !== PDF_MIME_TYPE) {
-    throw new ResumeUploadError("Only PDF resumes are supported right now.");
-  }
-
-  if (file.size > MAX_RESUME_FILE_SIZE_BYTES) {
-    throw new ResumeUploadError("Resume PDF must be smaller than 10 MB.");
-  }
-
+const extractPdfText = async (file: File): Promise<ExtractedResume> => {
   const pdfjs = await getPdfJs();
   const loadingTask = pdfjs.getDocument({
     data: await file.arrayBuffer(),
@@ -83,16 +80,7 @@ export const extractResumeText = async (file: File): Promise<ExtractedResume> =>
       }
     }
 
-    const text = normalizeResumeText(pages.join("\n\n"));
-
-    if (text.length < 50) {
-      throw new ResumeUploadError("Could not extract enough text from that PDF. Please try another file or paste the CV text.");
-    }
-
-    return {
-      pageCount: pdf.numPages,
-      text,
-    };
+    return { pageCount: pdf.numPages, text: pages.join("\n\n") };
   } catch (error) {
     try {
       await loadingTask.destroy();
@@ -106,8 +94,47 @@ export const extractResumeText = async (file: File): Promise<ExtractedResume> =>
 
     throw new ResumeUploadError("Failed to read that PDF. Please try another file or paste the CV text.");
   } finally {
-    if (pdf) {
-      await pdf.cleanup();
+    try {
+      if (pdf) await pdf.cleanup();
+    } catch {
+      // Ignore cleanup errors after successful extraction or when destroy already ran.
     }
   }
+};
+
+const extractDocxText = async (file: File): Promise<ExtractedResume> => {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const { value } = await mammoth.extractRawText({ arrayBuffer });
+    return { pageCount: 1, text: value };
+  } catch (error) {
+    if (error instanceof ResumeUploadError) throw error;
+    throw new ResumeUploadError("Failed to read that DOCX. Please try another file or paste the CV text.");
+  }
+};
+
+export const ACCEPTED_RESUME_TYPES = `${PDF_MIME_TYPE},${DOCX_MIME_TYPE},.pdf,.docx`;
+
+export const extractResumeText = async (file: File): Promise<ExtractedResume> => {
+  if (file.size > MAX_RESUME_FILE_SIZE_BYTES) {
+    throw new ResumeUploadError("Resume must be smaller than 10 MB.");
+  }
+
+  let result: ExtractedResume;
+
+  if (file.type === PDF_MIME_TYPE || file.name.endsWith(".pdf")) {
+    result = await extractPdfText(file);
+  } else if (file.type === DOCX_MIME_TYPE || file.name.endsWith(".docx")) {
+    result = await extractDocxText(file);
+  } else {
+    throw new ResumeUploadError("Only PDF and DOCX resumes are supported.");
+  }
+
+  const text = normalizeResumeText(result.text);
+
+  if (text.length < 50) {
+    throw new ResumeUploadError("Could not extract enough text from that file. Please try another file or paste the CV text.");
+  }
+
+  return { pageCount: result.pageCount, text };
 };

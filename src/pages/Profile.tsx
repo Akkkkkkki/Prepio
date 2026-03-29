@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
 import { useAuthContext } from "@/components/AuthProvider";
-import { ResumeUploadError, buildResumeStoragePath, extractResumeText } from "@/lib/resumeUpload";
+import { ACCEPTED_RESUME_TYPES, ResumeUploadError, buildResumeStoragePath, extractResumeText } from "@/lib/resumeUpload";
 
 type SeniorityLevel = 'junior' | 'mid' | 'senior';
 
@@ -738,7 +738,7 @@ const Profile = () => {
                     CV / Resume
                   </CardTitle>
                   <CardDescription>
-                    Upload a PDF or paste your CV text directly. Saved resume updates and deletion are both supported here.
+                    Upload a PDF or DOCX, or paste your CV text directly. Saved resume updates and deletion are both supported here.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -748,11 +748,11 @@ const Profile = () => {
                       <Upload className="h-6 w-6 text-muted-foreground" />
                       <div className="text-center">
                         <p className="text-sm text-muted-foreground mb-2">
-                          Upload a PDF to replace your current CV, or paste the text below.
+                          Upload a PDF or DOCX to replace your current CV, or paste the text below.
                         </p>
                         <input
                           type="file"
-                          accept=".pdf"
+                          accept={ACCEPTED_RESUME_TYPES}
                           onChange={handleFileUpload}
                           className="hidden"
                           id={PROFILE_CV_UPLOAD_ID}
@@ -769,7 +769,7 @@ const Profile = () => {
                           ) : (
                             <FileText className="h-4 w-4 mr-2" />
                           )}
-                          {isUploadingResume ? "Processing PDF..." : "Upload PDF"}
+                          {isUploadingResume ? "Processing..." : "Upload PDF / DOCX"}
                         </Button>
                       </div>
                     </div>

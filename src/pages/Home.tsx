@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import Navigation from "@/components/Navigation";
 import ProgressDialog from "@/components/ProgressDialog";
-import { ResumeUploadError, buildResumeStoragePath, extractResumeText } from "@/lib/resumeUpload";
+import { ACCEPTED_RESUME_TYPES, ResumeUploadError, buildResumeStoragePath, extractResumeText } from "@/lib/resumeUpload";
 
 type SeniorityLevel = 'junior' | 'mid' | 'senior';
 
@@ -510,11 +510,11 @@ const Home = () => {
                     <Upload className="h-8 w-8 text-muted-foreground" />
                     <div className="text-center">
                       <p className="text-sm text-muted-foreground mb-2">
-                        Upload a PDF or paste your CV text below. Signed-in uploads also update the resume saved on your profile.
+                        Upload a PDF or DOCX, or paste your CV text below. Signed-in uploads also update the resume saved on your profile.
                       </p>
                       <input
                         type="file"
-                        accept=".pdf"
+                        accept={ACCEPTED_RESUME_TYPES}
                         onChange={handleFileUpload}
                         className="hidden"
                         id={HOME_CV_UPLOAD_ID}
@@ -531,7 +531,7 @@ const Home = () => {
                         ) : (
                           <FileText className="h-4 w-4 mr-2" />
                         )}
-                        {isUploadingResume ? "Processing PDF..." : "Upload PDF"}
+                        {isUploadingResume ? "Processing..." : "Upload PDF / DOCX"}
                       </Button>
                     </div>
                   </div>

@@ -72,13 +72,13 @@ describe("extractResumeText", () => {
     expect(mocks.destroy).not.toHaveBeenCalled();
   });
 
-  it("rejects non-pdf files before loading pdf.js", async () => {
+  it("rejects unsupported file types", async () => {
     createPdfJsMocks();
     const { ResumeUploadError, extractResumeText } = await import("../resumeUpload");
 
     await expect(
       extractResumeText(new File(["text"], "resume.txt", { type: "text/plain" })),
-    ).rejects.toEqual(new ResumeUploadError("Only PDF resumes are supported right now."));
+    ).rejects.toEqual(new ResumeUploadError("Only PDF and DOCX resumes are supported."));
   });
 
   it("destroys the loading task when text extraction fails", async () => {
@@ -97,5 +97,34 @@ describe("extractResumeText", () => {
     );
     expect(mocks.destroy).toHaveBeenCalledTimes(1);
     expect(mocks.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("extracts text from a docx file", async () => {
+    createPdfJsMocks();
+
+    vi.doMock("mammoth", () => ({
+      default: {
+        extractRawText: vi.fn().mockResolvedValue({
+          value:
+            "Jane Doe Senior Product Manager Led cross-functional launches, scaled analytics, and shipped hiring workflows across multiple markets.",
+        }),
+      },
+    }));
+
+    const { extractResumeText } = await import("../resumeUpload");
+    const file = new File(["docx"], "resume.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+
+    Object.defineProperty(file, "arrayBuffer", {
+      value: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+    });
+
+    const result = await extractResumeText(file);
+
+    expect(result).toEqual({
+      pageCount: 1,
+      text: "Jane Doe Senior Product Manager Led cross-functional launches, scaled analytics, and shipped hiring workflows across multiple markets.",
+    });
   });
 });
