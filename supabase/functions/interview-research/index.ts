@@ -1249,72 +1249,19 @@ async function saveToDatabase(
   try {
     console.log("💾 Saving to database...");
 
-    // CHECKPOINT 1: Save raw research data to search_artifacts
-    console.log("  → Saving raw research data...");
-    const rawSaveResult = await withDbTimeout(
-      async () => {
-        const { data, error } = await supabase
-          .from('search_artifacts')
-          .update({
-            company_research_raw: rawData.company_research_raw,
-            job_analysis_raw: rawData.job_analysis_raw,
-            cv_analysis_raw: rawData.cv_analysis_raw,
-            processing_status: 'raw_data_saved',
-            processing_raw_save_at: new Date().toISOString()
-          })
-          .eq('search_id', searchId)
-          .select();
-
-        if (error) throw error;
-        return data;
-      },
-      'Update raw data in search_artifacts'
-    );
-
-    if (!rawSaveResult || rawSaveResult.length === 0) {
-      console.warn("⚠️ Raw data update touched no rows, attempting insert fallback...");
-      await withDbTimeout(
-        async () => {
-          const { error } = await supabase
-            .from('search_artifacts')
-            .insert({
-              search_id: searchId,
-              user_id: userId,
-              company_research_raw: rawData.company_research_raw,
-              job_analysis_raw: rawData.job_analysis_raw,
-              cv_analysis_raw: rawData.cv_analysis_raw,
-              interview_stages: synthesis.interview_stages || [],
-              processing_status: 'raw_data_saved',
-              processing_raw_save_at: new Date().toISOString()
-            });
-
-          if (error) throw error;
-          return true;
-        },
-        'Insert raw data fallback'
-      );
-    } else {
-      console.log("✅ Raw data saved");
-    }
-
-    // CHECKPOINT 2: Save synthesis results to search_artifacts
-    console.log("  → Saving synthesis results...");
+    // CHECKPOINT 1: Save synthesis results to search_artifacts
+    // Schema columns: search_id, user_id, raw_research, comparison_analysis, preparation_guidance
+    console.log("  → Saving synthesis results to search_artifacts...");
     const synthesisSaveResult = await withDbTimeout(
       async () => {
-        // Use upsert to ensure the row exists (handles both insert and update)
         const { data, error } = await supabase
           .from('search_artifacts')
           .upsert({
             search_id: searchId,
             user_id: userId,
-            interview_stages: synthesis.interview_stages,
-            synthesis_metadata: synthesis.synthesis_metadata,
-            comparison_analysis: synthesis.comparison_analysis,
-            interview_questions_data: synthesis.interview_questions_data,
-            preparation_guidance: synthesis.preparation_guidance,
-            processing_status: 'complete',
-            processing_synthesis_end_at: new Date().toISOString(),
-            processing_completed_at: new Date().toISOString()
+            raw_research: rawData,
+            comparison_analysis: synthesis.comparison_analysis || {},
+            preparation_guidance: synthesis.preparation_guidance || {},
           }, { onConflict: 'search_id' })
           .select();
 
@@ -1325,7 +1272,7 @@ async function saveToDatabase(
         return data;
       },
       'Save synthesis to search_artifacts',
-      45000 // Increased timeout for large data
+      45000
     );
 
     if (!synthesisSaveResult || synthesisSaveResult.length === 0) {
@@ -1335,7 +1282,8 @@ async function saveToDatabase(
       console.log("✅ Synthesis saved");
     }
 
-    // CHECKPOINT 3: Insert interview stages for UI display
+    // CHECKPOINT 2: Insert interview stages for UI display
+    // Schema columns: search_id, name, order_index, duration, interviewer, content, guidance
     console.log("  → Saving interview stages...");
     const stageRecords = await withDbTimeout(
       async () => {
@@ -1343,13 +1291,10 @@ async function saveToDatabase(
           search_id: searchId,
           name: stage.name,
           order_index: stage.order_index || index + 1,
-          duration: stage.duration,
-          interviewer: stage.interviewer,
-          content: stage.content,
-          guidance: stage.guidance,
-          preparation_tips: stage.preparation_tips || [],
-          common_questions: stage.common_questions || [],
-          red_flags_to_avoid: stage.red_flags_to_avoid || []
+          duration: stage.duration || null,
+          interviewer: stage.interviewer || null,
+          content: stage.content || null,
+          guidance: stage.guidance || null,
         }));
 
         if (stagesToInsert.length === 0) return [];
@@ -1372,10 +1317,12 @@ async function saveToDatabase(
 
     console.log(`✅ Interview stages saved (${(stageRecords || []).length})`);
 
-    // CHECKPOINT 4: Insert interview questions
+    // CHECKPOINT 3: Insert interview questions
+    // Schema columns: search_id, stage_id, question, category, difficulty, rationale,
+    //   suggested_answer_approach, evaluation_criteria, follow_up_questions,
+    //   company_context, star_story_fit
     console.log("  → Saving interview questions...");
-    
-    // Calculate total questions count before insertion
+
     let totalQuestionsCount = 0;
     if (synthesis.interview_questions_data) {
       Object.values(synthesis.interview_questions_data).forEach((questions: any) => {
@@ -1384,7 +1331,7 @@ async function saveToDatabase(
         }
       });
     }
-    
+
     await withDbTimeout(
       async () => {
         if (!stageRecords || stageRecords.length === 0) {
@@ -1411,14 +1358,13 @@ async function saveToDatabase(
         };
 
         if (synthesis.interview_questions_data) {
-          // Log question counts before inserting
           const questionCounts: Record<string, number> = {};
           Object.entries(synthesis.interview_questions_data).forEach(([category, questions]: [string, any]) => {
             questionCounts[category] = Array.isArray(questions) ? questions.length : 0;
           });
           const totalQuestions = Object.values(questionCounts).reduce((sum, count) => sum + count, 0);
           console.log(`📝 Preparing to insert ${totalQuestions} questions:`, questionCounts);
-          
+
           Object.entries(synthesis.interview_questions_data).forEach(([category, questions]: [string, any]) => {
             if (Array.isArray(questions)) {
               questions.forEach((q: any) => {
@@ -1431,7 +1377,6 @@ async function saveToDatabase(
                   stage_id: stageId,
                   question: q.question,
                   category: category,
-                  question_type: 'synthesized',
                   difficulty: normalizeDifficulty(q.difficulty),
                   rationale: q.rationale || '',
                   suggested_answer_approach: q.suggested_answer_approach || '',
@@ -1439,7 +1384,6 @@ async function saveToDatabase(
                   follow_up_questions: q.follow_up_questions || [],
                   star_story_fit: q.star_story_fit || false,
                   company_context: q.company_context || '',
-                  confidence_score: q.confidence_score || 0.8
                 });
               });
             }
@@ -1463,22 +1407,20 @@ async function saveToDatabase(
       console.warn(`⚠️ WARNING: Only ${totalQuestionsCount} questions were saved. Expected 30-50 questions.`);
     }
 
-    // CHECKPOINT 5: Update search status
+    // CHECKPOINT 4: Update search status
+    // Schema columns: status, error_message, completed_at
     console.log("  → Updating search status...");
     await withDbTimeout(
       async () => {
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('searches')
           .update({
             status: 'completed',
-            overall_fit_score: synthesis.comparison_analysis?.overall_fit_score || 0,
-            preparation_priorities: synthesis.preparation_guidance?.preparation_priorities || [],
-            cv_job_comparison: synthesis.comparison_analysis
+            completed_at: new Date().toISOString(),
           })
           .eq('id', searchId);
 
         if (error) throw error;
-        return data;
       },
       'Update searches table'
     );
@@ -1634,11 +1576,7 @@ serve(async (req: Request) => {
           .upsert({
             search_id: searchId,
             user_id: userId,
-            ...rawData,
-            interview_stages: [],
-            processing_status: 'raw_data_saved',
-            processing_started_at: new Date().toISOString(),
-            processing_raw_save_at: new Date().toISOString()
+            raw_research: rawData,
           }, { onConflict: 'search_id' });
 
         if (error) {
