@@ -5,6 +5,8 @@
 **Scope**: Adopt new UI/UX design and select features while preserving robust backend architecture
 **Excluded**: Live AI interview feature (parked for future consideration)
 
+> For the current mobile practice execution plan, use [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./MOBILE_PRACTICE_UX_EXECUTION_PLAN.md). This roadmap stays broader and includes older planning context.
+
 ---
 
 ## Table of Contents
