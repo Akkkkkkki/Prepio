@@ -8,11 +8,24 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { 
   ChevronLeft, 
-  ChevronRight, 
   RotateCcw, 
   Timer,
   CheckCircle,
@@ -25,22 +38,25 @@ import {
   Mic,
   MicOff,
   Square,
-  Filter,
-  Shuffle,
   Star,
   ArrowLeft,
-  ArrowRight,
-  Info
+  Info,
+  MoreHorizontal,
+  Pause,
+  FileText,
+  Trash2
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
 import { sessionSampler } from "@/services/sessionSampler";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { SessionSummary } from "@/components/SessionSummary";
 import { QuestionFrame } from "@/components/practice/QuestionFrame";
 import { HintBanner } from "@/components/practice/HintBanner";
 import { BottomPracticeNav } from "@/components/practice/BottomPracticeNav";
 import { PracticeHelperDrawer } from "@/components/practice/PracticeHelperDrawer";
 import { QuestionInsightsPanel } from "@/components/practice/QuestionInsightsPanel";
+import { cn } from "@/lib/utils";
 
 const SWIPE_THRESHOLD_PX = 60;
 const VERTICAL_SCROLL_SUPPRESSION_DELTA = 12;
@@ -161,6 +177,7 @@ interface PracticeSession {
 const Practice = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchId = searchParams.get('searchId');
   const urlStageIds = searchParams.get('stages')?.split(',') || [];
@@ -207,10 +224,13 @@ const Practice = () => {
   const [sessionState, setSessionState] = useState<'setup' | 'inProgress' | 'completed'>('setup');
   const [setupStep, setSetupStep] = useState(0);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [mobileSetupMode, setMobileSetupMode] = useState<'quick' | 'custom'>('quick');
   const [rememberDefaults, setRememberDefaults] = useState(true);
   const [shouldShowSwipeHint, setShouldShowSwipeHint] = useState(false);
   const [isVerticalScrollGuarded, setIsVerticalScrollGuarded] = useState(false);
   const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [isCoachSheetOpen, setIsCoachSheetOpen] = useState(false);
+  const [isNotesExpanded, setIsNotesExpanded] = useState(false);
   const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hydratedAnswersRef = useRef<Set<string>>(new Set());
 
@@ -221,13 +241,74 @@ const Practice = () => {
     if (typeof window === "undefined") return;
     sessionStorage.removeItem(getAutosaveKey(questionId));
   };
+
+  const clearSavedRecording = () => {
+    setAudioBlob(null);
+    setHasRecording(false);
+    setRecordingTime(0);
+  };
+
+  const stopMediaStream = () => {
+    mediaStreamRef.current?.getTracks().forEach(track => track.stop());
+    mediaStreamRef.current = null;
+  };
+
+  const resetRecordingUi = () => {
+    setIsRecording(false);
+    setIsRecordingPaused(false);
+    setRecordingTime(0);
+    setAudioBlob(null);
+    setHasRecording(false);
+  };
+
+  const discardRecordingDraft = () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.ondataavailable = null;
+      recorder.onstop = null;
+      try {
+        recorder.stop();
+      } catch (error) {
+        console.error("Error discarding recording", error);
+      }
+    }
+
+    mediaRecorderRef.current = null;
+    audioChunksRef.current = [];
+    stopMediaStream();
+    resetRecordingUi();
+  };
+
+  const getMicrophoneErrorMessage = (error: unknown) => {
+    if (error instanceof DOMException) {
+      switch (error.name) {
+        case "NotAllowedError":
+        case "PermissionDeniedError":
+          return "Microphone access is blocked. Allow microphone access in your browser settings, then try again.";
+        case "NotFoundError":
+        case "DevicesNotFoundError":
+          return "No microphone was found on this device. Connect one or use notes instead.";
+        case "NotReadableError":
+        case "TrackStartError":
+          return "Your microphone is busy in another app. Close the other app and try again.";
+        default:
+          break;
+      }
+    }
+
+    return "Microphone access failed. Check browser permissions and try again.";
+  };
   
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
+  const [isRecordingPaused, setIsRecordingPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [hasRecording, setHasRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Swipe gesture states
@@ -255,6 +336,13 @@ const Practice = () => {
         if (typeof parsed.favoritesOnly === "boolean") {
           setTempShowFavoritesOnly(parsed.favoritesOnly);
         }
+        const isQuickDefault =
+          parsed.sampleSize === practicePresets.quick.config.sampleSize &&
+          parsed.categories.length === 0 &&
+          parsed.difficulties.length === 0 &&
+          parsed.shuffle === practicePresets.quick.config.shuffle &&
+          parsed.favoritesOnly === practicePresets.quick.config.favoritesOnly;
+        setMobileSetupMode(isQuickDefault ? 'quick' : 'custom');
         setRememberDefaults(true);
         return true;
       }
@@ -264,14 +352,14 @@ const Practice = () => {
     return false;
   };
 
-  const persistPracticeDefaults = () => {
+  const persistPracticeDefaults = (defaults?: PracticeDefaults) => {
     if (typeof window === "undefined") return;
     if (!rememberDefaults) {
       localStorage.removeItem(PRACTICE_SETUP_STORAGE_KEY);
       return;
     }
 
-    const payload: PracticeDefaults = {
+    const payload: PracticeDefaults = defaults ?? {
       sampleSize,
       categories: tempCategories,
       difficulties: tempDifficulties,
@@ -586,15 +674,25 @@ const getInterviewerFocus = (
   // Reset timer when question changes
   useEffect(() => {
     setCurrentQuestionStartTime(Date.now());
-    // Reset recording state when changing questions
-    setIsRecording(false);
-    setRecordingTime(0);
-    setAudioBlob(null);
-    setHasRecording(false);
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
-    }
+    setIsCoachSheetOpen(false);
+    setIsNotesExpanded(false);
+    setRecordingError(null);
+    discardRecordingDraft();
   }, [currentIndex]);
+
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (error) {
+          console.error("Error stopping recorder on cleanup", error);
+        }
+      }
+      stopMediaStream();
+      audioChunksRef.current = [];
+    };
+  }, []);
 
   useEffect(() => {
     if (!currentQuestion) return;
@@ -636,7 +734,7 @@ const getInterviewerFocus = (
   }, [currentAnswer, currentQuestion?.id, sessionState]);
 
   useEffect(() => {
-    if (sessionState !== 'inProgress') {
+    if (sessionState !== 'inProgress' || isMobile) {
       setShouldShowSwipeHint(false);
       return;
     }
@@ -649,7 +747,7 @@ const getInterviewerFocus = (
     } else {
       setShouldShowSwipeHint(false);
     }
-  }, [currentIndex, sessionState, swipeHintStorageKey]);
+  }, [currentIndex, isMobile, sessionState, swipeHintStorageKey]);
 
   // Recording timer
   useEffect(() => {
@@ -701,45 +799,87 @@ const getInterviewerFocus = (
   };
 
   const handleAnswerChange = (value: string) => {
-    const newAnswers = new Map(answers);
-    newAnswers.set(currentQuestion.id, value);
-    setAnswers(newAnswers);
+    setAnswers(prev => {
+      const next = new Map(prev);
+      next.set(currentQuestion.id, value);
+      return next;
+    });
   };
 
   const startRecording = async () => {
+    setRecordingError(null);
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setRecordingError("Microphone recording is not supported in this browser. Use quick notes instead.");
+      return;
+    }
+
+    if (mediaRecorderRef.current?.state === 'paused') {
+      mediaRecorderRef.current.resume();
+      setIsRecording(true);
+      setIsRecordingPaused(false);
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
+
+      stopMediaStream();
+      mediaRecorderRef.current = null;
+      audioChunksRef.current = [];
+      clearSavedRecording();
+      mediaStreamRef.current = stream;
       mediaRecorderRef.current = mediaRecorder;
-      
-      const audioChunks: BlobPart[] = [];
-      
+
       mediaRecorder.ondataavailable = (event) => {
-        audioChunks.push(event.data);
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
       };
-      
+
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-        setAudioBlob(audioBlob);
-        setHasRecording(true);
-        
-        // Clean up stream
-        stream.getTracks().forEach(track => track.stop());
+        const nextBlob = audioChunksRef.current.length > 0
+          ? new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' })
+          : null;
+
+        setAudioBlob(nextBlob);
+        setHasRecording(Boolean(nextBlob && nextBlob.size > 0));
+        stopMediaStream();
+        mediaRecorderRef.current = null;
+        audioChunksRef.current = [];
+        setIsRecording(false);
+        setIsRecordingPaused(false);
       };
-      
+
       mediaRecorder.start();
       setIsRecording(true);
+      setIsRecordingPaused(false);
       setRecordingTime(0);
     } catch (error) {
       console.error('Error starting recording:', error);
-      alert('Could not access microphone. Please check permissions.');
+      setRecordingError(getMicrophoneErrorMessage(error));
+      mediaRecorderRef.current = null;
+      audioChunksRef.current = [];
+      stopMediaStream();
+      setIsRecording(false);
+      setIsRecordingPaused(false);
+    }
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.pause();
+      setIsRecording(false);
+      setIsRecordingPaused(true);
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      setIsRecordingPaused(false);
     }
   };
 
@@ -751,39 +891,105 @@ const getInterviewerFocus = (
   };
 
   const clearRecording = () => {
-    setAudioBlob(null);
-    setHasRecording(false);
-    setRecordingTime(0);
+    setRecordingError(null);
+    discardRecordingDraft();
   };
 
-  const handleBeginSession = () => {
-    // Apply temporary filters to active filters
-    setAppliedCategories(tempCategories);
-    setAppliedDifficulties(tempDifficulties);
-    setAppliedShuffle(tempShuffle);
-    setShowFavoritesOnly(tempShowFavoritesOnly);
-    const hasSelectedStages = allStages.some(stage => stage.selected);
+  const finalizeSession = async () => {
+    try {
+      if (practiceSession) {
+        await searchService.completePracticeSession(practiceSession.id);
+      }
+    } catch (error) {
+      console.error("Error completing practice session:", error);
+    } finally {
+      setSessionState('completed');
+    }
+  };
+
+  const beginSession = ({
+    categories = tempCategories,
+    difficulties = tempDifficulties,
+    shuffle = tempShuffle,
+    favoritesOnly = tempShowFavoritesOnly,
+    stages = allStages,
+    nextSampleSize = sampleSize,
+    nextPreset = selectedPreset,
+  }: {
+    categories?: string[];
+    difficulties?: string[];
+    shuffle?: boolean;
+    favoritesOnly?: boolean;
+    stages?: InterviewStage[];
+    nextSampleSize?: number;
+    nextPreset?: string | null;
+  } = {}) => {
+    setAllStages(stages);
+    setSampleSize(nextSampleSize);
+    setAppliedCategories(categories);
+    setAppliedDifficulties(difficulties);
+    setAppliedShuffle(shuffle);
+    setShowFavoritesOnly(favoritesOnly);
+
+    const hasSelectedStages = stages.some(stage => stage.selected);
     if (!hasSelectedStages) {
       setSetupStep(1);
+      setMobileSetupMode('custom');
       return;
     }
-    persistPracticeDefaults();
+
+    if (searchId) {
+      const selectedStageIds = stages.filter(stage => stage.selected).map(stage => stage.id);
+      setSearchParams({ searchId, stages: selectedStageIds.join(',') });
+    }
+
+    persistPracticeDefaults({
+      sampleSize: nextSampleSize,
+      categories,
+      difficulties,
+      shuffle,
+      favoritesOnly
+    });
     if (typeof window !== "undefined") {
       sessionStorage.removeItem(swipeHintStorageKey);
     }
-    setShouldShowSwipeHint(true);
+    setShouldShowSwipeHint(!isMobile);
     setIsVerticalScrollGuarded(false);
     setSetupStep(0);
-    setSelectedPreset(null);
-    
+    setSelectedPreset(nextPreset);
     setUseSampling(true);
     setSessionState('inProgress');
     setCurrentIndex(0);
+    setIsCoachSheetOpen(false);
+    setIsNotesExpanded(false);
+    setRecordingError(null);
+  };
+
+  const handleBeginSession = () => {
+    beginSession({
+      nextPreset: isMobile ? null : selectedPreset
+    });
+  };
+
+  const handleBeginQuickStart = () => {
+    const selectedStages = allStages.some(stage => stage.selected)
+      ? allStages
+      : allStages.map(stage => ({ ...stage, selected: true }));
+    beginSession({
+      categories: [],
+      difficulties: [],
+      shuffle: practicePresets.quick.config.shuffle,
+      favoritesOnly: practicePresets.quick.config.favoritesOnly,
+      stages: selectedStages,
+      nextSampleSize: practicePresets.quick.config.sampleSize,
+      nextPreset: 'quick'
+    });
   };
 
   const handleStartNewSession = () => {
     setSessionState('setup');
     setSetupStep(0);
+    setMobileSetupMode('quick');
     setUseSampling(false);
     setCurrentIndex(0);
     setAnswers(new Map());
@@ -809,6 +1015,10 @@ const getInterviewerFocus = (
     }
     setShouldShowSwipeHint(false);
     setIsVerticalScrollGuarded(false);
+    setIsCoachSheetOpen(false);
+    setIsNotesExpanded(false);
+    setRecordingError(null);
+    discardRecordingDraft();
   };
   
   const toggleCategory = (category: string) => {
@@ -896,12 +1106,7 @@ const getInterviewerFocus = (
         
         // Check if this is the last question
         if (currentIndex >= questions.length - 1) {
-          // Mark session as completed in database
-          if (practiceSession) {
-            await searchService.completePracticeSession(practiceSession.id);
-          }
-          // Mark session as completed in UI
-          setSessionState('completed');
+          await finalizeSession();
         } else {
           // Auto-advance to next question
           setTimeout(() => {
@@ -930,9 +1135,19 @@ const getInterviewerFocus = (
     }
   };
 
-  const skipQuestion = () => {
+  const skipQuestion = async () => {
+    if (isRecording || isRecordingPaused || isSaving) return;
+
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await finalizeSession();
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -998,6 +1213,8 @@ const getInterviewerFocus = (
 
   const voiceStatus = isRecording
     ? { label: `Recording ${formatTime(recordingTime)}`, variant: 'destructive' as const }
+    : isRecordingPaused
+      ? { label: `Paused ${formatTime(recordingTime)}`, variant: 'outline' as const }
     : hasRecording
       ? { label: `Preview ${formatTime(recordingTime)}`, variant: 'secondary' as const }
       : { label: 'Mic idle', variant: 'outline' as const };
@@ -1008,18 +1225,35 @@ const getInterviewerFocus = (
   const hasTypedAnswer = Boolean(currentAnswer.trim());
   const canSubmitAnswer = hasTypedAnswer || hasRecording;
   const primaryCtaLabel = currentIndex >= questions.length - 1 ? 'Save & Finish' : 'Save & Continue';
-  const isPrimaryDisabled = !canSubmitAnswer || isSaving;
+  const isPrimaryDisabled = !canSubmitAnswer || isSaving || isRecording || isRecordingPaused;
+  const isSkipDisabled = isSaving || isRecording || isRecordingPaused;
+  const skipActionLabel = currentIndex >= questions.length - 1 ? 'Finish' : 'Skip';
+  const mobileQuestionCount = mobileSetupMode === 'quick'
+    ? practicePresets.quick.config.sampleSize
+    : sampleSize;
+  const estimateDurationRange = (count: number) => {
+    const minMinutes = Math.max(5, Math.round(count * 1.5));
+    const maxMinutes = Math.max(minMinutes + 2, Math.round(count * 2));
+    return `${minMinutes} to ${maxMinutes} min`;
+  };
+  const notePreview = currentAnswer.trim()
+    ? currentAnswer.trim().slice(0, 120)
+    : "Tap Notes to keep a quick outline.";
+  const recordingHeaderCopy = isRecording
+    ? `REC ${formatTime(recordingTime)}`
+    : isRecordingPaused
+      ? `Paused ${formatTime(recordingTime)}`
+      : formatTime(currentQuestionTime);
 
   // Swipe handlers
   const handleSwipeLeft = () => {
+    if (isSkipDisabled) return;
     if (isVerticalScrollGuarded) {
       setIsVerticalScrollGuarded(false);
       return;
     }
     hideSwipeHint();
-    if (currentIndex < questions.length - 1) {
-      skipQuestion();
-    }
+    skipQuestion();
   };
 
   const handleSwipeRight = () => {
@@ -1053,11 +1287,11 @@ const getInterviewerFocus = (
         event.preventDefault();
         previousQuestion();
       } else if (event.key === 'ArrowRight') {
-        if (!canSubmitAnswer || isSaving) return;
+        if (isPrimaryDisabled) return;
         event.preventDefault();
         handleSaveAnswer();
       } else if (event.key.toLowerCase() === 's') {
-        if (currentIndex >= questions.length - 1) return;
+        if (isSkipDisabled) return;
         event.preventDefault();
         skipQuestion();
       }
@@ -1072,8 +1306,8 @@ const getInterviewerFocus = (
     previousQuestion,
     skipQuestion,
     handleSaveAnswer,
-    canSubmitAnswer,
-    isSaving
+    isPrimaryDisabled,
+    isSkipDisabled
   ]);
 
   // Swipe configuration
@@ -1114,8 +1348,8 @@ const getInterviewerFocus = (
       }, 200);
       setIsVerticalScrollGuarded(false);
     },
-    trackMouse: true, // Enable mouse drag for desktop
-    trackTouch: true, // Enable touch for mobile
+    trackMouse: !isMobile,
+    trackTouch: true,
     preventScrollOnSwipe: false,
     delta: SWIPE_THRESHOLD_PX,
   });
@@ -1309,6 +1543,236 @@ const getInterviewerFocus = (
               </div>
             </CardContent>
           </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionState === 'setup' && isMobile) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <div className="flex h-14 items-center justify-between px-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
+              aria-label="Back to dashboard"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div className="text-sm font-medium">Practice setup</div>
+            <div className="w-9" />
+          </div>
+        </div>
+
+        <div className="px-4 py-5 pb-8">
+          <div className="space-y-5">
+            <section className="rounded-[28px] border bg-muted/30 p-5 shadow-sm">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                Practice summary
+              </p>
+              <div className="mt-3 space-y-1">
+                <h1 className="text-xl font-semibold leading-tight">
+                  {searchData?.company || "Practice session"}
+                </h1>
+                {(searchData?.role || searchData?.company) && (
+                  <p className="text-sm text-muted-foreground">
+                    {searchData?.role || "Interview practice"}
+                  </p>
+                )}
+              </div>
+              <div className="mt-4 flex items-center justify-between rounded-2xl bg-background/80 px-4 py-3 text-sm">
+                <span>{mobileQuestionCount} question{mobileQuestionCount !== 1 ? 's' : ''}</span>
+                <span className="text-muted-foreground">{estimateDurationRange(mobileQuestionCount)}</span>
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setMobileSetupMode('quick')}
+                className={cn(
+                  "w-full rounded-[24px] border p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+                  mobileSetupMode === 'quick'
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-background"
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">Quick start</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Jump in with 10 shuffled questions across your selected stages.
+                    </p>
+                  </div>
+                  <div
+                    className={cn(
+                      "flex h-5 w-5 items-center justify-center rounded-full border",
+                      mobileSetupMode === 'quick'
+                        ? "border-primary bg-primary"
+                        : "border-muted-foreground/40"
+                    )}
+                  >
+                    <div className="h-2.5 w-2.5 rounded-full bg-primary-foreground" />
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileSetupMode('custom')}
+                className={cn(
+                  "w-full rounded-[24px] border p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+                  mobileSetupMode === 'custom'
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-background"
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">Custom session</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Pick stages, tune difficulty, and keep the setup light.
+                    </p>
+                  </div>
+                  <div
+                    className={cn(
+                      "flex h-5 w-5 items-center justify-center rounded-full border",
+                      mobileSetupMode === 'custom'
+                        ? "border-primary bg-primary"
+                        : "border-muted-foreground/40"
+                    )}
+                  >
+                    <div className="h-2.5 w-2.5 rounded-full bg-primary-foreground" />
+                  </div>
+                </div>
+              </button>
+            </section>
+
+            {mobileSetupMode === 'custom' && (
+              <section className="space-y-5 rounded-[28px] border bg-background p-5 shadow-sm">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">Question count</label>
+                    <span className="text-sm text-muted-foreground">{sampleSize}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="5"
+                    max="30"
+                    step="1"
+                    value={sampleSize}
+                    onChange={(e) => setSampleSize(sessionSampler.validateSampleSize(parseInt(e.target.value, 10) || 10))}
+                    className="w-full accent-primary"
+                    aria-label="Question count"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {estimateDurationRange(sampleSize)}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">Stages</label>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedStagesCount} selected
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {allStages.map((stage) => (
+                      <button
+                        key={stage.id}
+                        type="button"
+                        onClick={() => handleStageToggle(stage.id)}
+                        className={cn(
+                          "rounded-full border px-3 py-2 text-sm transition",
+                          stage.selected
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background text-foreground"
+                        )}
+                      >
+                        {stage.name}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedStagesCount === 0 && (
+                    <p className="text-xs text-destructive">Select at least one stage.</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Difficulty</label>
+                  <div className="flex flex-wrap gap-2">
+                    {difficultyLevels.filter(level => level.value !== 'all').map(level => (
+                      <button
+                        key={level.value}
+                        type="button"
+                        onClick={() => toggleDifficulty(level.value)}
+                        className={cn(
+                          "rounded-full border px-3 py-2 text-sm transition",
+                          tempDifficulties.includes(level.value)
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-background text-foreground"
+                        )}
+                      >
+                        {level.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Leave unselected to include every level.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Options</label>
+                  <div className="grid gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTempShuffle(prev => !prev)}
+                      className={cn(
+                        "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition",
+                        tempShuffle ? "border-primary bg-primary/5" : "border-border bg-background"
+                      )}
+                    >
+                      <span>Shuffle questions</span>
+                      <span className="text-muted-foreground">{tempShuffle ? "On" : "Off"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTempShowFavoritesOnly(prev => !prev)}
+                      className={cn(
+                        "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition",
+                        tempShowFavoritesOnly ? "border-primary bg-primary/5" : "border-border bg-background"
+                      )}
+                    >
+                      <span>Favorites only</span>
+                      <span className="text-muted-foreground">{tempShowFavoritesOnly ? "On" : "Off"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRememberDefaults(prev => !prev)}
+                      className={cn(
+                        "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition",
+                        rememberDefaults ? "border-primary bg-primary/5" : "border-border bg-background"
+                      )}
+                    >
+                      <span>Remember these defaults</span>
+                      <span className="text-muted-foreground">{rememberDefaults ? "On" : "Off"}</span>
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            <Button
+              onClick={mobileSetupMode === 'quick' ? handleBeginQuickStart : handleBeginSession}
+              disabled={mobileSetupMode === 'custom' && selectedStagesCount === 0}
+              className="h-12 w-full rounded-2xl text-base"
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Start practice
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -1604,6 +2068,341 @@ const getInterviewerFocus = (
     );
   }
 
+  if (isMobile) {
+    const favoriteActive = questionFlags[currentQuestion.id]?.flag_type === 'favorite';
+
+    return (
+      <div
+        className={cn(
+          "min-h-screen bg-background",
+          isNotesExpanded || isRecording || isRecordingPaused ? "pb-[30rem]" : "pb-[16rem]"
+        )}
+      >
+        <div className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <div className="flex h-14 items-center gap-2 px-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
+              aria-label="Back to dashboard"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+
+            <div className="min-w-0 flex-1 text-center">
+              <p className="text-sm font-semibold">
+                Q{currentIndex + 1}/{questions.length || 1}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-xs font-medium",
+                  isRecording
+                    ? "bg-destructive/10 text-destructive"
+                    : isRecordingPaused
+                      ? "bg-amber-500/10 text-amber-700"
+                      : "bg-muted text-muted-foreground"
+                )}
+              >
+                {recordingHeaderCopy}
+              </span>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Practice actions">
+                    <MoreHorizontal className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Practice actions</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {currentIndex > 0 && (
+                    <DropdownMenuItem onClick={previousQuestion}>
+                      Previous question
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={resetCurrentQuestionTimer}>
+                    Reset timer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleStartNewSession}>
+                    Change setup
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}>
+                    Exit practice
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          <div className="h-1 w-full bg-muted">
+            <div
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        <main className="px-4 py-4">
+          <div className="space-y-4">
+            <QuestionFrame
+              animateIn={false}
+              className={cn(
+                "rounded-[30px] border bg-card p-5 shadow-sm",
+                swipeDirection === 'left'
+                  ? 'transform -translate-x-2'
+                  : swipeDirection === 'right'
+                    ? 'transform translate-x-2'
+                    : ''
+              )}
+              {...swipeHandlers}
+            >
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary" className="bg-primary/10 text-primary">
+                    {currentQuestion.stage_name}
+                  </Badge>
+                  {currentQuestion.difficulty && (
+                    <Badge variant="outline">{currentQuestion.difficulty}</Badge>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xl font-semibold leading-8 text-foreground">
+                    {currentQuestion.question}
+                  </p>
+                  {currentQuestion.answered && (
+                    <div className="inline-flex items-center gap-2 rounded-full bg-green-500/10 px-3 py-1 text-sm text-green-700">
+                      <CheckCircle className="h-4 w-4" />
+                      Answer saved
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-4 border-t pt-4 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleFlag(currentQuestion.id, 'favorite')}
+                    className={cn(
+                      "inline-flex items-center gap-2 transition",
+                      favoriteActive ? "text-amber-600" : "text-muted-foreground"
+                    )}
+                  >
+                    <Star className={cn("h-4 w-4", favoriteActive && "fill-current")} />
+                    {favoriteActive ? "Favorited" : "Favorite"}
+                  </button>
+
+                  {questionInsights && (
+                    <button
+                      type="button"
+                      onClick={() => setIsCoachSheetOpen(true)}
+                      className="text-muted-foreground transition hover:text-foreground"
+                    >
+                      Get coaching
+                    </button>
+                  )}
+                </div>
+              </div>
+            </QuestionFrame>
+
+            {!isNotesExpanded && hasTypedAnswer && (
+              <div className="rounded-[24px] border bg-muted/20 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  Note preview
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{notePreview}</p>
+              </div>
+            )}
+          </div>
+        </main>
+
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+          <div
+            className="mx-auto max-w-md space-y-3"
+            style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+          >
+            {(isRecording || isRecordingPaused) ? (
+              <div className="rounded-[28px] border border-destructive/20 bg-destructive/5 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Recording</p>
+                    <p className="mt-1 text-2xl font-semibold">{formatTime(recordingTime)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-destructive">
+                    <span className={cn("h-2.5 w-2.5 rounded-full", isRecording ? "animate-pulse bg-destructive" : "bg-amber-500")} />
+                    {isRecording ? "Live" : "Paused"}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={clearRecording}
+                    className="h-11 rounded-2xl border-destructive/20 bg-background"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={isRecording ? pauseRecording : startRecording}
+                    className="h-11 rounded-2xl bg-background"
+                  >
+                    {isRecording ? (
+                      <>
+                        <Pause className="mr-2 h-4 w-4" />
+                        Pause
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="mr-2 h-4 w-4" />
+                        Resume
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-[28px] border bg-card/90 p-3 shadow-sm">
+                <div className="grid grid-cols-[1fr_auto] gap-3">
+                  <Button
+                    onClick={hasRecording ? playRecording : startRecording}
+                    variant={hasRecording ? "outline" : "default"}
+                    className="h-12 justify-start rounded-2xl px-4"
+                  >
+                    {hasRecording ? (
+                      <>
+                        <Play className="mr-2 h-4 w-4" />
+                        Play recording
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="mr-2 h-4 w-4" />
+                        Record answer
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant={isNotesExpanded ? "secondary" : "outline"}
+                    onClick={() => setIsNotesExpanded(prev => !prev)}
+                    className="h-12 rounded-2xl px-4"
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Notes
+                  </Button>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                  <span>
+                    {hasRecording
+                      ? `Recording ready • ${formatTime(recordingTime)}`
+                      : notePreview}
+                  </span>
+                  {hasRecording && (
+                    <button
+                      type="button"
+                      onClick={startRecording}
+                      className="font-medium text-foreground"
+                    >
+                      Re-record
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {recordingError && (
+              <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                {recordingError}
+              </div>
+            )}
+
+            {isNotesExpanded && (
+              <div className="rounded-[28px] border bg-card p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Quick notes</p>
+                    <p className="text-xs text-muted-foreground">Saved on this device while you practice.</p>
+                  </div>
+                  <span className={cn("text-xs", autosaveState === 'saved' ? "text-green-600" : "text-muted-foreground")}>
+                    {autosaveStatusCopy}
+                  </span>
+                </div>
+                <Textarea
+                  value={currentAnswer}
+                  onChange={(e) => handleAnswerChange(e.target.value)}
+                  placeholder="Jot the beats you want to hit..."
+                  className="mt-3 min-h-[132px] resize-none rounded-2xl border-0 bg-muted/30 text-sm shadow-none focus-visible:ring-1"
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                onClick={skipQuestion}
+                disabled={isSkipDisabled}
+                className="h-12 rounded-2xl"
+              >
+                <SkipForward className="mr-2 h-4 w-4" />
+                {skipActionLabel}
+              </Button>
+
+              {(isRecording || isRecordingPaused) ? (
+                <Button
+                  variant="destructive"
+                  onClick={stopRecording}
+                  className="h-12 rounded-2xl"
+                >
+                  <Square className="mr-2 h-4 w-4" />
+                  Stop recording
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleSaveAnswer}
+                  disabled={isPrimaryDisabled}
+                  className="h-12 rounded-2xl"
+                >
+                  {isSaving ? 'Saving…' : primaryCtaLabel}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {questionInsights && (
+          <Drawer
+            open={isCoachSheetOpen}
+            onOpenChange={setIsCoachSheetOpen}
+            shouldScaleBackground={false}
+            snapPoints={[0.56, 0.92]}
+            fadeFromIndex={0}
+          >
+            <DrawerContent className="max-h-[92vh]">
+              <DrawerHeader className="text-left">
+                <DrawerTitle>Coach notes</DrawerTitle>
+                <DrawerDescription>
+                  Strong answer signals, weak spots, and follow-up prompts for this question.
+                </DrawerDescription>
+              </DrawerHeader>
+              <div className="overflow-y-auto px-4 pb-6">
+                <QuestionInsightsPanel
+                  data={questionInsights}
+                  className="space-y-4 rounded-none border-0 bg-transparent p-0 shadow-none"
+                />
+              </div>
+            </DrawerContent>
+          </Drawer>
+        )}
+      </div>
+    );
+  }
+
   // Active Practice Session - Show questions
   return (
     <div className="min-h-screen bg-background">
@@ -1749,11 +2548,11 @@ const getInterviewerFocus = (
                       variant="ghost"
                       size="sm"
                       onClick={skipQuestion}
-                      disabled={currentIndex >= questions.length - 1}
+                      disabled={isSkipDisabled}
                       aria-label="Skip question"
                     >
                       <SkipForward className="h-4 w-4 mr-1" />
-                      Skip
+                      {skipActionLabel}
                     </Button>
                   </div>
                 </div>
@@ -1861,6 +2660,12 @@ const getInterviewerFocus = (
                         </>
                       )}
                     </div>
+
+                    {recordingError && (
+                      <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                        {recordingError}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-3 rounded-2xl border bg-background p-4">
