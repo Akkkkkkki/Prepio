@@ -16,14 +16,16 @@ Primary flow:
 
 These points matter because older docs in this repo can drift behind shipped behavior:
 
-- PDF resume upload is supported.
-  Signed-in users can upload PDFs from Home and Profile, and Home can still parse a PDF locally before sign-in.
+- PDF and DOCX resume upload is supported.
+  Signed-in users can upload resumes from Home and Profile, and Home can still parse supported files locally before sign-in.
 - Profile resume deletion is server-backed.
   Deleting a profile resume removes the saved row and attempts to remove stored files as part of the same flow.
 - Practice voice recording is local preview only.
   There is no audio upload or transcription path yet.
 - Search history is available in authenticated navigation.
 - Practice supports mobile swipes, but users also have explicit button controls.
+- The current mobile practice UX is functional but not the target end state.
+  Use [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md) for the active redesign plan.
 - Auth shows redirect context when a user is bounced to sign in.
 - Sign-in and sign-up fields are stored separately in the UI.
 
@@ -152,6 +154,7 @@ Keep migration history in [`supabase/migrations`](./supabase/migrations) and sch
 ## Docs Map
 
 - [`README.md`](./README.md): current product and setup summary
+- [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md): source of truth for mobile practice execution
 - [`docs/UI_UX_ENHANCEMENT_PLAN.md`](./docs/UI_UX_ENHANCEMENT_PLAN.md): UX backlog
 - [`docs/RESEARCH_PIPELINE_IMPROVEMENTS.md`](./docs/RESEARCH_PIPELINE_IMPROVEMENTS.md): research pipeline notes
 - [`docs/TESTING.md`](./docs/TESTING.md): testing priorities

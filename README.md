@@ -17,7 +17,8 @@ This README is intentionally narrow. It documents what the product does today, w
   - favorites
   - mobile swipe gestures with scroll suppression
   - a bottom progress nav with safe-area padding
-- Profile lets users save CV text, upload PDF resumes, delete saved resumes, and manage seniority preferences.
+- Home and Profile support PDF and DOCX resume upload.
+- Profile lets users save CV text, upload PDF or DOCX resumes, delete saved resumes, and manage seniority preferences.
 - Search history is available from the authenticated app navigation.
 
 ### What is intentionally not shipped yet
@@ -35,11 +36,11 @@ This README is intentionally narrow. It documents what the product does today, w
 
 ## Mobile And Practice UX
 
-- Practice is responsive and built for touch.
-- Swiping is enabled through `react-swipeable`.
+- Practice currently ships with mobile swipe support through `react-swipeable`.
 - Horizontal actions require a 60px threshold.
 - Vertical movement greater than 12px suppresses swipe actions so users can scroll long prompts.
 - Users can still use explicit Back, Skip, Favorite, and bottom-nav controls if they do not want gestures.
+- The shipped mobile experience still feels crowded and overly tall. The active execution plan for fixing that lives in [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md).
 
 Key files:
 - [`src/pages/Practice.tsx`](./src/pages/Practice.tsx)
@@ -102,9 +103,9 @@ npm run supabase:status
 
 ## CV And Resume Notes
 
-- The supported path today is pasted CV text.
+- Users can paste CV text or upload PDF/DOCX files from Home and Profile.
 - Users can restore previously saved resume text from Profile into the Home form.
-- PDF upload buttons are disabled on Home and Profile until file processing ships.
+- Signed-in uploads update the resume saved on the user's profile.
 
 ## Architecture
 
@@ -149,6 +150,7 @@ Model selection is environment-driven through the shared config layer. The code 
 ## Docs Map
 
 - [`CLAUDE.md`](./CLAUDE.md): developer and agent playbook
+- [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md): source of truth for the mobile practice redesign
 - [`docs/UI_UX_ENHANCEMENT_PLAN.md`](./docs/UI_UX_ENHANCEMENT_PLAN.md): UX backlog and current usability gaps
 - [`docs/RESEARCH_PIPELINE_IMPROVEMENTS.md`](./docs/RESEARCH_PIPELINE_IMPROVEMENTS.md): research pipeline work and follow-ups
 - [`docs/IMPLEMENTATION_ROADMAP.md`](./docs/IMPLEMENTATION_ROADMAP.md): future-facing implementation ideas
@@ -171,7 +173,7 @@ Current status:
 ## Known UX Follow-Ups
 
 - Finish guest-first onboarding and lightweight public nav.
+- Execute the dedicated mobile practice redesign plan.
 - Add helper copy around the desktop "Active Research" selector.
 - Replace placeholder dashboard overview stats with real data.
-- Ship real PDF upload and server-side CV deletion.
 - Add stronger automated coverage for practice mobile interactions.

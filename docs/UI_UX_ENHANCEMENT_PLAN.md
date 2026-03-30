@@ -4,6 +4,8 @@
 **Prepared by:** AI Assistant  
 **Scope:** All UI/UX feedback to-date for the Prepio interview preparation tool.
 
+> For the active mobile practice redesign, use [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./MOBILE_PRACTICE_UX_EXECUTION_PLAN.md) as the source of truth. This document remains the broader UX backlog.
+
 ## Latest Gap Review — March 29, 2026
 
 | # | Theme | Gap & Evidence | Impact | Fast Fix |
@@ -54,6 +56,8 @@ Themes were clustered, conflicting recommendations were resolved using standard 
   _Action:_ Collapse secondary details behind accordions and keep primary metrics (stage name, status, recommended action) visible.
 
 ### 4. Practice Experience
+
+> Mobile practice now has a dedicated execution plan in [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./MOBILE_PRACTICE_UX_EXECUTION_PLAN.md). The items below are backlog context unless that document says otherwise.
 
 > **Status update (Dec 6, 2025):** Desktop practice now uses a two-column layout with a fixed insights rail, compact progress ribbon, and a single sticky CTA footer. The helper drawer was rewritten to focus on “Voice preview” + “Quick notes” with tooltip guidance, and a new Question Insights panel surfaces depth labels, interviewer signals, red flags, and outline guidance sourced from the refreshed question-generation pipeline.
 - **Swipe gestures conflict with scrolling & hints clash with content:** Users trigger actions accidentally and hints overlap.  
