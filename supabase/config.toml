@@ -3,5 +3,11 @@ project_id = "vjwrirrqprjzdorignlz"
 [functions.cv-analysis]
 verify_jwt = false
 
+[functions.company-research]
+verify_jwt = false
+
+[functions.job-analysis]
+verify_jwt = false
+
 [functions.interview-research]
 verify_jwt = false
