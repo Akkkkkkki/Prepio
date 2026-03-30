@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
 import { CheckCircle, Star, SkipForward, Loader2 } from "lucide-react";
 
 interface SessionSummaryProps {
@@ -51,64 +50,62 @@ export const SessionSummary = ({
   };
 
   return (
-    <Card className="text-center">
+    <Card className="overflow-hidden text-center">
       <CardHeader>
         <div className="flex justify-center mb-4">
           <div className="rounded-full bg-green-100 p-4">
             <CheckCircle className="h-12 w-12 text-green-600" />
           </div>
         </div>
-        <CardTitle className="text-2xl">Practice Session Complete!</CardTitle>
+        <CardTitle className="text-2xl">Practice complete</CardTitle>
         <CardDescription>
-          Great job! You've completed your practice session.
+          Review the round, jot a quick reflection, then decide what to do next.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Session Statistics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-6">
-          <div className="space-y-1">
+        <div className="grid grid-cols-2 gap-3 text-left sm:grid-cols-4">
+          <div className="rounded-2xl bg-muted/40 p-4">
             <div className="text-3xl font-bold text-primary">{answeredCount}</div>
-            <div className="text-xs text-muted-foreground">Answered</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Answered</div>
           </div>
-          <div className="space-y-1">
+          <div className="rounded-2xl bg-muted/40 p-4">
             <div className="text-3xl font-bold text-amber-600">{skippedCount}</div>
-            <div className="text-xs text-muted-foreground">Skipped</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Skipped</div>
           </div>
-          <div className="space-y-1">
+          <div className="rounded-2xl bg-muted/40 p-4">
             <div className="text-3xl font-bold text-primary">{formatTime(totalTime)}</div>
-            <div className="text-xs text-muted-foreground">Total Time</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Total time</div>
           </div>
-          <div className="space-y-1">
-            <div className="text-3xl font-bold text-primary">{formatTime(avgTime)}</div>
-            <div className="text-xs text-muted-foreground">Avg. Per Question</div>
+          <div className="rounded-2xl bg-muted/40 p-4">
+            <div className="text-3xl font-bold text-primary">{favoritedCount}</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Favorited</div>
           </div>
         </div>
 
-        {/* Favorites Count */}
-        {favoritedCount > 0 && (
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Star className="h-4 w-4 text-amber-500 fill-current" />
-            <span>{favoritedCount} question{favoritedCount !== 1 ? 's' : ''} favorited</span>
+        <div className="rounded-2xl border bg-background p-4 text-left">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Average per answer</span>
+            <span className="font-medium">{formatTime(avgTime)}</span>
           </div>
-        )}
-
-        {/* Progress Bar */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
+          <div className="mt-2 flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Completion</span>
             <span className="font-medium">{answeredCount}/{totalQuestions}</span>
           </div>
-          <Progress value={(answeredCount / totalQuestions) * 100} className="h-2" />
+          {favoritedCount > 0 && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+              <Star className="h-4 w-4 text-amber-500 fill-current" />
+              <span>{favoritedCount} question{favoritedCount !== 1 ? 's' : ''} worth revisiting</span>
+            </div>
+          )}
         </div>
 
-        {/* Session Notes */}
         <div className="space-y-2 text-left">
-          <label className="text-sm font-medium">Session Notes (Optional)</label>
+          <label className="text-sm font-medium">What felt weak today?</label>
           <Textarea
             value={sessionNotes}
             onChange={(e) => setSessionNotes(e.target.value)}
-            placeholder="Add any notes about this practice session..."
-            className="min-h-[100px] resize-none"
+            placeholder="Add a short reflection for your next round..."
+            className="min-h-[100px] resize-none rounded-2xl"
             disabled={notesSaved}
           />
           {!notesSaved && (
@@ -117,15 +114,15 @@ export const SessionSummary = ({
               disabled={isSaving}
               variant="outline"
               size="sm"
-              className="w-full"
+              className="w-full sm:w-auto"
             >
               {isSaving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
+                  Saving reflection...
                 </>
               ) : (
-                "Save Notes"
+                "Save reflection"
               )}
             </Button>
           )}
@@ -137,15 +134,14 @@ export const SessionSummary = ({
           )}
         </div>
 
-        {/* Action Buttons */}
-        <div className="space-y-3 pt-4">
+        <div className="space-y-3 pt-2">
           <Button
             onClick={onStartNewSession}
             size="lg"
             className="w-full"
           >
             <SkipForward className="h-4 w-4 mr-2" />
-            Start New Practice Session
+            Start another round
           </Button>
           <Button
             variant="outline"
@@ -159,4 +155,3 @@ export const SessionSummary = ({
     </Card>
   );
 };
-
