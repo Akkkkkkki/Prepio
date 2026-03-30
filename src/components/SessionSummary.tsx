@@ -69,7 +69,7 @@ export const SessionSummary = ({
             <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Answered</div>
           </div>
           <div className="rounded-2xl bg-muted/40 p-4">
-            <div className="text-3xl font-bold text-amber-600">{skippedCount}</div>
+            <div className="text-3xl font-bold text-muted-foreground">{skippedCount}</div>
             <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Skipped</div>
           </div>
           <div className="rounded-2xl bg-muted/40 p-4">
