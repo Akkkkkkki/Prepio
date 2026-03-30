@@ -1244,6 +1244,7 @@ const getInterviewerFocus = (
     : isRecordingPaused
       ? `Paused ${formatTime(recordingTime)}`
       : formatTime(currentQuestionTime);
+  const isMobileComposerExpanded = isNotesExpanded || isRecording || isRecordingPaused;
 
   // Swipe handlers
   const handleSwipeLeft = () => {
@@ -1349,7 +1350,7 @@ const getInterviewerFocus = (
       setIsVerticalScrollGuarded(false);
     },
     trackMouse: !isMobile,
-    trackTouch: true,
+    trackTouch: !isMobile,
     preventScrollOnSwipe: false,
     delta: SWIPE_THRESHOLD_PX,
   });
@@ -2074,8 +2075,8 @@ const getInterviewerFocus = (
     return (
       <div
         className={cn(
-          "min-h-screen bg-background",
-          isNotesExpanded || isRecording || isRecordingPaused ? "pb-[30rem]" : "pb-[16rem]"
+          "min-h-[100dvh] bg-background",
+          isMobileComposerExpanded ? "pb-[30rem]" : "pb-[16rem]"
         )}
       >
         <div className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -2138,9 +2139,9 @@ const getInterviewerFocus = (
             </div>
           </div>
 
-          <div className="h-1 w-full bg-muted">
+          <div className="h-1.5 w-full bg-muted">
             <div
-              className="h-full bg-primary transition-all duration-300"
+              className="h-full rounded-r-full bg-primary transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -2222,7 +2223,7 @@ const getInterviewerFocus = (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
           <div
             className="mx-auto max-w-md space-y-3"
-            style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+            style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
           >
             {(isRecording || isRecordingPaused) ? (
               <div className="rounded-[28px] border border-destructive/20 bg-destructive/5 p-4">
@@ -2241,7 +2242,7 @@ const getInterviewerFocus = (
                   <Button
                     variant="outline"
                     onClick={clearRecording}
-                    className="h-11 rounded-2xl border-destructive/20 bg-background"
+                    className="h-12 rounded-2xl border-destructive/20 bg-background"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete
@@ -2249,7 +2250,7 @@ const getInterviewerFocus = (
                   <Button
                     variant="outline"
                     onClick={isRecording ? pauseRecording : startRecording}
-                    className="h-11 rounded-2xl bg-background"
+                    className="h-12 rounded-2xl bg-background"
                   >
                     {isRecording ? (
                       <>
