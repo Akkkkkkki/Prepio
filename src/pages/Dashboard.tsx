@@ -21,6 +21,8 @@ import {
   Search
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileStageCard } from "@/components/dashboard/MobileStageCard";
 
 interface InterviewQuestion {
   id: string;
@@ -53,6 +55,7 @@ interface SearchData {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
   const { searchId: urlSearchId } = useParams();
   
@@ -199,6 +202,13 @@ const Dashboard = () => {
     }
   };
 
+  const selectedQuestionCount = getSelectedQuestions();
+  const selectedStageCount = stages.filter(stage => stage.selected).length;
+  const searchSubtitle = [
+    searchData?.role,
+    searchData?.country,
+  ].filter(Boolean).join(' • ') || 'Interview Preparation';
+
   // Show default empty state when no search ID is provided
   if (!searchId) {
     return (
@@ -315,6 +325,101 @@ const Dashboard = () => {
     );
   }
 
+  if (isMobile) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <div className="px-4 py-5 pb-36">
+          <div className="space-y-5">
+            <header className="space-y-2">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
+                Interview research
+              </p>
+              <div className="space-y-1">
+                <h1 className="min-w-0 break-words text-3xl font-bold leading-tight">
+                  {searchData?.company || 'Company'} Interview Research
+                </h1>
+                <p className="min-w-0 break-words text-sm leading-6 text-muted-foreground">
+                  {searchSubtitle}
+                </p>
+              </div>
+            </header>
+
+            <section className="grid grid-cols-2 gap-3">
+              <Card className="rounded-[24px] border bg-muted/30 shadow-sm">
+                <CardContent className="p-4">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    Selected
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold">{selectedQuestionCount}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">questions ready</p>
+                </CardContent>
+              </Card>
+              <Card className="rounded-[24px] border bg-muted/30 shadow-sm">
+                <CardContent className="p-4">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    Stages
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold">{stages.length}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">rounds available</p>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section className="space-y-3">
+              <div className="space-y-1">
+                <h2 className="text-xl font-semibold">Preparation roadmap</h2>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Pick the stages you want to practice. Details stay tucked away until you ask for them.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {stages.map((stage, index) => (
+                  <MobileStageCard
+                    key={stage.id}
+                    stage={stage}
+                    index={index}
+                    questionCount={getStageQuestionCount(stage)}
+                    selected={stage.selected}
+                    onToggle={handleStageToggle}
+                  />
+                ))}
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+          <div
+            className="mx-auto max-w-md space-y-3"
+            style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+          >
+            <div className="rounded-[24px] border bg-card/95 px-4 py-3 shadow-sm">
+              <p className="text-sm font-medium">
+                {selectedQuestionCount} question{selectedQuestionCount === 1 ? '' : 's'} across {selectedStageCount} selected stage{selectedStageCount === 1 ? '' : 's'}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {selectedQuestionCount > 0
+                  ? "Start practice when the mix looks right."
+                  : "Select at least one stage to unlock practice."}
+              </p>
+            </div>
+
+            <Button
+              onClick={startPractice}
+              disabled={selectedQuestionCount === 0}
+              className="h-12 w-full rounded-2xl text-base"
+            >
+              <PlayCircle className="mr-2 h-4 w-4" />
+              Start practice
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -325,16 +430,11 @@ const Dashboard = () => {
               <h1 className="text-3xl font-bold">
                 {searchData?.company || 'Company'} Interview Research
               </h1>
-              <p className="text-muted-foreground">
-                {searchData?.role && `${searchData.role}`}
-                {searchData?.role && searchData?.country && ' • '}
-                {searchData?.country}
-                {!searchData?.role && !searchData?.country && 'Interview Preparation'}
-              </p>
+              <p className="text-muted-foreground">{searchSubtitle}</p>
             </div>
-            <Button onClick={startPractice} disabled={getSelectedQuestions() === 0}>
+            <Button onClick={startPractice} disabled={selectedQuestionCount === 0}>
               <PlayCircle className="h-4 w-4 mr-2" />
-              Start Practice ({getSelectedQuestions()} questions)
+              Start Practice ({selectedQuestionCount} questions)
             </Button>
           </div>
         </div>

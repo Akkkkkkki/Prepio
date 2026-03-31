@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSwipeable } from "react-swipeable";
 import Navigation from "@/components/Navigation";
@@ -17,13 +17,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
 import { 
   ChevronLeft, 
   RotateCcw, 
@@ -56,6 +49,7 @@ import { HintBanner } from "@/components/practice/HintBanner";
 import { BottomPracticeNav } from "@/components/practice/BottomPracticeNav";
 import { PracticeHelperDrawer } from "@/components/practice/PracticeHelperDrawer";
 import { QuestionInsightsPanel } from "@/components/practice/QuestionInsightsPanel";
+import { MobileCoachModal } from "@/components/practice/MobileCoachModal";
 import { cn } from "@/lib/utils";
 
 const SWIPE_THRESHOLD_PX = 60;
@@ -231,6 +225,8 @@ const Practice = () => {
   const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [isCoachSheetOpen, setIsCoachSheetOpen] = useState(false);
   const [isNotesExpanded, setIsNotesExpanded] = useState(false);
+  const [mobileFooterHeight, setMobileFooterHeight] = useState(0);
+  const [mobileFooterElement, setMobileFooterElement] = useState<HTMLDivElement | null>(null);
   const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hydratedAnswersRef = useRef<Set<string>>(new Set());
 
@@ -749,6 +745,47 @@ const getInterviewerFocus = (
     }
   }, [currentIndex, isMobile, sessionState, swipeHintStorageKey]);
 
+  useLayoutEffect(() => {
+    if (!isMobile || sessionState !== 'inProgress') {
+      setMobileFooterHeight(0);
+      return;
+    }
+
+    const footer = mobileFooterElement;
+    if (!footer) return;
+
+    const measureFooter = () => {
+      setMobileFooterHeight(Math.ceil(footer.getBoundingClientRect().height));
+    };
+
+    measureFooter();
+
+    const handleResize = () => measureFooter();
+    window.addEventListener('resize', handleResize);
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => window.removeEventListener('resize', handleResize);
+    }
+
+    const observer = new ResizeObserver(() => measureFooter());
+    observer.observe(footer);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [
+    currentQuestion?.id,
+    hasRecording,
+    isMobile,
+    isNotesExpanded,
+    isRecording,
+    isRecordingPaused,
+    mobileFooterElement,
+    recordingError,
+    sessionState,
+  ]);
+
   // Recording timer
   useEffect(() => {
     if (isRecording && recordingIntervalRef.current === null) {
@@ -1244,7 +1281,6 @@ const getInterviewerFocus = (
     : isRecordingPaused
       ? `Paused ${formatTime(recordingTime)}`
       : formatTime(currentQuestionTime);
-  const isMobileComposerExpanded = isNotesExpanded || isRecording || isRecordingPaused;
 
   // Swipe handlers
   const handleSwipeLeft = () => {
@@ -2074,10 +2110,11 @@ const getInterviewerFocus = (
 
     return (
       <div
+        data-mobile-practice-shell
         className={cn(
-          "min-h-[100dvh] bg-background",
-          isMobileComposerExpanded ? "pb-[30rem]" : "pb-[16rem]"
+          "min-h-[100dvh] bg-background transition-[padding] duration-200"
         )}
+        style={{ paddingBottom: mobileFooterHeight > 0 ? `${mobileFooterHeight}px` : undefined }}
       >
         <div className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <div className="flex h-14 items-center gap-2 px-4">
@@ -2086,6 +2123,7 @@ const getInterviewerFocus = (
               size="icon"
               onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
               aria-label="Back to dashboard"
+              className="h-11 w-11"
             >
               <ChevronLeft className="h-5 w-5" />
             </Button>
@@ -2112,7 +2150,7 @@ const getInterviewerFocus = (
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Practice actions">
+                  <Button variant="ghost" size="icon" aria-label="Practice actions" className="h-11 w-11">
                     <MoreHorizontal className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -2172,7 +2210,7 @@ const getInterviewerFocus = (
                 </div>
 
                 <div className="space-y-3">
-                  <p className="text-xl font-semibold leading-8 text-foreground">
+                  <p className="break-words text-xl font-semibold leading-8 text-foreground">
                     {currentQuestion.question}
                   </p>
                   {currentQuestion.answered && (
@@ -2183,27 +2221,31 @@ const getInterviewerFocus = (
                   )}
                 </div>
 
-                <div className="flex items-center gap-4 border-t pt-4 text-sm">
-                  <button
+                <div className="flex flex-wrap items-center gap-3 border-t pt-4">
+                  <Button
                     type="button"
+                    variant={favoriteActive ? "secondary" : "outline"}
                     onClick={() => handleToggleFlag(currentQuestion.id, 'favorite')}
                     className={cn(
-                      "inline-flex items-center gap-2 transition",
-                      favoriteActive ? "text-amber-600" : "text-muted-foreground"
+                      "h-11 rounded-full px-4",
+                      favoriteActive
+                        ? "border-amber-200 bg-amber-100 text-amber-700 hover:bg-amber-200"
+                        : "text-muted-foreground"
                     )}
                   >
                     <Star className={cn("h-4 w-4", favoriteActive && "fill-current")} />
                     {favoriteActive ? "Favorited" : "Favorite"}
-                  </button>
+                  </Button>
 
                   {questionInsights && (
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
                       onClick={() => setIsCoachSheetOpen(true)}
-                      className="text-muted-foreground transition hover:text-foreground"
+                      className="h-11 rounded-full px-4 text-foreground"
                     >
-                      Get coaching
-                    </button>
+                      Coach notes
+                    </Button>
                   )}
                 </div>
               </div>
@@ -2220,7 +2262,11 @@ const getInterviewerFocus = (
           </div>
         </main>
 
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+        <div
+          ref={setMobileFooterElement}
+          data-mobile-practice-footer
+          className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85"
+        >
           <div
             className="mx-auto max-w-md space-y-3"
             style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
@@ -2376,30 +2422,12 @@ const getInterviewerFocus = (
           </div>
         </div>
 
-        {questionInsights && (
-          <Drawer
-            open={isCoachSheetOpen}
-            onOpenChange={setIsCoachSheetOpen}
-            shouldScaleBackground={false}
-            snapPoints={[0.56, 0.92]}
-            fadeFromIndex={0}
-          >
-            <DrawerContent className="max-h-[92vh]">
-              <DrawerHeader className="text-left">
-                <DrawerTitle>Coach notes</DrawerTitle>
-                <DrawerDescription>
-                  Strong answer signals, weak spots, and follow-up prompts for this question.
-                </DrawerDescription>
-              </DrawerHeader>
-              <div className="overflow-y-auto px-4 pb-6">
-                <QuestionInsightsPanel
-                  data={questionInsights}
-                  className="space-y-4 rounded-none border-0 bg-transparent p-0 shadow-none"
-                />
-              </div>
-            </DrawerContent>
-          </Drawer>
-        )}
+        <MobileCoachModal
+          open={isCoachSheetOpen}
+          onOpenChange={setIsCoachSheetOpen}
+          question={currentQuestion.question}
+          insights={questionInsights}
+        />
       </div>
     );
   }
