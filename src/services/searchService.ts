@@ -70,11 +70,57 @@ export interface PracticeHistoryOverviewStats {
   needsWorkCount: number;
 }
 
+type PracticeAnswerWithQuestion = {
+  question_id: string;
+  created_at: string;
+};
+
+type PracticeAnswerWithSessionQuestion = PracticeAnswerWithQuestion & {
+  session_id: string;
+};
+
 const EMPTY_PRACTICE_OVERVIEW_STATS: PracticeHistoryOverviewStats = {
   totalSessions: 0,
   totalQuestionsAnswered: 0,
   totalTimeSeconds: 0,
   needsWorkCount: 0,
+};
+
+const getTimestamp = (value: string) => new Date(value).getTime();
+
+export const dedupePracticeAnswersByQuestion = <T extends PracticeAnswerWithQuestion>(answers: T[]) => {
+  const latestByQuestion = new Map<string, T>();
+
+  answers.forEach((answer) => {
+    const existing = latestByQuestion.get(answer.question_id);
+
+    if (!existing || getTimestamp(answer.created_at) >= getTimestamp(existing.created_at)) {
+      latestByQuestion.set(answer.question_id, answer);
+    }
+  });
+
+  return Array.from(latestByQuestion.values()).sort(
+    (left, right) => getTimestamp(left.created_at) - getTimestamp(right.created_at)
+  );
+};
+
+export const dedupePracticeAnswersBySessionQuestion = <T extends PracticeAnswerWithSessionQuestion>(
+  answers: T[]
+) => {
+  const latestBySessionQuestion = new Map<string, T>();
+
+  answers.forEach((answer) => {
+    const key = `${answer.session_id}:${answer.question_id}`;
+    const existing = latestBySessionQuestion.get(key);
+
+    if (!existing || getTimestamp(answer.created_at) >= getTimestamp(existing.created_at)) {
+      latestBySessionQuestion.set(key, answer);
+    }
+  });
+
+  return Array.from(latestBySessionQuestion.values()).sort(
+    (left, right) => getTimestamp(left.created_at) - getTimestamp(right.created_at)
+  );
 };
 
 const getCurrentUser = async () => {
@@ -334,22 +380,28 @@ export const searchService = {
 
       if (error) throw error;
 
-      const sessions: PracticeHistorySession[] = (data ?? []).map((session) => ({
-        id: session.id,
-        search_id: session.search_id,
-        started_at: session.started_at,
-        completed_at: session.completed_at,
-        session_notes: session.session_notes,
-        searches: Array.isArray(session.searches)
-          ? session.searches[0] ?? null
-          : session.searches ?? null,
-        practice_answers: (session.practice_answers ?? []).map((answer) => ({
-          id: answer.id,
-          question_id: answer.question_id,
-          answer_time_seconds: answer.answer_time_seconds,
-          created_at: answer.created_at,
-        })),
-      }));
+      const sessions: PracticeHistorySession[] = (data ?? []).map((session) => {
+        const practiceAnswers = dedupePracticeAnswersByQuestion(
+          (session.practice_answers ?? []).map((answer) => ({
+            id: answer.id,
+            question_id: answer.question_id,
+            answer_time_seconds: answer.answer_time_seconds,
+            created_at: answer.created_at,
+          }))
+        );
+
+        return {
+          id: session.id,
+          search_id: session.search_id,
+          started_at: session.started_at,
+          completed_at: session.completed_at,
+          session_notes: session.session_notes,
+          searches: Array.isArray(session.searches)
+            ? session.searches[0] ?? null
+            : session.searches ?? null,
+          practice_answers: practiceAnswers,
+        };
+      });
 
       return { sessions, success: true };
     } catch (error) {
@@ -417,21 +469,23 @@ export const searchService = {
           : sessionResult.data.searches ?? null,
       };
 
-      const answers: PracticeHistoryAnswerDetail[] = (answersResult.data ?? []).map((answer) => ({
-        id: answer.id,
-        question_id: answer.question_id,
-        text_answer: answer.text_answer,
-        answer_time_seconds: answer.answer_time_seconds,
-        created_at: answer.created_at,
-        interview_questions: answer.interview_questions
-          ? {
-              ...answer.interview_questions,
-              interview_stages: Array.isArray(answer.interview_questions.interview_stages)
-                ? answer.interview_questions.interview_stages[0] ?? null
-                : answer.interview_questions.interview_stages ?? null,
-            }
-          : null,
-      }));
+      const answers: PracticeHistoryAnswerDetail[] = dedupePracticeAnswersByQuestion(
+        (answersResult.data ?? []).map((answer) => ({
+          id: answer.id,
+          question_id: answer.question_id,
+          text_answer: answer.text_answer,
+          answer_time_seconds: answer.answer_time_seconds,
+          created_at: answer.created_at,
+          interview_questions: answer.interview_questions
+            ? {
+                ...answer.interview_questions,
+                interview_stages: Array.isArray(answer.interview_questions.interview_stages)
+                  ? answer.interview_questions.interview_stages[0] ?? null
+                  : answer.interview_questions.interview_stages ?? null,
+              }
+            : null,
+        }))
+      );
 
       const questionIds = answers.map((answer) => answer.question_id);
       const flagsResult = questionIds.length > 0
@@ -476,12 +530,13 @@ export const searchService = {
 
       const { data: answers, error: answersError } = await supabase
         .from("practice_answers")
-        .select("session_id, question_id, answer_time_seconds")
+        .select("session_id, question_id, answer_time_seconds, created_at")
         .in("session_id", sessionIds);
 
       if (answersError) throw answersError;
 
-      const questionIds = Array.from(new Set((answers ?? []).map((answer) => answer.question_id)));
+      const dedupedAnswers = dedupePracticeAnswersBySessionQuestion(answers ?? []);
+      const questionIds = Array.from(new Set(dedupedAnswers.map((answer) => answer.question_id)));
       let needsWorkCount = 0;
 
       if (questionIds.length > 0) {
@@ -499,8 +554,8 @@ export const searchService = {
 
       const stats: PracticeHistoryOverviewStats = {
         totalSessions: sessionIds.length,
-        totalQuestionsAnswered: answers?.length ?? 0,
-        totalTimeSeconds: (answers ?? []).reduce(
+        totalQuestionsAnswered: dedupedAnswers.length,
+        totalTimeSeconds: dedupedAnswers.reduce(
           (total, answer) => total + (answer.answer_time_seconds ?? 0),
           0
         ),
@@ -546,6 +601,43 @@ export const searchService = {
     answerTime?: number;
   }) {
     try {
+      const { data: existingAnswers, error: existingError } = await supabase
+        .from("practice_answers")
+        .select("id, created_at")
+        .eq("session_id", sessionId)
+        .eq("question_id", questionId)
+        .order("created_at", { ascending: false });
+
+      if (existingError) throw existingError;
+
+      if (existingAnswers && existingAnswers.length > 0) {
+        const [latestAnswer, ...staleAnswers] = existingAnswers;
+
+        if (staleAnswers.length > 0) {
+          const { error: deleteError } = await supabase
+            .from("practice_answers")
+            .delete()
+            .in("id", staleAnswers.map((answer) => answer.id));
+
+          if (deleteError) throw deleteError;
+        }
+
+        const { data, error } = await supabase
+          .from("practice_answers")
+          .update({
+            text_answer: textAnswer,
+            audio_url: audioUrl,
+            answer_time_seconds: answerTime,
+          })
+          .eq("id", latestAnswer.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        return { answer: data, success: true };
+      }
+
       const { data, error } = await supabase
         .from("practice_answers")
         .insert({
@@ -900,20 +992,64 @@ export const searchService = {
     }
   },
 
-  // Epic 2.4: Complete practice session and save notes
-  async completePracticeSession(sessionId: string, sessionNotes?: string) {
+  async savePracticeSessionNotes(sessionId: string, sessionNotes?: string) {
     try {
       const { data, error } = await supabase
         .from("practice_sessions")
         .update({
-          completed_at: new Date().toISOString(),
-          session_notes: sessionNotes || null,
+          session_notes: sessionNotes?.trim() ? sessionNotes.trim() : null,
         })
         .eq("id", sessionId)
         .select()
         .single();
 
       if (error) throw error;
+
+      return { session: data, success: true };
+    } catch (error) {
+      console.error("Error saving practice session notes:", error);
+      return { error, success: false };
+    }
+  },
+
+  // Epic 2.4: Complete practice session and save notes
+  async completePracticeSession(sessionId: string) {
+    try {
+      const { data: existingSession, error: existingSessionError } = await supabase
+        .from("practice_sessions")
+        .select("*")
+        .eq("id", sessionId)
+        .single();
+
+      if (existingSessionError) throw existingSessionError;
+
+      if (existingSession.completed_at) {
+        return { session: existingSession, success: true };
+      }
+
+      const { data, error } = await supabase
+        .from("practice_sessions")
+        .update({
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", sessionId)
+        .is("completed_at", null)
+        .select()
+        .single();
+
+      if (error) {
+        const { data: currentSession, error: currentSessionError } = await supabase
+          .from("practice_sessions")
+          .select("*")
+          .eq("id", sessionId)
+          .single();
+
+        if (!currentSessionError && currentSession.completed_at) {
+          return { session: currentSession, success: true };
+        }
+
+        throw error;
+      }
 
       return { session: data, success: true };
     } catch (error) {

@@ -12,7 +12,7 @@ interface SessionSummaryProps {
   favoritedCount: number;
   totalTime: number;
   avgTime: number;
-  onSaveNotes: (notes: string) => Promise<void>;
+  onSaveNotes: (notes: string) => Promise<boolean>;
   onStartNewSession: () => void;
   onBackToDashboard: () => void;
   historyHref?: string;
@@ -45,8 +45,10 @@ export const SessionSummary = ({
     if (notesSaved) return;
     
     try {
-      await onSaveNotes(sessionNotes);
-      setNotesSaved(true);
+      const didSave = await onSaveNotes(sessionNotes);
+      if (didSave) {
+        setNotesSaved(true);
+      }
     } catch (error) {
       console.error("Error saving notes:", error);
     }

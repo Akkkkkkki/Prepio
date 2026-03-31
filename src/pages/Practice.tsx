@@ -58,6 +58,7 @@ const SWIPE_HINT_STORAGE_PREFIX = "practiceSwipeHintDismissed";
 const ANSWER_AUTOSAVE_PREFIX = "practiceAnswerAutosave";
 const AUTOSAVE_DELAY_MS = 5000;
 const PRACTICE_SETUP_STORAGE_KEY = "practiceSetupDefaults";
+const COMPLETE_SESSION_ERROR_MESSAGE = "We couldn't mark this session complete. Try again.";
 
 const SETUP_STEPS = [
   { key: "goal", label: "Goal" },
@@ -192,6 +193,7 @@ const Practice = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [completionError, setCompletionError] = useState<string | null>(null);
   const [practiceSession, setPracticeSession] = useState<PracticeSession | null>(null);
   const [savedAnswers, setSavedAnswers] = useState<Map<string, boolean>>(new Map());
   
@@ -933,14 +935,29 @@ const getInterviewerFocus = (
   };
 
   const finalizeSession = async () => {
+    if (!practiceSession) {
+      setCompletionError(COMPLETE_SESSION_ERROR_MESSAGE);
+      return false;
+    }
+
+    setCompletionError(null);
+
     try {
-      if (practiceSession) {
-        await searchService.completePracticeSession(practiceSession.id);
+      const result = await searchService.completePracticeSession(practiceSession.id);
+
+      if (!result.success || !result.session) {
+        console.error("Failed to complete practice session:", result.error);
+        setCompletionError(COMPLETE_SESSION_ERROR_MESSAGE);
+        return false;
       }
+
+      setPracticeSession(result.session);
+      setSessionState('completed');
+      return true;
     } catch (error) {
       console.error("Error completing practice session:", error);
-    } finally {
-      setSessionState('completed');
+      setCompletionError(COMPLETE_SESSION_ERROR_MESSAGE);
+      return false;
     }
   };
 
@@ -992,6 +1009,7 @@ const getInterviewerFocus = (
     }
     setShouldShowSwipeHint(!isMobile);
     setIsVerticalScrollGuarded(false);
+    setCompletionError(null);
     setSetupStep(0);
     setSelectedPreset(nextPreset);
     setUseSampling(true);
@@ -1052,6 +1070,7 @@ const getInterviewerFocus = (
     }
     setShouldShowSwipeHint(false);
     setIsVerticalScrollGuarded(false);
+    setCompletionError(null);
     setIsCoachSheetOpen(false);
     setIsNotesExpanded(false);
     setRecordingError(null);
@@ -1112,6 +1131,7 @@ const getInterviewerFocus = (
     const currentAnswer = answers.get(currentQuestion.id) || "";
     if (!currentAnswer.trim() && !hasRecording || !practiceSession) return;
 
+    setCompletionError(null);
     setIsSaving(true);
     const questionId = currentQuestion.id;
     const timeSpent = getCurrentQuestionTime();
@@ -2089,16 +2109,24 @@ const getInterviewerFocus = (
     const favoritedCount = questions.filter(q => questionFlags[q.id]?.flag_type === 'favorite').length;
 
     const handleSaveNotes = async (notes: string) => {
-      if (!practiceSession) return;
+      if (!practiceSession) return false;
       
       setIsSavingNotes(true);
       try {
-        const result = await searchService.completePracticeSession(practiceSession.id, notes);
+        const result = await searchService.savePracticeSessionNotes(practiceSession.id, notes);
         if (!result.success) {
           console.error("Failed to save session notes:", result.error);
+          return false;
         }
+
+        if (result.session) {
+          setPracticeSession(result.session);
+        }
+
+        return true;
       } catch (error) {
         console.error("Error saving session notes:", error);
+        return false;
       } finally {
         setIsSavingNotes(false);
       }
@@ -2387,6 +2415,12 @@ const getInterviewerFocus = (
             {recordingError && (
               <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                 {recordingError}
+              </div>
+            )}
+
+            {completionError && (
+              <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                {completionError}
               </div>
             )}
 
@@ -2714,6 +2748,12 @@ const getInterviewerFocus = (
                     {recordingError && (
                       <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                         {recordingError}
+                      </div>
+                    )}
+
+                    {completionError && (
+                      <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                        {completionError}
                       </div>
                     )}
                   </div>
