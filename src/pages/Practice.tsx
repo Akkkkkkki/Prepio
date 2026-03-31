@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSwipeable } from "react-swipeable";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ const SWIPE_HINT_STORAGE_PREFIX = "practiceSwipeHintDismissed";
 const ANSWER_AUTOSAVE_PREFIX = "practiceAnswerAutosave";
 const AUTOSAVE_DELAY_MS = 5000;
 const PRACTICE_SETUP_STORAGE_KEY = "practiceSetupDefaults";
+const COMPLETE_SESSION_ERROR_MESSAGE = "We couldn't mark this session complete. Try again.";
 
 const SETUP_STEPS = [
   { key: "goal", label: "Goal" },
@@ -192,6 +193,7 @@ const Practice = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [completionError, setCompletionError] = useState<string | null>(null);
   const [practiceSession, setPracticeSession] = useState<PracticeSession | null>(null);
   const [savedAnswers, setSavedAnswers] = useState<Map<string, boolean>>(new Map());
   
@@ -933,14 +935,29 @@ const getInterviewerFocus = (
   };
 
   const finalizeSession = async () => {
+    if (!practiceSession) {
+      setCompletionError(COMPLETE_SESSION_ERROR_MESSAGE);
+      return false;
+    }
+
+    setCompletionError(null);
+
     try {
-      if (practiceSession) {
-        await searchService.completePracticeSession(practiceSession.id);
+      const result = await searchService.completePracticeSession(practiceSession.id);
+
+      if (!result.success || !result.session) {
+        console.error("Failed to complete practice session:", result.error);
+        setCompletionError(COMPLETE_SESSION_ERROR_MESSAGE);
+        return false;
       }
+
+      setPracticeSession(result.session);
+      setSessionState('completed');
+      return true;
     } catch (error) {
       console.error("Error completing practice session:", error);
-    } finally {
-      setSessionState('completed');
+      setCompletionError(COMPLETE_SESSION_ERROR_MESSAGE);
+      return false;
     }
   };
 
@@ -992,6 +1009,7 @@ const getInterviewerFocus = (
     }
     setShouldShowSwipeHint(!isMobile);
     setIsVerticalScrollGuarded(false);
+    setCompletionError(null);
     setSetupStep(0);
     setSelectedPreset(nextPreset);
     setUseSampling(true);
@@ -1052,6 +1070,7 @@ const getInterviewerFocus = (
     }
     setShouldShowSwipeHint(false);
     setIsVerticalScrollGuarded(false);
+    setCompletionError(null);
     setIsCoachSheetOpen(false);
     setIsNotesExpanded(false);
     setRecordingError(null);
@@ -1112,6 +1131,7 @@ const getInterviewerFocus = (
     const currentAnswer = answers.get(currentQuestion.id) || "";
     if (!currentAnswer.trim() && !hasRecording || !practiceSession) return;
 
+    setCompletionError(null);
     setIsSaving(true);
     const questionId = currentQuestion.id;
     const timeSpent = getCurrentQuestionTime();
@@ -1177,6 +1197,11 @@ const getInterviewerFocus = (
 
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
+      return;
+    }
+
+    if (currentQuestion && canSubmitAnswer && !savedAnswers.get(currentQuestion.id)) {
+      await handleSaveAnswer();
       return;
     }
 
@@ -1261,10 +1286,17 @@ const getInterviewerFocus = (
 
   const hasTypedAnswer = Boolean(currentAnswer.trim());
   const canSubmitAnswer = hasTypedAnswer || hasRecording;
+  const hasUnsavedCurrentResponse = Boolean(
+    currentQuestion &&
+    canSubmitAnswer &&
+    !savedAnswers.get(currentQuestion.id)
+  );
   const primaryCtaLabel = currentIndex >= questions.length - 1 ? 'Save & Finish' : 'Save & Continue';
   const isPrimaryDisabled = !canSubmitAnswer || isSaving || isRecording || isRecordingPaused;
   const isSkipDisabled = isSaving || isRecording || isRecordingPaused;
-  const skipActionLabel = currentIndex >= questions.length - 1 ? 'Finish' : 'Skip';
+  const skipActionLabel = currentIndex >= questions.length - 1
+    ? hasUnsavedCurrentResponse ? 'Finish & Save' : 'Finish'
+    : 'Skip';
   const mobileQuestionCount = mobileSetupMode === 'quick'
     ? practicePresets.quick.config.sampleSize
     : sampleSize;
@@ -1281,6 +1313,7 @@ const getInterviewerFocus = (
     : isRecordingPaused
       ? `Paused ${formatTime(recordingTime)}`
       : formatTime(currentQuestionTime);
+  const practiceHistoryHref = searchId ? `/history?searchId=${searchId}` : "/history";
 
   // Swipe handlers
   const handleSwipeLeft = () => {
@@ -1386,7 +1419,7 @@ const getInterviewerFocus = (
       setIsVerticalScrollGuarded(false);
     },
     trackMouse: !isMobile,
-    trackTouch: !isMobile,
+    trackTouch: true,
     preventScrollOnSwipe: false,
     delta: SWIPE_THRESHOLD_PX,
   });
@@ -1599,7 +1632,9 @@ const getInterviewerFocus = (
               <ChevronLeft className="h-5 w-5" />
             </Button>
             <div className="text-sm font-medium">Practice setup</div>
-            <div className="w-9" />
+            <Button variant="link" size="sm" asChild className="px-0 text-xs">
+              <Link to={practiceHistoryHref}>History</Link>
+            </Button>
           </div>
         </div>
 
@@ -1984,10 +2019,15 @@ const getInterviewerFocus = (
         <Navigation />
         <div className="container mx-auto px-4 py-8 max-w-4xl">
           <div className="flex items-center justify-between mb-6">
-            <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}>
-              <ChevronLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}>
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Button>
+              <Button variant="link" size="sm" asChild className="px-0">
+                <Link to={practiceHistoryHref}>View history</Link>
+              </Button>
+            </div>
             <div className="text-sm text-muted-foreground">
               {searchData?.company && `${searchData.company}`}
               {searchData?.role && ` - ${searchData.role}`}
@@ -2069,16 +2109,24 @@ const getInterviewerFocus = (
     const favoritedCount = questions.filter(q => questionFlags[q.id]?.flag_type === 'favorite').length;
 
     const handleSaveNotes = async (notes: string) => {
-      if (!practiceSession) return;
+      if (!practiceSession) return false;
       
       setIsSavingNotes(true);
       try {
-        const result = await searchService.completePracticeSession(practiceSession.id, notes);
+        const result = await searchService.savePracticeSessionNotes(practiceSession.id, notes);
         if (!result.success) {
           console.error("Failed to save session notes:", result.error);
+          return false;
         }
+
+        if (result.session) {
+          setPracticeSession(result.session);
+        }
+
+        return true;
       } catch (error) {
         console.error("Error saving session notes:", error);
+        return false;
       } finally {
         setIsSavingNotes(false);
       }
@@ -2098,6 +2146,7 @@ const getInterviewerFocus = (
             onSaveNotes={handleSaveNotes}
             onStartNewSession={handleStartNewSession}
             onBackToDashboard={() => navigate(`/dashboard?searchId=${searchId}`)}
+            historyHref={practiceHistoryHref}
             isSaving={isSavingNotes}
           />
         </div>
@@ -2366,6 +2415,12 @@ const getInterviewerFocus = (
             {recordingError && (
               <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                 {recordingError}
+              </div>
+            )}
+
+            {completionError && (
+              <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                {completionError}
               </div>
             )}
 
@@ -2693,6 +2748,12 @@ const getInterviewerFocus = (
                     {recordingError && (
                       <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                         {recordingError}
+                      </div>
+                    )}
+
+                    {completionError && (
+                      <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                        {completionError}
                       </div>
                     )}
                   </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,9 +12,10 @@ interface SessionSummaryProps {
   favoritedCount: number;
   totalTime: number;
   avgTime: number;
-  onSaveNotes: (notes: string) => Promise<void>;
+  onSaveNotes: (notes: string) => Promise<boolean>;
   onStartNewSession: () => void;
   onBackToDashboard: () => void;
+  historyHref?: string;
   isSaving?: boolean;
 }
 
@@ -27,6 +29,7 @@ export const SessionSummary = ({
   onSaveNotes,
   onStartNewSession,
   onBackToDashboard,
+  historyHref = "/history",
   isSaving = false,
 }: SessionSummaryProps) => {
   const [sessionNotes, setSessionNotes] = useState("");
@@ -42,8 +45,10 @@ export const SessionSummary = ({
     if (notesSaved) return;
     
     try {
-      await onSaveNotes(sessionNotes);
-      setNotesSaved(true);
+      const didSave = await onSaveNotes(sessionNotes);
+      if (didSave) {
+        setNotesSaved(true);
+      }
     } catch (error) {
       console.error("Error saving notes:", error);
     }
@@ -150,6 +155,12 @@ export const SessionSummary = ({
           >
             Back to Dashboard
           </Button>
+          <Link
+            to={historyHref}
+            className="block text-sm text-muted-foreground transition-colors hover:text-primary"
+          >
+            View practice history -&gt;
+          </Link>
         </div>
       </CardContent>
     </Card>

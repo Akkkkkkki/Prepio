@@ -6,6 +6,9 @@ import Practice from "../Practice";
 const mockGetSearchResults = vi.fn();
 const mockGetQuestionFlags = vi.fn();
 const mockCreatePracticeSession = vi.fn();
+const mockSavePracticeAnswer = vi.fn();
+const mockCompletePracticeSession = vi.fn();
+const mockSavePracticeSessionNotes = vi.fn();
 const mockUseIsMobile = vi.fn();
 
 class MockResizeObserver {
@@ -56,8 +59,9 @@ vi.mock("@/services/searchService", () => ({
     getSearchResults: (...args: unknown[]) => mockGetSearchResults(...args),
     getQuestionFlags: (...args: unknown[]) => mockGetQuestionFlags(...args),
     createPracticeSession: (...args: unknown[]) => mockCreatePracticeSession(...args),
-    savePracticeAnswer: vi.fn(),
-    completePracticeSession: vi.fn(),
+    savePracticeAnswer: (...args: unknown[]) => mockSavePracticeAnswer(...args),
+    completePracticeSession: (...args: unknown[]) => mockCompletePracticeSession(...args),
+    savePracticeSessionNotes: (...args: unknown[]) => mockSavePracticeSessionNotes(...args),
     removeQuestionFlag: vi.fn(),
     setQuestionFlag: vi.fn(),
   },
@@ -80,6 +84,34 @@ describe("Practice mobile layout", () => {
         user_id: "user-1",
         search_id: "search-1",
         started_at: "2026-03-31T00:00:00.000Z",
+      },
+    });
+    mockSavePracticeAnswer.mockResolvedValue({
+      success: true,
+      answer: {
+        id: "answer-1",
+      },
+    });
+    mockCompletePracticeSession.mockResolvedValue({
+      success: true,
+      session: {
+        id: "session-1",
+        user_id: "user-1",
+        search_id: "search-1",
+        started_at: "2026-03-31T00:00:00.000Z",
+        completed_at: "2026-03-31T00:05:00.000Z",
+        session_notes: null,
+      },
+    });
+    mockSavePracticeSessionNotes.mockResolvedValue({
+      success: true,
+      session: {
+        id: "session-1",
+        user_id: "user-1",
+        search_id: "search-1",
+        started_at: "2026-03-31T00:00:00.000Z",
+        completed_at: "2026-03-31T00:05:00.000Z",
+        session_notes: "Needs tighter metrics",
       },
     });
     mockGetSearchResults.mockResolvedValue({
@@ -203,5 +235,70 @@ describe("Practice mobile layout", () => {
     });
 
     expect(screen.getByDisplayValue("STAR bullets and metrics")).toBeInTheDocument();
+  });
+
+  it("keeps the user in practice when completion fails on the last answer", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockCompletePracticeSession.mockResolvedValueOnce({
+      success: false,
+      error: new Error("write failed"),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start practice" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Notes" }));
+
+    fireEvent.change(
+      await screen.findByPlaceholderText("Jot the beats you want to hit..."),
+      { target: { value: "Use a tighter STAR answer." } }
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
+
+    expect(await screen.findByText("We couldn't mark this session complete. Try again.")).toBeInTheDocument();
+    expect(screen.getByText("How did you leverage LLM technology in the AI product evaluation at Hg Capital?")).toBeInTheDocument();
+    expect(screen.queryByText("Practice complete")).not.toBeInTheDocument();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("saves reflections without re-running session completion", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start practice" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Notes" }));
+
+    fireEvent.change(
+      await screen.findByPlaceholderText("Jot the beats you want to hit..."),
+      { target: { value: "Lead with impact, then evaluation loop." } }
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
+
+    expect(await screen.findByText("Practice complete")).toBeInTheDocument();
+
+    fireEvent.change(
+      screen.getByPlaceholderText("Add a short reflection for your next round..."),
+      { target: { value: "Needs tighter metrics" } }
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save reflection" }));
+
+    await waitFor(() => {
+      expect(mockSavePracticeSessionNotes).toHaveBeenCalledWith("session-1", "Needs tighter metrics");
+    });
+
+    expect(mockCompletePracticeSession).toHaveBeenCalledTimes(1);
   });
 });
