@@ -11,7 +11,7 @@ describe("CommandDialog", () => {
       </CommandDialog>,
     );
 
-    expect(screen.getByText("Command menu")).toBeInTheDocument();
+    expect(screen.getByText("Command Menu")).toBeInTheDocument();
     expect(screen.getByText("Search and run available commands.")).toBeInTheDocument();
   });
 });

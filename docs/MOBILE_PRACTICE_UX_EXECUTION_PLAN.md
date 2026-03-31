@@ -1,7 +1,7 @@
 # Mobile Practice UX Execution Plan
 
-**Status:** Planning, ready for execution  
-**Last updated:** March 30, 2026  
+**Status:** Implemented on mobile, follow-up QA ongoing  
+**Last updated:** March 31, 2026  
 **Scope:** Mobile practice flow only, especially the active question experience on phones  
 **Primary files impacted:** `src/pages/Practice.tsx`, `src/components/practice/BottomPracticeNav.tsx`, `src/components/practice/PracticeHelperDrawer.tsx`, `src/components/practice/QuestionInsightsPanel.tsx`, `src/components/Navigation.tsx`
 
@@ -11,7 +11,7 @@ The current mobile practice experience works on paper, but it does not feel good
 
 The page is too tall, the control hierarchy is crowded, the main task is split across too many regions, and full-card swipe competes with the natural vertical scroll behavior of a phone. Voice recording is also treated like a helper even though it is one of the main reasons a user enters practice mode.
 
-This doc is the execution plan for fixing that without rewriting the whole product.
+This doc now records the shipped mobile direction and the remaining QA expectations without rewriting the whole product.
 
 ## Product Goal
 
@@ -58,7 +58,7 @@ The user should see the start of the question, the response controls, and the pr
 If voice is important, it belongs in the main composer, not a drawer.
 
 ### 4. Demote optional guidance
-Coaching, outlines, and follow-ups move into a bottom sheet.
+Coaching, outlines, and follow-ups move into a dedicated mobile modal.
 
 ### 5. Prefer explicit controls over gestures
 Use tap controls for the main path. Gestures can be added later if user testing proves they help.
@@ -76,7 +76,7 @@ The mobile practice screen should collapse into three permanent zones:
 
 Everything else becomes optional UI:
 
-- Coaching and interviewer focus: bottom sheet
+- Coaching and interviewer focus: full-screen modal
 - Session details and timer reset: overflow menu
 - Dot navigation: compact progress drawer or hidden behind overflow on mobile
 
@@ -132,7 +132,7 @@ Can you provide an example of how you successfully
 managed a cross-functional team...
 
 [Tiny utility row]
-Favorite      Get coaching
+Favorite      Coach notes
 
 [Sticky composer]
 [Mic button]    [Notes]
@@ -145,7 +145,7 @@ Optional note preview
 #### Rules
 - Only two metadata chips stay visible by default: stage and difficulty.
 - Favorite becomes a simple tap action in the utility row or header.
-- `Get coaching` opens a bottom sheet and does not expand the page.
+- `Coach notes` opens a full-screen modal and does not expand the page.
 - The progress summary card disappears on mobile. Progress belongs in the header.
 
 ### Active Question, Recording State
@@ -202,12 +202,12 @@ Saved locally
 - The question should still remain at least partially visible.
 - Autosave status stays quiet and local to the field.
 
-### Coaching Bottom Sheet
+### Coaching Modal
 
-The current `QuestionInsightsPanel` content should move into a mobile sheet.
+The current `QuestionInsightsPanel` content lives inside a mobile modal.
 
 ```text
-[Bottom sheet]
+[Full-screen modal]
 Coach notes
 
 What strong answers show
@@ -227,9 +227,9 @@ They may ask
 ```
 
 #### Rules
-- Open from `Get coaching`.
-- Default to half height, expandable to near full height.
-- The sheet should not push the main page longer.
+- Open from `Coach notes`.
+- Open directly at full height with a visible close affordance.
+- The modal should not push the main page longer.
 - The user should be able to dismiss it and continue answering immediately.
 
 ### Session Complete State
@@ -299,7 +299,7 @@ Move these into the overflow menu:
 - Stage
 - Difficulty
 - Favorite
-- Get coaching
+- Coach notes
 
 ### Hidden until requested
 - Answer outline
@@ -330,7 +330,7 @@ This is the lowest-risk implementation path.
 
 ### `src/components/practice/QuestionInsightsPanel.tsx`
 - Preserve the content model.
-- Rehost it in a bottom sheet for mobile.
+- Rehost it in a full-screen mobile modal.
 - Keep the desktop side panel if it remains useful there.
 
 ### `src/components/Navigation.tsx`
@@ -346,7 +346,7 @@ This is the lowest-risk implementation path.
 - Collapse the progress card into the header.
 
 ### Phase 2, Re-home secondary guidance
-- Move interviewer focus and related coaching content into a bottom sheet.
+- Move interviewer focus and related coaching content into a full-screen mobile modal.
 - Remove permanent secondary panels from the mobile scroll path.
 
 ### Phase 3, Simplify setup
@@ -365,7 +365,7 @@ The redesign is ready when all of the following are true:
 2. The user can complete one question cycle without opening drawers or scrolling to find the save action.
 3. Recording either starts cleanly or fails with a specific, actionable message.
 4. Accidental skip/favorite behavior caused by scroll gestures is eliminated.
-5. The coaching content is still accessible, but it no longer lengthens the default page.
+5. The coaching content is still accessible, but it no longer lengthens the default page or depends on swipe-up discovery.
 6. The screen has one clear visual priority: answering the current question.
 
 ## QA Matrix
@@ -383,7 +383,7 @@ The redesign is ready when all of the following are true:
 - Deny mic permissions and recover gracefully
 - Type notes, background the tab, return, confirm local persistence
 - Favorite and skip using explicit controls
-- Open and close coaching sheet without losing current answer state
+- Open and close the coaching modal without losing current answer state
 - Save the final question and reach completion cleanly
 
 ### Metrics to watch
@@ -391,7 +391,7 @@ The redesign is ready when all of the following are true:
 - Mic-start success rate
 - Save completion rate
 - Abandonment before first answer
-- Use of coaching sheet
+- Use of coaching modal
 - Accidental navigation reports
 
 ## Non-Goals
