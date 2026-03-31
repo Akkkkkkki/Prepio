@@ -7,6 +7,7 @@ import { AuthProvider, useAuthContext } from "./components/AuthProvider";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Practice from "./pages/Practice";
+import History from "./pages/History";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -58,6 +59,14 @@ const App = () => (
                   <Practice />
                 </ProtectedRoute>
               } 
+            />
+            <Route
+              path="/history"
+              element={
+                <ProtectedRoute>
+                  <History />
+                </ProtectedRoute>
+              }
             />
             <Route 
               path="/profile" 

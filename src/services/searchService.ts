@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
+import type { Json, Tables } from "@/integrations/supabase/types";
 
 interface CreateSearchParams {
   company: string;
@@ -20,6 +20,62 @@ interface ResumeFileInput {
 type ResumeSource = 'manual' | 'upload' | 'search_snapshot';
 
 const RESUME_FILES_BUCKET = "resume-files";
+
+type SearchContext = Pick<Tables<"searches">, "company" | "role" | "country">;
+type PracticeAnswerSummary = Pick<
+  Tables<"practice_answers">,
+  "id" | "question_id" | "answer_time_seconds" | "created_at"
+>;
+
+type PracticeAnswerQuestion = Pick<
+  Tables<"interview_questions">,
+  "question" | "category" | "difficulty" | "stage_id" | "suggested_answer_approach"
+> & {
+  interview_stages: Pick<Tables<"interview_stages">, "name"> | null;
+};
+
+export interface PracticeQuestionFlag {
+  flag_type: string;
+  id: string;
+}
+
+export type PracticeQuestionFlagMap = Record<string, PracticeQuestionFlag>;
+
+export interface PracticeHistorySession extends Pick<
+  Tables<"practice_sessions">,
+  "id" | "search_id" | "started_at" | "completed_at" | "session_notes"
+> {
+  searches: SearchContext | null;
+  practice_answers: PracticeAnswerSummary[];
+}
+
+export interface PracticeHistorySessionDetail extends Pick<
+  Tables<"practice_sessions">,
+  "id" | "search_id" | "started_at" | "completed_at" | "session_notes"
+> {
+  searches: SearchContext | null;
+}
+
+export interface PracticeHistoryAnswerDetail extends Pick<
+  Tables<"practice_answers">,
+  "id" | "question_id" | "text_answer" | "answer_time_seconds" | "created_at"
+> {
+  interview_questions: PracticeAnswerQuestion | null;
+}
+
+export interface PracticeHistoryOverviewStats {
+  totalSessions: number;
+  totalQuestionsAnswered: number;
+  totalTimeSeconds: number;
+  needsWorkCount: number;
+}
+
+const EMPTY_PRACTICE_OVERVIEW_STATS: PracticeHistoryOverviewStats = {
+  totalSessions: 0,
+  totalQuestionsAnswered: 0,
+  totalTimeSeconds: 0,
+  needsWorkCount: 0,
+};
 
 const getCurrentUser = async () => {
   const { data: { user }, error } = await supabase.auth.getUser();
@@ -238,6 +294,222 @@ export const searchService = {
       return { searches, success: true };
     } catch (error) {
       console.error("Error getting search history:", error);
+      return { error, success: false };
+    }
+  },
+
+  async getPracticeSessions(searchId?: string) {
+    try {
+      const user = await getCurrentUser();
+
+      let query = supabase
+        .from("practice_sessions")
+        .select(`
+          id,
+          search_id,
+          started_at,
+          completed_at,
+          session_notes,
+          searches (
+            company,
+            role,
+            country
+          ),
+          practice_answers (
+            id,
+            question_id,
+            answer_time_seconds,
+            created_at
+          )
+        `)
+        .eq("user_id", user.id)
+        .not("completed_at", "is", null)
+        .order("completed_at", { ascending: false });
+
+      if (searchId) {
+        query = query.eq("search_id", searchId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      const sessions: PracticeHistorySession[] = (data ?? []).map((session) => ({
+        id: session.id,
+        search_id: session.search_id,
+        started_at: session.started_at,
+        completed_at: session.completed_at,
+        session_notes: session.session_notes,
+        searches: Array.isArray(session.searches)
+          ? session.searches[0] ?? null
+          : session.searches ?? null,
+        practice_answers: (session.practice_answers ?? []).map((answer) => ({
+          id: answer.id,
+          question_id: answer.question_id,
+          answer_time_seconds: answer.answer_time_seconds,
+          created_at: answer.created_at,
+        })),
+      }));
+
+      return { sessions, success: true };
+    } catch (error) {
+      console.error("Error getting practice sessions:", error);
+      return { error, success: false };
+    }
+  },
+
+  async getSessionDetail(sessionId: string) {
+    try {
+      const user = await getCurrentUser();
+
+      const [sessionResult, answersResult] = await Promise.all([
+        supabase
+          .from("practice_sessions")
+          .select(`
+            id,
+            search_id,
+            started_at,
+            completed_at,
+            session_notes,
+            searches (
+              company,
+              role,
+              country
+            )
+          `)
+          .eq("id", sessionId)
+          .eq("user_id", user.id)
+          .single(),
+        supabase
+          .from("practice_answers")
+          .select(`
+            id,
+            question_id,
+            text_answer,
+            answer_time_seconds,
+            created_at,
+            interview_questions (
+              question,
+              category,
+              difficulty,
+              stage_id,
+              suggested_answer_approach,
+              interview_stages (
+                name
+              )
+            )
+          `)
+          .eq("session_id", sessionId)
+          .order("created_at", { ascending: true }),
+      ]);
+
+      if (sessionResult.error) throw sessionResult.error;
+      if (answersResult.error) throw answersResult.error;
+
+      const session: PracticeHistorySessionDetail = {
+        id: sessionResult.data.id,
+        search_id: sessionResult.data.search_id,
+        started_at: sessionResult.data.started_at,
+        completed_at: sessionResult.data.completed_at,
+        session_notes: sessionResult.data.session_notes,
+        searches: Array.isArray(sessionResult.data.searches)
+          ? sessionResult.data.searches[0] ?? null
+          : sessionResult.data.searches ?? null,
+      };
+
+      const answers: PracticeHistoryAnswerDetail[] = (answersResult.data ?? []).map((answer) => ({
+        id: answer.id,
+        question_id: answer.question_id,
+        text_answer: answer.text_answer,
+        answer_time_seconds: answer.answer_time_seconds,
+        created_at: answer.created_at,
+        interview_questions: answer.interview_questions
+          ? {
+              ...answer.interview_questions,
+              interview_stages: Array.isArray(answer.interview_questions.interview_stages)
+                ? answer.interview_questions.interview_stages[0] ?? null
+                : answer.interview_questions.interview_stages ?? null,
+            }
+          : null,
+      }));
+
+      const questionIds = answers.map((answer) => answer.question_id);
+      const flagsResult = questionIds.length > 0
+        ? await this.getQuestionFlags(questionIds)
+        : { flags: {}, success: true };
+
+      return {
+        session,
+        answers,
+        flags: flagsResult.success ? flagsResult.flags ?? {} : {},
+        success: true,
+      };
+    } catch (error) {
+      console.error("Error getting session detail:", error);
+      return { error, success: false };
+    }
+  },
+
+  async getPracticeOverviewStats(searchId?: string) {
+    try {
+      const user = await getCurrentUser();
+
+      let sessionsQuery = supabase
+        .from("practice_sessions")
+        .select("id")
+        .eq("user_id", user.id)
+        .not("completed_at", "is", null);
+
+      if (searchId) {
+        sessionsQuery = sessionsQuery.eq("search_id", searchId);
+      }
+
+      const { data: sessions, error: sessionsError } = await sessionsQuery;
+
+      if (sessionsError) throw sessionsError;
+
+      const sessionIds = (sessions ?? []).map((session) => session.id);
+
+      if (sessionIds.length === 0) {
+        return { stats: EMPTY_PRACTICE_OVERVIEW_STATS, success: true };
+      }
+
+      const { data: answers, error: answersError } = await supabase
+        .from("practice_answers")
+        .select("session_id, question_id, answer_time_seconds")
+        .in("session_id", sessionIds);
+
+      if (answersError) throw answersError;
+
+      const questionIds = Array.from(new Set((answers ?? []).map((answer) => answer.question_id)));
+      let needsWorkCount = 0;
+
+      if (questionIds.length > 0) {
+        const { data: flags, error: flagsError } = await supabase
+          .from("user_question_flags")
+          .select("question_id")
+          .eq("user_id", user.id)
+          .eq("flag_type", "needs_work")
+          .in("question_id", questionIds);
+
+        if (flagsError) throw flagsError;
+
+        needsWorkCount = new Set((flags ?? []).map((flag) => flag.question_id)).size;
+      }
+
+      const stats: PracticeHistoryOverviewStats = {
+        totalSessions: sessionIds.length,
+        totalQuestionsAnswered: answers?.length ?? 0,
+        totalTimeSeconds: (answers ?? []).reduce(
+          (total, answer) => total + (answer.answer_time_seconds ?? 0),
+          0
+        ),
+        needsWorkCount,
+      };
+
+      return { stats, success: true };
+    } catch (error) {
+      console.error("Error getting practice overview stats:", error);
       return { error, success: false };
     }
   },
@@ -613,7 +885,7 @@ export const searchService = {
       if (error) throw error;
 
       // Convert to map for easy lookup
-      const flagsMap: Record<string, { flag_type: string; id: string }> = {};
+      const flagsMap: PracticeQuestionFlagMap = {};
       (data || []).forEach(flag => {
         flagsMap[flag.question_id] = {
           flag_type: flag.flag_type,

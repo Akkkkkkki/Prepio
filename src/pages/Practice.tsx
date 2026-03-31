@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSwipeable } from "react-swipeable";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
@@ -1180,6 +1180,11 @@ const getInterviewerFocus = (
       return;
     }
 
+    if (currentQuestion && canSubmitAnswer && !savedAnswers.get(currentQuestion.id)) {
+      await handleSaveAnswer();
+      return;
+    }
+
     setIsSaving(true);
     try {
       await finalizeSession();
@@ -1261,10 +1266,17 @@ const getInterviewerFocus = (
 
   const hasTypedAnswer = Boolean(currentAnswer.trim());
   const canSubmitAnswer = hasTypedAnswer || hasRecording;
+  const hasUnsavedCurrentResponse = Boolean(
+    currentQuestion &&
+    canSubmitAnswer &&
+    !savedAnswers.get(currentQuestion.id)
+  );
   const primaryCtaLabel = currentIndex >= questions.length - 1 ? 'Save & Finish' : 'Save & Continue';
   const isPrimaryDisabled = !canSubmitAnswer || isSaving || isRecording || isRecordingPaused;
   const isSkipDisabled = isSaving || isRecording || isRecordingPaused;
-  const skipActionLabel = currentIndex >= questions.length - 1 ? 'Finish' : 'Skip';
+  const skipActionLabel = currentIndex >= questions.length - 1
+    ? hasUnsavedCurrentResponse ? 'Finish & Save' : 'Finish'
+    : 'Skip';
   const mobileQuestionCount = mobileSetupMode === 'quick'
     ? practicePresets.quick.config.sampleSize
     : sampleSize;
@@ -1281,6 +1293,7 @@ const getInterviewerFocus = (
     : isRecordingPaused
       ? `Paused ${formatTime(recordingTime)}`
       : formatTime(currentQuestionTime);
+  const practiceHistoryHref = searchId ? `/history?searchId=${searchId}` : "/history";
 
   // Swipe handlers
   const handleSwipeLeft = () => {
@@ -1386,7 +1399,7 @@ const getInterviewerFocus = (
       setIsVerticalScrollGuarded(false);
     },
     trackMouse: !isMobile,
-    trackTouch: !isMobile,
+    trackTouch: true,
     preventScrollOnSwipe: false,
     delta: SWIPE_THRESHOLD_PX,
   });
@@ -1599,7 +1612,9 @@ const getInterviewerFocus = (
               <ChevronLeft className="h-5 w-5" />
             </Button>
             <div className="text-sm font-medium">Practice setup</div>
-            <div className="w-9" />
+            <Button variant="link" size="sm" asChild className="px-0 text-xs">
+              <Link to={practiceHistoryHref}>History</Link>
+            </Button>
           </div>
         </div>
 
@@ -1984,10 +1999,15 @@ const getInterviewerFocus = (
         <Navigation />
         <div className="container mx-auto px-4 py-8 max-w-4xl">
           <div className="flex items-center justify-between mb-6">
-            <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}>
-              <ChevronLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}>
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Button>
+              <Button variant="link" size="sm" asChild className="px-0">
+                <Link to={practiceHistoryHref}>View history</Link>
+              </Button>
+            </div>
             <div className="text-sm text-muted-foreground">
               {searchData?.company && `${searchData.company}`}
               {searchData?.role && ` - ${searchData.role}`}
@@ -2098,6 +2118,7 @@ const getInterviewerFocus = (
             onSaveNotes={handleSaveNotes}
             onStartNewSession={handleStartNewSession}
             onBackToDashboard={() => navigate(`/dashboard?searchId=${searchId}`)}
+            historyHref={practiceHistoryHref}
             isSaving={isSavingNotes}
           />
         </div>
