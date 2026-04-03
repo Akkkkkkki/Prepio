@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from '@supabase/supabase-js';
 
+const getAuthRedirectUrl = () =>
+  typeof window === "undefined" ? undefined : `${window.location.origin}/auth`;
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -64,12 +67,40 @@ export function useAuth() {
     }
   };
 
+  const resetPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: getAuthRedirectUrl(),
+      });
+      return { error };
+    } catch (error) {
+      return { error };
+    }
+  };
+
+  const resendVerification = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: {
+          emailRedirectTo: getAuthRedirectUrl(),
+        },
+      });
+      return { error };
+    } catch (error) {
+      return { error };
+    }
+  };
+
   return {
     user,
     session,
     loading,
     signIn,
     signUp,
-    signOut
+    signOut,
+    resetPassword,
+    resendVerification,
   };
 }
