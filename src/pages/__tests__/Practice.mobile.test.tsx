@@ -223,15 +223,19 @@ describe("Practice mobile layout", () => {
     const notesField = await screen.findByPlaceholderText("Jot the beats you want to hit...");
     fireEvent.change(notesField, { target: { value: "STAR bullets and metrics" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "Coach notes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Answer guide" }));
 
-    expect(await screen.findByText("Strong answers, weak spots, and follow-ups")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "What strong answers show", level: 2 })
+    ).toBeInTheDocument();
     expect(screen.getByText("Tie model choice to measurable business outcomes.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
     await waitFor(() => {
-      expect(screen.queryByText("Strong answers, weak spots, and follow-ups")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "What strong answers show", level: 2 })
+      ).not.toBeInTheDocument();
     });
 
     expect(screen.getByDisplayValue("STAR bullets and metrics")).toBeInTheDocument();
