@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 import Home from "../Home";
 import { RESEARCH_DRAFT_STORAGE_KEY } from "@/lib/researchDraft";
@@ -53,18 +53,24 @@ vi.mock("@/services/searchService", () => ({
   },
 }));
 
+const AuthStateScreen = () => {
+  const location = useLocation();
+
+  return <pre data-testid="auth-state">{JSON.stringify(location.state)}</pre>;
+};
+
 const renderHome = () =>
   render(
     <MemoryRouter initialEntries={["/"]}>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/auth" element={<div>Auth screen</div>} />
+        <Route path="/auth" element={<AuthStateScreen />} />
         <Route path="/search/:searchId" element={<div>Search screen</div>} />
       </Routes>
     </MemoryRouter>,
   );
 
-describe("Home mobile flow", () => {
+describe("Home flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.sessionStorage.clear();
@@ -82,11 +88,14 @@ describe("Home mobile flow", () => {
     mockStartProcessing.mockResolvedValue(undefined);
     mockAnalyzeCV.mockResolvedValue({ success: false, error: new Error("no-op") });
     mockUploadResumeFile.mockResolvedValue({ success: true, path: "resume.pdf" });
-    mockSaveResume.mockResolvedValue({ success: true, resume: { created_at: "2026-04-03T00:00:00.000Z" } });
+    mockSaveResume.mockResolvedValue({
+      success: true,
+      resume: { created_at: "2026-04-03T00:00:00.000Z" },
+    });
     mockDeleteResumeFiles.mockResolvedValue(undefined);
   });
 
-  it("restores a saved draft into the mobile flow", async () => {
+  it("restores a saved draft into the signed-in mobile flow", async () => {
     window.sessionStorage.setItem(
       RESEARCH_DRAFT_STORAGE_KEY,
       JSON.stringify({
@@ -109,23 +118,16 @@ describe("Home mobile flow", () => {
     expect(screen.getByDisplayValue("https://example.com/job")).toBeInTheDocument();
   });
 
-  it("saves the mobile draft before sending an anonymous user to auth", async () => {
+  it("saves the guest teaser draft and carries research auth state to /auth", async () => {
     renderHome();
 
     fireEvent.change(screen.getByLabelText("Company *"), {
       target: { value: "Stripe" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    fireEvent.change(screen.getByLabelText("Role"), {
+    fireEvent.change(screen.getByLabelText("Role (optional)"), {
       target: { value: "Platform Engineer" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
-
-    expect(await screen.findByText("Tailor the prep")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Sign in to start research" }));
-
-    expect(await screen.findByText("Auth screen")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continue to sign in" }));
 
     const savedDraft = JSON.parse(
       window.sessionStorage.getItem(RESEARCH_DRAFT_STORAGE_KEY) || "{}",
@@ -134,20 +136,49 @@ describe("Home mobile flow", () => {
     expect(savedDraft).toMatchObject({
       company: "Stripe",
       role: "Platform Engineer",
-      step: "tailoring",
+      step: "details",
+    });
+
+    const authState = JSON.parse(
+      (await screen.findByTestId("auth-state")).textContent || "{}",
+    );
+
+    expect(authState).toMatchObject({
+      intent: "research",
+      resumeLabel: "Research",
+      source: "research_home",
+      draftStorageKey: RESEARCH_DRAFT_STORAGE_KEY,
+      from: { pathname: "/" },
     });
   });
 
-  it("keeps the desktop form as a single page", () => {
+  it("shows the compact teaser for anonymous visitors instead of the full research form", () => {
     mockUseIsMobile.mockReturnValue(false);
 
     renderHome();
+
+    expect(screen.getByText("See the interview brief before you create an account.")).toBeInTheDocument();
+    expect(screen.getByText("How it works")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Country (optional)")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Role Description Links (optional)")).not.toBeInTheDocument();
+    expect(screen.queryByText("Step 1 of 3")).not.toBeInTheDocument();
+  });
+
+  it("keeps the full desktop research form for authenticated users", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+
+    renderHome();
+
+    await waitFor(() => {
+      expect(mockGetResume).toHaveBeenCalledWith("user-1");
+    });
 
     expect(screen.getByLabelText("Company *")).toBeInTheDocument();
     expect(screen.getByLabelText("Role (optional)")).toBeInTheDocument();
     expect(screen.getByLabelText("Country (optional)")).toBeInTheDocument();
     expect(screen.getByLabelText("Role Description Links (optional)")).toBeInTheDocument();
-    expect(screen.queryByText("Step 1 of 3")).not.toBeInTheDocument();
+    expect(screen.queryByText("How it works")).not.toBeInTheDocument();
   });
 
   it("submits the mobile flow for signed-in users and clears any saved draft", async () => {

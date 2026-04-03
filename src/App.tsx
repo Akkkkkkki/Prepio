@@ -11,6 +11,7 @@ import History from "./pages/History";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import { createAuthReturnState } from "./lib/researchDraft";
 
 const queryClient = new QueryClient();
 
@@ -28,7 +29,13 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   }
 
   if (!user) {
-    return <Navigate to="/auth" state={{ from: location }} replace />;
+    return (
+      <Navigate
+        to="/auth"
+        state={createAuthReturnState({ pathname: location.pathname })}
+        replace
+      />
+    );
   }
 
   return children;

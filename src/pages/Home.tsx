@@ -13,6 +13,7 @@ import {
 
 import Navigation from "@/components/Navigation";
 import ProgressDialog from "@/components/ProgressDialog";
+import PublicHeader from "@/components/PublicHeader";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -24,8 +25,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
-  type AuthReturnState,
   clearResearchDraft,
+  createAuthReturnState,
   loadResearchDraft,
   RESEARCH_DRAFT_STORAGE_KEY,
   type ResearchDraft,
@@ -51,6 +52,7 @@ type ResearchFormData = {
 
 const HOME_CV_UPLOAD_ID = "home-cv-upload";
 const MOBILE_STEP_ORDER: ResearchStep[] = ["company", "details", "tailoring"];
+const GUEST_RESEARCH_RESUME_STEP: ResearchStep = "details";
 const SUGGESTED_COMPANIES = ["Google", "Meta", "Amazon", "Stripe", "OpenAI", "Palantir"];
 const DEFAULT_FORM_DATA: ResearchFormData = {
   company: "",
@@ -100,6 +102,42 @@ const buildSearchPayload = (formData: ResearchFormData) => ({
   cv: formData.cv.trim() || undefined,
   targetSeniority: formData.targetSeniority === "auto" ? undefined : formData.targetSeniority,
 });
+
+const GUEST_HOME_STEPS = [
+  {
+    title: "Share the company",
+    description: "Start with the employer and add the role if you already know the opening.",
+  },
+  {
+    title: "Unlock the full brief",
+    description: "Create an account or sign in. We keep your draft and send you straight back.",
+  },
+  {
+    title: "Practice from the research",
+    description: "Turn the brief into tailored mock questions, notes, and follow-up actions.",
+  },
+] as const;
+
+const GUEST_SAMPLE_STAGES = [
+  {
+    title: "Recruiter screen",
+    detail: "Motivation, timeline, and high-level fit.",
+  },
+  {
+    title: "Hiring manager",
+    detail: "Execution stories, tradeoffs, and role scope.",
+  },
+  {
+    title: "Panel loop",
+    detail: "Technical depth, collaboration, and decision quality.",
+  },
+] as const;
+
+const GUEST_SAMPLE_SIGNALS = [
+  "Expected stage order and likely question themes",
+  "Company-specific prep notes to focus your practice",
+  "A short list of follow-up drills after each session",
+] as const;
 
 const Home = () => {
   const navigate = useNavigate();
@@ -209,14 +247,14 @@ const Home = () => {
 
   const navigateToAuth = (step: ResearchStep) => {
     persistDraft(step);
-
-    const authState: AuthReturnState = {
-      from: { pathname: "/" },
-      source: "research_home",
-      draftStorageKey: RESEARCH_DRAFT_STORAGE_KEY,
-    };
-
-    navigate("/auth", { state: authState });
+    navigate("/auth", {
+      state: createAuthReturnState({
+        pathname: "/",
+        draftStorageKey: RESEARCH_DRAFT_STORAGE_KEY,
+        intent: "research",
+        source: "research_home",
+      }),
+    });
   };
 
   const startStatusPolling = (searchId: string) => {
@@ -919,34 +957,170 @@ const Home = () => {
     </Card>
   );
 
+  const renderGuestHome = () => (
+    <div className="mx-auto max-w-6xl space-y-8 md:space-y-10">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        <Card className="border shadow-sm">
+          <CardHeader className="space-y-4">
+            <div className="w-fit rounded-full border px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              Research preview
+            </div>
+            <div className="space-y-3">
+              <CardTitle className="text-3xl leading-tight tracking-tight">
+                See the interview brief before you create an account.
+              </CardTitle>
+              <CardDescription className="text-base leading-7">
+                Enter the company and role, then finish auth. We keep the draft and reopen the
+                full research flow with your context intact.
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                navigateToAuth(GUEST_RESEARCH_RESUME_STEP);
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-2">
+                <Label htmlFor="guest-company">Company *</Label>
+                <Input
+                  id="guest-company"
+                  placeholder="e.g. Stripe, OpenAI, Ramp"
+                  value={formData.company}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, company: e.target.value }))}
+                  autoComplete="organization"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="guest-role">Role (optional)</Label>
+                <Input
+                  id="guest-role"
+                  placeholder="e.g. Product Manager"
+                  value={formData.role}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, role: e.target.value }))}
+                  autoComplete="organization-title"
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={!formData.company.trim()}
+              >
+                Continue to sign in
+              </Button>
+            </form>
+
+            <Alert className="border-primary/20 bg-primary/5">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                We save this draft before auth and reopen the full research form when you return.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+
+        <Card className="border bg-muted/20 shadow-sm">
+          <CardHeader className="space-y-3">
+            <div className="w-fit rounded-full border bg-background px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              Sample output
+            </div>
+            <CardTitle className="text-2xl tracking-tight">What the first brief looks like</CardTitle>
+            <CardDescription className="text-sm leading-6">
+              A preview of the research package you unlock after sign-in.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-3 md:grid-cols-3">
+              {GUEST_SAMPLE_STAGES.map((stage) => (
+                <div key={stage.title} className="rounded-2xl border bg-background p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Stage
+                  </p>
+                  <p className="mt-2 text-base font-semibold">{stage.title}</p>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{stage.detail}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-[28px] border bg-background p-5">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Search className="h-4 w-4 text-primary" />
+                Sample prep highlights
+              </div>
+              <div className="mt-4 space-y-3">
+                {GUEST_SAMPLE_SIGNALS.map((signal) => (
+                  <div key={signal} className="flex items-start gap-3">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-primary" />
+                    <p className="text-sm leading-6 text-muted-foreground">{signal}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <section className="rounded-[32px] border bg-card p-6 shadow-sm">
+        <div className="mb-5">
+          <h2 className="text-lg font-semibold tracking-tight">How it works</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Keep the first touch light, then drop into the full signed-in workflow once auth is
+            done.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {GUEST_HOME_STEPS.map((step, index) => (
+            <div key={step.title} className="rounded-2xl border bg-muted/20 p-4">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                0{index + 1}
+              </p>
+              <p className="mt-3 text-base font-semibold">{step.title}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.description}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+
+  const signedInContainerClassName = cn("container mx-auto px-4", isMobile ? "pb-32 pt-8" : "py-16");
+
   return (
     <div className="min-h-screen bg-background">
-      {user && <Navigation />}
+      {user ? (
+        <Navigation />
+      ) : (
+        <PublicHeader
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigateToAuth(GUEST_RESEARCH_RESUME_STEP)}
+            >
+              Sign in or create account
+            </Button>
+          }
+        />
+      )}
 
-      <div className={cn("container mx-auto px-4", isMobile ? "pb-32 pt-8" : "py-16")}>
-        {isMobile ? (
+      <div className={user ? signedInContainerClassName : "container mx-auto px-4 py-8 md:py-12"}>
+        {!user ? renderGuestHome() : isMobile ? (
           <div className="mx-auto max-w-md space-y-6">
             <div className="space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-3">
-                  <h1 className="text-4xl font-bold tracking-tight">
-                    <span className="text-primary">Prepio</span>
-                  </h1>
-                  <p className="max-w-xs text-sm leading-6 text-muted-foreground">
-                    Move from company research to practice in three short steps, without the desktop-style sprawl.
-                  </p>
-                </div>
-
-                {!user && (
-                  <Button
-                    variant="link"
-                    size="lg"
-                    className="h-11 shrink-0 px-0 text-sm"
-                    onClick={() => navigateToAuth(mobileStep)}
-                  >
-                    Sign in / create account
-                  </Button>
-                )}
+              <div className="space-y-3">
+                <h1 className="text-4xl font-bold tracking-tight">
+                  <span className="text-primary">Prepio</span>
+                </h1>
+                <p className="max-w-xs text-sm leading-6 text-muted-foreground">
+                  Move from company research to practice in three short steps, without the
+                  desktop-style sprawl.
+                </p>
               </div>
 
               <div className="grid grid-cols-3 gap-2 rounded-[24px] border bg-muted/20 p-2">
@@ -984,15 +1158,6 @@ const Home = () => {
                   );
                 })}
               </div>
-
-              {!user && (
-                <Alert className="rounded-[24px] border-primary/20 bg-primary/5">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Sign-in stays required, but we’ll keep your draft if you need to leave for auth.
-                  </AlertDescription>
-                </Alert>
-              )}
 
               {error && (
                 <Alert variant="destructive" className="rounded-[24px]">
@@ -1058,15 +1223,6 @@ const Home = () => {
               <p className="mb-8 text-xl text-muted-foreground">
                 Get insider insights on any company's interview process. Tailored prep for you and your friends.
               </p>
-
-              {!user && (
-                <div className="mb-8 flex justify-center gap-4">
-                  <Button onClick={() => navigateToAuth("tailoring")}>Sign Up</Button>
-                  <Button variant="outline" onClick={() => navigateToAuth("tailoring")}>
-                    Sign In
-                  </Button>
-                </div>
-              )}
             </div>
 
             {renderDesktopForm()}
