@@ -1,13 +1,12 @@
-import mammoth from "mammoth";
-
 const MAX_RESUME_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const PDF_MIME_TYPE = "application/pdf";
 const DOCX_MIME_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+type MammothModule = typeof import("mammoth");
 type PdfJsModule = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
-type PdfJsWorkerModule = typeof import("pdfjs-dist/legacy/build/pdf.worker.min.mjs");
 
+let mammothPromise: Promise<MammothModule> | null = null;
 let pdfJsPromise: Promise<PdfJsModule> | null = null;
 
 export class ResumeUploadError extends Error {
@@ -56,16 +55,12 @@ const sanitizeFileName = (fileName: string) =>
 export const buildResumeStoragePath = (userId: string, fileName: string) =>
   `${userId}/${Date.now()}-${sanitizeFileName(fileName)}`;
 
-const registerPdfJsWorkerFallback = (workerModule: PdfJsWorkerModule) => {
-  const globalScope = globalThis as typeof globalThis & {
-    pdfjsWorker?: { WorkerMessageHandler?: unknown };
-  };
-
-  if (!globalScope.pdfjsWorker?.WorkerMessageHandler && workerModule.WorkerMessageHandler) {
-    globalScope.pdfjsWorker = {
-      WorkerMessageHandler: workerModule.WorkerMessageHandler,
-    };
+const getMammoth = async () => {
+  if (!mammothPromise) {
+    mammothPromise = import("mammoth");
   }
+
+  return mammothPromise;
 };
 
 const getPdfJs = async () => {
@@ -74,10 +69,7 @@ const getPdfJs = async () => {
       // The legacy browser build carries the Promise polyfills the modern bundle omits.
       import("pdfjs-dist/legacy/build/pdf.mjs"),
       import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url"),
-      import("pdfjs-dist/legacy/build/pdf.worker.min.mjs"),
-    ]).then(([pdfjs, workerUrl, workerModule]) => {
-      registerPdfJsWorkerFallback(workerModule);
-
+    ]).then(([pdfjs, workerUrl]) => {
       pdfjs.GlobalWorkerOptions.workerSrc = workerUrl.default;
       return pdfjs;
     });
@@ -172,7 +164,8 @@ const extractPdfText = async (file: File): Promise<ExtractedResume> => {
 const extractDocxText = async (file: File): Promise<ExtractedResume> => {
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const { value } = await mammoth.extractRawText({ arrayBuffer });
+    const mammoth = await getMammoth();
+    const { value } = await mammoth.default.extractRawText({ arrayBuffer });
     return { pageCount: 1, text: value };
   } catch (error) {
     console.error("DOCX extraction failed before resume save.", error);

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardList, Loader2 } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import Navigation from "@/components/Navigation";
 import { OverviewStats } from "@/components/history/OverviewStats";
 import {
@@ -8,8 +8,10 @@ import {
   SearchFilter,
 } from "@/components/history/SearchFilter";
 import { SessionList } from "@/components/history/SessionList";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { searchService } from "@/services/searchService";
 import type {
   PracticeHistoryOverviewStats,
@@ -54,8 +56,38 @@ const calculateOverviewStats = (
   };
 };
 
+const OverviewStatsSkeleton = () => (
+  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    {Array.from({ length: 4 }).map((_, index) => (
+      <Card key={index} className="rounded-2xl border-border/70 shadow-sm">
+        <CardContent className="space-y-3 p-5">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-8 w-16" />
+          <Skeleton className="h-3 w-32" />
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+);
+
+const SessionListSkeleton = () => (
+  <div className="space-y-4">
+    {Array.from({ length: 3 }).map((_, index) => (
+      <Card key={index} className="rounded-3xl border-border/70 shadow-sm">
+        <CardContent className="space-y-4 p-5">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-6 w-60" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-48" />
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+);
+
 const History = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { isOffline } = useNetworkStatus();
   const [sessions, setSessions] = useState<PracticeHistorySession[]>([]);
   const [questionFlags, setQuestionFlags] = useState<PracticeQuestionFlagMap>({});
   const [stats, setStats] = useState<PracticeHistoryOverviewStats | null>(null);
@@ -158,8 +190,18 @@ const History = () => {
     ? `/practice?searchId=${selectedSearchId}`
     : "/dashboard";
   const practiceEntryLabel = selectedSearchId !== HISTORY_FILTER_ALL
-    ? "Start practicing"
+    ? "Start practice for this research"
     : "Go to Dashboard";
+  const primaryEmptyHref = selectedSearchId !== HISTORY_FILTER_ALL
+    ? `/dashboard?searchId=${selectedSearchId}`
+    : "/dashboard";
+  const primaryEmptyLabel = selectedSearchId !== HISTORY_FILTER_ALL
+    ? "Open research dashboard"
+    : "Go to Dashboard";
+  const secondaryEmptyHref = selectedSearchId !== HISTORY_FILTER_ALL ? practiceEntryHref : "/";
+  const secondaryEmptyLabel = selectedSearchId !== HISTORY_FILTER_ALL
+    ? "Start practice"
+    : "Start new research";
   const displayedStats = isLoadingStats ? fallbackStats : stats ?? fallbackStats;
 
   const handleFilterChange = (value: string) => {
@@ -179,15 +221,15 @@ const History = () => {
       <div className="min-h-screen bg-background">
         <Navigation showSearchSelector={false} />
         <div className="container mx-auto max-w-4xl px-4 py-8">
-          <Card className="mx-auto max-w-md text-center">
-            <CardHeader>
-              <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin" />
-              <CardTitle>Loading practice history</CardTitle>
-              <CardDescription>
-                Pulling together your completed practice sessions.
-              </CardDescription>
-            </CardHeader>
-          </Card>
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-10 w-72 max-w-full" />
+              <Skeleton className="h-4 w-80 max-w-full" />
+            </div>
+            <OverviewStatsSkeleton />
+            <SessionListSkeleton />
+          </div>
         </div>
       </div>
     );
@@ -218,15 +260,20 @@ const History = () => {
           )}
         </div>
 
-        {error ? (
+        {error && sessions.length === 0 ? (
           <Card className="mt-8 max-w-xl">
             <CardHeader>
               <CardTitle>Practice history unavailable</CardTitle>
-              <CardDescription>{error}</CardDescription>
+              <CardDescription>
+                {isOffline ? "Reconnect to load your practice history." : error}
+              </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col gap-3 sm:flex-row">
               <Button asChild>
-                <Link to={practiceEntryHref}>{practiceEntryLabel}</Link>
+                <Link to={primaryEmptyHref}>{primaryEmptyLabel}</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to={secondaryEmptyHref}>{secondaryEmptyLabel}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -241,16 +288,23 @@ const History = () => {
                 Complete a practice round and it will show up here with your answers, timing, and notes.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col gap-3 sm:flex-row sm:justify-center">
               <Button asChild>
-                <Link to={practiceEntryHref}>{practiceEntryLabel}</Link>
+                <Link to={primaryEmptyHref}>{primaryEmptyLabel}</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to={secondaryEmptyHref}>{secondaryEmptyLabel}</Link>
               </Button>
             </CardContent>
           </Card>
         ) : (
           <div className="mt-8 space-y-6">
-            <OverviewStats stats={displayedStats} />
-            {isLoadingStats && (
+            {isLoadingStats && !stats ? (
+              <OverviewStatsSkeleton />
+            ) : (
+              <OverviewStats stats={displayedStats} />
+            )}
+            {isLoadingStats && stats && (
               <p className="text-sm text-muted-foreground">Refreshing overview totals...</p>
             )}
 
@@ -267,6 +321,9 @@ const History = () => {
                     Show all sessions
                   </Button>
                   <Button asChild>
+                    <Link to={primaryEmptyHref}>{primaryEmptyLabel}</Link>
+                  </Button>
+                  <Button asChild variant="outline">
                     <Link to={practiceEntryHref}>{practiceEntryLabel}</Link>
                   </Button>
                 </CardContent>

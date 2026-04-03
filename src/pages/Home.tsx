@@ -23,7 +23,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
+import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import {
   clearResearchDraft,
   createAuthReturnState,
@@ -143,7 +145,9 @@ const Home = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { canInstall, promptInstall } = useInstallPrompt();
   const isMobile = useIsMobile();
+  const { isOnline, isOffline } = useNetworkStatus();
 
   const [formData, setFormData] = useState<ResearchFormData>(DEFAULT_FORM_DATA);
   const [mobileStep, setMobileStep] = useState<ResearchStep>("company");
@@ -343,6 +347,11 @@ const Home = () => {
   const submitResearch = async () => {
     if (!formData.company.trim()) return;
 
+    if (!isOnline) {
+      setError("Reconnect to start research. You can keep editing the draft while offline.");
+      return;
+    }
+
     if (!user) {
       navigateToAuth(isMobile ? mobileStep : "tailoring");
       return;
@@ -432,6 +441,16 @@ const Home = () => {
         toast({
           title: "Resume parsed locally",
           description: "We kept the text in your draft. Sign in later if you want it saved to your profile too.",
+          duration: 4000,
+        });
+        return;
+      }
+
+      if (!isOnline) {
+        toast({
+          title: "Resume parsed locally",
+          description:
+            "We updated the draft text, but reconnect before you sync this resume to your profile.",
           duration: 4000,
         });
         return;
@@ -531,6 +550,7 @@ const Home = () => {
   const mobilePrimaryDisabled =
     isUploadingResume ||
     isLoading ||
+    (!isOnline && mobileStep === "tailoring") ||
     (mobileStep === "company" && !formData.company.trim());
   const mobileFooterPadding = "calc(1rem + env(safe-area-inset-bottom))";
 
@@ -821,6 +841,15 @@ const Home = () => {
             </AlertDescription>
           </Alert>
         )}
+        {isOffline && (
+            <Alert className="mb-6 border-amber-300 bg-amber-50 text-amber-950">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                You&apos;re offline. Reconnect before you start research. Resume files still parse
+                locally, but profile sync waits until you&apos;re back online.
+              </AlertDescription>
+            </Alert>
+          )}
 
         <form onSubmit={handleFormSubmit} className="space-y-6">
           <div className="space-y-2">
@@ -943,7 +972,7 @@ const Home = () => {
             type={user ? "submit" : "button"}
             className="w-full"
             size="lg"
-            disabled={!formData.company.trim() || isLoading || isUploadingResume}
+            disabled={!formData.company.trim() || isLoading || isUploadingResume || isOffline}
             onClick={user ? undefined : () => navigateToAuth("tailoring")}
           >
             {isLoading
@@ -1022,6 +1051,11 @@ const Home = () => {
                 We save this draft before auth and reopen the full research form when you return.
               </AlertDescription>
             </Alert>
+            {canInstall && (
+              <Button type="button" variant="outline" className="w-full" onClick={() => void promptInstall()}>
+                Install app
+              </Button>
+            )}
           </CardContent>
         </Card>
 
@@ -1101,6 +1135,7 @@ const Home = () => {
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={() => navigateToAuth(GUEST_RESEARCH_RESUME_STEP)}
             >
               Sign in or create account
@@ -1165,6 +1200,15 @@ const Home = () => {
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
+              {isOffline && (
+                  <Alert className="rounded-[24px] border-amber-300 bg-amber-50 text-amber-950">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      You&apos;re offline. Keep editing, reconnect before you start research, and
+                      note that resume files only sync to your profile once you&apos;re back online.
+                    </AlertDescription>
+                  </Alert>
+                )}
             </div>
 
             <form onSubmit={handleFormSubmit}>
@@ -1211,6 +1255,11 @@ const Home = () => {
                     )}
                   </Button>
                 </div>
+                {mobileStep === "tailoring" && isOffline && (
+                  <p className="text-center text-xs text-amber-700">
+                    Reconnect to start research. Resume files can still be parsed locally.
+                  </p>
+                )}
               </div>
             </div>
           </div>

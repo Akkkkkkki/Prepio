@@ -17,6 +17,8 @@ interface SessionSummaryProps {
   onBackToDashboard: () => void;
   historyHref?: string;
   isSaving?: boolean;
+  disableSaveNotes?: boolean;
+  saveNotesHelper?: string;
 }
 
 export const SessionSummary = ({
@@ -31,6 +33,8 @@ export const SessionSummary = ({
   onBackToDashboard,
   historyHref = "/history",
   isSaving = false,
+  disableSaveNotes = false,
+  saveNotesHelper,
 }: SessionSummaryProps) => {
   const [sessionNotes, setSessionNotes] = useState("");
   const [notesSaved, setNotesSaved] = useState(false);
@@ -42,7 +46,7 @@ export const SessionSummary = ({
   };
 
   const handleSaveNotes = async () => {
-    if (notesSaved) return;
+    if (notesSaved || disableSaveNotes) return;
     
     try {
       const didSave = await onSaveNotes(sessionNotes);
@@ -116,7 +120,7 @@ export const SessionSummary = ({
           {!notesSaved && (
             <Button
               onClick={handleSaveNotes}
-              disabled={isSaving}
+              disabled={isSaving || disableSaveNotes}
               variant="outline"
               size="sm"
               className="w-full sm:w-auto"
@@ -130,6 +134,9 @@ export const SessionSummary = ({
                 "Save reflection"
               )}
             </Button>
+          )}
+          {!notesSaved && disableSaveNotes && saveNotesHelper && (
+            <p className="text-sm text-amber-700">{saveNotesHelper}</p>
           )}
           {notesSaved && (
             <div className="flex items-center justify-center gap-2 text-sm text-green-600">

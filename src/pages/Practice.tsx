@@ -43,6 +43,7 @@ import { searchService } from "@/services/searchService";
 import { sessionSampler } from "@/services/sessionSampler";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { SessionSummary } from "@/components/SessionSummary";
 import { QuestionFrame } from "@/components/practice/QuestionFrame";
 import { HintBanner } from "@/components/practice/HintBanner";
@@ -59,7 +60,10 @@ const ANSWER_AUTOSAVE_PREFIX = "practiceAnswerAutosave";
 const AUTOSAVE_DELAY_MS = 5000;
 const PRACTICE_SETUP_STORAGE_KEY = "practiceSetupDefaults";
 const COMPLETE_SESSION_ERROR_MESSAGE = "We couldn't mark this session complete. Try again.";
+const OFFLINE_PRACTICE_MESSAGE = "Reconnect to start practice, save answers, or update favorites.";
 const RECOMMENDED_ANSWER_TIME_COPY = "Aim for 1-2 min";
+const ABORTED_RECORDING_ERROR_MESSAGE =
+  "Recording stopped before any audio was captured. Try again or switch to notes.";
 
 const SETUP_STEPS = [
   { key: "goal", label: "Goal" },
@@ -174,6 +178,7 @@ const Practice = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isMobile = useIsMobile();
+  const { isOffline } = useNetworkStatus();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchId = searchParams.get('searchId');
   const urlStageIds = searchParams.get('stages')?.split(',') || [];
@@ -290,6 +295,8 @@ const Practice = () => {
         case "NotReadableError":
         case "TrackStartError":
           return "Your microphone is busy in another app. Close the other app and try again.";
+        case "AbortError":
+          return ABORTED_RECORDING_ERROR_MESSAGE;
         default:
           break;
       }
@@ -863,6 +870,12 @@ const getInterviewerFocus = (
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (stream.getAudioTracks().length === 0) {
+        stream.getTracks().forEach((track) => track.stop());
+        setRecordingError("No microphone input was detected. Choose another input or use notes instead.");
+        return;
+      }
+
       const mediaRecorder = new MediaRecorder(stream);
 
       stopMediaStream();
@@ -878,6 +891,11 @@ const getInterviewerFocus = (
         }
       };
 
+      mediaRecorder.onerror = (event) => {
+        const recorderError = (event as Event & { error?: DOMException }).error;
+        setRecordingError(getMicrophoneErrorMessage(recorderError ?? new DOMException("", "AbortError")));
+      };
+
       mediaRecorder.onstop = () => {
         const nextBlob = audioChunksRef.current.length > 0
           ? new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' })
@@ -885,6 +903,9 @@ const getInterviewerFocus = (
 
         setAudioBlob(nextBlob);
         setHasRecording(Boolean(nextBlob && nextBlob.size > 0));
+        if (!nextBlob || nextBlob.size === 0) {
+          setRecordingError(ABORTED_RECORDING_ERROR_MESSAGE);
+        }
         stopMediaStream();
         mediaRecorderRef.current = null;
         audioChunksRef.current = [];
@@ -979,6 +1000,10 @@ const getInterviewerFocus = (
     nextSampleSize?: number;
     nextPreset?: string | null;
   } = {}) => {
+    if (isOffline) {
+      return;
+    }
+
     setAllStages(stages);
     setSampleSize(nextSampleSize);
     setAppliedCategories(categories);
@@ -1096,6 +1121,10 @@ const getInterviewerFocus = (
 
   // Flag handling functions (Epic 1.3)
   const handleToggleFlag = async (questionId: string, flagType: 'favorite' | 'needs_work' | 'skipped') => {
+    if (isOffline) {
+      return;
+    }
+
     try {
       const currentFlag = questionFlags[questionId];
       
@@ -1129,6 +1158,8 @@ const getInterviewerFocus = (
   };
 
   const handleSaveAnswer = async () => {
+    if (isOffline) return;
+
     const currentAnswer = answers.get(currentQuestion.id) || "";
     if (!currentAnswer.trim() && !hasRecording || !practiceSession) return;
 
@@ -1293,11 +1324,17 @@ const getInterviewerFocus = (
     !savedAnswers.get(currentQuestion.id)
   );
   const primaryCtaLabel = currentIndex >= questions.length - 1 ? 'Save & Finish' : 'Save & Continue';
-  const isPrimaryDisabled = !canSubmitAnswer || isSaving || isRecording || isRecordingPaused;
-  const isSkipDisabled = isSaving || isRecording || isRecordingPaused;
+  const isFinalQuestion = currentIndex >= questions.length - 1;
+  const isPrimaryDisabled =
+    isOffline || !canSubmitAnswer || isSaving || isRecording || isRecordingPaused;
+  const isSkipDisabled =
+    isSaving || isRecording || isRecordingPaused || (isOffline && isFinalQuestion);
   const skipActionLabel = currentIndex >= questions.length - 1
     ? hasUnsavedCurrentResponse ? 'Finish & Save' : 'Finish'
     : 'Skip';
+  const networkGuardCopy = isFinalQuestion
+    ? "Reconnect before you finish the session or save this answer."
+    : OFFLINE_PRACTICE_MESSAGE;
   const mobileQuestionCount = mobileSetupMode === 'quick'
     ? practicePresets.quick.config.sampleSize
     : sampleSize;
@@ -1839,12 +1876,15 @@ const getInterviewerFocus = (
 
             <Button
               onClick={mobileSetupMode === 'quick' ? handleBeginQuickStart : handleBeginSession}
-              disabled={mobileSetupMode === 'custom' && selectedStagesCount === 0}
+              disabled={isOffline || (mobileSetupMode === 'custom' && selectedStagesCount === 0)}
               className="h-12 w-full rounded-2xl text-base"
             >
               <Play className="mr-2 h-4 w-4" />
               Start practice
             </Button>
+            {isOffline && (
+              <p className="text-center text-sm text-amber-700">{OFFLINE_PRACTICE_MESSAGE}</p>
+            )}
           </div>
         </div>
       </div>
@@ -2087,7 +2127,7 @@ const getInterviewerFocus = (
                 ) : (
                   <Button
                     onClick={handleBeginSession}
-                    disabled={!canProceedFromSetupStep() || selectedStagesCount === 0}
+                    disabled={isOffline || !canProceedFromSetupStep() || selectedStagesCount === 0}
                     className="w-full sm:w-auto"
                   >
                     <Play className="h-4 w-4 mr-2" />
@@ -2095,6 +2135,9 @@ const getInterviewerFocus = (
                   </Button>
                 )}
               </div>
+              {isOffline && (
+                <p className="text-sm text-amber-700">{OFFLINE_PRACTICE_MESSAGE}</p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -2111,6 +2154,7 @@ const getInterviewerFocus = (
 
     const handleSaveNotes = async (notes: string) => {
       if (!practiceSession) return false;
+      if (isOffline) return false;
       
       setIsSavingNotes(true);
       try {
@@ -2149,6 +2193,8 @@ const getInterviewerFocus = (
             onBackToDashboard={() => navigate(`/dashboard?searchId=${searchId}`)}
             historyHref={practiceHistoryHref}
             isSaving={isSavingNotes}
+            disableSaveNotes={isOffline}
+            saveNotesHelper={isOffline ? "Reconnect to save this reflection to your history." : undefined}
           />
         </div>
       </div>
@@ -2289,6 +2335,7 @@ const getInterviewerFocus = (
                     type="button"
                     variant={favoriteActive ? "secondary" : "outline"}
                     onClick={() => handleToggleFlag(currentQuestion.id, 'favorite')}
+                    disabled={isOffline}
                     className={cn(
                       "h-11 rounded-full px-4",
                       favoriteActive
@@ -2429,6 +2476,12 @@ const getInterviewerFocus = (
             {recordingError && (
               <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                 {recordingError}
+              </div>
+            )}
+
+            {isOffline && (
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                {networkGuardCopy}
               </div>
             )}
 
@@ -2666,6 +2719,7 @@ const getInterviewerFocus = (
                     variant="ghost"
                     size="sm"
                     onClick={() => handleToggleFlag(currentQuestion.id, 'favorite')}
+                    disabled={isOffline}
                     className={`h-7 px-2 ${
                       questionFlags[currentQuestion.id]?.flag_type === 'favorite'
                         ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
@@ -2708,6 +2762,12 @@ const getInterviewerFocus = (
             >
               <TooltipProvider delayDuration={150}>
                 <div className="space-y-4">
+                  {isOffline && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                      {networkGuardCopy}
+                    </div>
+                  )}
+
                   <div className="space-y-3 rounded-2xl border bg-background p-4">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 text-sm font-medium">

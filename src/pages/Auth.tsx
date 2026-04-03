@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle, Lock, Mail } from "lucide-react";
 
 import PublicHeader from "@/components/PublicHeader";
 import { useAuthContext } from "@/components/AuthProvider";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +35,7 @@ const Auth = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signIn, signUp, resetPassword, resendVerification } = useAuthContext();
+  const { isOffline } = useNetworkStatus();
   const authState = location.state as AuthReturnState | undefined;
   const resumeTarget = getAuthResumeLabel(authState);
   const redirectPath = authState?.from?.pathname || "/dashboard";
@@ -96,6 +98,10 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
+      if (isOffline) {
+        throw new Error("Reconnect to continue with authentication.");
+      }
+
       if (mode === "signup") {
         const { error: signUpError } = await signUp(formData.email, formData.password);
 
@@ -133,6 +139,10 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
+      if (isOffline) {
+        throw new Error("Reconnect to request a password reset email.");
+      }
+
       const { error: resetError } = await resetPassword(resetEmail.trim());
 
       if (resetError) {
@@ -159,6 +169,10 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
+      if (isOffline) {
+        throw new Error("Reconnect to resend the verification email.");
+      }
+
       const { error: resendError } = await resendVerification(verificationEmail.trim());
 
       if (resendError) {
@@ -182,6 +196,15 @@ const Auth = () => {
             Continue to {resumeTarget}.
             {authState?.source === "research_home" &&
               " We kept your research draft and will restore it when you return."}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isOffline && (
+        <Alert className="mb-5 border-amber-300 bg-amber-50 text-amber-950">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            You&apos;re offline. Sign-in, sign-up, password reset, and verification resend stay unavailable until you reconnect.
           </AlertDescription>
         </Alert>
       )}
@@ -247,7 +270,7 @@ const Auth = () => {
             </div>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full" disabled={isLoading || isOffline}>
             {isLoading ? "Signing in..." : "Sign In"}
           </Button>
         </form>
@@ -325,7 +348,7 @@ const Auth = () => {
             </div>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full" disabled={isLoading || isOffline}>
             {isLoading ? "Creating account..." : "Create Account"}
           </Button>
         </form>
@@ -366,7 +389,7 @@ const Auth = () => {
           </div>
         </div>
 
-        <Button type="submit" className="w-full" disabled={isLoading}>
+        <Button type="submit" className="w-full" disabled={isLoading || isOffline}>
           {isLoading ? "Sending reset link..." : "Send reset link"}
         </Button>
       </form>
@@ -414,7 +437,7 @@ const Auth = () => {
           </div>
         </div>
 
-        <Button type="submit" className="w-full" disabled={isLoading}>
+        <Button type="submit" className="w-full" disabled={isLoading || isOffline}>
           {isLoading ? "Resending..." : "Resend verification email"}
         </Button>
       </form>

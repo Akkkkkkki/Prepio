@@ -2,9 +2,17 @@ import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthContext } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { 
   Brain, 
   Menu, 
@@ -17,7 +25,8 @@ import {
   LogOut,
   Loader2,
   AlertCircle,
-  ChevronDown
+  Download,
+  MoreHorizontal,
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
 
@@ -41,6 +50,7 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
   const [searchParams] = useSearchParams();
   const currentSearchId = searchParams.get('searchId');
   const { signOut, user } = useAuthContext();
+  const { canInstall, promptInstall } = useInstallPrompt();
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -89,6 +99,10 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
   const handleHistoryItemClick = (searchItem: SearchHistoryItem) => {
     navigate(`/dashboard?searchId=${searchItem.id}`);
     setIsHistoryOpen(false);
+  };
+
+  const handleInstall = async () => {
+    await promptInstall();
   };
 
   const handleSearchSelection = (searchId: string) => {
@@ -177,6 +191,9 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                     Active research
                   </p>
+                  <p className="text-xs text-muted-foreground">
+                    Dashboard and practice stay aligned to this selection.
+                  </p>
                   <Select value={currentSearchId || "none"} onValueChange={handleSearchSelection}>
                     <SelectTrigger className="w-[220px]">
                       <SelectValue placeholder="Choose research">
@@ -221,15 +238,27 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                           <span className="ml-2 text-sm text-muted-foreground">Loading history...</span>
                         </div>
                       ) : historyError ? (
-                        <div className="flex items-center gap-2 p-3 border border-red-200 rounded-lg bg-red-50">
-                          <AlertCircle className="h-4 w-4 text-red-600" />
-                          <span className="text-sm text-red-800">{historyError}</span>
+                        <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4 text-red-600" />
+                            <span className="text-sm text-red-800">{historyError}</span>
+                          </div>
+                          <Button variant="outline" size="sm" onClick={() => navigate("/")}>
+                            Start research from Home
+                          </Button>
                         </div>
                       ) : searchHistory.length === 0 ? (
-                        <div className="text-center py-8">
+                        <div className="space-y-3 py-8 text-center">
                           <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm text-muted-foreground">No search history yet</p>
-                          <p className="text-xs text-muted-foreground">Start a new search to see it here</p>
+                          <p className="text-sm text-muted-foreground">No research history yet</p>
+                          <p className="text-xs text-muted-foreground">
+                            Start from Home and every research run will appear here.
+                          </p>
+                          <div className="flex justify-center">
+                            <Button size="sm" onClick={() => navigate("/")}>
+                              Start research
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <div className="space-y-3">
@@ -258,11 +287,29 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                   </SheetContent>
                 </Sheet>
               )}
-              
-              <Button variant="ghost" size="sm" onClick={handleSignOut}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
-              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" aria-label="More actions">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  {canInstall && (
+                    <>
+                      <DropdownMenuItem onClick={handleInstall}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Install app
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {/* Mobile Menu */}
@@ -306,6 +353,9 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                   {showSearchSelector && searchHistory.length > 0 && (
                     <div className="mt-6">
                       <h3 className="font-medium mb-3">Active Research</h3>
+                      <p className="mb-3 text-xs text-muted-foreground">
+                        Dashboard and practice follow this selection.
+                      </p>
                       <Select value={currentSearchId || "none"} onValueChange={handleSearchSelection}>
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Choose research">
@@ -334,7 +384,10 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                         </div>
                       ) : searchHistory.length === 0 ? (
                         <div className="text-center py-4">
-                          <p className="text-xs text-muted-foreground">No searches yet</p>
+                          <p className="text-xs text-muted-foreground">No research runs yet</p>
+                          <p className="mt-1 text-xs text-muted-foreground/80">
+                            Start from Home and your recent runs will show up here.
+                          </p>
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -355,6 +408,15 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                           ))}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {canInstall && (
+                    <div className="mt-6">
+                      <Button variant="outline" onClick={handleInstall} className="w-full justify-start">
+                        <Download className="mr-2 h-4 w-4" />
+                        Install app
+                      </Button>
                     </div>
                   )}
 
