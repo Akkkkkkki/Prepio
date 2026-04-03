@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Brain, Mail, Lock, AlertCircle, CheckCircle } from "lucide-react";
+import type { AuthReturnState } from "@/lib/researchDraft";
 
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -27,9 +28,12 @@ const Auth = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signIn, signUp } = useAuthContext();
-  const fromPath = (location.state as { from?: { pathname: string } })?.from?.pathname;
+  const authState = location.state as AuthReturnState | undefined;
+  const fromPath = authState?.from?.pathname;
   const resumeTarget =
-    fromPath === "/practice"
+    fromPath === "/"
+      ? "Research"
+      : fromPath === "/practice"
       ? "Practice"
       : fromPath === "/profile"
         ? "Profile"
@@ -40,10 +44,10 @@ const Auth = () => {
   // If user is already logged in, redirect them
   useEffect(() => {
     if (user) {
-      const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/dashboard";
+      const from = authState?.from?.pathname || "/dashboard";
       navigate(from, { replace: true });
     }
-  }, [user, navigate, location]);
+  }, [authState?.from?.pathname, navigate, user]);
 
   const handleSubmit = async (e: React.FormEvent, mode: 'signin' | 'signup') => {
     e.preventDefault();
@@ -81,7 +85,7 @@ const Auth = () => {
         }
         
         setSuccess("Successfully signed in!");
-        const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/dashboard";
+        const from = authState?.from?.pathname || "/dashboard";
         navigate(from, { replace: true });
       }
     } catch (err: unknown) {
@@ -128,6 +132,7 @@ const Auth = () => {
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   Sign in to continue to {resumeTarget}.
+                  {authState?.source === "research_home" && " We kept your research draft and will restore it when you return."}
                 </AlertDescription>
               </Alert>
             )}

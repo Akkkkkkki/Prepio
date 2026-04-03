@@ -59,6 +59,7 @@ const ANSWER_AUTOSAVE_PREFIX = "practiceAnswerAutosave";
 const AUTOSAVE_DELAY_MS = 5000;
 const PRACTICE_SETUP_STORAGE_KEY = "practiceSetupDefaults";
 const COMPLETE_SESSION_ERROR_MESSAGE = "We couldn't mark this session complete. Try again.";
+const RECOMMENDED_ANSWER_TIME_COPY = "Aim for 1-2 min";
 
 const SETUP_STEPS = [
   { key: "goal", label: "Goal" },
@@ -2270,6 +2271,19 @@ const getInterviewerFocus = (
                   )}
                 </div>
 
+                <div className="flex items-center justify-between rounded-[24px] bg-muted/30 px-4 py-3">
+                  <div className="flex items-center gap-2 font-mono text-sm text-foreground">
+                    <Timer className="h-4 w-4 text-muted-foreground" />
+                    {formatTime(currentQuestionTime)}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      Recommended
+                    </p>
+                    <p className="text-sm font-medium text-foreground">{RECOMMENDED_ANSWER_TIME_COPY}</p>
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap items-center gap-3 border-t pt-4">
                   <Button
                     type="button"
@@ -2293,7 +2307,7 @@ const getInterviewerFocus = (
                       onClick={() => setIsCoachSheetOpen(true)}
                       className="h-11 rounded-full px-4 text-foreground"
                     >
-                      Coach notes
+                      Answer guide
                     </Button>
                   )}
                 </div>
@@ -2524,9 +2538,12 @@ const getInterviewerFocus = (
                 </div>
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <div className="flex items-center gap-1 rounded-full bg-background/80 px-3 py-1 font-mono">
-                  <Timer className="h-4 w-4" />
-                  {formatTime(currentQuestionTime)}
+                <div className="text-right">
+                  <div className="flex items-center gap-1 rounded-full bg-background/80 px-3 py-1 font-mono">
+                    <Timer className="h-4 w-4" />
+                    {formatTime(currentQuestionTime)}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{RECOMMENDED_ANSWER_TIME_COPY}</p>
                 </div>
                 <div className="text-muted-foreground">
                   {answeredCount} answered

@@ -1,4 +1,4 @@
-import { ArrowLeft, Star } from "lucide-react";
+import { ArrowLeft, FileText, Mic, SkipForward, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface HintBannerProps {
@@ -9,15 +9,22 @@ export const HintBanner = ({ onDismiss }: HintBannerProps) => (
   <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4 text-xs text-muted-foreground motion-slide-up sm:flex-row sm:items-center sm:justify-between">
     <div className="flex flex-col gap-1 text-foreground sm:flex-row sm:items-center sm:gap-4">
       <span className="flex items-center gap-2 text-sm font-medium">
-        <ArrowLeft className="h-3.5 w-3.5" />
-        Swipe left to skip
+        <Mic className="h-3.5 w-3.5" />
+        Record for a full answer
       </span>
       <span className="flex items-center gap-2 text-sm font-medium">
-        <Star className="h-3.5 w-3.5" />
-        Swipe right to favorite
+        <FileText className="h-3.5 w-3.5" />
+        Notes for quick bullets
+      </span>
+      <span className="flex items-center gap-2 text-sm font-medium">
+        <SkipForward className="h-3.5 w-3.5" />
+        Skip if you want a fresh question
       </span>
       <span className="text-xs text-muted-foreground">
-        Gestures pause while you scroll vertically.
+        <ArrowLeft className="mr-1 inline h-3.5 w-3.5" />
+        Swipe left to skip, right to
+        <Star className="mx-1 inline h-3.5 w-3.5" />
+        favorite.
       </span>
     </div>
     <Button
@@ -26,7 +33,7 @@ export const HintBanner = ({ onDismiss }: HintBannerProps) => (
       onClick={onDismiss}
       className="self-start px-0 text-primary"
     >
-      Got it
+      Start answering
     </Button>
   </div>
 );
