@@ -12,10 +12,15 @@ const mockGetSearchStatus = vi.fn();
 const mockStartProcessing = vi.fn();
 const mockUploadResumeFile = vi.fn();
 const mockAnalyzeCV = vi.fn();
+const mockExtractResumeText = vi.fn();
 const mockSaveResume = vi.fn();
 const mockToast = vi.fn();
 const mockUseIsMobile = vi.fn();
 const mockUseAuth = vi.fn();
+const mockNetworkStatus = {
+  isOnline: true,
+  isOffline: false,
+};
 
 vi.mock("@/components/Navigation", () => ({
   default: () => <div>Navigation</div>,
@@ -40,6 +45,10 @@ vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+vi.mock("@/hooks/useNetworkStatus", () => ({
+  useNetworkStatus: () => mockNetworkStatus,
+}));
+
 vi.mock("@/services/searchService", () => ({
   searchService: {
     analyzeCV: (...args: unknown[]) => mockAnalyzeCV(...args),
@@ -51,6 +60,14 @@ vi.mock("@/services/searchService", () => ({
     startProcessing: (...args: unknown[]) => mockStartProcessing(...args),
     uploadResumeFile: (...args: unknown[]) => mockUploadResumeFile(...args),
   },
+}));
+
+vi.mock("@/lib/resumeUpload", () => ({
+  ACCEPTED_RESUME_TYPES:
+    "application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.pdf,.docx",
+  ResumeUploadError: class ResumeUploadError extends Error {},
+  buildResumeStoragePath: vi.fn(() => "user-1/resume.pdf"),
+  extractResumeText: (...args: unknown[]) => mockExtractResumeText(...args),
 }));
 
 const AuthStateScreen = () => {
@@ -74,6 +91,8 @@ describe("Home flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.sessionStorage.clear();
+    mockNetworkStatus.isOnline = true;
+    mockNetworkStatus.isOffline = false;
 
     mockUseIsMobile.mockReturnValue(true);
     mockUseAuth.mockReturnValue({ user: null });
@@ -87,6 +106,10 @@ describe("Home flow", () => {
     });
     mockStartProcessing.mockResolvedValue(undefined);
     mockAnalyzeCV.mockResolvedValue({ success: false, error: new Error("no-op") });
+    mockExtractResumeText.mockResolvedValue({
+      pageCount: 1,
+      text: "Parsed resume text with enough content to update the draft while offline.",
+    });
     mockUploadResumeFile.mockResolvedValue({ success: true, path: "resume.pdf" });
     mockSaveResume.mockResolvedValue({
       success: true,
@@ -218,5 +241,42 @@ describe("Home flow", () => {
 
     expect(await screen.findByText("Progress dialog for OpenAI")).toBeInTheDocument();
     expect(window.sessionStorage.getItem(RESEARCH_DRAFT_STORAGE_KEY)).toBeNull();
+  });
+
+  it("keeps local resume parsing available while offline and skips profile sync", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+    mockNetworkStatus.isOnline = false;
+    mockNetworkStatus.isOffline = true;
+
+    renderHome();
+
+    await waitFor(() => {
+      expect(mockGetResume).toHaveBeenCalledWith("user-1");
+    });
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(fileInput).not.toBeNull();
+
+    fireEvent.change(fileInput as HTMLInputElement, {
+      target: {
+        files: [new File(["resume"], "resume.pdf", { type: "application/pdf" })],
+      },
+    });
+
+    expect(
+      await screen.findByDisplayValue(
+        "Parsed resume text with enough content to update the draft while offline.",
+      ),
+    ).toBeInTheDocument();
+
+    expect(mockAnalyzeCV).not.toHaveBeenCalled();
+    expect(mockUploadResumeFile).not.toHaveBeenCalled();
+    expect(mockSaveResume).not.toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Resume parsed locally",
+      }),
+    );
   });
 });

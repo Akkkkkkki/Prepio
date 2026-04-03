@@ -5,6 +5,10 @@ import Dashboard from "../Dashboard";
 
 const mockGetSearchResults = vi.fn();
 const mockUseIsMobile = vi.fn();
+const mockNetworkStatus = {
+  isOnline: true,
+  isOffline: false,
+};
 
 vi.mock("@/components/Navigation", () => ({
   default: () => <div>Navigation</div>,
@@ -12,6 +16,10 @@ vi.mock("@/components/Navigation", () => ({
 
 vi.mock("@/hooks/use-mobile", () => ({
   useIsMobile: () => mockUseIsMobile(),
+}));
+
+vi.mock("@/hooks/useNetworkStatus", () => ({
+  useNetworkStatus: () => mockNetworkStatus,
 }));
 
 vi.mock("@/services/searchService", () => ({
@@ -24,6 +32,8 @@ describe("Dashboard mobile layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseIsMobile.mockReturnValue(true);
+    mockNetworkStatus.isOnline = true;
+    mockNetworkStatus.isOffline = false;
     mockGetSearchResults.mockResolvedValue({
       success: true,
       search: {
@@ -91,5 +101,57 @@ describe("Dashboard mobile layout", () => {
     await waitFor(() => {
       expect(screen.getByText("2 questions across 1 selected stage")).toBeInTheDocument();
     });
+  });
+
+  it("shows only data-backed overview metrics on desktop", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Research overview")).toBeInTheDocument();
+    expect(screen.getByText("Search status")).toBeInTheDocument();
+    expect(screen.getByText("Interview stages")).toBeInTheDocument();
+    expect(screen.getByText("Selected questions")).toBeInTheDocument();
+    expect(screen.queryByText("Interview Process Overview")).not.toBeInTheDocument();
+    expect(screen.queryByText("3-4 weeks")).not.toBeInTheDocument();
+    expect(screen.queryByText("Technical + Behavioral")).not.toBeInTheDocument();
+  });
+
+  it("preserves the real failure message when offline", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    mockNetworkStatus.isOnline = false;
+    mockNetworkStatus.isOffline = true;
+    mockGetSearchResults.mockResolvedValue({
+      success: true,
+      search: {
+        id: "search-1",
+        company: "OpenAI",
+        role: "Research Engineer",
+        country: "United Kingdom",
+        status: "failed",
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+      stages: [],
+      enhancedQuestions: [],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Search processing failed. Please try again.")).toBeInTheDocument();
+    expect(
+      screen.getByText("You're offline. Reconnect before you try loading this research again."),
+    ).toBeInTheDocument();
   });
 });

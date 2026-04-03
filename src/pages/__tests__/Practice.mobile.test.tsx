@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import Practice from "../Practice";
 
+const capturedSwipeConfigs: Array<Record<string, unknown>> = [];
 const mockGetSearchResults = vi.fn();
 const mockGetQuestionFlags = vi.fn();
 const mockCreatePracticeSession = vi.fn();
@@ -54,6 +55,13 @@ vi.mock("@/hooks/use-mobile", () => ({
   useIsMobile: () => mockUseIsMobile(),
 }));
 
+vi.mock("react-swipeable", () => ({
+  useSwipeable: (config: Record<string, unknown>) => {
+    capturedSwipeConfigs.push(config);
+    return {};
+  },
+}));
+
 vi.mock("@/services/searchService", () => ({
   searchService: {
     getSearchResults: (...args: unknown[]) => mockGetSearchResults(...args),
@@ -75,7 +83,14 @@ describe("Practice mobile layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     MockResizeObserver.reset();
+    capturedSwipeConfigs.length = 0;
     mockUseIsMobile.mockReturnValue(true);
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn(),
+      },
+    });
     mockGetQuestionFlags.mockResolvedValue({ success: true, flags: {} });
     mockCreatePracticeSession.mockResolvedValue({
       success: true,
@@ -239,6 +254,37 @@ describe("Practice mobile layout", () => {
     });
 
     expect(screen.getByDisplayValue("STAR bullets and metrics")).toBeInTheDocument();
+  });
+
+  it("keeps touch swipe navigation on mobile and shows permission-denied recording guidance", async () => {
+    const getUserMediaMock = vi
+      .mocked(navigator.mediaDevices.getUserMedia)
+      .mockRejectedValueOnce(new DOMException("Permission denied", "NotAllowedError"));
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start practice" }));
+
+    await waitFor(() => {
+      expect(
+        capturedSwipeConfigs.some((config) => config.trackTouch === true),
+      ).toBe(true);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Record answer" }));
+
+    expect(getUserMediaMock).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByText(
+        "Microphone access is blocked. Allow microphone access in your browser settings, then try again.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("keeps the user in practice when completion fails on the last answer", async () => {

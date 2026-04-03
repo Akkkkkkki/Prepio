@@ -8,6 +8,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { searchService } from "@/services/searchService";
 import type {
   PracticeHistoryAnswerDetail,
@@ -93,6 +94,7 @@ const renderQuestionFlag = (flagType?: string) => {
 };
 
 export const SessionList = ({ sessions, questionFlags }: SessionListProps) => {
+  const { isOffline } = useNetworkStatus();
   const [openSessionId, setOpenSessionId] = useState("");
   const [detailBySessionId, setDetailBySessionId] = useState<Record<string, CachedSessionDetail>>({});
   const [detailLoadingState, setDetailLoadingState] = useState<Record<string, boolean>>({});
@@ -102,6 +104,14 @@ export const SessionList = ({ sessions, questionFlags }: SessionListProps) => {
     setOpenSessionId(value);
 
     if (!value || detailBySessionId[value] || detailLoadingState[value]) {
+      return;
+    }
+
+    if (isOffline) {
+      setDetailErrors((current) => ({
+        ...current,
+        [value]: "Reconnect to load the full answer review for this session.",
+      }));
       return;
     }
 

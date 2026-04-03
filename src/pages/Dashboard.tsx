@@ -7,13 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
-  Building2, 
-  Clock, 
-  Users, 
-  Target, 
   PlayCircle, 
-  CheckCircle2,
   ArrowRight,
   Brain,
   AlertCircle,
@@ -22,6 +18,7 @@ import {
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { MobileStageCard } from "@/components/dashboard/MobileStageCard";
 
 interface InterviewQuestion {
@@ -53,9 +50,50 @@ interface SearchData {
   created_at: string;
 }
 
+const formatSearchStatus = (status?: string) => {
+  switch (status) {
+    case "completed":
+      return "Ready";
+    case "processing":
+      return "Processing";
+    case "pending":
+      return "Queued";
+    case "failed":
+      return "Failed";
+    default:
+      return null;
+  }
+};
+
+const DashboardSkeleton = ({ isMobile }: { isMobile: boolean }) => (
+  <div className="min-h-screen bg-background">
+    <Navigation />
+    <div className={isMobile ? "px-4 py-5" : "container mx-auto px-4 py-8"}>
+      <div className="space-y-6">
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-10 w-72 max-w-full" />
+          <Skeleton className="h-4 w-56 max-w-full" />
+        </div>
+        <div className={isMobile ? "grid grid-cols-2 gap-3" : "grid gap-4 md:grid-cols-3"}>
+          <Skeleton className="h-24 rounded-3xl" />
+          <Skeleton className="h-24 rounded-3xl" />
+          {!isMobile && <Skeleton className="h-24 rounded-3xl" />}
+        </div>
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-36 rounded-3xl" />
+          <Skeleton className="h-36 rounded-3xl" />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { isOffline } = useNetworkStatus();
   const [searchParams] = useSearchParams();
   const { searchId: urlSearchId } = useParams();
   
@@ -68,7 +106,6 @@ const Dashboard = () => {
   const [searchData, setSearchData] = useState<SearchData | null>(null);
   const [enhancedQuestions, setEnhancedQuestions] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
   // Load search data and poll for updates
   const loadSearchData = async () => {
@@ -142,13 +179,10 @@ const Dashboard = () => {
       }
     }, 3000); // Poll every 3 seconds
 
-    setPollingInterval(poll);
-
     return () => {
-      if (pollingInterval) clearInterval(pollingInterval);
       clearInterval(poll);
     };
-  }, [searchId]); // Only depend on searchId - loadSearchData and pollingInterval are intentionally excluded
+  }, [searchId]); // Only depend on searchId so polling resets cleanly when the active research changes.
 
   // Progress simulation for pending/processing states
   useEffect(() => {
@@ -194,6 +228,8 @@ const Dashboard = () => {
   };
 
   const startPractice = () => {
+    if (isOffline) return;
+
     const selectedStages = stages.filter(stage => stage.selected);
     if (selectedStages.length > 0 && searchId) {
       // Pass selected stage IDs to practice page
@@ -208,6 +244,26 @@ const Dashboard = () => {
     searchData?.role,
     searchData?.country,
   ].filter(Boolean).join(' • ') || 'Interview Preparation';
+  const searchStatusLabel = formatSearchStatus(searchData?.status);
+  const overviewMetrics = [
+    searchStatusLabel
+      ? {
+          label: "Search status",
+          value: searchStatusLabel,
+          helper: searchData?.status === "completed" ? "Ready for practice" : "Research is still updating",
+        }
+      : null,
+    {
+      label: "Interview stages",
+      value: `${stages.length}`,
+      helper: stages.length === 1 ? "Stage mapped" : "Stages mapped",
+    },
+    {
+      label: "Selected questions",
+      value: `${selectedQuestionCount}`,
+      helper: "Questions currently queued for practice",
+    },
+  ].filter(Boolean) as Array<{ label: string; value: string; helper: string }>;
 
   // Show default empty state when no search ID is provided
   if (!searchId) {
@@ -249,6 +305,10 @@ const Dashboard = () => {
     );
   }
 
+  if (isLoading && !searchData && !error) {
+    return <DashboardSkeleton isMobile={isMobile} />;
+  }
+
   if (error) {
     return (
       <div className="min-h-screen bg-background">
@@ -263,6 +323,11 @@ const Dashboard = () => {
               <Alert variant="destructive" className="mb-4">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
+              {isOffline && (
+                <p className="mb-4 text-sm text-amber-700">
+                  You&apos;re offline. Reconnect before you try loading this research again.
+                </p>
+              )}
               <Button 
                 onClick={() => {
                   setError(null);
@@ -343,6 +408,11 @@ const Dashboard = () => {
                   {searchSubtitle}
                 </p>
               </div>
+              <div className="flex flex-wrap gap-2">
+                {searchStatusLabel && <Badge variant="secondary">{searchStatusLabel}</Badge>}
+                {searchData?.role && <Badge variant="outline">{searchData.role}</Badge>}
+                {searchData?.country && <Badge variant="outline">{searchData.country}</Badge>}
+              </div>
             </header>
 
             <section className="grid grid-cols-2 gap-3">
@@ -400,7 +470,9 @@ const Dashboard = () => {
                 {selectedQuestionCount} question{selectedQuestionCount === 1 ? '' : 's'} across {selectedStageCount} selected stage{selectedStageCount === 1 ? '' : 's'}
               </p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                {selectedQuestionCount > 0
+                {isOffline
+                  ? "Reconnect to launch practice. Your research stays available to review."
+                  : selectedQuestionCount > 0
                   ? "Start practice when the mix looks right."
                   : "Select at least one stage to unlock practice."}
               </p>
@@ -408,7 +480,7 @@ const Dashboard = () => {
 
             <Button
               onClick={startPractice}
-              disabled={selectedQuestionCount === 0}
+              disabled={selectedQuestionCount === 0 || isOffline}
               className="h-12 w-full rounded-2xl text-base"
             >
               <PlayCircle className="mr-2 h-4 w-4" />
@@ -426,50 +498,47 @@ const Dashboard = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <div>
+            <div className="space-y-3">
               <h1 className="text-3xl font-bold">
                 {searchData?.company || 'Company'} Interview Research
               </h1>
               <p className="text-muted-foreground">{searchSubtitle}</p>
+              <div className="flex flex-wrap gap-2">
+                {searchStatusLabel && <Badge variant="secondary">{searchStatusLabel}</Badge>}
+                {searchData?.role && <Badge variant="outline">{searchData.role}</Badge>}
+                {searchData?.country && <Badge variant="outline">{searchData.country}</Badge>}
+              </div>
             </div>
-            <Button onClick={startPractice} disabled={selectedQuestionCount === 0}>
+            <Button onClick={startPractice} disabled={selectedQuestionCount === 0 || isOffline}>
               <PlayCircle className="h-4 w-4 mr-2" />
               Start Practice ({selectedQuestionCount} questions)
             </Button>
           </div>
+          {isOffline && (
+            <p className="text-sm text-amber-700">
+              Reconnect to launch practice or refresh this research.
+            </p>
+          )}
         </div>
 
-        {/* Interview Process Overview */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              Interview Process Overview
-            </CardTitle>
+            <CardTitle>Research overview</CardTitle>
+            <CardDescription>
+              Only showing metrics backed by the current research record.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="flex items-center gap-3">
-                <Clock className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium">Total Duration</p>
-                  <p className="text-sm text-muted-foreground">3-4 weeks</p>
+            <div className="grid gap-4 md:grid-cols-3">
+              {overviewMetrics.map((metric) => (
+                <div key={metric.label} className="rounded-2xl border bg-muted/20 p-5">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    {metric.label}
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight">{metric.value}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{metric.helper}</p>
                 </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <Users className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium">Interview Stages</p>
-                  <p className="text-sm text-muted-foreground">{stages.length} rounds</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <Target className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium">Focus Areas</p>
-                  <p className="text-sm text-muted-foreground">Technical + Behavioral</p>
-                </div>
-              </div>
+              ))}
             </div>
           </CardContent>
         </Card>
