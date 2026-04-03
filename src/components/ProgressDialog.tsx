@@ -142,7 +142,7 @@ const ProgressDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md overflow-hidden p-0 sm:max-w-md">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-md grid-rows-[auto,minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-h-[min(90dvh,48rem)] sm:max-w-md">
         <div className="border-b px-6 py-5">
           <DialogHeader className="text-left">
             <DialogTitle className="flex items-center gap-2">
@@ -156,7 +156,7 @@ const ProgressDialog = ({
           </DialogHeader>
         </div>
 
-        <div className="space-y-6 px-6 py-6">
+        <div className="min-h-0 space-y-6 overflow-y-auto px-6 py-6">
           <div className="flex flex-col items-center gap-4 text-center">
             <div
               className={cn(
