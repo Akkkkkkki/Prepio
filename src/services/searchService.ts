@@ -1,5 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json, Tables } from "@/integrations/supabase/types";
+import {
+  type CandidateProfile,
+  type ProfileImportRecord,
+  type ProfileImportSuggestion,
+  type ProfileMergeDecision,
+  createEmptyCandidateProfile,
+  mergeImportedProfile,
+  normalizeCandidateProfile,
+} from "@/lib/candidateProfile";
 
 interface CreateSearchParams {
   company: string;
@@ -79,6 +88,10 @@ type PracticeAnswerWithSessionQuestion = PracticeAnswerWithQuestion & {
   session_id: string;
 };
 
+type ResumeRecord = Tables<"resumes">;
+type CandidateProfileRecord = Tables<"candidate_profiles">;
+type ProfileImportRow = Tables<"profile_imports">;
+
 const EMPTY_PRACTICE_OVERVIEW_STATS: PracticeHistoryOverviewStats = {
   totalSessions: 0,
   totalQuestionsAnswered: 0,
@@ -132,6 +145,93 @@ const getCurrentUser = async () => {
 
   return user;
 };
+
+const normalizeProfileImportRecord = (
+  row: ProfileImportRow | null,
+  userId: string,
+): ProfileImportRecord | null => {
+  if (!row) {
+    return null;
+  }
+
+  const draftProfile = normalizeCandidateProfile(
+    (row.draft_profile as Partial<CandidateProfile> | null) || { userId },
+    userId,
+  );
+  const mergeSuggestions = Array.isArray(row.merge_suggestions)
+    ? (row.merge_suggestions as ProfileImportSuggestion[])
+    : [];
+  const importSummary =
+    row.import_summary && typeof row.import_summary === "object"
+      ? (row.import_summary as ProfileImportRecord["importSummary"])
+      : {
+          newCount: 0,
+          duplicateCount: 0,
+          conflictingCount: 0,
+          missingCount: 0,
+        };
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    resumeId: row.resume_id,
+    source: row.source,
+    draftProfile,
+    mergeSuggestions,
+    importSummary,
+    status: row.status,
+    createdAt: row.created_at,
+    appliedAt: row.applied_at,
+  };
+};
+
+const normalizeCandidateProfileRecord = (
+  row: CandidateProfileRecord | null,
+  userId: string,
+): CandidateProfile | null => {
+  if (!row) {
+    return null;
+  }
+
+  return normalizeCandidateProfile(
+    {
+      userId: row.user_id,
+      headline: row.headline,
+      summary: row.summary,
+      location: row.location,
+      links: row.links as CandidateProfile["links"],
+      experiences: row.experiences as CandidateProfile["experiences"],
+      projects: row.projects as CandidateProfile["projects"],
+      skills: row.skills as CandidateProfile["skills"],
+      education: row.education as CandidateProfile["education"],
+      certifications: row.certifications as CandidateProfile["certifications"],
+      languages: row.languages as CandidateProfile["languages"],
+      preferences: row.preferences as CandidateProfile["preferences"],
+      completionScore: row.completion_score,
+      lastResumeId: row.last_resume_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    },
+    userId,
+  );
+};
+
+const toCandidateProfileRow = (profile: CandidateProfile) => ({
+  user_id: profile.userId,
+  headline: profile.headline,
+  summary: profile.summary,
+  location: profile.location,
+  links: profile.links as Json,
+  experiences: profile.experiences as Json,
+  projects: profile.projects as Json,
+  skills: profile.skills as Json,
+  education: profile.education as Json,
+  certifications: profile.certifications as Json,
+  languages: profile.languages as Json,
+  preferences: profile.preferences as Json,
+  completion_score: profile.completionScore,
+  last_resume_id: profile.lastResumeId,
+});
 
 export const searchService = {
   // Step 1: Create search record only (fast, synchronous)
@@ -666,6 +766,7 @@ export const searchService = {
         .select("*")
         .eq("user_id", userId)
         .is("search_id", null)
+        .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(1);
 
@@ -756,25 +857,30 @@ export const searchService = {
   }) {
     try {
       const user = await getCurrentUser();
+      const nextSource = source ?? (file ? "upload" : "manual");
 
-      const { data: existingResumes, error: existingError } = await supabase
+      const { data: activeResumes, error: existingError } = await supabase
         .from("resumes")
         .select("id, file_name, file_path, file_size_bytes, mime_type, parsed_data")
         .eq("user_id", user.id)
         .is("search_id", null)
-        .order("created_at", { ascending: false });
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1);
 
       if (existingError) throw existingError;
 
-      const currentResume = existingResumes?.[0] ?? null;
-      const nextFile = file ?? (currentResume?.file_path
-        ? {
-            name: currentResume.file_name,
-            path: currentResume.file_path,
-            size: currentResume.file_size_bytes,
-            mimeType: currentResume.mime_type,
-          }
-        : null);
+      const currentResume = activeResumes?.[0] ?? null;
+      const nextFile =
+        file ??
+        (nextSource === "upload" && currentResume?.file_path
+          ? {
+              name: currentResume.file_name,
+              path: currentResume.file_path,
+              size: currentResume.file_size_bytes,
+              mimeType: currentResume.mime_type,
+            }
+          : null);
       const nextParsedData = parsedData === undefined
         ? (currentResume?.parsed_data ?? null)
         : (parsedData as Json);
@@ -789,37 +895,58 @@ export const searchService = {
           file_path: nextFile?.path ?? null,
           file_size_bytes: nextFile?.size ?? null,
           mime_type: nextFile?.mimeType ?? null,
-          source: source ?? (nextFile ? "upload" : "manual"),
+          source: nextSource,
+          is_active: currentResume ? false : true,
+          superseded_at: null,
         })
         .select()
         .single();
 
       if (error) throw error;
 
-      if (existingResumes && existingResumes.length > 0) {
-        const idsToDelete = existingResumes.map((resume) => resume.id);
-        const pathsToDelete = existingResumes
-          .map((resume) => resume.file_path)
-          .filter((path): path is string => Boolean(path && path !== nextFile?.path));
-
-        if (pathsToDelete.length > 0) {
-          const cleanupFiles = await this.deleteResumeFiles(pathsToDelete);
-          if (!cleanupFiles.success) {
-            console.warn("Failed to clean up previous resume files:", cleanupFiles.error);
-          }
-        }
-
-        const { error: deleteError } = await supabase
-          .from("resumes")
-          .delete()
-          .in("id", idsToDelete);
-
-        if (deleteError) {
-          console.warn("Failed to clean up previous resume rows:", deleteError);
-        }
+      if (!currentResume) {
+        return { resume: data, success: true };
       }
 
-      return { resume: data, success: true };
+      const supersededAt = new Date().toISOString();
+      const { error: deactivateError } = await supabase
+        .from("resumes")
+        .update({
+          is_active: false,
+          superseded_at: supersededAt,
+        })
+        .eq("id", currentResume.id);
+
+      if (deactivateError) {
+        await supabase.from("resumes").delete().eq("id", data.id);
+        throw deactivateError;
+      }
+
+      const { data: activatedResume, error: activateError } = await supabase
+        .from("resumes")
+        .update({
+          is_active: true,
+          superseded_at: null,
+        })
+        .eq("id", data.id)
+        .select()
+        .single();
+
+      if (activateError) {
+        await Promise.all([
+          supabase.from("resumes").delete().eq("id", data.id),
+          supabase
+            .from("resumes")
+            .update({
+              is_active: true,
+              superseded_at: null,
+            })
+            .eq("id", currentResume.id),
+        ]);
+        throw activateError;
+      }
+
+      return { resume: activatedResume, success: true };
     } catch (error) {
       console.error("Error saving resume:", error);
       return { error, success: false };
@@ -860,9 +987,37 @@ export const searchService = {
 
       if (deleteError) throw deleteError;
 
+      await supabase
+        .from("candidate_profiles")
+        .update({ last_resume_id: null })
+        .eq("user_id", user.id);
+
       return { success: true };
     } catch (error) {
       console.error("Error deleting resume:", error);
+      return { error, success: false };
+    }
+  },
+
+  async listResumeVersions() {
+    try {
+      const user = await getCurrentUser();
+
+      const { data, error } = await supabase
+        .from("resumes")
+        .select("*")
+        .eq("user_id", user.id)
+        .is("search_id", null)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      return {
+        resumes: (data || []) as ResumeRecord[],
+        success: true,
+      };
+    } catch (error) {
+      console.error("Error listing resume versions:", error);
       return { error, success: false };
     }
   },
@@ -880,6 +1035,203 @@ export const searchService = {
       return { profile: data, success: true };
     } catch (error) {
       console.error("Error getting profile:", error);
+      return { error, success: false };
+    }
+  },
+
+  async getCandidateProfile() {
+    try {
+      const user = await getCurrentUser();
+
+      const { data, error } = await supabase
+        .from("candidate_profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      return {
+        profile: normalizeCandidateProfileRecord(data, user.id),
+        success: true,
+      };
+    } catch (error) {
+      console.error("Error getting candidate profile:", error);
+      return { error, success: false };
+    }
+  },
+
+  async saveCandidateProfile(patch: Partial<CandidateProfile>) {
+    try {
+      const user = await getCurrentUser();
+      const { data: existing, error: existingError } = await supabase
+        .from("candidate_profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      const currentProfile =
+        normalizeCandidateProfileRecord(existing, user.id) ?? createEmptyCandidateProfile(user.id);
+      const nextProfile = normalizeCandidateProfile(
+        {
+          ...currentProfile,
+          ...patch,
+          userId: user.id,
+          preferences: {
+            ...currentProfile.preferences,
+            ...patch.preferences,
+          },
+          lastResumeId:
+            patch.lastResumeId === undefined ? currentProfile.lastResumeId : patch.lastResumeId,
+        },
+        user.id,
+      );
+
+      const { data, error } = await supabase
+        .from("candidate_profiles")
+        .upsert(toCandidateProfileRow(nextProfile), { onConflict: "user_id" })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        profile: normalizeCandidateProfileRecord(data, user.id),
+        success: true,
+      };
+    } catch (error) {
+      console.error("Error saving candidate profile:", error);
+      return { error, success: false };
+    }
+  },
+
+  async getLatestProfileImport(status: "pending" | "applied" | "dismissed" | "failed" = "pending") {
+    try {
+      const user = await getCurrentUser();
+      const { data, error } = await supabase
+        .from("profile_imports")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("status", status)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      return {
+        profileImport: normalizeProfileImportRecord(data?.[0] ?? null, user.id),
+        success: true,
+      };
+    } catch (error) {
+      console.error("Error loading latest profile import:", error);
+      return { error, success: false };
+    }
+  },
+
+  async createProfileImport({
+    resumeText,
+    resumeId,
+    source,
+    existingProfile,
+  }: {
+    resumeText: string;
+    resumeId?: string | null;
+    source?: ResumeSource;
+    existingProfile?: CandidateProfile | null;
+  }) {
+    try {
+      const user = await getCurrentUser();
+      const response = await supabase.functions.invoke("profile-import", {
+        body: {
+          resumeText,
+          userId: user.id,
+          resumeId: resumeId ?? null,
+          source: source ?? "manual",
+          existingProfile: existingProfile ?? undefined,
+        },
+      });
+
+      if (response.error) throw new Error(response.error.message);
+
+      return {
+        profileImport: normalizeProfileImportRecord(response.data.profileImport, user.id),
+        draftProfile: normalizeCandidateProfile(response.data.draftProfile, user.id),
+        mergeSuggestions: (response.data.mergeSuggestions || []) as ProfileImportSuggestion[],
+        importSummary: response.data.importSummary,
+        success: true,
+      };
+    } catch (error) {
+      console.error("Error creating profile import:", error);
+      return { error, success: false };
+    }
+  },
+
+  async applyProfileImport(importId: string, decisions: ProfileMergeDecision[]) {
+    try {
+      const user = await getCurrentUser();
+      const [{ data: importRow, error: importError }, { data: profileRow, error: profileError }] =
+        await Promise.all([
+          supabase
+            .from("profile_imports")
+            .select("*")
+            .eq("id", importId)
+            .eq("user_id", user.id)
+            .eq("status", "pending")
+            .maybeSingle(),
+          supabase
+            .from("candidate_profiles")
+            .select("*")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+        ]);
+
+      if (importError) throw importError;
+      if (profileError) throw profileError;
+
+      const profileImport = normalizeProfileImportRecord(importRow, user.id);
+      if (!profileImport) {
+        throw new Error("Profile import not found or is no longer pending");
+      }
+
+      const currentProfile =
+        normalizeCandidateProfileRecord(profileRow, user.id) ?? createEmptyCandidateProfile(user.id);
+      const mergedProfile = mergeImportedProfile(
+        currentProfile,
+        profileImport.draftProfile,
+        profileImport.mergeSuggestions,
+        decisions,
+      );
+      const saveResult = await this.saveCandidateProfile({
+        ...mergedProfile,
+        lastResumeId: profileImport.resumeId ?? mergedProfile.lastResumeId,
+      });
+
+      if (!saveResult.success || !saveResult.profile) {
+        throw saveResult.error ?? new Error("Failed to save merged profile");
+      }
+
+      const { data: updatedImport, error: updateError } = await supabase
+        .from("profile_imports")
+        .update({
+          status: "applied",
+          applied_at: new Date().toISOString(),
+        })
+        .eq("id", importId)
+        .eq("status", "pending")
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      return {
+        profile: saveResult.profile,
+        profileImport: normalizeProfileImportRecord(updatedImport, user.id),
+        success: true,
+      };
+    } catch (error) {
+      console.error("Error applying profile import:", error);
       return { error, success: false };
     }
   },

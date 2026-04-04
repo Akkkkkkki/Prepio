@@ -7,11 +7,13 @@ import { RESEARCH_DRAFT_STORAGE_KEY } from "@/lib/researchDraft";
 
 const mockCreateSearchRecord = vi.fn();
 const mockDeleteResumeFiles = vi.fn();
+const mockGetCandidateProfile = vi.fn();
 const mockGetResume = vi.fn();
 const mockGetSearchStatus = vi.fn();
 const mockStartProcessing = vi.fn();
 const mockUploadResumeFile = vi.fn();
 const mockAnalyzeCV = vi.fn();
+const mockCreateProfileImport = vi.fn();
 const mockExtractResumeText = vi.fn();
 const mockSaveResume = vi.fn();
 const mockToast = vi.fn();
@@ -53,7 +55,9 @@ vi.mock("@/services/searchService", () => ({
   searchService: {
     analyzeCV: (...args: unknown[]) => mockAnalyzeCV(...args),
     createSearchRecord: (...args: unknown[]) => mockCreateSearchRecord(...args),
+    createProfileImport: (...args: unknown[]) => mockCreateProfileImport(...args),
     deleteResumeFiles: (...args: unknown[]) => mockDeleteResumeFiles(...args),
+    getCandidateProfile: (...args: unknown[]) => mockGetCandidateProfile(...args),
     getResume: (...args: unknown[]) => mockGetResume(...args),
     getSearchStatus: (...args: unknown[]) => mockGetSearchStatus(...args),
     saveResume: (...args: unknown[]) => mockSaveResume(...args),
@@ -111,9 +115,11 @@ describe("Home flow", () => {
       text: "Parsed resume text with enough content to update the draft while offline.",
     });
     mockUploadResumeFile.mockResolvedValue({ success: true, path: "resume.pdf" });
+    mockGetCandidateProfile.mockResolvedValue({ success: true, profile: null });
+    mockCreateProfileImport.mockResolvedValue({ success: true, profileImport: { id: "import-1" } });
     mockSaveResume.mockResolvedValue({
       success: true,
-      resume: { created_at: "2026-04-03T00:00:00.000Z" },
+      resume: { id: "resume-1", created_at: "2026-04-03T00:00:00.000Z" },
     });
     mockDeleteResumeFiles.mockResolvedValue(undefined);
   });
@@ -276,6 +282,57 @@ describe("Home flow", () => {
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Resume parsed locally",
+      }),
+    );
+  });
+
+  it("preserves legacy parsed data when import draft creation is unavailable", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+    mockAnalyzeCV.mockResolvedValue({
+      success: true,
+      parsedData: {
+        personalInfo: { location: "London" },
+        professional: { currentRole: "Staff Engineer" },
+      },
+    });
+    mockCreateProfileImport.mockResolvedValue({
+      success: false,
+      error: new Error("profile import unavailable"),
+    });
+
+    renderHome();
+
+    await waitFor(() => {
+      expect(mockGetResume).toHaveBeenCalledWith("user-1");
+    });
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(fileInput).not.toBeNull();
+
+    fireEvent.change(fileInput as HTMLInputElement, {
+      target: {
+        files: [new File(["resume"], "resume.pdf", { type: "application/pdf" })],
+      },
+    });
+
+    await waitFor(() => {
+      expect(mockAnalyzeCV).toHaveBeenCalledWith(
+        "Parsed resume text with enough content to update the draft while offline.",
+      );
+    });
+
+    expect(mockSaveResume).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parsedData: expect.objectContaining({
+          personalInfo: { location: "London" },
+          professional: { currentRole: "Staff Engineer" },
+        }),
+      }),
+    );
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Resume uploaded",
       }),
     );
   });

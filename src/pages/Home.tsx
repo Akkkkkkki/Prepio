@@ -433,7 +433,6 @@ const Home = () => {
     try {
       const { text } = await extractResumeText(file);
       let parsedData: Record<string, unknown> | undefined;
-      let analysisUnavailable = false;
 
       setFormData((prev) => ({ ...prev, cv: text }));
 
@@ -460,7 +459,6 @@ const Home = () => {
       if (analysisResult.success) {
         parsedData = analysisResult.parsedData;
       } else {
-        analysisUnavailable = true;
         console.warn(
           "CV analysis unavailable during resume upload. Saving extracted text without parsed profile data.",
           analysisResult.error,
@@ -495,11 +493,24 @@ const Home = () => {
         created_at: saveResult.resume?.created_at,
       });
 
+      const candidateProfileResult = await searchService.getCandidateProfile();
+      const importResult = await searchService.createProfileImport({
+        resumeText: text,
+        resumeId: saveResult.resume?.id,
+        source: "upload",
+        existingProfile:
+          candidateProfileResult.success && candidateProfileResult.profile
+            ? candidateProfileResult.profile
+            : undefined,
+      });
+
       toast({
-        title: analysisUnavailable ? "Resume uploaded with limited analysis" : "Resume uploaded",
-        description: analysisUnavailable
-          ? "We saved the extracted text and file, but structured profile fields were not refreshed because CV analysis is unavailable right now."
-          : "We saved your resume file, extracted the text, and updated your profile resume.",
+        title: importResult.success ? "Resume imported" : "Resume uploaded",
+        description: importResult.success
+          ? "We saved a new resume version and created a profile merge draft. Review it on your interview profile."
+          : parsedData
+            ? "We saved a new resume version. The merge draft is unavailable right now, but your interview profile can still bootstrap from the saved parse."
+            : "We saved a new resume version, but the structured profile merge draft is unavailable right now.",
         duration: 4000,
       });
     } catch (uploadError) {
@@ -557,7 +568,7 @@ const Home = () => {
   const renderProfileResumeNote = (buttonClassName?: string) => (
     <>
       {isLoadingProfileResume && (
-        <p className="text-xs text-muted-foreground">Loading your saved resume...</p>
+        <p className="text-xs text-muted-foreground">Loading your interview profile source...</p>
       )}
 
       {!isLoadingProfileResume && profileResume && (
@@ -565,8 +576,8 @@ const Home = () => {
           <div className="flex flex-wrap items-center gap-2">
             <span>
               {isUsingProfileResume
-                ? "Using the resume saved on your profile."
-                : "You already have a saved resume on your profile."}
+                ? "Using the active resume version from your interview profile."
+                : "You already have an active resume version on your interview profile."}
             </span>
             {profileResume.created_at && (
               <span className="text-[11px] text-muted-foreground/80">
@@ -582,7 +593,7 @@ const Home = () => {
               onClick={() => navigate("/profile")}
               className={buttonClassName}
             >
-              Manage profile resume
+              Open interview profile
             </Button>
             <Button
               type="button"
@@ -736,7 +747,7 @@ const Home = () => {
                   <div>
                     <p className="font-medium text-foreground">CV / Resume</p>
                     <p className="mt-1 text-xs font-normal text-muted-foreground">
-                      Upload a file or paste text to tailor the practice.
+                      Import a source resume, then keep a richer interview profile.
                     </p>
                   </div>
                 </AccordionTrigger>
@@ -748,7 +759,7 @@ const Home = () => {
                       <Upload className="h-8 w-8 text-muted-foreground" />
                       <div className="space-y-2">
                         <p className="text-sm leading-6 text-muted-foreground">
-                          Upload a PDF or DOCX, or paste your CV below. Signed-in uploads update the copy on your profile too.
+                          Upload a PDF or DOCX, or paste your CV below. Signed-in uploads create a new resume version and a profile merge draft.
                         </p>
                         <input
                           type="file"
@@ -837,7 +848,7 @@ const Home = () => {
           <Alert className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Sign in before starting research so your results, practice sessions, and saved resume stay attached to your account.
+              Sign in before starting research so your results, practice sessions, interview profile, and resume versions stay attached to your account.
             </AlertDescription>
           </Alert>
         )}
@@ -917,7 +928,7 @@ const Home = () => {
                 <Upload className="h-8 w-8 text-muted-foreground" />
                 <div className="text-center">
                   <p className="mb-2 text-sm text-muted-foreground">
-                    Upload a PDF or DOCX, or paste your CV text below. Signed-in uploads also update the resume saved on your profile.
+                    Upload a PDF or DOCX, or paste your CV text below. Signed-in uploads create a resume version and a profile merge draft.
                   </p>
                   <input
                     type="file"
