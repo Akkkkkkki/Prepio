@@ -51,6 +51,8 @@ import { BottomPracticeNav } from "@/components/practice/BottomPracticeNav";
 import { PracticeHelperDrawer } from "@/components/practice/PracticeHelperDrawer";
 import { QuestionInsightsPanel } from "@/components/practice/QuestionInsightsPanel";
 import { MobileCoachModal } from "@/components/practice/MobileCoachModal";
+import { CompletionCheckmark } from "@/components/practice/CompletionCheckmark";
+import { BreathingBreak, BREATHING_DISMISSED_KEY } from "@/components/practice/BreathingBreak";
 import { cn } from "@/lib/utils";
 
 const SWIPE_THRESHOLD_PX = 60;
@@ -222,8 +224,8 @@ const Practice = () => {
   const [useSampling, setUseSampling] = useState<boolean>(false);
   const [tempShowFavoritesOnly, setTempShowFavoritesOnly] = useState(false);
   
-  // Session state: 'setup' | 'inProgress' | 'completed'
-  const [sessionState, setSessionState] = useState<'setup' | 'inProgress' | 'completed'>('setup');
+  // Session state: 'setup' | 'breathing' | 'inProgress' | 'completed'
+  const [sessionState, setSessionState] = useState<'setup' | 'breathing' | 'inProgress' | 'completed'>('setup');
   const [setupStep, setSetupStep] = useState(0);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   const [mobileSetupMode, setMobileSetupMode] = useState<'quick' | 'custom'>('quick');
@@ -231,6 +233,7 @@ const Practice = () => {
   const [shouldShowSwipeHint, setShouldShowSwipeHint] = useState(false);
   const [isVerticalScrollGuarded, setIsVerticalScrollGuarded] = useState(false);
   const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [showCheckmark, setShowCheckmark] = useState(false);
   const [isCoachSheetOpen, setIsCoachSheetOpen] = useState(false);
   const [isNotesExpanded, setIsNotesExpanded] = useState(false);
   const [mobileFooterHeight, setMobileFooterHeight] = useState(0);
@@ -1039,7 +1042,8 @@ const getInterviewerFocus = (
     setSetupStep(0);
     setSelectedPreset(nextPreset);
     setUseSampling(true);
-    setSessionState('inProgress');
+    const breathingDismissed = localStorage.getItem(BREATHING_DISMISSED_KEY) === "true";
+    setSessionState(breathingDismissed ? 'inProgress' : 'breathing');
     setCurrentIndex(0);
     setIsCoachSheetOpen(false);
     setIsNotesExpanded(false);
@@ -1192,6 +1196,7 @@ const getInterviewerFocus = (
 
         clearAutosavedAnswer(questionId);
         setAutosaveState('saved');
+        setShowCheckmark(true);
         
         // Check if this is the last question
         if (currentIndex >= questions.length - 1) {
@@ -1653,6 +1658,13 @@ const getInterviewerFocus = (
           </Card>
         </div>
       </div>
+    );
+  }
+
+  if (sessionState === 'breathing') {
+    const handleBreathingDone = () => setSessionState('inProgress');
+    return (
+      <BreathingBreak onComplete={handleBreathingDone} onSkip={handleBreathingDone} />
     );
   }
 
@@ -2556,8 +2568,12 @@ const getInterviewerFocus = (
 
   // Active Practice Session - Show questions
   return (
-    <div className="min-h-screen bg-background">
+    <div id="main-content" className="min-h-screen bg-background">
       <Navigation />
+      <span className="sr-only" aria-live="polite">
+        Question {currentIndex + 1} of {questions.length}
+      </span>
+      <CompletionCheckmark visible={showCheckmark} />
       <div className="container mx-auto max-w-6xl px-4 py-6 pb-32 lg:py-8 lg:pb-40">
         <div className="space-y-3 mb-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

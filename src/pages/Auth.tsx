@@ -480,7 +480,7 @@ const Auth = () => {
           };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div id="main-content" className="min-h-screen bg-background">
       <PublicHeader
         actions={
           <Button variant="ghost" asChild>
