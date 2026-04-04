@@ -36,7 +36,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     return (
       <Navigate
         to="/auth"
-        state={createAuthReturnState({ pathname: location.pathname })}
+        state={createAuthReturnState({ pathname: location.pathname + location.search })}
         replace
       />
     );

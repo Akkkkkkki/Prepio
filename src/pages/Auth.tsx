@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle, Lock, Mail } from "lucide-react";
 
 import PublicHeader from "@/components/PublicHeader";
 import { useAuthContext } from "@/components/AuthProvider";
+import { supabase } from "@/integrations/supabase/client";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAuthResumeLabel, type AuthReturnState } from "@/lib/researchDraft";
 
-type AuthView = "signin" | "signup" | "reset-password" | "resend-verification";
+type AuthView = "signin" | "signup" | "reset-password" | "resend-verification" | "set-new-password";
 
 const Auth = () => {
   const [authView, setAuthView] = useState<AuthView>("signin");
@@ -31,21 +32,40 @@ const Auth = () => {
   });
   const [resetEmail, setResetEmail] = useState("");
   const [verificationEmail, setVerificationEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [isRecoverySession, setIsRecoverySession] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, signIn, signUp, resetPassword, resendVerification } = useAuthContext();
+  const { user, signIn, signUp, resetPassword, resendVerification, updatePassword } = useAuthContext();
   const { isOffline } = useNetworkStatus();
   const authState = location.state as AuthReturnState | undefined;
   const resumeTarget = getAuthResumeLabel(authState);
-  const redirectPath = authState?.from?.pathname || "/dashboard";
+  const redirectPath = authState?.from
+    ? `${authState.from.pathname}${authState.from.search || ""}`
+    : "/dashboard";
   const preferredEmail = signInData.email.trim() || signUpData.email.trim();
 
+  // Listen for Supabase PASSWORD_RECOVERY event to enter the set-new-password view
   useEffect(() => {
-    if (user) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setIsRecoverySession(true);
+        setAuthView("set-new-password");
+        clearFeedback();
+      }
+    });
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Redirect authenticated users away — unless they're resetting their password
+  useEffect(() => {
+    if (user && !isRecoverySession) {
       navigate(redirectPath, { replace: true });
     }
-  }, [navigate, redirectPath, user]);
+  }, [navigate, redirectPath, user, isRecoverySession]);
 
   const clearFeedback = () => {
     setError("");
@@ -182,6 +202,43 @@ const Auth = () => {
       setSuccess("Verification email sent. Check your inbox and spam folder.");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Couldn't resend the verification email.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSetNewPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearFeedback();
+
+    if (newPassword.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      if (isOffline) {
+        throw new Error("Reconnect to set your new password.");
+      }
+
+      const { error: updateError } = await updatePassword(newPassword);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setIsRecoverySession(false);
+      setSuccess("Password updated. You're now signed in.");
+      navigate("/dashboard", { replace: true });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Couldn't update your password.");
     } finally {
       setIsLoading(false);
     }
@@ -463,21 +520,77 @@ const Auth = () => {
     </>
   );
 
+  const renderSetNewPassword = () => (
+    <>
+      <form onSubmit={handleSetNewPassword} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="new-password">New password</Label>
+          <div className="relative">
+            <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="new-password"
+              type="password"
+              placeholder="••••••••"
+              value={newPassword}
+              onChange={(e) => {
+                setNewPassword(e.target.value);
+                setError("");
+              }}
+              className="pl-10"
+              minLength={6}
+              required
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">At least 6 characters.</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="confirm-new-password">Confirm new password</Label>
+          <div className="relative">
+            <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="confirm-new-password"
+              type="password"
+              placeholder="••••••••"
+              value={confirmNewPassword}
+              onChange={(e) => {
+                setConfirmNewPassword(e.target.value);
+                setError("");
+              }}
+              className="pl-10"
+              minLength={6}
+              required
+            />
+          </div>
+        </div>
+
+        <Button type="submit" className="w-full" disabled={isLoading || isOffline}>
+          {isLoading ? "Updating password..." : "Set new password"}
+        </Button>
+      </form>
+    </>
+  );
+
   const cardCopy =
-    authView === "reset-password"
+    authView === "set-new-password"
       ? {
-          title: "Reset your password",
-          description: "Send a recovery email without losing your place in the app.",
+          title: "Set a new password",
+          description: "Choose a new password for your account.",
         }
-      : authView === "resend-verification"
+      : authView === "reset-password"
         ? {
-            title: "Resend verification email",
-            description: "Use the latest verification email so the sign-in flow stays predictable.",
+            title: "Reset your password",
+            description: "Send a recovery email without losing your place in the app.",
           }
-        : {
-            title: "Welcome",
-            description: "Sign in or create an account to continue.",
-          };
+        : authView === "resend-verification"
+          ? {
+              title: "Resend verification email",
+              description: "Use the latest verification email so the sign-in flow stays predictable.",
+            }
+          : {
+              title: "Welcome",
+              description: "Sign in or create an account to continue.",
+            };
 
   return (
     <div id="main-content" className="min-h-screen bg-background">
@@ -508,11 +621,13 @@ const Auth = () => {
             <CardContent>
               {renderSharedAlerts()}
 
-              {authView === "reset-password"
-                ? renderResetPassword()
-                : authView === "resend-verification"
-                  ? renderResendVerification()
-                  : renderSignInAndSignUp()}
+              {authView === "set-new-password"
+                ? renderSetNewPassword()
+                : authView === "reset-password"
+                  ? renderResetPassword()
+                  : authView === "resend-verification"
+                    ? renderResendVerification()
+                    : renderSignInAndSignUp()}
 
               <p className="mt-6 text-center text-xs text-muted-foreground">
                 By continuing, you agree to the current Prepio terms and privacy policy.

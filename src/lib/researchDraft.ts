@@ -16,7 +16,7 @@ export type ResearchDraft = {
 };
 
 export type AuthReturnState = {
-  from: { pathname: string };
+  from: { pathname: string; search?: string };
   source?: "research_home";
   draftStorageKey?: string;
   intent?: AuthIntent;
@@ -85,10 +85,14 @@ export const createAuthReturnState = ({
   resumeLabel,
   source,
 }: CreateAuthReturnStateInput): AuthReturnState => {
-  const resolvedIntent = intent ?? getAuthIntentFromPath(pathname);
+  // pathname may include a query string (e.g. "/dashboard?searchId=...")
+  const qIndex = pathname.indexOf("?");
+  const purePath = qIndex >= 0 ? pathname.slice(0, qIndex) : pathname;
+  const search = qIndex >= 0 ? pathname.slice(qIndex) : undefined;
+  const resolvedIntent = intent ?? getAuthIntentFromPath(purePath);
 
   return {
-    from: { pathname },
+    from: { pathname: purePath, search },
     source,
     draftStorageKey,
     intent: resolvedIntent,

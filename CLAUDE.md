@@ -106,9 +106,10 @@ Model selection is env-driven in shared config. If secrets do not override defau
 ## Routes
 
 - `/`: research entry
-- `/auth`: sign in / sign up
+- `/auth`: sign in / sign up / password reset / password recovery / resend verification
 - `/dashboard`: protected results page
 - `/practice`: protected practice page
+- `/history`: protected search history page
 - `/profile`: protected profile page
 - `/search/:searchId`: protected results alias
 
@@ -134,10 +135,10 @@ Protected-route behavior is defined in [`src/App.tsx`](./src/App.tsx).
 
 ### Home and auth
 - Guests now see sign-in guidance before submit, but the landing page is not fully guest-optimized yet.
-- Auth redirect context exists, but forgot-password and resend-verification affordances are still missing.
+- Auth includes forgot-password, resend-verification, and password-recovery (set-new-password) flows.
 
 ### Profile
-- Resume text paste and PDF upload are both supported entry points.
+- Resume text paste, PDF upload, and DOCX upload are all supported entry points.
 - If you touch resume deletion semantics, keep file cleanup and row cleanup aligned.
 
 ## Schema Workflow

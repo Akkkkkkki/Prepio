@@ -435,14 +435,14 @@ const Profile = () => {
                   
                   {seniority && (
                     <div className="p-3 bg-muted rounded-lg">
-                      <p className="text-sm">
+                      <span className="text-sm flex items-center">
                         <strong>Current:</strong>{" "}
                         <Badge variant="outline" className="ml-1">
                           {seniority === 'junior' && '🌱 Junior'}
                           {seniority === 'mid' && '🚀 Mid-level'}
                           {seniority === 'senior' && '⭐ Senior'}
                         </Badge>
-                      </p>
+                      </span>
                     </div>
                   )}
                 </CardContent>
