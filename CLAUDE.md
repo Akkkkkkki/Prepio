@@ -24,8 +24,8 @@ These points matter because older docs in this repo can drift behind shipped beh
   There is no audio upload or transcription path yet.
 - Search history is available in authenticated navigation.
 - Practice supports mobile swipes, but users also have explicit button controls.
-- The current mobile practice UX is functional but not the target end state.
-  Use [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md) for the active redesign plan.
+- The mobile practice redesign has shipped and is in follow-up QA.
+  Use [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md) for the execution plan and QA expectations.
 - Auth shows redirect context when a user is bounced to sign in.
 - Sign-in and sign-up fields are stored separately in the UI.
 
@@ -109,7 +109,7 @@ Model selection is env-driven in shared config. If secrets do not override defau
 - `/auth`: sign in / sign up / password reset / password recovery / resend verification
 - `/dashboard`: protected results page
 - `/practice`: protected practice page
-- `/history`: protected search history page
+- `/history`: protected practice history page
 - `/profile`: protected profile page
 - `/search/:searchId`: protected results alias
 
@@ -121,6 +121,7 @@ Protected-route behavior is defined in [`src/App.tsx`](./src/App.tsx).
 - [`src/pages/Dashboard.tsx`](./src/pages/Dashboard.tsx)
 - [`src/pages/Practice.tsx`](./src/pages/Practice.tsx)
 - [`src/pages/Profile.tsx`](./src/pages/Profile.tsx)
+- [`src/pages/History.tsx`](./src/pages/History.tsx)
 - [`src/components/Navigation.tsx`](./src/components/Navigation.tsx)
 - [`src/services/searchService.ts`](./src/services/searchService.ts)
 - [`supabase/functions/interview-research/index.ts`](./supabase/functions/interview-research/index.ts)
@@ -158,7 +159,9 @@ Keep migration history in [`supabase/migrations`](./supabase/migrations) and sch
 - [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md): source of truth for mobile practice execution
 - [`docs/UI_UX_ENHANCEMENT_PLAN.md`](./docs/UI_UX_ENHANCEMENT_PLAN.md): UX backlog
 - [`docs/RESEARCH_PIPELINE_IMPROVEMENTS.md`](./docs/RESEARCH_PIPELINE_IMPROVEMENTS.md): research pipeline notes
-- [`docs/TESTING.md`](./docs/TESTING.md): testing priorities
+- [`docs/TESTING.md`](./docs/TESTING.md): testing coverage and priorities
+- [`docs/IMPLEMENTATION_ROADMAP.md`](./docs/IMPLEMENTATION_ROADMAP.md): future-facing implementation ideas
+- [`docs/UI_UX_REDESIGN_ANALYSIS.md`](./docs/UI_UX_REDESIGN_ANALYSIS.md): redesign analysis comparing current vs alternative architecture
 
 ## Practical Guidance
 

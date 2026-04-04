@@ -1,14 +1,45 @@
 # Testing
 
-Single reference for how we test intel-prep-ace: what already exists, how to run it, and what still needs to be covered.
+Single reference for how we test Prepio: what already exists, how to run it, and what still needs to be covered.
 
 ## Quick Start
+- `npm test` – run all frontend tests (Vitest + React Testing Library).
 - `make test` – run everything (Deno + Node).
-- `make test-unit` – fast unit sweep (current suite).
+- `make test-unit` – fast unit sweep (Deno edge-function suite).
 - Edge Functions stay in Deno under `tests/unit/test_edge_functions`.
-- Frontend code should use Vitest + React Testing Library (planned; add `vitest run` npm script when suites land).
+- Frontend tests run via Vitest (`npm test` or `vitest run`) with jsdom environment and `@testing-library/react`.
 
 ## Suite Layout
+
+### Frontend (Vitest + React Testing Library)
+```
+src/
+├── components/
+│   ├── __tests__/
+│   │   ├── Navigation.test.tsx                 ✅ (8 tests)
+│   │   └── ProgressDialog.test.tsx             ✅ (9 tests)
+│   ├── practice/__tests__/
+│   │   └── QuestionInsightsPanel.test.tsx      ✅ (2 tests)
+│   └── ui/__tests__/
+│       └── CommandDialog.test.tsx              ✅ (1 test)
+├── hooks/__tests__/
+│   ├── browserState.test.tsx                   ✅ (3 tests)
+│   └── useSearchProgress.test.ts              ✅ (8 tests)
+├── lib/__tests__/
+│   └── resumeUpload.test.ts                   ✅ (4 tests)
+├── pages/__tests__/
+│   ├── Auth.test.tsx                          ✅ (4 tests)
+│   ├── Dashboard.mobile.test.tsx              ✅ (3 tests)
+│   ├── History.test.tsx                       ✅ (4 tests)
+│   ├── Home.mobile.test.tsx                   ✅ (6 tests)
+│   ├── Practice.mobile.test.tsx               ✅ (4 tests)
+│   └── Profile.test.tsx                       ✅ (13 tests)
+└── services/
+    ├── searchService.test.ts                  ✅ (2 tests)
+    └── sessionSampler.test.ts                 ✅ (12 tests)
+```
+
+### Backend (Deno)
 ```
 tests/
 ├── unit/
@@ -24,7 +55,7 @@ tests/
         └── test_07_complete_workflow.ts        ✅ (2 tests)
 ```
 
-**Current coverage:** 28 automated tests (26 Deno edge-function unit tests + 2 workflow integrations) and all are passing. The integration slots now cover the full interview prep flow end-to-end.
+**Current coverage:** 111 automated tests total — 83 frontend (Vitest) + 26 Deno edge-function unit tests + 2 workflow integrations. All passing.
 
 ## Key Scenarios
 - **Test 07.1 – Complete workflow integration**: Located in `tests/integration/test_workflows/test_07_complete_workflow.ts`. Creates a real search, triggers `interview-research`, waits for the async pipeline to complete, then asserts CV/job comparison rows, ≥10 interview questions, stage generation, and cleans up the seeded `searches` record. Run with `deno test --allow-all tests/integration/test_workflows/test_07_complete_workflow.ts`.
@@ -33,9 +64,9 @@ tests/
 
 ## Mobile Practice Redesign
 
-The active execution plan for mobile practice lives in [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./MOBILE_PRACTICE_UX_EXECUTION_PLAN.md).
+The mobile practice redesign has shipped and is in QA. The execution plan lives in [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./MOBILE_PRACTICE_UX_EXECUTION_PLAN.md).
 
-When implementation starts, treat these as the minimum validation matrix:
+Minimum validation matrix for ongoing QA:
 - iPhone SE, iPhone 14 Pro, Pixel 7, and one smaller mid-range Android viewport.
 - Start practice from setup and confirm the first question shows prompt, response controls, and primary CTA without hunting.
 - Scroll a long prompt and verify no accidental skip or favorite action fires.
@@ -76,5 +107,19 @@ Treat **P0** as blockers, **P1** as near-term, **P2** as nice-to-have if timelin
 
 ## Tooling Notes
 - Keep Deno-based suites under `tests/` and run with `deno test --allow-all`.
-- New frontend suites should add `"test": "vitest run"` plus `vitest`, `@testing-library/react`, `@testing-library/user-event`, and `@testing-library/jest-dom`.
+- Frontend tests use Vitest (`npm test` / `vitest run`) with jsdom, `@testing-library/react`, `@testing-library/user-event`, and `@testing-library/jest-dom`. Setup file: `vitest.setup.ts`.
+- Frontend test files go in `__tests__/` directories next to the code they test, or as `.test.ts` siblings for service files.
 - Prefer lightweight Supabase client mocks; only hit the hosted project for end-to-end checks when necessary.
+
+## Frontend Coverage Gaps
+
+The following areas still need more frontend test coverage:
+
+| Priority | Area | Key files | Status |
+| --- | --- | --- | --- |
+| ~~P0~~ | ~~ProgressDialog + stall detection~~ | `src/components/ProgressDialog.tsx`, `src/hooks/useSearchProgress.ts` | Covered |
+| ~~P1~~ | ~~Profile page (upload, deletion, seniority)~~ | `src/pages/Profile.tsx` | Covered |
+| ~~P1~~ | ~~Navigation (history selector, auth state)~~ | `src/components/Navigation.tsx` | Covered |
+| ~~P1~~ | ~~Session sampler logic~~ | `src/services/sessionSampler.ts` | Covered |
+| P1 | searchService main API methods | `src/services/searchService.ts` (only dedup helpers are tested) | Open |
+| P2 | Tavily analytics | `src/services/tavilyAnalyticsService.ts` | Open |

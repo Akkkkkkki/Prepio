@@ -40,7 +40,7 @@ This README is intentionally narrow. It documents what the product does today, w
 - Horizontal actions require a 60px threshold.
 - Vertical movement greater than 12px suppresses swipe actions so users can scroll long prompts.
 - Users can still use explicit Back, Skip, Favorite, and bottom-nav controls if they do not want gestures.
-- The shipped mobile experience still feels crowded and overly tall. The active execution plan for fixing that lives in [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md).
+- The mobile practice redesign has shipped and is in follow-up QA. The execution plan and QA expectations live in [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md).
 
 Key files:
 - [`src/pages/Practice.tsx`](./src/pages/Practice.tsx)
@@ -96,7 +96,7 @@ npm run supabase:status
 
 ## Auth Notes
 
-- Protected routes are `/dashboard`, `/practice`, `/profile`, and `/search/:searchId`.
+- Protected routes are `/dashboard`, `/practice`, `/history`, `/profile`, and `/search/:searchId`.
 - The auth screen now shows redirect context like "Sign in to continue to Practice".
 - Sign-in and sign-up state are separated in the UI, so switching tabs no longer carries passwords across forms.
 - Email confirmation behavior depends on your Supabase project settings. The current UI tells users to check their email after sign-up.
@@ -173,7 +173,8 @@ Current status:
 ## Known UX Follow-Ups
 
 - Finish guest-first onboarding and lightweight public nav.
-- Execute the dedicated mobile practice redesign plan.
+- Complete follow-up QA on the shipped mobile practice redesign.
 - Add helper copy around the desktop "Active Research" selector.
 - Replace placeholder dashboard overview stats with real data.
+- Add forgot-password and resend-verification affordances to auth.
 - Add stronger automated coverage for practice mobile interactions.

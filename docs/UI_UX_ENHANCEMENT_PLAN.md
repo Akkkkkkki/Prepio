@@ -11,11 +11,11 @@
 | # | Theme | Gap & Evidence | Impact | Fast Fix |
 | --- | --- | --- | --- | --- |
 | 1 | Guest onboarding | The home screen now shows an inline sign-in warning and swaps the primary CTA to “Sign In to Start Research”, but guests can still type into the full form and the logged-out shell is still sparse. | The failure is earlier and clearer than before, but the public-first experience still feels half-finished. | Gate the form behind a lighter guest CTA card, add a small public nav, and preserve intent when redirecting to auth. |
-| 2 | File upload messaging | Home and Profile now disable PDF upload with explicit “Coming Soon” copy, which is much more honest, but there is still no resumable file flow. | Trust is better because the UI no longer lies, but the product still needs a real file pipeline. | Keep the buttons disabled until upload ships, and document pasted CV text as the supported path. |
+| 2 | ~~File upload messaging~~ (resolved) | Home and Profile now support PDF and DOCX resume upload. Text extraction works via pdf.js and mammoth. Signed-in uploads update the user's profile. | Resolved — file upload is shipped and functional. | No action needed. |
 | 3 | Auth flow clarity | Auth now keeps sign-in and sign-up state separate and shows a redirect banner like “Sign in to continue to Practice”, but recovery affordances are still missing. | Tab switching no longer leaks passwords across forms, though users still lack obvious recovery links. | Add `Forgot password` and `Resend verification`, and keep route-context copy visible. |
 | 4 | Research history affordances | History is now exposed from authenticated navigation and the selector label now reads “Active Research”, but helper copy is still thin. | Returning users can reopen past runs without dead-end TODO buttons. | Add helper text and empty-state explanation around the selector so users understand what it controls. |
 | 5 | Dashboard credibility | “Interview Process Overview” cards display hard-coded placeholders instead of deriving values from `searchData` (`src/pages/Dashboard.tsx`, lines 349-378). | Static “3–4 weeks / Technical + Behavioral” blurs the line between actual intelligence and filler, reducing perceived value. | Show only metrics returned from Supabase (stage count, detected regions, etc.) and hide tiles without real data. |
-| 6 | Profile data management | Profile no longer pretends to delete stored data. The action is now framed as “Clear Editor”, but server-backed CV deletion still does not exist. | Privacy expectations are clearer, but true data deletion remains a missing capability. | Ship a real delete endpoint or continue to keep the copy explicitly local-only. |
+| 6 | ~~Profile data management~~ (resolved) | Profile now supports server-backed resume deletion via `searchService.deleteResume()`, which removes saved rows and attempts to remove stored files. | Resolved — delete is server-backed and functional. | No action needed. |
 
 ---
 
@@ -42,8 +42,8 @@ Themes were clustered, conflicting recommendations were resolved using standard 
   _Action:_ Revert to the default font stack (Tailwind `font-sans`) until the custom font subset is fixed; regression-test Prepio auth copy.
 - **Form bloat and unclear optionality:** Long research form overwhelms users and hides validation.  
   _Action:_ Split into “Required info” and “Advanced options” accordions, add inline validation + character counters, and highlight optional fields.
-- **CV upload UX gaps:** The product now disables upload buttons and says “Coming Soon,” which is the right honesty bar until processing exists.  
-  _Action:_ Keep the disabled state and make pasted CV text the default documented flow everywhere.
+- **~~CV upload UX gaps~~ (resolved):** PDF and DOCX resume upload now works from both Home and Profile. Text extraction is handled by pdf.js and mammoth.
+  _Action:_ No action needed — file upload is shipped.
 - **Auth recovery still shallow:** Separate tab state is now fixed, but the screen still needs recovery links and a clearer path back to the product.  
   _Action:_ Add “Forgot password”, “Resend verification”, and “Back to product” links.
 
@@ -166,7 +166,7 @@ _Effort assumes two engineers sharing work without over-engineering; backlog can
 - Re-enable default font stack and smoke-test Prepio auth screens.
 - Render navigation for all users with Sign In / Docs / Support links.
 - Gate Prepio form with inline auth prompt and add sample data card.
-- Disable CV upload buttons with “Coming Soon” badge + privacy copy.
+- ~~Disable CV upload buttons with “Coming Soon” badge + privacy copy.~~ (resolved — upload is shipped)
 - Increase practice question nav dots to 12px and add bottom padding.
 - Introduce redirect-aware banner on `/auth` (“Sign in to resume Practice”).
 
