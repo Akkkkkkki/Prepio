@@ -170,6 +170,41 @@ describe("Profile page", () => {
     });
   });
 
+  it("keeps existing parsed profile data visible when analysis is unavailable", async () => {
+    mockGetResume.mockResolvedValue({
+      success: true,
+      resume: {
+        content: "Existing CV content",
+        parsed_data: {
+          personalInfo: { name: "Jane Doe" },
+          professional: { currentRole: "Staff Engineer" },
+        },
+      },
+    });
+    mockAnalyzeCV.mockResolvedValue({ success: false, error: "Service unavailable" });
+    mockSaveResume.mockResolvedValue({ success: true });
+
+    renderProfile();
+
+    await waitFor(() => {
+      expect(screen.getByText("Jane Doe")).toBeInTheDocument();
+    });
+
+    const textarea = screen.getByPlaceholderText("Paste or type your CV content here...");
+    fireEvent.change(textarea, { target: { value: "Updated CV content" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save & Analyze with AI" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("CV saved. Structured profile analysis is temporarily unavailable."),
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Jane Doe")).toBeInTheDocument();
+    expect(screen.getByText("Staff Engineer")).toBeInTheDocument();
+  });
+
   it("calls deleteResume on the server when deleting CV", async () => {
     mockGetResume.mockResolvedValue({
       success: true,
@@ -226,9 +261,9 @@ describe("Profile page", () => {
 
     renderProfile();
 
-    // The seniority badge shows the current level with emoji prefix
+    // The seniority badge shows the current level
     await waitFor(() => {
-      expect(screen.getByText("Current:")).toBeInTheDocument();
+      expect(screen.getByText("Senior")).toBeInTheDocument();
     });
   });
 
@@ -242,7 +277,7 @@ describe("Profile page", () => {
     });
 
     // The seniority select trigger should be present
-    const trigger = screen.getByRole("combobox", { name: /Current Experience Level/i });
+    const trigger = screen.getByRole("combobox", { name: /Experience Level/i });
     expect(trigger).toBeInTheDocument();
   });
 

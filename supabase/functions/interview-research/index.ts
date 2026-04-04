@@ -760,9 +760,14 @@ function buildSynthesisPrompt(
     
     // Technical skills breakdown
     if (analysisData.skills) {
-      if (analysisData.skills.technical?.length > 0) {
+      // Support both new categories format and legacy flat technical array
+      const technicalSkills: string[] = analysisData.skills.categories
+        ? analysisData.skills.categories.flatMap((c: { skills: string[] }) => c.skills)
+        : (analysisData.skills.technical || []);
+
+      if (technicalSkills.length > 0) {
         prompt += `TECHNICAL SKILLS:\n`;
-        analysisData.skills.technical.forEach((skill: string) => {
+        technicalSkills.forEach((skill: string) => {
           prompt += `  - ${skill}\n`;
         });
         prompt += `\n`;

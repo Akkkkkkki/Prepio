@@ -759,7 +759,7 @@ export const searchService = {
 
       const { data: existingResumes, error: existingError } = await supabase
         .from("resumes")
-        .select("id, file_name, file_path, file_size_bytes, mime_type")
+        .select("id, file_name, file_path, file_size_bytes, mime_type, parsed_data")
         .eq("user_id", user.id)
         .is("search_id", null)
         .order("created_at", { ascending: false });
@@ -775,12 +775,15 @@ export const searchService = {
             mimeType: currentResume.mime_type,
           }
         : null);
+      const nextParsedData = parsedData === undefined
+        ? (currentResume?.parsed_data ?? null)
+        : (parsedData as Json);
 
       const { data, error } = await supabase
         .from("resumes")
         .insert({
           content,
-          parsed_data: (parsedData as Json) || null,
+          parsed_data: nextParsedData,
           user_id: user.id,
           file_name: nextFile?.name ?? null,
           file_path: nextFile?.path ?? null,
