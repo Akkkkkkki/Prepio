@@ -14,7 +14,7 @@ import {
   Trash2, 
   User, 
   Mail, 
-  Calendar,
+
   MapPin,
   Briefcase,
   GraduationCap,
@@ -65,6 +65,8 @@ interface ParsedData {
     description?: string;
   }>;
   skills?: {
+    categories?: { name: string; skills: string[] }[];
+    // Legacy fields for old stored data
     technical?: string[];
     programming?: string[];
     frameworks?: string[];
@@ -218,7 +220,9 @@ const Profile = () => {
         throw new Error(saveResult.error?.message || "Failed to save the uploaded resume");
       }
 
-      setParsedData(parsedInfo ?? null);
+      if (parsedInfo) {
+        setParsedData(parsedInfo);
+      }
       setSuccess(
         analysisUnavailable
           ? "Resume uploaded and saved. Structured profile analysis is temporarily unavailable."
@@ -269,7 +273,9 @@ const Profile = () => {
       });
 
       if (result.success) {
-        setParsedData(parsedInfo ?? null);
+        if (parsedInfo) {
+          setParsedData(parsedInfo);
+        }
         setSuccess(
           analysisUnavailable
             ? "CV saved. Structured profile analysis is temporarily unavailable."
@@ -385,351 +391,92 @@ const Profile = () => {
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
             {/* Parsed CV Information */}
             <div className="xl:col-span-2 space-y-6">
-              {/* Experience Level Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                    Experience Level
-                  </CardTitle>
-                  <CardDescription>
-                    Set your current experience level to get better-matched interview questions
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="seniority">Current Experience Level</Label>
-                    <Select
-                      value={seniority || ""}
-                      onValueChange={(value) => handleSaveSeniority(value as SeniorityLevel)}
-                      disabled={isSavingSeniority}
-                    >
-                      <SelectTrigger id="seniority" className="w-full">
-                        <SelectValue placeholder="Select your experience level..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="junior">
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium">Junior (0-2 years)</span>
-                            <span className="text-xs text-muted-foreground">Focus on fundamentals and learning</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="mid">
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium">Mid-level (3-7 years)</span>
-                            <span className="text-xs text-muted-foreground">Focus on execution and leadership</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="senior">
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium">Senior (8+ years)</span>
-                            <span className="text-xs text-muted-foreground">Focus on strategy and mentorship</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      This helps tailor question difficulty and focus. You can override this per-search if applying for different levels.
-                    </p>
-                  </div>
-                  
-                  {seniority && (
-                    <div className="p-3 bg-muted rounded-lg">
-                      <span className="text-sm flex items-center">
-                        <strong>Current:</strong>{" "}
-                        <Badge variant="outline" className="ml-1">
-                          {seniority === 'junior' && '🌱 Junior'}
-                          {seniority === 'mid' && '🚀 Mid-level'}
-                          {seniority === 'senior' && '⭐ Senior'}
-                        </Badge>
-                      </span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
               {parsedData ? (
                 <div className="space-y-6">
-                  {/* Personal Information */}
-                  {parsedData.personalInfo && Object.keys(parsedData.personalInfo).length > 0 && (
+                  {/* Profile Header: Personal Info + Professional combined */}
+                  {(parsedData.personalInfo || parsedData.professional) && (
                     <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <User className="h-5 w-5 text-primary" />
-                          Personal Information
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {parsedData.personalInfo.name && (
-                          <div className="flex items-center gap-3">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium">{parsedData.personalInfo.name}</p>
-                              <p className="text-xs text-muted-foreground">Full Name</p>
-                            </div>
-                          </div>
+                      <CardHeader className="pb-3">
+                        {parsedData.personalInfo?.name && (
+                          <CardTitle className="text-xl">{parsedData.personalInfo.name}</CardTitle>
                         )}
-                        
-                        {parsedData.personalInfo.email && (
-                          <div className="flex items-center gap-3">
-                            <Mail className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium">{parsedData.personalInfo.email}</p>
-                              <p className="text-xs text-muted-foreground">Email</p>
-                            </div>
-                          </div>
+                        {parsedData.professional?.currentRole && (
+                          <CardDescription className="text-base">
+                            {parsedData.professional.currentRole}
+                            {parsedData.professional.experience && (
+                              <span className="text-muted-foreground"> &middot; {parsedData.professional.experience}</span>
+                            )}
+                          </CardDescription>
                         )}
-                        
-                        {parsedData.personalInfo.phone && (
-                          <div className="flex items-center gap-3">
-                            <Phone className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium">{parsedData.personalInfo.phone}</p>
-                              <p className="text-xs text-muted-foreground">Phone</p>
-                            </div>
-                          </div>
-                        )}
-                        
-                        {parsedData.personalInfo.location && (
-                          <div className="flex items-center gap-3">
-                            <MapPin className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium">{parsedData.personalInfo.location}</p>
-                              <p className="text-xs text-muted-foreground">Location</p>
-                            </div>
-                          </div>
-                        )}
-                        
-                        {parsedData.personalInfo.linkedin && (
-                          <div className="flex items-center gap-3">
-                            <Globe className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium text-blue-600">{parsedData.personalInfo.linkedin}</p>
-                              <p className="text-xs text-muted-foreground">LinkedIn</p>
-                            </div>
-                          </div>
-                        )}
-                        
-                        {parsedData.personalInfo.github && (
-                          <div className="flex items-center gap-3">
-                            <Code className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium text-blue-600">{parsedData.personalInfo.github}</p>
-                              <p className="text-xs text-muted-foreground">GitHub</p>
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Professional Experience */}
-                  {parsedData.professional && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Briefcase className="h-5 w-5 text-primary" />
-                          Professional Experience
-                        </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        {parsedData.professional.currentRole && (
-                          <div>
-                            <p className="font-medium text-lg">{parsedData.professional.currentRole}</p>
-                            <p className="text-sm text-muted-foreground">Current Role</p>
+                        {/* Contact row */}
+                        {parsedData.personalInfo && (
+                          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                            {parsedData.personalInfo.email && (
+                              <span className="flex items-center gap-1.5">
+                                <Mail className="h-3.5 w-3.5" />
+                                {parsedData.personalInfo.email}
+                              </span>
+                            )}
+                            {parsedData.personalInfo.phone && (
+                              <span className="flex items-center gap-1.5">
+                                <Phone className="h-3.5 w-3.5" />
+                                {parsedData.personalInfo.phone}
+                              </span>
+                            )}
+                            {parsedData.personalInfo.location && (
+                              <span className="flex items-center gap-1.5">
+                                <MapPin className="h-3.5 w-3.5" />
+                                {parsedData.personalInfo.location}
+                              </span>
+                            )}
+                            {parsedData.personalInfo.linkedin && (
+                              <span className="flex items-center gap-1.5">
+                                <Globe className="h-3.5 w-3.5" />
+                                {parsedData.personalInfo.linkedin}
+                              </span>
+                            )}
+                            {parsedData.personalInfo.github && (
+                              <span className="flex items-center gap-1.5">
+                                <Code className="h-3.5 w-3.5" />
+                                {parsedData.personalInfo.github}
+                              </span>
+                            )}
                           </div>
                         )}
-                        
-                        {parsedData.professional.experience && (
-                          <div>
-                            <p className="font-medium">{parsedData.professional.experience}</p>
-                            <p className="text-sm text-muted-foreground">Total Experience</p>
-                          </div>
-                        )}
-                        
-                        {parsedData.professional.summary && (
-                          <div>
+
+                        {/* Summary */}
+                        {parsedData.professional?.summary && (
+                          <>
+                            <Separator />
                             <p className="text-sm">{parsedData.professional.summary}</p>
-                            <p className="text-xs text-muted-foreground mt-1">Professional Summary</p>
-                          </div>
-                        )}
-
-                        {/* Work History */}
-                        {parsedData.professional.workHistory && parsedData.professional.workHistory.length > 0 && (
-                          <div className="mt-6 pt-4 border-t">
-                            <h4 className="font-medium mb-3">Work History</h4>
-                            <div className="space-y-4">
-                              {parsedData.professional.workHistory.map((job, index) => (
-                                <div key={index} className="border-l-2 border-primary/20 pl-4">
-                                  <p className="font-medium">{job.title}</p>
-                                  <p className="text-sm text-muted-foreground">{job.company}</p>
-                                  <p className="text-xs text-muted-foreground">{job.duration}</p>
-                                  {job.description && (
-                                    <p className="text-sm mt-1">{job.description}</p>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
+                          </>
                         )}
                       </CardContent>
                     </Card>
                   )}
 
-                  {/* Skills */}
-                  {parsedData.skills && (
+                  {/* Work History */}
+                  {parsedData.professional?.workHistory && parsedData.professional.workHistory.length > 0 && (
                     <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Code className="h-5 w-5 text-primary" />
-                          Skills & Technologies
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {parsedData.skills.programming && parsedData.skills.programming.length > 0 && (
-                          <div>
-                            <p className="text-sm font-medium mb-2">Programming Languages</p>
-                            <div className="flex flex-wrap gap-2">
-                              {parsedData.skills.programming.map((skill, index) => (
-                                <Badge key={index} variant="default" className="text-xs">
-                                  {skill}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {parsedData.skills.frameworks && parsedData.skills.frameworks.length > 0 && (
-                          <div>
-                            <p className="text-sm font-medium mb-2">Frameworks & Libraries</p>
-                            <div className="flex flex-wrap gap-2">
-                              {parsedData.skills.frameworks.map((skill, index) => (
-                                <Badge key={index} variant="secondary" className="text-xs">
-                                  {skill}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {parsedData.skills.tools && parsedData.skills.tools.length > 0 && (
-                          <div>
-                            <p className="text-sm font-medium mb-2">Tools & Technologies</p>
-                            <div className="flex flex-wrap gap-2">
-                              {parsedData.skills.tools.map((skill, index) => (
-                                <Badge key={index} variant="outline" className="text-xs">
-                                  {skill}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Education */}
-                  {parsedData.education && parsedData.education.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <GraduationCap className="h-5 w-5 text-primary" />
-                          Education
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {parsedData.education.map((edu, index) => (
-                          <div key={index} className="border-l-2 border-primary/20 pl-4">
-                            <p className="font-medium">{edu.degree}</p>
-                            <p className="text-sm text-muted-foreground">{edu.institution}</p>
-                            {edu.year && (
-                              <p className="text-xs text-muted-foreground">{edu.year}</p>
-                            )}
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Projects */}
-                  {parsedData.projects && parsedData.projects.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Building className="h-5 w-5 text-primary" />
-                          Projects
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {parsedData.projects.map((project, index) => (
-                          <div key={index} className="border rounded-lg p-3">
-                            <p className="font-medium">{project.name}</p>
-                            <p className="text-sm text-muted-foreground mt-1">{project.description}</p>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Certifications */}
-                  {parsedData.certifications && parsedData.certifications.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Award className="h-5 w-5 text-primary" />
-                          Certifications
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {parsedData.certifications.map((cert, index) => (
-                          <div key={index} className="flex items-center justify-between">
-                            <p className="font-medium">{cert.name}</p>
-                            {cert.year && (
-                              <Badge variant="outline" className="text-xs">{cert.year}</Badge>
-                            )}
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Achievements */}
-                  {parsedData.achievements && parsedData.achievements.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Star className="h-5 w-5 text-primary" />
-                          Key Achievements
+                      <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <Briefcase className="h-4 w-4 text-primary" />
+                          Work History
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <ul className="space-y-2">
-                          {parsedData.achievements.map((achievement, index) => (
-                            <li key={index} className="flex items-start gap-2">
-                              <Star className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
-                              <span className="text-sm">{achievement}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Languages */}
-                  {parsedData.languages && parsedData.languages.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Globe className="h-5 w-5 text-primary" />
-                          Languages
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {parsedData.languages.map((lang, index) => (
-                            <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
-                              <span className="font-medium">{lang.language}</span>
-                              {lang.proficiency && (
-                                <Badge variant="outline" className="text-xs">{lang.proficiency}</Badge>
+                        <div className="space-y-3">
+                          {parsedData.professional.workHistory.map((job, index) => (
+                            <div key={index} className="border-l-2 border-primary/20 pl-3 py-1">
+                              <div className="flex items-baseline justify-between gap-2">
+                                <p className="font-medium text-sm">{job.title}</p>
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">{job.duration}</span>
+                              </div>
+                              <p className="text-sm text-muted-foreground">{job.company}</p>
+                              {job.description && (
+                                <p className="text-xs mt-1 text-muted-foreground">{job.description}</p>
                               )}
                             </div>
                           ))}
@@ -737,6 +484,177 @@ const Profile = () => {
                       </CardContent>
                     </Card>
                   )}
+
+                  {/* Skills — dynamic categories with legacy fallback */}
+                  {parsedData.skills && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <Code className="h-4 w-4 text-primary" />
+                          Skills & Technologies
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {parsedData.skills.categories && parsedData.skills.categories.length > 0 ? (
+                          /* New dynamic categories */
+                          parsedData.skills.categories.map((cat, index) => (
+                            <div key={index} className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-medium text-muted-foreground min-w-[100px]">{cat.name}</span>
+                              {cat.skills.map((skill, si) => (
+                                <Badge key={si} variant={index === 0 ? "default" : "secondary"} className="text-xs">
+                                  {skill}
+                                </Badge>
+                              ))}
+                            </div>
+                          ))
+                        ) : (
+                          /* Legacy fallback for old stored data */
+                          <>
+                            {parsedData.skills.programming && parsedData.skills.programming.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-medium text-muted-foreground min-w-[100px]">Languages</span>
+                                {parsedData.skills.programming.map((skill, i) => (
+                                  <Badge key={i} variant="default" className="text-xs">{skill}</Badge>
+                                ))}
+                              </div>
+                            )}
+                            {parsedData.skills.frameworks && parsedData.skills.frameworks.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-medium text-muted-foreground min-w-[100px]">Frameworks</span>
+                                {parsedData.skills.frameworks.map((skill, i) => (
+                                  <Badge key={i} variant="secondary" className="text-xs">{skill}</Badge>
+                                ))}
+                              </div>
+                            )}
+                            {parsedData.skills.tools && parsedData.skills.tools.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-medium text-muted-foreground min-w-[100px]">Tools</span>
+                                {parsedData.skills.tools.map((skill, i) => (
+                                  <Badge key={i} variant="outline" className="text-xs">{skill}</Badge>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {parsedData.skills.soft && parsedData.skills.soft.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-medium text-muted-foreground min-w-[100px]">Soft Skills</span>
+                            {parsedData.skills.soft.map((skill, i) => (
+                              <Badge key={i} variant="outline" className="text-xs">{skill}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Grid for smaller sections */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Education */}
+                    {parsedData.education && parsedData.education.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="flex items-center gap-2 text-base">
+                            <GraduationCap className="h-4 w-4 text-primary" />
+                            Education
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          {parsedData.education.map((edu, index) => (
+                            <div key={index} className="border-l-2 border-primary/20 pl-3">
+                              <p className="font-medium text-sm">{edu.degree}</p>
+                              <p className="text-xs text-muted-foreground">{edu.institution}</p>
+                              {edu.year && <p className="text-xs text-muted-foreground">{edu.year}</p>}
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Certifications */}
+                    {parsedData.certifications && parsedData.certifications.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="flex items-center gap-2 text-base">
+                            <Award className="h-4 w-4 text-primary" />
+                            Certifications
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-1.5">
+                          {parsedData.certifications.map((cert, index) => (
+                            <div key={index} className="flex items-center justify-between text-sm">
+                              <span>{cert.name}</span>
+                              {cert.year && <Badge variant="outline" className="text-xs">{cert.year}</Badge>}
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Projects */}
+                    {parsedData.projects && parsedData.projects.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="flex items-center gap-2 text-base">
+                            <Building className="h-4 w-4 text-primary" />
+                            Projects
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          {parsedData.projects.map((project, index) => (
+                            <div key={index}>
+                              <p className="font-medium text-sm">{project.name}</p>
+                              {project.description && project.description !== project.name && (
+                                <p className="text-xs text-muted-foreground">{project.description}</p>
+                              )}
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Achievements */}
+                    {parsedData.achievements && parsedData.achievements.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="flex items-center gap-2 text-base">
+                            <Star className="h-4 w-4 text-primary" />
+                            Key Achievements
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ul className="space-y-1.5">
+                            {parsedData.achievements.map((achievement, index) => (
+                              <li key={index} className="flex items-start gap-2 text-sm">
+                                <Star className="h-3.5 w-3.5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                                <span>{achievement}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Languages */}
+                    {parsedData.languages && parsedData.languages.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="flex items-center gap-2 text-base">
+                            <Globe className="h-4 w-4 text-primary" />
+                            Languages
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-1.5">
+                          {parsedData.languages.map((lang, index) => (
+                            <div key={index} className="flex items-center justify-between text-sm">
+                              <span>{lang.language}</span>
+                              {lang.proficiency && <Badge variant="outline" className="text-xs">{lang.proficiency}</Badge>}
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <Card>
@@ -751,8 +669,45 @@ const Profile = () => {
               )}
             </div>
 
-            {/* CV Editor */}
-            <div className="xl:col-span-1">
+            {/* CV Editor Sidebar */}
+            <div className="xl:col-span-1 space-y-4">
+              {/* Experience Level — compact inline */}
+              <Card>
+                <CardContent className="py-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="seniority" className="flex items-center gap-1.5 text-sm whitespace-nowrap">
+                      <TrendingUp className="h-4 w-4 text-primary" />
+                      Experience Level
+                    </Label>
+                    {seniority && (
+                      <Badge variant="outline" className="text-xs">
+                        {seniority === 'junior' && 'Junior'}
+                        {seniority === 'mid' && 'Mid-level'}
+                        {seniority === 'senior' && 'Senior'}
+                      </Badge>
+                    )}
+                  </div>
+                  <Select
+                    value={seniority || ""}
+                    onValueChange={(value) => handleSaveSeniority(value as SeniorityLevel)}
+                    disabled={isSavingSeniority}
+                  >
+                    <SelectTrigger id="seniority" className="w-full">
+                      <SelectValue placeholder="Select level..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="junior">Junior (0-2 years)</SelectItem>
+                      <SelectItem value="mid">Mid-level (3-7 years)</SelectItem>
+                      <SelectItem value="senior">Senior (8+ years)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Tailors question difficulty. Override per-search if needed.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* CV Upload & Editor */}
               <Card className="h-fit">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -823,9 +778,9 @@ const Profile = () => {
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete CV
                     </Button>
-                    
-                    <Button 
-                      onClick={handleSave} 
+
+                    <Button
+                      onClick={handleSave}
                       disabled={!cvText.trim() || isSaving || isAnalyzing || isUploadingResume}
                     >
                       {isAnalyzing ? (
