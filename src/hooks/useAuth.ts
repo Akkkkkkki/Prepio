@@ -93,6 +93,15 @@ export function useAuth() {
     }
   };
 
+  const updatePassword = async (newPassword: string) => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      return { error };
+    } catch (error) {
+      return { error };
+    }
+  };
+
   return {
     user,
     session,
@@ -102,5 +111,6 @@ export function useAuth() {
     signOut,
     resetPassword,
     resendVerification,
+    updatePassword,
   };
 }

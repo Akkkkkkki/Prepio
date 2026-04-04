@@ -36,7 +36,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     return (
       <Navigate
         to="/auth"
-        state={createAuthReturnState({ pathname: location.pathname })}
+        state={createAuthReturnState({ pathname: location.pathname + location.search })}
         replace
       />
     );
@@ -73,6 +73,9 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:z-[100] focus:top-2 focus:left-2 focus:bg-primary focus:text-primary-foreground focus:px-4 focus:py-2 focus:rounded-md">
+            Skip to main content
+          </a>
           <OfflineBanner />
           <Routes>
             <Route path="/auth" element={<RouteElement><Auth /></RouteElement>} />

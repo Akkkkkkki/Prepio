@@ -218,7 +218,7 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
               {showHistory && (
                 <Sheet open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
                   <SheetTrigger asChild>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" aria-label="Open search history">
                       <History className="h-4 w-4 mr-2" />
                       History
                     </Button>
@@ -315,7 +315,7 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
             {/* Mobile Menu */}
             <Sheet>
               <SheetTrigger asChild className="md:hidden">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" aria-label="Open navigation menu">
                   <Menu className="h-4 w-4" />
                 </Button>
               </SheetTrigger>

@@ -184,7 +184,7 @@ const ProgressDialog = ({
               )}
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1" aria-live="polite">
               <p className="font-medium">{getStatusMessage()}</p>
               <p className="text-xs text-muted-foreground">{getTimeEstimate()}</p>
             </div>

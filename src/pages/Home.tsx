@@ -1126,7 +1126,7 @@ const Home = () => {
   const signedInContainerClassName = cn("container mx-auto px-4", isMobile ? "pb-32 pt-8" : "py-16");
 
   return (
-    <div className="min-h-screen bg-background">
+    <div id="main-content" className="min-h-screen bg-background">
       {user ? (
         <Navigation />
       ) : (
