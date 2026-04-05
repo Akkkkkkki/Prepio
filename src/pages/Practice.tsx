@@ -198,6 +198,10 @@ const Practice = () => {
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(Date.now());
   const [timerTick, setTimerTick] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [showKeyboardHint, setShowKeyboardHint] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !localStorage.getItem('prepio_keyboard_hint_dismissed');
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -647,10 +651,15 @@ const getInterviewerFocus = (
           return (stageA?.order_index || 0) - (stageB?.order_index || 0);
         });
         
-        // Shuffle if requested
-        let processedQuestions = appliedShuffle 
-          ? sortedQuestions.sort(() => Math.random() - 0.5)
-          : sortedQuestions;
+        // Fisher-Yates shuffle for unbiased randomization
+        let processedQuestions = sortedQuestions;
+        if (appliedShuffle) {
+          processedQuestions = [...sortedQuestions];
+          for (let i = processedQuestions.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [processedQuestions[i], processedQuestions[j]] = [processedQuestions[j], processedQuestions[i]];
+          }
+        }
         
         // Apply sampling if enabled
         if (useSampling && sampleSize > 0) {
@@ -1481,7 +1490,7 @@ const getInterviewerFocus = (
   // Show default state when no search ID provided
   if (!searchId) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto text-center">
@@ -1523,7 +1532,7 @@ const getInterviewerFocus = (
   // Only show full-screen loading during initial load, not during setup configuration
   if (isLoading && sessionState !== 'setup') {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto text-center">
@@ -1545,7 +1554,7 @@ const getInterviewerFocus = (
   // Show processing state when research is still being processed
   if (searchData && (searchData.status === 'pending' || searchData.status === 'processing')) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto text-center">
@@ -1588,7 +1597,7 @@ const getInterviewerFocus = (
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto text-center">
@@ -1625,7 +1634,7 @@ const getInterviewerFocus = (
   // If no questions available after filtering, show appropriate message
   if (!currentQuestion && sessionState === 'inProgress') {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto text-center">
@@ -1670,7 +1679,7 @@ const getInterviewerFocus = (
 
   if (sessionState === 'setup' && isMobile) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <div className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <div className="flex h-14 items-center justify-between px-4">
             <Button
@@ -2068,7 +2077,7 @@ const getInterviewerFocus = (
     };
 
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8 max-w-4xl">
           <div className="flex items-center justify-between mb-6">
@@ -2190,7 +2199,7 @@ const getInterviewerFocus = (
     };
 
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8 max-w-2xl">
           <SessionSummary
@@ -2621,6 +2630,29 @@ const getInterviewerFocus = (
             </div>
           </div>
         </div>
+
+        {showKeyboardHint && !isMobile && (
+          <div className="mb-4 flex items-center justify-between rounded-xl border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
+            <span>
+              <kbd className="rounded border bg-background px-1.5 py-0.5 text-xs font-mono">←</kbd>
+              {' '}<kbd className="rounded border bg-background px-1.5 py-0.5 text-xs font-mono">→</kbd>
+              {' '}to navigate
+              {' · '}
+              <kbd className="rounded border bg-background px-1.5 py-0.5 text-xs font-mono">S</kbd>
+              {' '}to skip
+            </span>
+            <button
+              type="button"
+              className="ml-4 text-xs hover:text-foreground transition-colors"
+              onClick={() => {
+                setShowKeyboardHint(false);
+                localStorage.setItem('prepio_keyboard_hint_dismissed', '1');
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
           <section className="relative">

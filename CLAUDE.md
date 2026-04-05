@@ -156,12 +156,10 @@ Keep migration history in [`supabase/migrations`](./supabase/migrations) and sch
 ## Docs Map
 
 - [`README.md`](./README.md): current product and setup summary
+- [`docs/UX_STATUS.md`](./docs/UX_STATUS.md): UX decisions, shipped improvements, de-prioritized items, and future backlog
 - [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md): source of truth for mobile practice execution
-- [`docs/UI_UX_ENHANCEMENT_PLAN.md`](./docs/UI_UX_ENHANCEMENT_PLAN.md): UX backlog
-- [`docs/RESEARCH_PIPELINE_IMPROVEMENTS.md`](./docs/RESEARCH_PIPELINE_IMPROVEMENTS.md): research pipeline notes
+- [`docs/RESEARCH_PIPELINE_IMPROVEMENTS.md`](./docs/RESEARCH_PIPELINE_IMPROVEMENTS.md): shipped pipeline changes and configuration
 - [`docs/TESTING.md`](./docs/TESTING.md): testing coverage and priorities
-- [`docs/IMPLEMENTATION_ROADMAP.md`](./docs/IMPLEMENTATION_ROADMAP.md): future-facing implementation ideas
-- [`docs/UI_UX_REDESIGN_ANALYSIS.md`](./docs/UI_UX_REDESIGN_ANALYSIS.md): redesign analysis comparing current vs alternative architecture
 
 ## Practical Guidance
 

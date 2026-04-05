@@ -58,17 +58,23 @@ export const SessionSummary = ({
     }
   };
 
+  const completionHeadline = answeredCount >= totalQuestions
+    ? `Great depth — you worked through all ${totalQuestions} questions`
+    : answeredCount > totalQuestions * 0.5
+      ? `Solid session — you covered ${answeredCount} of ${totalQuestions} questions`
+      : `Good start — ${answeredCount} question${answeredCount !== 1 ? 's' : ''} down, ${totalQuestions - answeredCount} to go`;
+
   return (
-    <Card className="overflow-hidden text-center">
+    <Card className="overflow-hidden text-center motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300">
       <CardHeader>
         <div className="flex justify-center mb-4">
-          <div className="rounded-full bg-green-100 p-4">
-            <CheckCircle className="h-12 w-12 text-green-600" />
+          <div className="rounded-full bg-success/10 p-4 motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-500">
+            <CheckCircle className="h-12 w-12 text-success" />
           </div>
         </div>
         <CardTitle className="text-2xl">Practice complete</CardTitle>
-        <CardDescription>
-          Review the round, jot a quick reflection, then decide what to do next.
+        <CardDescription className="text-base">
+          {completionHeadline}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -139,7 +145,7 @@ export const SessionSummary = ({
             <p className="text-sm text-amber-700">{saveNotesHelper}</p>
           )}
           {notesSaved && (
-            <div className="flex items-center justify-center gap-2 text-sm text-green-600">
+            <div className="flex items-center justify-center gap-2 text-sm text-success">
               <CheckCircle className="h-4 w-4" />
               Notes saved
             </div>

@@ -263,9 +263,10 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                       ) : (
                         <div className="space-y-3">
                           {searchHistory.map((item) => (
-                            <div
+                            <button
                               key={item.id}
-                              className="p-3 border rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                              type="button"
+                              className="w-full text-left p-3 border rounded-lg cursor-pointer hover:bg-muted transition-colors"
                               onClick={() => handleHistoryItemClick(item)}
                             >
                               <div className="flex items-start justify-between mb-2">
@@ -279,7 +280,7 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                                 <div className="text-xs text-muted-foreground mb-1">{item.country}</div>
                               )}
                               <div className="text-xs text-muted-foreground">{formatDate(item.created_at)}</div>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -392,9 +393,10 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                       ) : (
                         <div className="space-y-2">
                           {searchHistory.slice(0, 3).map((item) => (
-                            <div
+                            <button
                               key={item.id}
-                              className="p-2 border rounded cursor-pointer hover:bg-muted text-sm"
+                              type="button"
+                              className="w-full text-left p-2 border rounded cursor-pointer hover:bg-muted text-sm"
                               onClick={() => handleHistoryItemClick(item)}
                             >
                               <div className="flex items-center justify-between">
@@ -404,7 +406,7 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                               {item.role && (
                                 <div className="text-xs text-muted-foreground">{item.role}</div>
                               )}
-                            </div>
+                            </button>
                           ))}
                         </div>
                       )}

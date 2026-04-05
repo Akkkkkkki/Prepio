@@ -218,7 +218,7 @@ const History = () => {
 
   if (isLoadingSessions && sessions.length === 0) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation showSearchSelector={false} />
         <div className="container mx-auto max-w-4xl px-4 py-8">
           <div className="space-y-6">
@@ -236,7 +236,7 @@ const History = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div id="main-content" className="min-h-screen bg-background">
       <Navigation showSearchSelector={false} />
       <div className="container mx-auto max-w-6xl px-4 py-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
@@ -283,17 +283,17 @@ const History = () => {
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
                 <ClipboardList className="h-7 w-7 text-muted-foreground" />
               </div>
-              <CardTitle>No practice sessions yet</CardTitle>
+              <CardTitle>Ready to start practicing</CardTitle>
               <CardDescription>
-                Complete a practice round and it will show up here with your answers, timing, and notes.
+                Your first practice session will appear here with answers, timing, and notes so you can track your preparation progress.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 sm:flex-row sm:justify-center">
               <Button asChild>
-                <Link to={primaryEmptyHref}>{primaryEmptyLabel}</Link>
+                <Link to={secondaryEmptyHref}>{secondaryEmptyLabel}</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to={secondaryEmptyHref}>{secondaryEmptyLabel}</Link>
+                <Link to={primaryEmptyHref}>{primaryEmptyLabel}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -304,27 +304,20 @@ const History = () => {
             ) : (
               <OverviewStats stats={displayedStats} />
             )}
-            {isLoadingStats && stats && (
-              <p className="text-sm text-muted-foreground">Refreshing overview totals...</p>
-            )}
-
             {filteredSessions.length === 0 ? (
               <Card className="rounded-3xl border-dashed">
                 <CardHeader>
                   <CardTitle>No sessions for this research yet</CardTitle>
                   <CardDescription>
-                    Clear the filter or start another round to build practice history for this search.
+                    You haven't practiced questions from this research run yet. Start a session to build your confidence and track progress here.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3 sm:flex-row">
+                  <Button asChild>
+                    <Link to={practiceEntryHref}>{practiceEntryLabel}</Link>
+                  </Button>
                   <Button variant="outline" onClick={() => handleFilterChange(HISTORY_FILTER_ALL)}>
                     Show all sessions
-                  </Button>
-                  <Button asChild>
-                    <Link to={primaryEmptyHref}>{primaryEmptyLabel}</Link>
-                  </Button>
-                  <Button asChild variant="outline">
-                    <Link to={practiceEntryHref}>{practiceEntryLabel}</Link>
                   </Button>
                 </CardContent>
               </Card>

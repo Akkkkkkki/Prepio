@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams, useParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useParams, Link } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,7 +66,7 @@ const formatSearchStatus = (status?: string) => {
 };
 
 const DashboardSkeleton = ({ isMobile }: { isMobile: boolean }) => (
-  <div className="min-h-screen bg-background">
+  <div id="main-content" className="min-h-screen bg-background">
     <Navigation />
     <div className={isMobile ? "px-4 py-5" : "container mx-auto px-4 py-8"}>
       <div className="space-y-6">
@@ -104,7 +104,6 @@ const Dashboard = () => {
   const [progress, setProgress] = useState(0);
   const [stages, setStages] = useState<InterviewStage[]>([]);
   const [searchData, setSearchData] = useState<SearchData | null>(null);
-  const [enhancedQuestions, setEnhancedQuestions] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // Load search data and poll for updates
@@ -127,11 +126,6 @@ const Dashboard = () => {
           }));
         
         setStages(transformedStages);
-        
-        // Load enhanced questions if available
-        if (result.enhancedQuestions) {
-          setEnhancedQuestions(result.enhancedQuestions as any[]);
-        }
         
         // If search is completed, stop loading
         if (result.search.status === 'completed') {
@@ -212,19 +206,7 @@ const Dashboard = () => {
   };
 
   const getStageQuestionCount = (stage: any) => {
-    const basicCount = stage.questions?.length || 0;
-    const enhancedCount = getEnhancedQuestionCount(stage);
-    return basicCount + enhancedCount;
-  };
-
-  const getEnhancedQuestionCount = (stage: any) => {
-    if (!enhancedQuestions) return 0;
-    
-    const enhancedBank = enhancedQuestions.find((bank: any) => 
-      bank.interview_stage === stage.name
-    );
-    
-    return enhancedBank?.total_questions || 0;
+    return stage.questions?.length || 0;
   };
 
   const startPractice = () => {
@@ -248,27 +230,27 @@ const Dashboard = () => {
   const overviewMetrics = [
     searchStatusLabel
       ? {
-          label: "Search status",
+          label: "Research status",
           value: searchStatusLabel,
-          helper: searchData?.status === "completed" ? "Ready for practice" : "Research is still updating",
+          helper: searchData?.status === "completed" ? "Your preparation plan is ready" : "Research is still updating",
         }
       : null,
     {
       label: "Interview stages",
       value: `${stages.length}`,
-      helper: stages.length === 1 ? "Stage mapped" : "Stages mapped",
+      helper: `${stages.length} ${stages.length === 1 ? "stage" : "stages"} identified from research`,
     },
     {
-      label: "Selected questions",
+      label: "Practice questions",
       value: `${selectedQuestionCount}`,
-      helper: "Questions currently queued for practice",
+      helper: `${selectedQuestionCount} tailored questions ready to practice`,
     },
   ].filter(Boolean) as Array<{ label: string; value: string; helper: string }>;
 
   // Show default empty state when no search ID is provided
   if (!searchId) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
 
@@ -311,7 +293,7 @@ const Dashboard = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto">
@@ -363,7 +345,7 @@ const Dashboard = () => {
     const currentStatus = searchData?.status || 'pending';
     
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto">
@@ -392,7 +374,7 @@ const Dashboard = () => {
 
   if (isMobile) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="px-4 py-5 pb-36">
           <div className="space-y-5">
@@ -419,19 +401,19 @@ const Dashboard = () => {
               <Card className="rounded-[24px] border bg-muted/30 shadow-sm">
                 <CardContent className="p-4">
                   <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                    Selected
+                    Practice questions
                   </p>
                   <p className="mt-2 text-2xl font-semibold">{selectedQuestionCount}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">questions ready</p>
+                  <p className="mt-1 text-sm text-muted-foreground">tailored and ready</p>
                 </CardContent>
               </Card>
               <Card className="rounded-[24px] border bg-muted/30 shadow-sm">
                 <CardContent className="p-4">
                   <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                    Stages
+                    Interview stages
                   </p>
                   <p className="mt-2 text-2xl font-semibold">{stages.length}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">rounds available</p>
+                  <p className="mt-1 text-sm text-muted-foreground">identified from research</p>
                 </CardContent>
               </Card>
             </section>
@@ -497,16 +479,26 @@ const Dashboard = () => {
       <Navigation />
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
+          <nav className="mb-3 text-sm text-muted-foreground">
+            <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
+            <span className="mx-2">›</span>
+            <span className="text-foreground">{searchData?.company || 'Company'} Research</span>
+          </nav>
           <div className="flex items-center justify-between mb-4">
             <div className="space-y-3">
               <h1 className="text-3xl font-bold">
                 {searchData?.company || 'Company'} Interview Research
               </h1>
               <p className="text-muted-foreground">{searchSubtitle}</p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {searchStatusLabel && <Badge variant="secondary">{searchStatusLabel}</Badge>}
                 {searchData?.role && <Badge variant="outline">{searchData.role}</Badge>}
                 {searchData?.country && <Badge variant="outline">{searchData.country}</Badge>}
+                {searchData?.created_at && (
+                  <span className="text-xs text-muted-foreground">
+                    Researched {new Date(searchData.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                )}
               </div>
             </div>
             <Button onClick={startPractice} disabled={selectedQuestionCount === 0 || isOffline}>
@@ -601,12 +593,7 @@ const Dashboard = () => {
                                 +{(stage.questions?.length || 0) - 2} more basic questions
                               </li>
                             )}
-                            {getEnhancedQuestionCount(stage) > 0 && (
-                              <li className="text-xs text-primary font-medium">
-                                + {getEnhancedQuestionCount(stage)} enhanced questions (behavioral, technical, situational, etc.)
-                              </li>
-                            )}
-                            {(!stage.questions || stage.questions.length === 0) && getEnhancedQuestionCount(stage) === 0 && (
+                            {(!stage.questions || stage.questions.length === 0) && (
                               <li className="text-xs text-muted-foreground italic">
                                 Questions will be generated during research
                               </li>
