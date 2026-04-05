@@ -647,10 +647,15 @@ const getInterviewerFocus = (
           return (stageA?.order_index || 0) - (stageB?.order_index || 0);
         });
         
-        // Shuffle if requested
-        let processedQuestions = appliedShuffle 
-          ? sortedQuestions.sort(() => Math.random() - 0.5)
-          : sortedQuestions;
+        // Fisher-Yates shuffle for unbiased randomization
+        let processedQuestions = sortedQuestions;
+        if (appliedShuffle) {
+          processedQuestions = [...sortedQuestions];
+          for (let i = processedQuestions.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [processedQuestions[i], processedQuestions[j]] = [processedQuestions[j], processedQuestions[i]];
+          }
+        }
         
         // Apply sampling if enabled
         if (useSampling && sampleSize > 0) {
@@ -1481,7 +1486,7 @@ const getInterviewerFocus = (
   // Show default state when no search ID provided
   if (!searchId) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto text-center">
@@ -1523,7 +1528,7 @@ const getInterviewerFocus = (
   // Only show full-screen loading during initial load, not during setup configuration
   if (isLoading && sessionState !== 'setup') {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto text-center">
@@ -1545,7 +1550,7 @@ const getInterviewerFocus = (
   // Show processing state when research is still being processed
   if (searchData && (searchData.status === 'pending' || searchData.status === 'processing')) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto text-center">
@@ -1588,7 +1593,7 @@ const getInterviewerFocus = (
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto text-center">
@@ -1625,7 +1630,7 @@ const getInterviewerFocus = (
   // If no questions available after filtering, show appropriate message
   if (!currentQuestion && sessionState === 'inProgress') {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto text-center">
@@ -1670,7 +1675,7 @@ const getInterviewerFocus = (
 
   if (sessionState === 'setup' && isMobile) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <div className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <div className="flex h-14 items-center justify-between px-4">
             <Button
@@ -2068,7 +2073,7 @@ const getInterviewerFocus = (
     };
 
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8 max-w-4xl">
           <div className="flex items-center justify-between mb-6">
@@ -2190,7 +2195,7 @@ const getInterviewerFocus = (
     };
 
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8 max-w-2xl">
           <SessionSummary

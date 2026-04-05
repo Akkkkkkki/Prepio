@@ -66,7 +66,7 @@ const formatSearchStatus = (status?: string) => {
 };
 
 const DashboardSkeleton = ({ isMobile }: { isMobile: boolean }) => (
-  <div className="min-h-screen bg-background">
+  <div id="main-content" className="min-h-screen bg-background">
     <Navigation />
     <div className={isMobile ? "px-4 py-5" : "container mx-auto px-4 py-8"}>
       <div className="space-y-6">
@@ -104,7 +104,6 @@ const Dashboard = () => {
   const [progress, setProgress] = useState(0);
   const [stages, setStages] = useState<InterviewStage[]>([]);
   const [searchData, setSearchData] = useState<SearchData | null>(null);
-  const [enhancedQuestions, setEnhancedQuestions] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // Load search data and poll for updates
@@ -127,11 +126,6 @@ const Dashboard = () => {
           }));
         
         setStages(transformedStages);
-        
-        // Load enhanced questions if available
-        if (result.enhancedQuestions) {
-          setEnhancedQuestions(result.enhancedQuestions as any[]);
-        }
         
         // If search is completed, stop loading
         if (result.search.status === 'completed') {
@@ -212,19 +206,7 @@ const Dashboard = () => {
   };
 
   const getStageQuestionCount = (stage: any) => {
-    const basicCount = stage.questions?.length || 0;
-    const enhancedCount = getEnhancedQuestionCount(stage);
-    return basicCount + enhancedCount;
-  };
-
-  const getEnhancedQuestionCount = (stage: any) => {
-    if (!enhancedQuestions) return 0;
-    
-    const enhancedBank = enhancedQuestions.find((bank: any) => 
-      bank.interview_stage === stage.name
-    );
-    
-    return enhancedBank?.total_questions || 0;
+    return stage.questions?.length || 0;
   };
 
   const startPractice = () => {
@@ -268,7 +250,7 @@ const Dashboard = () => {
   // Show default empty state when no search ID is provided
   if (!searchId) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
 
@@ -311,7 +293,7 @@ const Dashboard = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto">
@@ -363,7 +345,7 @@ const Dashboard = () => {
     const currentStatus = searchData?.status || 'pending';
     
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto">
@@ -392,7 +374,7 @@ const Dashboard = () => {
 
   if (isMobile) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="px-4 py-5 pb-36">
           <div className="space-y-5">
@@ -601,12 +583,7 @@ const Dashboard = () => {
                                 +{(stage.questions?.length || 0) - 2} more basic questions
                               </li>
                             )}
-                            {getEnhancedQuestionCount(stage) > 0 && (
-                              <li className="text-xs text-primary font-medium">
-                                + {getEnhancedQuestionCount(stage)} enhanced questions (behavioral, technical, situational, etc.)
-                              </li>
-                            )}
-                            {(!stage.questions || stage.questions.length === 0) && getEnhancedQuestionCount(stage) === 0 && (
+                            {(!stage.questions || stage.questions.length === 0) && (
                               <li className="text-xs text-muted-foreground italic">
                                 Questions will be generated during research
                               </li>

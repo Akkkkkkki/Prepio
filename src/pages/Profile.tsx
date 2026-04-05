@@ -4,6 +4,16 @@ import Navigation from "@/components/Navigation";
 import { useAuthContext } from "@/components/AuthProvider";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -584,6 +594,7 @@ const Profile = () => {
   const [isImportingText, setIsImportingText] = useState(false);
   const [isApplyingImport, setIsApplyingImport] = useState(false);
   const [isDeletingResume, setIsDeletingResume] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isSavingSeniority, setIsSavingSeniority] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -863,15 +874,13 @@ const Profile = () => {
     setIsApplyingImport(false);
   };
 
+  const confirmDeleteResume = () => {
+    if (!resumeVersions.length) return;
+    setShowDeleteConfirm(true);
+  };
+
   const handleDeleteResume = async () => {
-    if (!resumeVersions.length) {
-      return;
-    }
-
-    if (!window.confirm("Delete all saved resume versions? This cannot be undone.")) {
-      return;
-    }
-
+    setShowDeleteConfirm(false);
     setIsDeletingResume(true);
     setError(null);
     setSuccess(null);
@@ -1746,7 +1755,7 @@ const Profile = () => {
                       type="button"
                       variant="destructive"
                       size="sm"
-                      onClick={handleDeleteResume}
+                      onClick={confirmDeleteResume}
                       disabled={isDeletingResume || resumeVersions.length === 0}
                     >
                       {isDeletingResume ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
@@ -1796,7 +1805,7 @@ const Profile = () => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Account setting</CardTitle>
+                  <CardTitle>Account Settings</CardTitle>
                   <CardDescription>Keep your baseline seniority in sync with profile research defaults.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -1823,6 +1832,23 @@ const Profile = () => {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete all resumes</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove all saved resume versions and any imported profile data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteResume} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

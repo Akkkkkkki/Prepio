@@ -1198,7 +1198,7 @@ const Home = () => {
                           isCurrent ? "text-foreground" : "text-muted-foreground",
                         )}
                       >
-                        {step}
+                        {step === "company" ? "Company" : step === "details" ? "Role Details" : "Personalize"}
                       </p>
                     </div>
                   );

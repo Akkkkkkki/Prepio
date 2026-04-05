@@ -5,7 +5,6 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { AuthProvider, useAuthContext } from "./components/AuthProvider";
 import OfflineBanner from "@/components/OfflineBanner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createAuthReturnState } from "./lib/researchDraft";
@@ -19,31 +18,9 @@ const Profile = lazy(() => import("./pages/Profile"));
 const Auth = lazy(() => import("./pages/Auth"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-// Protected route wrapper
 interface ProtectedRouteProps {
   children: JSX.Element;
 }
-
-const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { user, loading } = useAuthContext();
-  const location = useLocation();
-
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
-
-  if (!user) {
-    return (
-      <Navigate
-        to="/auth"
-        state={createAuthReturnState({ pathname: location.pathname + location.search })}
-        replace
-      />
-    );
-  }
-
-  return children;
-};
 
 const RouteFallback = () => (
   <div className="min-h-screen bg-background">
@@ -62,6 +39,27 @@ const RouteFallback = () => (
   </div>
 );
 
+const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
+  const { user, loading } = useAuthContext();
+  const location = useLocation();
+
+  if (loading) {
+    return <RouteFallback />;
+  }
+
+  if (!user) {
+    return (
+      <Navigate
+        to="/auth"
+        state={createAuthReturnState({ pathname: location.pathname + location.search })}
+        replace
+      />
+    );
+  }
+
+  return children;
+};
+
 const RouteElement = ({ children }: ProtectedRouteProps) => (
   <Suspense fallback={<RouteFallback />}>{children}</Suspense>
 );
@@ -71,7 +69,6 @@ const App = () => (
     <AuthProvider>
       <TooltipProvider>
         <Toaster />
-        <Sonner />
         <BrowserRouter>
           <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:z-[100] focus:top-2 focus:left-2 focus:bg-primary focus:text-primary-foreground focus:px-4 focus:py-2 focus:rounded-md">
             Skip to main content
