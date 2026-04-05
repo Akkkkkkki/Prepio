@@ -198,6 +198,10 @@ const Practice = () => {
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(Date.now());
   const [timerTick, setTimerTick] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [showKeyboardHint, setShowKeyboardHint] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !localStorage.getItem('prepio_keyboard_hint_dismissed');
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2626,6 +2630,29 @@ const getInterviewerFocus = (
             </div>
           </div>
         </div>
+
+        {showKeyboardHint && !isMobile && (
+          <div className="mb-4 flex items-center justify-between rounded-xl border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
+            <span>
+              <kbd className="rounded border bg-background px-1.5 py-0.5 text-xs font-mono">←</kbd>
+              {' '}<kbd className="rounded border bg-background px-1.5 py-0.5 text-xs font-mono">→</kbd>
+              {' '}to navigate
+              {' · '}
+              <kbd className="rounded border bg-background px-1.5 py-0.5 text-xs font-mono">S</kbd>
+              {' '}to skip
+            </span>
+            <button
+              type="button"
+              className="ml-4 text-xs hover:text-foreground transition-colors"
+              onClick={() => {
+                setShowKeyboardHint(false);
+                localStorage.setItem('prepio_keyboard_hint_dismissed', '1');
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
           <section className="relative">
