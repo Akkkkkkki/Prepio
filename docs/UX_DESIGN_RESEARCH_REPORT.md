@@ -4,6 +4,8 @@
 **Scope:** Professional interview-prep SaaS product targeting job seekers in tech, consulting, and finance  
 **Sources:** Apple HIG, Google Material Design 3, leading SaaS design systems, career-platform UX research, and industry best practices
 
+> **Implementation status:** An April 5, 2026 pass implemented the highest-value, lowest-risk principles from this report across the product. See [`docs/UX_ENHANCEMENT_DESIGN_PLAN.md`](./UX_ENHANCEMENT_DESIGN_PLAN.md) for what shipped and what was de-prioritized with rationale.
+
 ---
 
 ## Table of Contents

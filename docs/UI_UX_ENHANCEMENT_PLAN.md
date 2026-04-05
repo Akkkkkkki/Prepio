@@ -1,10 +1,10 @@
-# UI/UX Enhancement Plan
+# UI/UX Enhancement Plan (Legacy)
 
 **Date:** March 29, 2026  
 **Prepared by:** AI Assistant  
 **Scope:** All UI/UX feedback to-date for the Prepio interview preparation tool.
 
-> For the active mobile practice redesign, use [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./MOBILE_PRACTICE_UX_EXECUTION_PLAN.md) as the source of truth. This document remains the broader UX backlog.
+> **Superseded.** This document is retained for historical context. The current enhancement plan with implementation status is in [`docs/UX_ENHANCEMENT_DESIGN_PLAN.md`](./UX_ENHANCEMENT_DESIGN_PLAN.md). For the active mobile practice redesign, use [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./MOBILE_PRACTICE_UX_EXECUTION_PLAN.md).
 
 ## Latest Gap Review — March 29, 2026
 
