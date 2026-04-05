@@ -407,7 +407,7 @@ This plan does not include:
 For mobile practice execution, this document is the source of truth.
 
 Supporting context still lives in:
-- `docs/UI_UX_ENHANCEMENT_PLAN.md`
+- `docs/UX_STATUS.md`
 - `docs/TESTING.md`
 - `README.md`
 - `CLAUDE.md`

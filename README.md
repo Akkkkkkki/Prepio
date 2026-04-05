@@ -150,12 +150,10 @@ Model selection is environment-driven through the shared config layer. The code 
 ## Docs Map
 
 - [`CLAUDE.md`](./CLAUDE.md): developer and agent playbook
+- [`docs/UX_STATUS.md`](./docs/UX_STATUS.md): UX decisions, shipped improvements, and backlog
 - [`docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md`](./docs/MOBILE_PRACTICE_UX_EXECUTION_PLAN.md): source of truth for the mobile practice redesign
-- [`docs/UI_UX_ENHANCEMENT_PLAN.md`](./docs/UI_UX_ENHANCEMENT_PLAN.md): UX backlog and current usability gaps
-- [`docs/RESEARCH_PIPELINE_IMPROVEMENTS.md`](./docs/RESEARCH_PIPELINE_IMPROVEMENTS.md): research pipeline work and follow-ups
-- [`docs/IMPLEMENTATION_ROADMAP.md`](./docs/IMPLEMENTATION_ROADMAP.md): future-facing implementation ideas
-- [`docs/UI_UX_REDESIGN_ANALYSIS.md`](./docs/UI_UX_REDESIGN_ANALYSIS.md): redesign analysis and tradeoffs
-- [`docs/TESTING.md`](./docs/TESTING.md): testing priorities
+- [`docs/RESEARCH_PIPELINE_IMPROVEMENTS.md`](./docs/RESEARCH_PIPELINE_IMPROVEMENTS.md): shipped pipeline changes and configuration
+- [`docs/TESTING.md`](./docs/TESTING.md): testing coverage and priorities
 
 ## Verification
 
