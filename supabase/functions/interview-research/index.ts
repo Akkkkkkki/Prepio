@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.2";
 import { SearchLogger } from "../_shared/logger.ts";
 import { RESEARCH_CONFIG, getOpenAIModel, getMaxTokens } from "../_shared/config.ts";
 import { ProgressTracker, PROGRESS_STEPS, CONCURRENT_TIMEOUTS, executeWithTimeout } from "../_shared/progress-tracker.ts";
-import { authorizeRequest } from "../_shared/auth.ts";
+import { authorizeRequest, type AuthorizedRequestContext } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1443,14 +1443,25 @@ async function saveToDatabase(
 // MAIN HANDLER
 // ============================================================
 
-serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+const jsonResponse = (body: unknown, status: number) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 
+const edgeRuntime = globalThis as typeof globalThis & {
+  EdgeRuntime?: {
+    waitUntil?: (promise: Promise<unknown>) => void;
+  };
+};
+
+async function processInterviewResearch(
+  requestData: InterviewResearchRequest,
+  authContext: AuthorizedRequestContext,
+) {
   let tracker: ProgressTracker | null = null;
-  let searchId = "";
-  let userId = "";
+  const searchId = requestData.searchId;
+  const userId = requestData.userId;
   let logger: SearchLogger | null = null;
 
   try {
@@ -1458,32 +1469,14 @@ serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL") || "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
     );
-    const authResult = await authorizeRequest(req, supabase);
 
-    if (!authResult.ok) {
-      return new Response(authResult.response.body, {
-        status: authResult.response.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
-
-    const requestData: InterviewResearchRequest = await req.json();
-
-    searchId = requestData.searchId;
-    userId = requestData.userId;
-
-    if (authResult.context.kind === "user" && authResult.context.userId !== userId) {
-      return new Response(
-        JSON.stringify({ success: false, error: "User ID does not match authenticated user" }),
-        {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
-      );
+    if (authContext.kind === "user" && authContext.userId !== userId) {
+      throw new Error("User ID does not match authenticated user");
     }
 
     tracker = new ProgressTracker(searchId);
     logger = new SearchLogger(searchId, "interview-research", userId);
+    await tracker.updateProgress("processing", "Research request accepted", 5);
 
     logger.log("REQUEST_RECEIVED", "INIT", {
       company: requestData.company,
@@ -1670,20 +1663,6 @@ serve(async (req: Request) => {
     logger?.log("FUNCTION_SUCCESS", "COMPLETE");
 
     await tracker.markCompleted();
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        searchId,
-        status: 'completed',
-        message: 'Interview research completed successfully'
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
-    );
-
   } catch (error) {
     console.error("❌ Error in interview-research:", error);
     logger?.log(
@@ -1716,17 +1695,6 @@ serve(async (req: Request) => {
     if (tracker) {
       await tracker.markFailed(error instanceof Error ? error.message : "Unknown error");
     }
-
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
-    );
   } finally {
     if (logger) {
       try {
@@ -1736,4 +1704,49 @@ serve(async (req: Request) => {
       }
     }
   }
+}
+
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL") || "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
+  );
+  const authResult = await authorizeRequest(req, supabase);
+
+  if (!authResult.ok) {
+    return new Response(authResult.response.body, {
+      status: authResult.response.status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  }
+
+  const requestData: InterviewResearchRequest = await req.json();
+
+  if (authResult.context.kind === "user" && authResult.context.userId !== requestData.userId) {
+    return jsonResponse({ success: false, error: "User ID does not match authenticated user" }, 403);
+  }
+
+  const backgroundTask = processInterviewResearch(requestData, authResult.context);
+
+  if (edgeRuntime.EdgeRuntime?.waitUntil) {
+    edgeRuntime.EdgeRuntime.waitUntil(backgroundTask);
+  } else {
+    backgroundTask.catch((error) => {
+      console.error("Background interview research failed after response:", error);
+    });
+  }
+
+  return jsonResponse(
+    {
+      success: true,
+      searchId: requestData.searchId,
+      status: "accepted",
+      message: "Interview research queued successfully",
+    },
+    202,
+  );
 });

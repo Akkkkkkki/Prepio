@@ -264,12 +264,14 @@ const Home = () => {
   const startStatusPolling = (searchId: string) => {
     let pollCount = 0;
     let hasShownTimeoutWarning = false;
+    let latestStatus: "pending" | "processing" | "completed" | "failed" = "pending";
 
     const poll = async () => {
       try {
         const status = await searchService.getSearchStatus(searchId);
         if (status) {
           const newStatus = status.status as "pending" | "processing" | "completed" | "failed";
+          latestStatus = newStatus;
           setSearchStatus(newStatus);
 
           if (newStatus === "completed" || newStatus === "failed") {
@@ -325,7 +327,7 @@ const Home = () => {
 
           setTimeout(() => {
             clearInterval(slowPollInterval);
-            if (searchStatus === "processing" || searchStatus === "pending") {
+            if (latestStatus === "processing" || latestStatus === "pending") {
               setSearchStatus("failed");
               toast({
                 title: "Research Timeout",
@@ -371,6 +373,23 @@ const Home = () => {
         setSearchStatus("pending");
         setShowProgressDialog(true);
         setIsLoading(false);
+        const processResult = await searchService.startProcessing(result.searchId, searchPayload);
+
+        if (!processResult.success) {
+          const errorMessage =
+            processResult.error instanceof Error
+              ? processResult.error.message
+              : "We couldn't start the research pipeline. Please try again.";
+          setSearchStatus("failed");
+          setError(errorMessage);
+          toast({
+            title: "Error Starting Research",
+            description: errorMessage,
+            variant: "destructive",
+            duration: 5000,
+          });
+          return;
+        }
 
         toast({
           title: "Research Started!",
@@ -378,7 +397,6 @@ const Home = () => {
           duration: 3000,
         });
 
-        void searchService.startProcessing(result.searchId, searchPayload);
         startStatusPolling(result.searchId);
         return;
       }

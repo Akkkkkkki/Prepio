@@ -34,6 +34,8 @@ const createSelectChain = <T,>(result: { data: T; error: unknown }) => {
     limit: vi.fn(async () => result),
     maybeSingle: vi.fn(async () => result),
     single: vi.fn(async () => result),
+    then: (onFulfilled: (value: { data: T; error: unknown }) => unknown) =>
+      Promise.resolve(result).then(onFulfilled),
   };
 
   return chain;
@@ -56,7 +58,10 @@ const createInsertChain = <T,>(
   };
 };
 
-const createUpdateChain = <T,>(result: { data?: T; error: unknown }) => {
+const createUpdateChain = <T,>(
+  result: { data?: T; error: unknown },
+  onUpdate?: (payload: unknown) => void,
+) => {
   const chain = {
     data: result.data,
     error: result.error,
@@ -66,7 +71,10 @@ const createUpdateChain = <T,>(result: { data?: T; error: unknown }) => {
   };
 
   return {
-    update: vi.fn(() => chain),
+    update: vi.fn((payload: unknown) => {
+      onUpdate?.(payload);
+      return chain;
+    }),
   };
 };
 
@@ -246,5 +254,86 @@ describe("practice history answer dedupe helpers", () => {
     expect(mockSupabase.from).toHaveBeenCalledTimes(2);
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it("waits for the research function to acknowledge startup", async () => {
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: { status: "accepted" },
+      error: null,
+    });
+
+    const result = await searchService.startProcessing("search-1", {
+      company: "OpenAI",
+      role: "Research Engineer",
+      country: "United Kingdom",
+      roleLinks: "https://example.com/job-1\nhttps://example.com/job-2",
+      cv: "Resume text",
+      targetSeniority: "senior",
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("interview-research", {
+      body: {
+        company: "OpenAI",
+        role: "Research Engineer",
+        country: "United Kingdom",
+        roleLinks: ["https://example.com/job-1", "https://example.com/job-2"],
+        cv: "Resume text",
+        targetSeniority: "senior",
+        userId: "user-1",
+        searchId: "search-1",
+      },
+    });
+  });
+
+  it("marks the search as failed when the research function cannot be started", async () => {
+    const updates: Array<Record<string, unknown>> = [];
+
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: null,
+      error: new Error("relay down"),
+    });
+    mockSupabase.from.mockReturnValueOnce(
+      createUpdateChain(
+        { error: null },
+        (payload) => updates.push(payload as Record<string, unknown>),
+      ),
+    );
+
+    const result = await searchService.startProcessing("search-2", {
+      company: "Stripe",
+    });
+
+    expect(result.success).toBe(false);
+    expect(updates[0]).toMatchObject({
+      status: "failed",
+      error_message: "relay down",
+    });
+  });
+
+  it("skips artifact lookups while research is still pending", async () => {
+    mockSupabase.from
+      .mockReturnValueOnce(
+        createSelectChain({
+          data: {
+            id: "search-3",
+            status: "pending",
+          },
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        createSelectChain({
+          data: [],
+          error: null,
+        }),
+      );
+
+    const result = await searchService.getSearchResults("search-3");
+
+    expect(result.success).toBe(true);
+    expect(
+      mockSupabase.from.mock.calls.map(([table]: [string]) => table),
+    ).not.toContain("search_artifacts");
   });
 });

@@ -19,6 +19,8 @@ interface CreateSearchParams {
   targetSeniority?: 'junior' | 'mid' | 'senior';
 }
 
+const RESEARCH_START_TIMEOUT_MS = 15000;
+
 interface ResumeFileInput {
   name: string;
   path: string;
@@ -277,42 +279,29 @@ export const searchService = {
         throw new Error("No authenticated user");
       }
 
-      // Update search status to processing
-      await supabase
-        .from("searches")
-        .update({ status: "processing" })
-        .eq("id", searchId);
+      const response = await Promise.race([
+        supabase.functions.invoke("interview-research", {
+          body: {
+            company,
+            role,
+            country,
+            roleLinks: roleLinks ? roleLinks.split("\n").filter(link => link.trim()) : [],
+            cv,
+            targetSeniority,
+            userId: user.id,
+            searchId,
+          }
+        }),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => {
+            reject(new Error("Timed out while starting research"));
+          }, RESEARCH_START_TIMEOUT_MS);
+        }),
+      ]);
 
-      // Call the edge function to process the search (async, no await)
-      supabase.functions.invoke("interview-research", {
-        body: {
-          company,
-          role,
-          country,
-          roleLinks: roleLinks ? roleLinks.split("\n").filter(link => link.trim()) : [],
-          cv,
-          targetSeniority,
-          userId: user.id,
-          searchId,
-        }
-      }).then(response => {
-        if (response.error) {
-          console.error("Edge function error:", response.error);
-          // Update status to failed if edge function fails
-          supabase
-            .from("searches")
-            .update({ status: "failed" })
-            .eq("id", searchId);
-        }
-        // If successful, the edge function will update status to "completed"
-      }).catch(error => {
-        console.error("Error calling edge function:", error);
-        // Update status to failed if call fails
-        supabase
-          .from("searches")
-          .update({ status: "failed" })
-          .eq("id", searchId);
-      });
+      if (response.error) {
+        throw response.error;
+      }
 
       return { success: true };
     } catch (error) {
@@ -321,7 +310,10 @@ export const searchService = {
       // Update status to failed
       await supabase
         .from("searches")
-        .update({ status: "failed" })
+        .update({
+          status: "failed",
+          error_message: error instanceof Error ? error.message : "Unable to start research",
+        })
         .eq("id", searchId);
       
       return { error, success: false };
@@ -398,17 +390,20 @@ export const searchService = {
         })
       );
 
-      // Get comparison analysis from search_artifacts (consolidated after Option B redesign)
-      const { data: artifact, error: artifactError } = await supabase
-        .from("search_artifacts")
-        .select("comparison_analysis, preparation_guidance")
-        .eq("search_id", searchId)
-        .single();
+      let artifact: { comparison_analysis: Json | null; preparation_guidance: Json | null } | null = null;
 
-      // Handle missing artifact data gracefully
-      // PGRST116 = not found (record doesn't exist)
-      if (artifactError && artifactError.code !== 'PGRST116') {
-        console.warn("Search artifacts query error:", artifactError.message || artifactError);
+      if (search.status === "completed" || search.status === "failed") {
+        const { data: artifactData, error: artifactError } = await supabase
+          .from("search_artifacts")
+          .select("comparison_analysis, preparation_guidance")
+          .eq("search_id", searchId)
+          .maybeSingle();
+
+        if (artifactError) {
+          console.warn("Search artifacts query error:", artifactError.message || artifactError);
+        } else {
+          artifact = artifactData;
+        }
       }
 
       // Extract comparison analysis and preparation guidance from artifact

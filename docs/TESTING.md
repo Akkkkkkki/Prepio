@@ -1,111 +1,88 @@
 # Testing
 
-How to run tests, what's covered, and what still needs work.
+How to run tests, what they really cover today, and where the gaps still are.
 
 ## Quick Start
 
 ```bash
-npm test              # Frontend tests (Vitest + React Testing Library)
-make test             # All tests (Deno + Node)
-make test-unit        # Deno edge function unit tests only
+npm test
+npm test -- src/services/searchService.test.ts src/pages/__tests__/Home.mobile.test.tsx
+make test
 ```
 
-## Test Suite
+- `npm test` is the main automated suite in this repo right now.
+- `make test` runs older Deno files. Treat it as legacy, not as a release gate.
 
-### Frontend (Vitest + React Testing Library)
+## Current Reality
 
-83 tests across components, hooks, pages, and services.
+### Frontend
 
-```
-src/
-├── components/__tests__/
-│   ├── Navigation.test.tsx              (8 tests)
-│   └── ProgressDialog.test.tsx          (9 tests)
-├── components/practice/__tests__/
-│   └── QuestionInsightsPanel.test.tsx   (2 tests)
-├── components/ui/__tests__/
-│   └── CommandDialog.test.tsx           (1 test)
-├── hooks/__tests__/
-│   ├── browserState.test.tsx            (3 tests)
-│   └── useSearchProgress.test.ts        (8 tests)
-├── lib/__tests__/
-│   └── resumeUpload.test.ts            (4 tests)
-├── pages/__tests__/
-│   ├── Auth.test.tsx                    (4 tests)
-│   ├── Dashboard.mobile.test.tsx        (3 tests)
-│   ├── History.test.tsx                 (4 tests)
-│   ├── Home.mobile.test.tsx             (6 tests)
-│   ├── Practice.mobile.test.tsx         (4 tests)
-│   └── Profile.test.tsx                 (13 tests)
-└── services/
-    ├── searchService.test.ts            (2 tests)
-    └── sessionSampler.test.ts           (12 tests)
-```
+The Vitest suite is the only routinely runnable safety net here. It covers selected UI flows,
+hooks, and service helpers. It does not provide full end-to-end coverage of the research pipeline.
 
-### Backend (Deno)
+Most relevant files for the research flow:
 
-26 unit tests + 2 integration tests.
+- `src/services/searchService.test.ts`
+- `src/pages/__tests__/Home.mobile.test.tsx`
+- `src/hooks/__tests__/useSearchProgress.test.ts`
+- `src/components/__tests__/ProgressDialog.test.tsx`
 
-```
-tests/
-├── unit/test_edge_functions/
-│   ├── test_01_search_creation.ts       (5 tests)
-│   ├── test_02_interview_research.ts    (5 tests)
-│   ├── test_03_company_research.ts      (4 tests)
-│   ├── test_04_job_analysis.ts          (4 tests)
-│   ├── test_05_cv_analysis.ts           (4 tests)
-│   └── test_06_question_generator.ts    (4 tests)
-└── integration/test_workflows/
-    └── test_07_complete_workflow.ts      (2 tests)
-```
+### Backend
 
-**Total: 111 automated tests.**
+The `tests/` Deno files are not trustworthy as production coverage today.
 
-## Key Integration Scenarios
+Why:
 
-- **Complete workflow (Test 07.1)**: Creates a real search, triggers `interview-research`, waits for the pipeline, asserts downstream data (CV/job comparisons, questions, stages), then cleans up. Run with `deno test --allow-all tests/integration/test_workflows/test_07_complete_workflow.ts`.
-- **Database consistency (Test 07.2)**: Runs a second end-to-end pipeline and verifies every downstream table references the correct `search_id`.
+- `make test` only runs `tests/unit/test_edge_functions/*.ts`.
+- The integration workflow files are not part of that command.
+- Multiple Deno tests still reference old schema fields like `search_status`.
+- They depend on real Supabase credentials in `.env.local`.
+- They do not exercise the real browser-to-Edge-Function startup handshake that broke research.
 
-## Test Priorities
+That means previous green runs could still miss a broken research trigger.
 
-### P0 — Blockers
+## What Was Missing
+
+The failure mode from this incident lived between:
+
+1. creating the `searches` row in the browser
+2. starting `interview-research`
+3. getting an acknowledgement back from the Edge Function
+
+That boundary was previously untested. The browser marked the search as active before the function
+had actually accepted the job, and the tests mostly mocked `startProcessing`, so they never caught
+that gap.
+
+## Coverage Reality
+
+- There is no automated line or branch coverage report configured in this repo today.
+- There is no trustworthy single percentage for coverage in the current setup.
+- The frontend suite covers slices of behavior, not the complete product.
+- The legacy Deno files should not be counted as reliable coverage until they are updated and wired
+  into a real CI gate.
+
+If you need an actual coverage number, add a coverage provider and generate a report as a separate
+change. Right now any percentage would be guesswork.
+
+## Priorities
+
+### P0
 
 | Focus | Key files |
 |-------|-----------|
-| Search artifact persistence and CV-job comparison | `interview-research/index.ts`, `progress-tracker.ts`, `searchService.ts` |
-| Progress and stall detection UI | `ProgressDialog.tsx`, `useSearchProgress.ts` |
-| Search creation and polling flow | `Home.tsx`, `searchService.ts` |
+| Research startup handshake | `src/services/searchService.ts`, `src/pages/Home.tsx`, `supabase/functions/interview-research/index.ts` |
+| Search artifact persistence and CV-job comparison | `supabase/functions/interview-research/index.ts`, `supabase/functions/_shared/progress-tracker.ts`, `src/services/searchService.ts` |
+| Progress and stall detection UI | `src/components/ProgressDialog.tsx`, `src/hooks/useSearchProgress.ts` |
 
-### P1 — Near-term
-
-| Focus | Key files |
-|-------|-----------|
-| Practice session pipeline | `Practice.tsx`, `sessionSampler.ts`, `searchService.ts` practice helpers |
-| searchService main API methods | `searchService.ts` (only dedup helpers are tested) |
-
-### P2 — Nice-to-have
+### P1
 
 | Focus | Key files |
 |-------|-----------|
-| Tavily analytics | `tavilyAnalyticsService.ts` |
-
-## Mobile Practice QA
-
-Minimum validation matrix:
-
-**Devices:** iPhone SE, iPhone 14 Pro, Pixel 7, one smaller mid-range Android.
-
-**Scenarios:**
-- Start practice from setup; confirm prompt, controls, and CTA visible without scrolling
-- Scroll a long prompt; verify no accidental skip or favorite fires
-- Start recording with fresh permissions; deny permissions; confirm explicit success/failure states
-- Type notes, background the tab, return; confirm local persistence
-- Open and close coaching modal without losing answer state
-- Save final question; confirm clean completion state
+| Practice session pipeline | `src/pages/Practice.tsx`, `src/services/sessionSampler.ts`, `src/services/searchService.ts` |
+| Full dashboard and history regressions | `src/pages/Dashboard.tsx`, `src/pages/History.tsx` |
 
 ## Tooling
 
-- **Frontend**: Vitest with jsdom, `@testing-library/react`, `@testing-library/user-event`, `@testing-library/jest-dom`. Setup file: `vitest.setup.ts`.
-- **Backend**: Deno test runner with `--allow-all`. Suites under `tests/`.
-- **File convention**: Frontend tests go in `__tests__/` directories next to the code, or as `.test.ts` siblings for service files.
-- **Mocking**: Prefer lightweight Supabase client mocks. Only hit hosted Supabase for end-to-end checks.
+- Frontend: Vitest with jsdom and Testing Library. Setup file: `vitest.setup.ts`.
+- Backend: legacy Deno tests under `tests/`, currently requiring cleanup before they can be used as a release gate.
+- Mocking: prefer focused Supabase client mocks for browser-side logic. Use hosted Supabase only for explicit end-to-end checks.
