@@ -261,7 +261,7 @@ const History = () => {
         </div>
 
         {error && sessions.length === 0 ? (
-          <Card className="mt-8 max-w-xl">
+          <Card className="mx-auto mt-8 max-w-xl">
             <CardHeader>
               <CardTitle>Practice history unavailable</CardTitle>
               <CardDescription>
@@ -278,7 +278,7 @@ const History = () => {
             </CardContent>
           </Card>
         ) : sessions.length === 0 ? (
-          <Card className="mt-8 max-w-2xl rounded-3xl border-dashed text-center">
+          <Card className="mx-auto mt-8 max-w-2xl rounded-3xl border-dashed text-center">
             <CardHeader>
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
                 <ClipboardList className="h-7 w-7 text-muted-foreground" />
