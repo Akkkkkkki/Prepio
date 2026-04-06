@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import Practice from "../Practice";
+import { BREATHING_DISMISSED_KEY } from "@/components/practice/BreathingBreak";
 
 const capturedSwipeConfigs: Array<Record<string, unknown>> = [];
 const mockGetSearchResults = vi.fn();
@@ -79,11 +80,17 @@ beforeAll(() => {
   vi.stubGlobal("ResizeObserver", MockResizeObserver);
 });
 
+const startPracticeSession = async () => {
+  fireEvent.click(await screen.findByRole("button", { name: "Start practice" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
+};
+
 describe("Practice mobile layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     MockResizeObserver.reset();
     capturedSwipeConfigs.length = 0;
+    localStorage.removeItem(BREATHING_DISMISSED_KEY);
     mockUseIsMobile.mockReturnValue(true);
     Object.defineProperty(navigator, "mediaDevices", {
       configurable: true,
@@ -179,6 +186,8 @@ describe("Practice mobile layout", () => {
     expect(await screen.findByText("Practice setup")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
+    expect(await screen.findByText("Breathe in...")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
 
     expect(
       await screen.findByText("How did you leverage LLM technology in the AI product evaluation at Hg Capital?")
@@ -269,7 +278,7 @@ describe("Practice mobile layout", () => {
       </MemoryRouter>
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Start practice" }));
+    await startPracticeSession();
 
     await waitFor(() => {
       expect(
@@ -302,7 +311,7 @@ describe("Practice mobile layout", () => {
       </MemoryRouter>
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Start practice" }));
+    await startPracticeSession();
     fireEvent.click(await screen.findByRole("button", { name: "Notes" }));
 
     fireEvent.change(
@@ -327,7 +336,7 @@ describe("Practice mobile layout", () => {
       </MemoryRouter>
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Start practice" }));
+    await startPracticeSession();
     fireEvent.click(await screen.findByRole("button", { name: "Notes" }));
 
     fireEvent.change(

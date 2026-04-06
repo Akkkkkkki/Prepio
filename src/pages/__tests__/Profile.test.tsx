@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
@@ -300,7 +300,6 @@ describe("Profile page", () => {
   });
 
   it("deletes saved resume versions from the profile", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     mockListResumeVersions.mockResolvedValue({
       success: true,
       resumes: [
@@ -326,6 +325,12 @@ describe("Profile page", () => {
 
     expect(await screen.findByText("Resume versions")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Delete all resumes" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog", { name: "Delete all resumes" })).getByRole(
+        "button",
+        { name: "Delete" },
+      ),
+    );
 
     await waitFor(() => {
       expect(mockDeleteResume).toHaveBeenCalled();

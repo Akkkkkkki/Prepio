@@ -63,7 +63,7 @@ describe("History page states", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("No practice sessions yet")).toBeInTheDocument();
+    expect(await screen.findByText("Ready to start practicing")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go to Dashboard" })).toHaveAttribute(
       "href",
       "/dashboard",
@@ -122,17 +122,11 @@ describe("History page states", () => {
 
     expect(await screen.findByText("No sessions for this research yet")).toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Open research dashboard" })).toHaveAttribute(
-        "href",
-        "/dashboard?searchId=search-target",
-      );
-    });
-
     expect(screen.getByRole("link", { name: "Start practice for this research" })).toHaveAttribute(
       "href",
       "/practice?searchId=search-target",
     );
+    expect(screen.getByRole("button", { name: "Show all sessions" })).toBeInTheDocument();
   });
 
   it("keeps loaded history visible after the browser goes offline", async () => {
