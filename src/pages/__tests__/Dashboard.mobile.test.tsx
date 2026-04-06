@@ -115,9 +115,9 @@ describe("Dashboard mobile layout", () => {
     );
 
     expect(await screen.findByText("Research overview")).toBeInTheDocument();
-    expect(screen.getByText("Search status")).toBeInTheDocument();
+    expect(screen.getByText("Research status")).toBeInTheDocument();
     expect(screen.getByText("Interview stages")).toBeInTheDocument();
-    expect(screen.getByText("Selected questions")).toBeInTheDocument();
+    expect(screen.getByText("Practice questions")).toBeInTheDocument();
     expect(screen.queryByText("Interview Process Overview")).not.toBeInTheDocument();
     expect(screen.queryByText("3-4 weeks")).not.toBeInTheDocument();
     expect(screen.queryByText("Technical + Behavioral")).not.toBeInTheDocument();

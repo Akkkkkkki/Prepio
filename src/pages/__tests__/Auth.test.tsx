@@ -9,10 +9,25 @@ const mockSignIn = vi.fn();
 const mockSignUp = vi.fn();
 const mockResetPassword = vi.fn();
 const mockResendVerification = vi.fn();
+const mockUpdatePassword = vi.fn();
 const mockUseAuthContext = vi.fn();
+const mockOnAuthStateChange = vi.fn();
+const mockUseNetworkStatus = vi.fn();
 
 vi.mock("@/components/AuthProvider", () => ({
   useAuthContext: () => mockUseAuthContext(),
+}));
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    auth: {
+      onAuthStateChange: (...args: unknown[]) => mockOnAuthStateChange(...args),
+    },
+  },
+}));
+
+vi.mock("@/hooks/useNetworkStatus", () => ({
+  useNetworkStatus: () => mockUseNetworkStatus(),
 }));
 
 const researchAuthState: AuthReturnState = {
@@ -44,12 +59,22 @@ describe("Auth page", () => {
       signUp: mockSignUp,
       resetPassword: mockResetPassword,
       resendVerification: mockResendVerification,
+      updatePassword: mockUpdatePassword,
     });
 
     mockSignIn.mockResolvedValue({ error: null });
     mockSignUp.mockResolvedValue({ error: null });
     mockResetPassword.mockResolvedValue({ error: null });
     mockResendVerification.mockResolvedValue({ error: null });
+    mockUpdatePassword.mockResolvedValue({ error: null });
+    mockUseNetworkStatus.mockReturnValue({ isOffline: false });
+    mockOnAuthStateChange.mockReturnValue({
+      data: {
+        subscription: {
+          unsubscribe: vi.fn(),
+        },
+      },
+    });
   });
 
   it("keeps the redirect banner visible while switching auth recovery states", async () => {
