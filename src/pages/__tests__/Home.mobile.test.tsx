@@ -108,7 +108,7 @@ describe("Home flow", () => {
     mockGetSearchStatus.mockResolvedValue({
       status: "completed",
     });
-    mockStartProcessing.mockResolvedValue(undefined);
+    mockStartProcessing.mockResolvedValue({ success: true });
     mockAnalyzeCV.mockResolvedValue({ success: false, error: new Error("no-op") });
     mockExtractResumeText.mockResolvedValue({
       pageCount: 1,
@@ -247,6 +247,35 @@ describe("Home flow", () => {
 
     expect(await screen.findByText("Progress dialog for OpenAI")).toBeInTheDocument();
     expect(window.sessionStorage.getItem(RESEARCH_DRAFT_STORAGE_KEY)).toBeNull();
+  });
+
+  it("shows an error when the research pipeline fails to start after the search row is created", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+    mockStartProcessing.mockResolvedValue({
+      success: false,
+      error: new Error("Timed out while starting research"),
+    });
+
+    renderHome();
+
+    fireEvent.change(await screen.findByLabelText("Company *"), {
+      target: { value: "Anthropic" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start research" }));
+
+    expect(await screen.findByText("Progress dialog for Anthropic")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Error Starting Research",
+          description: "Timed out while starting research",
+          variant: "destructive",
+        }),
+      );
+    });
   });
 
   it("keeps local resume parsing available while offline and skips profile sync", async () => {
