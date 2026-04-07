@@ -35,13 +35,14 @@ import {
   type ResearchStep,
   saveResearchDraft,
   type SeniorityLevel,
+  type Level,
 } from "@/lib/researchDraft";
 import { ACCEPTED_RESUME_TYPES, ResumeUploadError, buildResumeStoragePath, extractResumeText } from "@/lib/resumeUpload";
 import { cn } from "@/lib/utils";
 import { searchService } from "@/services/searchService";
 import { useToast } from "@/hooks/use-toast";
 
-type FormTargetSeniority = SeniorityLevel | "auto" | undefined;
+type FormLevel = Level | "auto" | undefined;
 
 type ResearchFormData = {
   company: string;
@@ -49,7 +50,11 @@ type ResearchFormData = {
   country: string;
   cv: string;
   roleLinks: string;
-  targetSeniority: FormTargetSeniority;
+  userNote: string;
+  jobDescription: string;
+  level: FormLevel;
+  /** @deprecated kept for draft compat */
+  targetSeniority?: SeniorityLevel | "auto";
 };
 
 const HOME_CV_UPLOAD_ID = "home-cv-upload";
@@ -62,7 +67,9 @@ const DEFAULT_FORM_DATA: ResearchFormData = {
   country: "",
   cv: "",
   roleLinks: "",
-  targetSeniority: "auto",
+  userNote: "",
+  jobDescription: "",
+  level: "auto",
 };
 
 const MOBILE_STEP_COPY: Record<
@@ -102,7 +109,9 @@ const buildSearchPayload = (formData: ResearchFormData) => ({
   country: formData.country.trim() || undefined,
   roleLinks: formData.roleLinks.trim() || undefined,
   cv: formData.cv.trim() || undefined,
-  targetSeniority: formData.targetSeniority === "auto" ? undefined : formData.targetSeniority,
+  level: formData.level === "auto" ? undefined : formData.level,
+  userNote: formData.userNote?.trim() || undefined,
+  jobDescription: formData.jobDescription?.trim() || undefined,
 });
 
 const GUEST_HOME_STEPS = [
@@ -171,7 +180,9 @@ const Home = () => {
       country: draft.country,
       cv: draft.cv,
       roleLinks: draft.roleLinks,
-      targetSeniority: draft.targetSeniority ?? "auto",
+      userNote: draft.userNote || "",
+      jobDescription: draft.jobDescription || "",
+      level: draft.level ?? "auto",
     });
     setMobileStep(draft.step);
   }, []);
@@ -239,7 +250,9 @@ const Home = () => {
       company: formData.company,
       role: formData.role,
       country: formData.country,
-      targetSeniority: formData.targetSeniority === "auto" ? undefined : formData.targetSeniority,
+      level: formData.level === "auto" ? undefined : formData.level,
+      userNote: formData.userNote || "",
+      jobDescription: formData.jobDescription || "",
       cv: formData.cv,
       roleLinks: formData.roleLinks,
       step,
@@ -711,24 +724,25 @@ const Home = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="target-seniority-mobile">Target level</Label>
+                <Label htmlFor="level-mobile">Level</Label>
                 <Select
-                  value={formData.targetSeniority}
+                  value={formData.level}
                   onValueChange={(value) =>
                     setFormData((prev) => ({
                       ...prev,
-                      targetSeniority: value === "auto" ? "auto" : (value as SeniorityLevel),
+                      level: value === "auto" ? "auto" : (value as Level),
                     }))
                   }
                 >
-                  <SelectTrigger id="target-seniority-mobile" className="h-12 rounded-2xl text-base">
+                  <SelectTrigger id="level-mobile" className="h-12 rounded-2xl text-base">
                     <SelectValue placeholder="Auto-detect from CV" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="auto">Auto-detect from CV</SelectItem>
                     <SelectItem value="junior">Junior (0-2 years)</SelectItem>
                     <SelectItem value="mid">Mid-level (3-7 years)</SelectItem>
-                    <SelectItem value="senior">Senior (8+ years)</SelectItem>
+                    <SelectItem value="senior_ic">Senior IC (8+ years)</SelectItem>
+                    <SelectItem value="people_manager">People Manager</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -818,9 +832,9 @@ const Home = () => {
               <AccordionItem value="role-links" className="rounded-[24px] border bg-muted/20 px-4">
                 <AccordionTrigger className="py-4 text-left text-sm hover:no-underline">
                   <div>
-                    <p className="font-medium text-foreground">Role description links</p>
+                    <p className="font-medium text-foreground">Job link or description</p>
                     <p className="mt-1 text-xs font-normal text-muted-foreground">
-                      Add job links when you want the research to match a specific opening.
+                      Add job links or paste the job description to match a specific opening.
                     </p>
                   </div>
                 </AccordionTrigger>
@@ -830,12 +844,38 @@ const Home = () => {
                     placeholder="Paste job description links here (one per line)..."
                     value={formData.roleLinks}
                     onChange={(e) => setFormData((prev) => ({ ...prev, roleLinks: e.target.value }))}
+                    rows={3}
+                    className="min-h-[100px] resize-none rounded-[24px] border bg-background p-4 text-base"
+                  />
+                  <Textarea
+                    id="job-description-mobile"
+                    placeholder="Or paste the full job description here..."
+                    value={formData.jobDescription}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, jobDescription: e.target.value }))}
                     rows={4}
                     className="min-h-[140px] resize-none rounded-[24px] border bg-background p-4 text-base"
                   />
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    You can skip this if you only want general company research.
-                  </p>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="user-note" className="rounded-[24px] border bg-muted/20 px-4">
+                <AccordionTrigger className="py-4 text-left text-sm hover:no-underline">
+                  <div>
+                    <p className="font-medium text-foreground">Notes for the research</p>
+                    <p className="mt-1 text-xs font-normal text-muted-foreground">
+                      Share anything that helps — known stages, interviewers, format, deadline.
+                    </p>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3 pb-4">
+                  <Textarea
+                    id="user-note-mobile"
+                    placeholder={"e.g. I spoke with the recruiter — they mentioned a system design round and a bar raiser.\nInterview is next Thursday.\nI'd like more focus on behavioral questions."}
+                    value={formData.userNote}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, userNote: e.target.value }))}
+                    rows={5}
+                    className="min-h-[160px] resize-none rounded-[24px] border bg-background p-4 text-base"
+                  />
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -914,24 +954,25 @@ const Home = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="targetSeniority">Target Level (optional)</Label>
+              <Label htmlFor="level">Level (optional)</Label>
               <Select
-                value={formData.targetSeniority}
+                value={formData.level}
                 onValueChange={(value) =>
                   setFormData((prev) => ({
                     ...prev,
-                    targetSeniority: value === "auto" ? "auto" : (value as SeniorityLevel),
+                    level: value === "auto" ? "auto" : (value as Level),
                   }))
                 }
               >
-                <SelectTrigger id="targetSeniority">
+                <SelectTrigger id="level">
                   <SelectValue placeholder="Auto-detect from CV" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="auto">Auto-detect from CV</SelectItem>
                   <SelectItem value="junior">Junior (0-2 years)</SelectItem>
                   <SelectItem value="mid">Mid-level (3-7 years)</SelectItem>
-                  <SelectItem value="senior">Senior (8+ years)</SelectItem>
+                  <SelectItem value="senior_ic">Senior IC (8+ years)</SelectItem>
+                  <SelectItem value="people_manager">People Manager</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -983,17 +1024,37 @@ const Home = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="role-links">Role Description Links (optional)</Label>
+            <Label htmlFor="role-links">Job Link or Description (optional)</Label>
             <Textarea
               id="role-links"
               placeholder="Paste job description links here (one per line)..."
               value={formData.roleLinks}
               onChange={(e) => setFormData((prev) => ({ ...prev, roleLinks: e.target.value }))}
+              rows={2}
+              className="resize-none"
+            />
+            <Textarea
+              id="job-description"
+              placeholder="Or paste the full job description here..."
+              value={formData.jobDescription}
+              onChange={(e) => setFormData((prev) => ({ ...prev, jobDescription: e.target.value }))}
+              rows={4}
+              className="resize-none"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="user-note">Notes (optional)</Label>
+            <Textarea
+              id="user-note"
+              placeholder={"Known stages, interviewers, format, deadline, or where you want more focus..."}
+              value={formData.userNote}
+              onChange={(e) => setFormData((prev) => ({ ...prev, userNote: e.target.value }))}
               rows={3}
               className="resize-none"
             />
             <p className="text-xs text-muted-foreground">
-              Add links to job descriptions to improve research accuracy.
+              Share anything from recruiter calls, known interview stages, or areas you want to focus on.
             </p>
           </div>
 

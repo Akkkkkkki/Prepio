@@ -78,6 +78,23 @@ const createUpdateChain = <T,>(
   };
 };
 
+const createDeleteChain = (
+  result: { error: unknown },
+  onDelete?: () => void,
+) => {
+  const chain = {
+    eq: vi.fn(async () => result),
+    in: vi.fn(async () => result),
+  };
+
+  return {
+    delete: vi.fn(() => {
+      onDelete?.();
+      return chain;
+    }),
+  };
+};
+
 describe("practice history answer dedupe helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -211,6 +228,12 @@ describe("practice history answer dedupe helpers", () => {
       source: "manual",
       is_active: false,
     });
+    expect(insertedRows[0].parsed_data).toMatchObject({
+      professional: {
+        currentRole: "Pasted resume text",
+        summary: "Pasted resume text",
+      },
+    });
   });
 
   it("keeps the current active resume untouched when replacement insert fails", async () => {
@@ -279,6 +302,9 @@ describe("practice history answer dedupe helpers", () => {
         country: "United Kingdom",
         roleLinks: ["https://example.com/job-1", "https://example.com/job-2"],
         cv: "Resume text",
+        level: "senior_ic",
+        userNote: undefined,
+        jobDescription: undefined,
         targetSeniority: "senior",
         userId: "user-1",
         searchId: "search-1",
@@ -335,5 +361,193 @@ describe("practice history answer dedupe helpers", () => {
     expect(
       mockSupabase.from.mock.calls.map(([table]: [string]) => table),
     ).not.toContain("search_artifacts");
+  });
+
+  it("sends new V2 fields (level, userNote, jobDescription) to the research function", async () => {
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: { status: "accepted" },
+      error: null,
+    });
+
+    await searchService.startProcessing("search-v2", {
+      company: "Anthropic",
+      role: "ML Engineer",
+      country: "US",
+      level: "senior_ic",
+      userNote: "Focus on safety research",
+      jobDescription: "Design alignment techniques",
+      roleLinks: "https://anthropic.com/jobs/1",
+      cv: "PhD in ML",
+    });
+
+    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("interview-research", {
+      body: expect.objectContaining({
+        level: "senior_ic",
+        userNote: "Focus on safety research",
+        jobDescription: "Design alignment techniques",
+        searchId: "search-v2",
+      }),
+    });
+  });
+
+  it("resolves level from legacy targetSeniority when level is not set", async () => {
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: { status: "accepted" },
+      error: null,
+    });
+
+    await searchService.startProcessing("search-legacy", {
+      company: "Stripe",
+      targetSeniority: "senior",
+    });
+
+    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("interview-research", {
+      body: expect.objectContaining({
+        level: "senior_ic",
+        targetSeniority: "senior",
+      }),
+    });
+  });
+
+  it("creates a search record with V2 fields", async () => {
+    const insertedRows: Array<Record<string, unknown>> = [];
+
+    mockSupabase.from.mockReturnValueOnce(
+      createInsertChain(
+        { data: { id: "search-new" }, error: null },
+        (payload) => insertedRows.push(payload as Record<string, unknown>),
+      ),
+    );
+
+    const result = await searchService.createSearchRecord({
+      company: "Google",
+      role: "SRE",
+      country: "UK",
+      level: "people_manager",
+      userNote: "Transitioning from IC",
+      jobDescription: "Lead SRE team of 8",
+    });
+
+    expect(result.success).toBe(true);
+    expect(insertedRows[0]).toMatchObject({
+      company: "Google",
+      role: "SRE",
+      level: "people_manager",
+      user_note: "Transitioning from IC",
+      job_description: "Lead SRE team of 8",
+    });
+  });
+
+  it("getPrepPlan fetches from prep_plans table", async () => {
+    const fakePlan = {
+      id: "plan-1",
+      search_id: "search-1",
+      summary: { headline: "Test plan" },
+    };
+
+    mockSupabase.from.mockReturnValueOnce(
+      createSelectChain({ data: fakePlan, error: null }),
+    );
+
+    const result = await searchService.getPrepPlan("search-1");
+
+    expect(result.success).toBe(true);
+    expect(result.prepPlan).toEqual(fakePlan);
+    expect(mockSupabase.from).toHaveBeenCalledWith("prep_plans");
+  });
+
+  it("getPrepPlan returns success with null when no plan exists", async () => {
+    mockSupabase.from.mockReturnValueOnce(
+      createSelectChain({ data: null, error: null }),
+    );
+
+    const result = await searchService.getPrepPlan("search-no-plan");
+
+    expect(result.success).toBe(true);
+    expect(result.prepPlan).toBeNull();
+  });
+
+  it("dismissBanner updates searches table", async () => {
+    const updates: Array<Record<string, unknown>> = [];
+
+    mockSupabase.from.mockReturnValueOnce(
+      createUpdateChain(
+        { error: null },
+        (payload) => updates.push(payload as Record<string, unknown>),
+      ),
+    );
+
+    const result = await searchService.dismissBanner("search-1");
+
+    expect(result.success).toBe(true);
+    expect(mockSupabase.from).toHaveBeenCalledWith("searches");
+    expect(updates[0]).toEqual({ banner_dismissed: true });
+  });
+
+  it("deleteResume removes import drafts after deleting resume versions", async () => {
+    const deletedTables: string[] = [];
+
+    mockSupabase.storage.from.mockReturnValue({
+      remove: vi.fn(async () => ({ error: null })),
+    });
+    mockSupabase.from
+      .mockReturnValueOnce(
+        createSelectChain({
+          data: [{ id: "resume-1", file_path: "user-1/resume.pdf" }],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        createDeleteChain({ error: null }, () => deletedTables.push("resumes")),
+      )
+      .mockReturnValueOnce(
+        createDeleteChain({ error: null }, () => deletedTables.push("profile_imports")),
+      )
+      .mockReturnValueOnce(
+        createUpdateChain({ error: null }),
+      );
+
+    const result = await searchService.deleteResume();
+
+    expect(result.success).toBe(true);
+    expect(deletedTables).toEqual(["resumes", "profile_imports"]);
+  });
+
+  it("deleteResume stops before deleting rows when file cleanup fails", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    mockSupabase.storage.from.mockReturnValue({
+      remove: vi.fn(async () => ({ error: new Error("storage down") })),
+    });
+    mockSupabase.from.mockReturnValueOnce(
+      createSelectChain({
+        data: [{ id: "resume-1", file_path: "user-1/resume.pdf" }],
+        error: null,
+      }),
+    );
+
+    const result = await searchService.deleteResume();
+
+    expect(result.success).toBe(false);
+    expect(mockSupabase.from).toHaveBeenCalledTimes(1);
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("saveSelfRating updates practice_answers table", async () => {
+    const updates: Array<Record<string, unknown>> = [];
+
+    mockSupabase.from.mockReturnValueOnce(
+      createUpdateChain(
+        { error: null },
+        (payload) => updates.push(payload as Record<string, unknown>),
+      ),
+    );
+
+    const result = await searchService.saveSelfRating("answer-1", 4);
+
+    expect(result.success).toBe(true);
+    expect(mockSupabase.from).toHaveBeenCalledWith("practice_answers");
+    expect(updates[0]).toEqual({ self_rating: 4 });
   });
 });

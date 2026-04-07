@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import Dashboard from "../Dashboard";
 
 const mockGetSearchResults = vi.fn();
+const mockGetPrepPlan = vi.fn();
+const mockDismissBanner = vi.fn();
 const mockUseIsMobile = vi.fn();
 const mockNetworkStatus = {
   isOnline: true,
@@ -25,6 +27,8 @@ vi.mock("@/hooks/useNetworkStatus", () => ({
 vi.mock("@/services/searchService", () => ({
   searchService: {
     getSearchResults: (...args: unknown[]) => mockGetSearchResults(...args),
+    getPrepPlan: (...args: unknown[]) => mockGetPrepPlan(...args),
+    dismissBanner: (...args: unknown[]) => mockDismissBanner(...args),
   },
 }));
 
@@ -34,6 +38,51 @@ describe("Dashboard mobile layout", () => {
     mockUseIsMobile.mockReturnValue(true);
     mockNetworkStatus.isOnline = true;
     mockNetworkStatus.isOffline = false;
+    mockGetPrepPlan.mockResolvedValue({
+      success: true,
+      prepPlan: {
+        id: "plan-1",
+        search_id: "search-1",
+        summary: {
+          company: "OpenAI",
+          roleName: "Research Engineer",
+          industryFocus: "tech",
+          level: "senior_ic",
+          overallConfidence: "high",
+          weakSignalCase: false,
+        },
+        assessment_signals: [
+          {
+            name: "Research depth",
+            importance: "high",
+            rationale: "The role needs strong modeling judgment.",
+          },
+        ],
+        stage_roadmap: [],
+        prep_priorities: [
+          {
+            label: "Sharpen technical tradeoffs",
+            priority: "high",
+            whyItMatters: "This will show up in the panel.",
+            recommendedActions: ["Practice one systems answer."],
+          },
+        ],
+        candidate_positioning: {
+          strengthsToLeanOn: [],
+          weakSpotsToAddress: [],
+          storyCoverageGaps: [],
+          mismatchRisks: [],
+        },
+        practice_sequence: [],
+        question_plan: {
+          coreMustPractice: [],
+          likelyFollowUps: [],
+          extraDepth: [],
+        },
+        internal_evidence_log: [],
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+    });
     mockGetSearchResults.mockResolvedValue({
       success: true,
       search: {
@@ -42,6 +91,7 @@ describe("Dashboard mobile layout", () => {
         role: "Research Engineer",
         country: "United Kingdom",
         status: "completed",
+        banner_dismissed: true,
         created_at: "2026-03-31T00:00:00.000Z",
       },
       stages: [
@@ -88,18 +138,15 @@ describe("Dashboard mobile layout", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("OpenAI Interview Research")).toBeInTheDocument();
-    expect(screen.queryByText("Interview Process Overview")).not.toBeInTheDocument();
-    expect(screen.getByText("3 questions across 2 selected stages")).toBeInTheDocument();
+    expect(await screen.findByText("Prep plan")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "OpenAI" })).toBeInTheDocument();
+    expect(screen.getByText("Stage roadmap")).toBeInTheDocument();
+    expect(screen.getByText("3 questions across 2 stages")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Initial Screening"));
-
-    expect(await screen.findByText("Introductions and fit check.")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Remove Initial Screening" }));
+    fireEvent.click(screen.getAllByRole("checkbox")[0]);
 
     await waitFor(() => {
-      expect(screen.getByText("2 questions across 1 selected stage")).toBeInTheDocument();
+      expect(screen.getByText("2 questions across 1 stage")).toBeInTheDocument();
     });
   });
 
@@ -114,13 +161,11 @@ describe("Dashboard mobile layout", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("Research overview")).toBeInTheDocument();
-    expect(screen.getByText("Research status")).toBeInTheDocument();
-    expect(screen.getByText("Interview stages")).toBeInTheDocument();
-    expect(screen.getByText("Practice questions")).toBeInTheDocument();
-    expect(screen.queryByText("Interview Process Overview")).not.toBeInTheDocument();
-    expect(screen.queryByText("3-4 weeks")).not.toBeInTheDocument();
-    expect(screen.queryByText("Technical + Behavioral")).not.toBeInTheDocument();
+    expect(await screen.findByText("Key assessment signals")).toBeInTheDocument();
+    expect(screen.getByText("Prep priorities")).toBeInTheDocument();
+    expect(screen.getByText("Stage roadmap")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start Practice (3)" })).toBeInTheDocument();
+    expect(screen.getByText("Ready")).toBeInTheDocument();
   });
 
   it("preserves the real failure message when offline", async () => {
