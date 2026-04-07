@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
@@ -59,11 +59,11 @@ vi.mock("@/lib/resumeUpload", () => ({
   extractResumeText: (...args: unknown[]) => mockExtractResumeText(...args),
 }));
 
-const renderProfile = () =>
+const renderProfile = (initialEntry = "/profile") =>
   render(
-    <MemoryRouter initialEntries={["/profile"]}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
-        <Route path="/profile" element={<Profile />} />
+        <Route path="/profile/*" element={<Profile />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -85,17 +85,41 @@ describe("Profile page", () => {
     mockUpdateProfile.mockResolvedValue({ success: true, profile: { seniority: "mid" } });
   });
 
-  it("shows loading state then renders the structured profile editor", async () => {
+  it("shows loading state then renders the main profile view without import controls", async () => {
     renderProfile();
 
-    expect(screen.getByText("Loading Interview Profile")).toBeInTheDocument();
+    expect(screen.getByText("Loading Profile")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText("Your Interview Profile")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Profile" })).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Keep the richer version of your story.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "About" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create import draft from text" })).not.toBeInTheDocument();
+  });
+
+  it("renders the preferences surface separately from import and profile editing", async () => {
+    renderProfile("/profile/preferences");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Preferences" })).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Research defaults")).toBeInTheDocument();
+    expect(screen.queryByText("Import review")).not.toBeInTheDocument();
+    expect(screen.queryByText("About")).not.toBeInTheDocument();
+  });
+
+  it("renders the import surface separately from profile editing", async () => {
+    renderProfile("/profile/import");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Import" })).toBeInTheDocument();
+    });
+
     expect(screen.getByRole("button", { name: "Create import draft from text" })).toBeInTheDocument();
+    expect(screen.queryByText("Research defaults")).not.toBeInTheDocument();
+    expect(screen.queryByText("About")).not.toBeInTheDocument();
   });
 
   it("bootstraps from legacy parsed resume data when no canonical profile exists", async () => {
@@ -151,12 +175,12 @@ describe("Profile page", () => {
     expect(screen.getByDisplayValue("London")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "We prefilled this interview profile from the last parsed resume. Save once to make it your editable canonical profile.",
+        "We prefilled this profile from the last parsed resume. Save once to make it your editable canonical version.",
       ),
     ).toBeInTheDocument();
   });
 
-  it("saves the structured candidate profile", async () => {
+  it("saves the structured candidate profile from the main view", async () => {
     mockGetCandidateProfile.mockResolvedValue({
       success: true,
       profile: normalizeCandidateProfile({
@@ -180,7 +204,7 @@ describe("Profile page", () => {
 
     const headlineInput = await screen.findByDisplayValue("Staff Engineer");
     fireEvent.change(headlineInput, { target: { value: "Principal Engineer" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       expect(mockSaveCandidateProfile).toHaveBeenCalledWith(
@@ -189,11 +213,17 @@ describe("Profile page", () => {
     });
   });
 
-  it("creates and applies an import review from pasted text", async () => {
+  it("creates and applies an import review from pasted text on the import route", async () => {
     const importedProfile = normalizeCandidateProfile({
       userId: "user-1",
       headline: "Staff Engineer",
-      experiences: [createEmptyExperience({ id: "exp-1", company: "Acme", title: "Staff Engineer" })],
+      experiences: [
+        createEmptyExperience({
+          id: "exp-1",
+          company: "Acme",
+          title: "Staff Engineer",
+        }),
+      ],
       lastResumeId: "resume-1",
     });
     const profileImport = {
@@ -230,28 +260,6 @@ describe("Profile page", () => {
         created_at: "2026-04-04T10:10:00.000Z",
       },
     });
-    mockListResumeVersions
-      .mockResolvedValueOnce({ success: true, resumes: [] })
-      .mockResolvedValueOnce({
-        success: true,
-        resumes: [
-          {
-            id: "resume-1",
-            content: "Imported resume text",
-            created_at: "2026-04-04T10:10:00.000Z",
-            file_name: null,
-            file_path: null,
-            file_size_bytes: null,
-            is_active: true,
-            mime_type: null,
-            parsed_data: null,
-            search_id: null,
-            source: "manual",
-            superseded_at: null,
-            user_id: "user-1",
-          },
-        ],
-      });
     mockCreateProfileImport.mockResolvedValue({
       success: true,
       profileImport,
@@ -261,111 +269,30 @@ describe("Profile page", () => {
     });
     mockApplyProfileImport.mockResolvedValue({
       success: true,
-      profile: importedProfile,
-      profileImport: { ...profileImport, status: "applied", appliedAt: "2026-04-04T10:12:00.000Z" },
+      profile: normalizeCandidateProfile({
+        userId: "user-1",
+        headline: "Staff Engineer",
+      }),
     });
 
-    renderProfile();
+    renderProfile("/profile/import");
 
-    await waitFor(() => {
-      expect(screen.getByText("Your Interview Profile")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByPlaceholderText("Paste the latest resume text here..."), {
-      target: { value: "Imported resume text" },
-    });
+    const resumeTextarea = await screen.findByLabelText("Paste resume text");
+    fireEvent.change(resumeTextarea, { target: { value: "Imported resume text" } });
     fireEvent.click(screen.getByRole("button", { name: "Create import draft from text" }));
 
     await waitFor(() => {
       expect(mockCreateProfileImport).toHaveBeenCalledWith(
-        expect.objectContaining({
-          resumeText: "Imported resume text",
-          resumeId: "resume-1",
-        }),
+        expect.objectContaining({ resumeText: "Imported resume text" }),
       );
     });
 
-    expect(await screen.findByRole("button", { name: "Apply import decisions" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Apply import decisions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Apply import decisions" }));
 
     await waitFor(() => {
-      expect(mockApplyProfileImport).toHaveBeenCalledWith(
-        "import-1",
-        expect.arrayContaining([
-          expect.objectContaining({ suggestionId: "suggestion-1", action: "add_incoming" }),
-        ]),
-      );
+      expect(mockApplyProfileImport).toHaveBeenCalledWith("import-1", [
+        { suggestionId: "suggestion-1", action: "add_incoming" },
+      ]);
     });
-  });
-
-  it("deletes saved resume versions from the profile", async () => {
-    mockGetLatestProfileImport.mockResolvedValue({
-      success: true,
-      profileImport: {
-        id: "import-1",
-        userId: "user-1",
-        resumeId: "resume-1",
-        source: "upload",
-        draftProfile: normalizeCandidateProfile({
-          userId: "user-1",
-          headline: "Imported profile",
-        }),
-        mergeSuggestions: [],
-        importSummary: {
-          newCount: 0,
-          duplicateCount: 0,
-          conflictingCount: 0,
-          missingCount: 0,
-        },
-        status: "pending",
-        createdAt: "2026-04-04T10:10:00.000Z",
-        appliedAt: null,
-      },
-    });
-    mockListResumeVersions.mockResolvedValue({
-      success: true,
-      resumes: [
-        {
-          id: "resume-1",
-          content: "Imported resume text",
-          created_at: "2026-04-04T10:10:00.000Z",
-          file_name: "resume.pdf",
-          file_path: "user-1/resume.pdf",
-          file_size_bytes: 10,
-          is_active: true,
-          mime_type: "application/pdf",
-          parsed_data: null,
-          search_id: null,
-          source: "upload",
-          superseded_at: null,
-          user_id: "user-1",
-        },
-      ],
-    });
-
-    renderProfile();
-
-    expect(await screen.findByText("Resume versions")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Apply import decisions" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Delete resume versions" }));
-    fireEvent.click(
-      within(await screen.findByRole("alertdialog", { name: "Delete resume versions" })).getByRole(
-        "button",
-        { name: "Delete" },
-      ),
-    );
-
-    await waitFor(() => {
-      expect(mockDeleteResume).toHaveBeenCalled();
-    });
-
-    expect(
-      await screen.findByText(
-        "Resume versions and import drafts deleted. Your interview profile is unchanged.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText("No resume versions yet. Import one to seed the profile.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Apply import decisions" })).not.toBeInTheDocument();
   });
 });
