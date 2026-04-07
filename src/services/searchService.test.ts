@@ -78,6 +78,23 @@ const createUpdateChain = <T,>(
   };
 };
 
+const createDeleteChain = (
+  result: { error: unknown },
+  onDelete?: () => void,
+) => {
+  const chain = {
+    eq: vi.fn(async () => result),
+    in: vi.fn(async () => result),
+  };
+
+  return {
+    delete: vi.fn(() => {
+      onDelete?.();
+      return chain;
+    }),
+  };
+};
+
 describe("practice history answer dedupe helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -210,6 +227,12 @@ describe("practice history answer dedupe helpers", () => {
       file_path: null,
       source: "manual",
       is_active: false,
+    });
+    expect(insertedRows[0].parsed_data).toMatchObject({
+      professional: {
+        currentRole: "Pasted resume text",
+        summary: "Pasted resume text",
+      },
     });
   });
 
@@ -459,6 +482,56 @@ describe("practice history answer dedupe helpers", () => {
     expect(result.success).toBe(true);
     expect(mockSupabase.from).toHaveBeenCalledWith("searches");
     expect(updates[0]).toEqual({ banner_dismissed: true });
+  });
+
+  it("deleteResume removes import drafts after deleting resume versions", async () => {
+    const deletedTables: string[] = [];
+
+    mockSupabase.storage.from.mockReturnValue({
+      remove: vi.fn(async () => ({ error: null })),
+    });
+    mockSupabase.from
+      .mockReturnValueOnce(
+        createSelectChain({
+          data: [{ id: "resume-1", file_path: "user-1/resume.pdf" }],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        createDeleteChain({ error: null }, () => deletedTables.push("resumes")),
+      )
+      .mockReturnValueOnce(
+        createDeleteChain({ error: null }, () => deletedTables.push("profile_imports")),
+      )
+      .mockReturnValueOnce(
+        createUpdateChain({ error: null }),
+      );
+
+    const result = await searchService.deleteResume();
+
+    expect(result.success).toBe(true);
+    expect(deletedTables).toEqual(["resumes", "profile_imports"]);
+  });
+
+  it("deleteResume stops before deleting rows when file cleanup fails", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    mockSupabase.storage.from.mockReturnValue({
+      remove: vi.fn(async () => ({ error: new Error("storage down") })),
+    });
+    mockSupabase.from.mockReturnValueOnce(
+      createSelectChain({
+        data: [{ id: "resume-1", file_path: "user-1/resume.pdf" }],
+        error: null,
+      }),
+    );
+
+    const result = await searchService.deleteResume();
+
+    expect(result.success).toBe(false);
+    expect(mockSupabase.from).toHaveBeenCalledTimes(1);
+
+    consoleErrorSpy.mockRestore();
   });
 
   it("saveSelfRating updates practice_answers table", async () => {

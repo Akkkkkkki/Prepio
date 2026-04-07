@@ -656,6 +656,7 @@ const Profile = () => {
 
         const activeResumeRecord = activeResumeResult.success ? activeResumeResult.resume : null;
         setResumeText(activeResumeRecord?.content || "");
+        const nextImport = importResult.success ? importResult.profileImport : null;
 
         let nextProfile =
           candidateProfileResult.success && candidateProfileResult.profile
@@ -663,7 +664,15 @@ const Profile = () => {
             : createEmptyCandidateProfile(user.id);
         let usedLegacyBootstrap = false;
 
-        if (!candidateProfileResult.profile && activeResumeRecord?.parsed_data) {
+        if (!candidateProfileResult.profile && nextImport?.draftProfile) {
+          nextProfile = normalizeCandidateProfile(
+            {
+              ...nextImport.draftProfile,
+              lastResumeId: nextImport.resumeId ?? nextImport.draftProfile.lastResumeId,
+            },
+            user.id,
+          );
+        } else if (!candidateProfileResult.profile && activeResumeRecord?.parsed_data) {
           nextProfile = normalizeCandidateProfile(
             {
               ...candidateProfileFromLegacyParsedData(
@@ -691,8 +700,6 @@ const Profile = () => {
           setProfile(normalizeCandidateProfile(nextProfile, user.id));
         });
         setBootstrappedFromLegacy(usedLegacyBootstrap);
-
-        const nextImport = importResult.success ? importResult.profileImport : null;
         setActiveImport(nextImport);
         setMergeDecisions(buildMergeDecisionState(nextImport));
       } catch (loadError) {
@@ -736,6 +743,7 @@ const Profile = () => {
     file?: File;
   }) => {
     let uploadedPath: string | null = null;
+    let resumeSaved = false;
 
     try {
       if (!user) {
@@ -771,6 +779,7 @@ const Profile = () => {
       if (!saveResult.success || !saveResult.resume) {
         throw new Error(saveResult.error instanceof Error ? saveResult.error.message : "Failed to save resume version");
       }
+      resumeSaved = true;
 
       await refreshResumeVersions();
       setResumeText(content);
@@ -798,7 +807,7 @@ const Profile = () => {
         );
       }
     } catch (importError) {
-      if (uploadedPath) {
+      if (uploadedPath && !resumeSaved) {
         await searchService.deleteResumeFiles([uploadedPath]);
       }
 
@@ -891,8 +900,10 @@ const Profile = () => {
       setResumeVersions([]);
       setResumeText("");
       hydrateProfileState({ ...profile, lastResumeId: null });
+      setActiveImport(null);
+      setMergeDecisions({});
       setBootstrappedFromLegacy(false);
-      pushSuccess("Resume versions deleted.");
+      pushSuccess("Resume versions and import drafts deleted. Your interview profile is unchanged.");
     } else {
       setError(result.error instanceof Error ? result.error.message : "Failed to delete resume versions.");
     }
@@ -1759,7 +1770,7 @@ const Profile = () => {
                       disabled={isDeletingResume || resumeVersions.length === 0}
                     >
                       {isDeletingResume ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                      Delete all resumes
+                      Delete resume versions
                     </Button>
                   </div>
                 </CardHeader>
@@ -1836,9 +1847,9 @@ const Profile = () => {
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete all resumes</AlertDialogTitle>
+            <AlertDialogTitle>Delete resume versions</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove all saved resume versions and any imported profile data. This action cannot be undone.
+              This will remove uploaded files, pasted resume versions, and saved import drafts. Your canonical interview profile will stay in place.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

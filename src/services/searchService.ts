@@ -107,6 +107,37 @@ const EMPTY_PRACTICE_OVERVIEW_STATS: PracticeHistoryOverviewStats = {
 
 const getTimestamp = (value: string) => new Date(value).getTime();
 
+const buildResumeParsedDataFallback = (content: string) => {
+  const normalizedContent = content.trim();
+  const lines = normalizedContent
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const emailMatch = normalizedContent.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  const headline = lines[1] || lines[0] || "";
+
+  return {
+    personalInfo: {
+      email: emailMatch?.[0],
+    },
+    professional: {
+      currentRole: headline,
+      summary: normalizedContent.slice(0, 280).trim(),
+      workHistory: [],
+    },
+    education: [],
+    skills: {
+      categories: [],
+      soft: [],
+    },
+    projects: [],
+    certifications: [],
+    languages: [],
+    achievements: [],
+    lastUpdated: new Date().toISOString().split("T")[0],
+  };
+};
+
 export const dedupePracticeAnswersByQuestion = <T extends PracticeAnswerWithQuestion>(answers: T[]) => {
   const latestByQuestion = new Map<string, T>();
 
@@ -930,9 +961,10 @@ export const searchService = {
               mimeType: currentResume.mime_type,
             }
           : null);
-      const nextParsedData = parsedData === undefined
-        ? (currentResume?.parsed_data ?? null)
-        : (parsedData as Json);
+      const nextParsedData =
+        parsedData === undefined
+          ? (buildResumeParsedDataFallback(content) as Json)
+          : ((parsedData as Json) ?? null);
 
       const { data, error } = await supabase
         .from("resumes")
@@ -1025,7 +1057,7 @@ export const searchService = {
       if (paths.length > 0) {
         const fileDeleteResult = await this.deleteResumeFiles(paths);
         if (!fileDeleteResult.success) {
-          console.warn("Failed to delete stored resume files:", fileDeleteResult.error);
+          throw fileDeleteResult.error ?? new Error("Failed to delete stored resume files");
         }
       }
 
@@ -1035,6 +1067,13 @@ export const searchService = {
         .in("id", resumes.map((resume) => resume.id));
 
       if (deleteError) throw deleteError;
+
+      const { error: importDeleteError } = await supabase
+        .from("profile_imports")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (importDeleteError) throw importDeleteError;
 
       await supabase
         .from("candidate_profiles")

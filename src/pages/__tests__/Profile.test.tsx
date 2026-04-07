@@ -300,6 +300,29 @@ describe("Profile page", () => {
   });
 
   it("deletes saved resume versions from the profile", async () => {
+    mockGetLatestProfileImport.mockResolvedValue({
+      success: true,
+      profileImport: {
+        id: "import-1",
+        userId: "user-1",
+        resumeId: "resume-1",
+        source: "upload",
+        draftProfile: normalizeCandidateProfile({
+          userId: "user-1",
+          headline: "Imported profile",
+        }),
+        mergeSuggestions: [],
+        importSummary: {
+          newCount: 0,
+          duplicateCount: 0,
+          conflictingCount: 0,
+          missingCount: 0,
+        },
+        status: "pending",
+        createdAt: "2026-04-04T10:10:00.000Z",
+        appliedAt: null,
+      },
+    });
     mockListResumeVersions.mockResolvedValue({
       success: true,
       resumes: [
@@ -324,9 +347,10 @@ describe("Profile page", () => {
     renderProfile();
 
     expect(await screen.findByText("Resume versions")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Delete all resumes" }));
+    expect(screen.getByRole("button", { name: "Apply import decisions" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete resume versions" }));
     fireEvent.click(
-      within(await screen.findByRole("alertdialog", { name: "Delete all resumes" })).getByRole(
+      within(await screen.findByRole("alertdialog", { name: "Delete resume versions" })).getByRole(
         "button",
         { name: "Delete" },
       ),
@@ -336,7 +360,12 @@ describe("Profile page", () => {
       expect(mockDeleteResume).toHaveBeenCalled();
     });
 
-    expect(await screen.findByText("Resume versions deleted.")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Resume versions and import drafts deleted. Your interview profile is unchanged.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("No resume versions yet. Import one to seed the profile.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Apply import decisions" })).not.toBeInTheDocument();
   });
 });

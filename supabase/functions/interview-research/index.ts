@@ -710,14 +710,13 @@ async function savePrepPlanToDatabase(
     (stageRecords || []).forEach((s: any) => {
       stageIdByName[s.name] = s.id;
     });
-    const fallbackStageId = stageRecords?.[0]?.id || null;
     console.log(`  ✅ ${(stageRecords || []).length} stages saved`);
 
     // 4. Insert interview_questions (normalized for practice references)
     console.log("  → Saving interview questions...");
     const normalizeDifficulty = (tier: string): string => {
-      if (tier === 'coreMustPractice') return 'Hard';
-      if (tier === 'likelyFollowUps') return 'Medium';
+      if (tier === 'core_must_practice') return 'Hard';
+      if (tier === 'likely_follow_ups') return 'Medium';
       return 'Easy';
     };
 
@@ -729,7 +728,7 @@ async function savePrepPlanToDatabase(
 
       const addQuestions = (items: QuestionItem[], tier: string) => {
         (items || []).forEach((q) => {
-          const stageId = (q.stageName && stageIdByName[q.stageName]) || fallbackStageId;
+          const stageId = q.stageName ? (stageIdByName[q.stageName] ?? null) : null;
           questionsToInsert.push({
             search_id: searchId,
             stage_id: stageId,
