@@ -58,10 +58,14 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
 
   const navigationItems = [
     { path: "/", label: "Home", icon: Home },
-    { path: "/dashboard", label: "Dashboard", icon: BarChart3 },
+    { path: "/dashboard", label: "Prep", icon: BarChart3 },
     { path: "/practice", label: "Practice", icon: Play },
-    { path: "/history", label: "Practice History", icon: ClipboardList },
     { path: "/profile", label: "Profile", icon: User },
+  ];
+
+  const mobileNavigationItems = [
+    ...navigationItems,
+    { path: "/history", label: "Practice History", icon: ClipboardList },
   ];
 
   // Load search history when component mounts and user is authenticated
@@ -190,107 +194,87 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
             </div>
 
             {/* Desktop Actions */}
-            <div className="hidden md:flex items-center gap-4">
-              {/* Search Selector */}
+            <div className="hidden md:flex items-center gap-3">
               {showSearchSelector && searchHistory.length > 0 && (
-                <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/80 px-3 py-2">
-                  <p className="whitespace-nowrap text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Active research
-                  </p>
-                  <Select value={currentSearchId || "none"} onValueChange={handleSearchSelection}>
-                    <SelectTrigger className="h-9 w-[180px] lg:w-[220px]">
-                      <SelectValue placeholder="Choose research">
-                        {getCurrentSearchDisplay()}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Choose research</SelectItem>
-                      {searchHistory.map((search) => (
-                        <SelectItem key={search.id} value={search.id}>
-                          <div className="flex items-center justify-between w-full">
-                            <span>{search.company}{search.role ? ` - ${search.role}` : ''}</span>
-                            {getStatusBadge(search.status)}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Select value={currentSearchId || "none"} onValueChange={handleSearchSelection}>
+                  <SelectTrigger className="h-9 w-[180px] lg:w-[220px]">
+                    <SelectValue placeholder="Choose research">
+                      {getCurrentSearchDisplay()}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Choose research</SelectItem>
+                    {searchHistory.map((search) => (
+                      <SelectItem key={search.id} value={search.id}>
+                        <div className="flex items-center justify-between w-full">
+                          <span>{search.company}{search.role ? ` - ${search.role}` : ''}</span>
+                          {getStatusBadge(search.status)}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
 
-              {showHistory && (
-                <Sheet open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
-                  <SheetTrigger asChild>
-                    <Button variant="outline" size="sm" aria-label="Open search history">
-                      <History className="h-4 w-4 mr-2" />
-                      History
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="left" className="w-80">
-                    <div className="py-6">
-                      <SheetHeader className="mb-4 text-left">
-                        <SheetTitle>Search History</SheetTitle>
-                        <SheetDescription>
-                          Open one of your previous research runs from the navigation history.
-                        </SheetDescription>
-                      </SheetHeader>
-                      
-                      {isLoadingHistory ? (
-                        <div className="flex items-center justify-center py-8">
-                          <Loader2 className="h-6 w-6 animate-spin" />
-                          <span className="ml-2 text-sm text-muted-foreground">Loading history...</span>
+              <Sheet open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+                <SheetContent side="left" className="w-80">
+                  <div className="py-6">
+                    <SheetHeader className="mb-4 text-left">
+                      <SheetTitle>Search History</SheetTitle>
+                      <SheetDescription>
+                        Your previous research runs.
+                      </SheetDescription>
+                    </SheetHeader>
+                    
+                    {isLoadingHistory ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                        <span className="ml-2 text-sm text-muted-foreground">Loading...</span>
+                      </div>
+                    ) : historyError ? (
+                      <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 text-red-600" />
+                          <span className="text-sm text-red-800">{historyError}</span>
                         </div>
-                      ) : historyError ? (
-                        <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-3">
-                          <div className="flex items-center gap-2">
-                            <AlertCircle className="h-4 w-4 text-red-600" />
-                            <span className="text-sm text-red-800">{historyError}</span>
-                          </div>
-                          <Button variant="outline" size="sm" onClick={() => navigate("/")}>
-                            Start research from Home
+                        <Button variant="outline" size="sm" onClick={() => navigate("/")}>
+                          Start new research
+                        </Button>
+                      </div>
+                    ) : searchHistory.length === 0 ? (
+                      <div className="space-y-3 py-8 text-center">
+                        <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm text-muted-foreground">No research yet</p>
+                        <div className="flex justify-center">
+                          <Button size="sm" onClick={() => navigate("/")}>
+                            Start research
                           </Button>
                         </div>
-                      ) : searchHistory.length === 0 ? (
-                        <div className="space-y-3 py-8 text-center">
-                          <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm text-muted-foreground">No research history yet</p>
-                          <p className="text-xs text-muted-foreground">
-                            Start from Home and every research run will appear here.
-                          </p>
-                          <div className="flex justify-center">
-                            <Button size="sm" onClick={() => navigate("/")}>
-                              Start research
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {searchHistory.map((item) => (
-                            <button
-                              key={item.id}
-                              type="button"
-                              className="w-full text-left p-3 border rounded-lg cursor-pointer hover:bg-muted transition-colors"
-                              onClick={() => handleHistoryItemClick(item)}
-                            >
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="font-medium truncate">{item.company}</div>
-                                {getStatusBadge(item.status)}
-                              </div>
-                              {item.role && (
-                                <div className="text-sm text-muted-foreground mb-1">{item.role}</div>
-                              )}
-                              {item.country && (
-                                <div className="text-xs text-muted-foreground mb-1">{item.country}</div>
-                              )}
-                              <div className="text-xs text-muted-foreground">{formatDate(item.created_at)}</div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </SheetContent>
-                </Sheet>
-              )}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {searchHistory.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className="w-full text-left p-3 border rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                            onClick={() => handleHistoryItemClick(item)}
+                          >
+                            <div className="flex items-start justify-between mb-1">
+                              <div className="font-medium truncate">{item.company}</div>
+                              {getStatusBadge(item.status)}
+                            </div>
+                            {item.role && (
+                              <div className="text-sm text-muted-foreground">{item.role}</div>
+                            )}
+                            <div className="text-xs text-muted-foreground">{formatDate(item.created_at)}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </SheetContent>
+              </Sheet>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -299,15 +283,23 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
-                  {canInstall && (
-                    <>
-                      <DropdownMenuItem onClick={handleInstall}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Install app
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                    </>
+                  {showHistory && (
+                    <DropdownMenuItem onClick={() => setIsHistoryOpen(true)}>
+                      <History className="mr-2 h-4 w-4" />
+                      Search history
+                    </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem onClick={() => navigate("/history")}>
+                    <ClipboardList className="mr-2 h-4 w-4" />
+                    Practice history
+                  </DropdownMenuItem>
+                  {canInstall && (
+                    <DropdownMenuItem onClick={handleInstall}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Install app
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>
                     <LogOut className="mr-2 h-4 w-4" />
                     Sign out
@@ -337,7 +329,7 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                   </div>
                   
                   <div className="space-y-2">
-                    {navigationItems.map((item) => (
+                    {mobileNavigationItems.map((item) => (
                       <Link
                         key={item.path}
                         to={getNavigationPath(item.path)}

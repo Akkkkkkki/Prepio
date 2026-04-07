@@ -163,6 +163,7 @@ function WeakSignalNotice() {
 }
 
 function AssessmentSignalsCard({ signals }: { signals: AssessmentSignal[] }) {
+  const [expanded, setExpanded] = useState(false);
   if (!signals?.length) return null;
 
   const high = signals.filter((signal) => signal.importance === "high");
@@ -202,19 +203,29 @@ function AssessmentSignalsCard({ signals }: { signals: AssessmentSignal[] }) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Key assessment signals</CardTitle>
-        <CardDescription>What this employer is most likely evaluating</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base">Assessment signals</CardTitle>
+            <CardDescription>{high.length} critical, {medium.length + low.length} supporting</CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)}>
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {renderGroup(high, "Critical signals")}
-        {renderGroup(medium, "Supporting signals")}
-        {renderGroup(low, "Context signals")}
-      </CardContent>
+      {expanded && (
+        <CardContent className="space-y-4">
+          {renderGroup(high, "Critical")}
+          {renderGroup(medium, "Supporting")}
+          {renderGroup(low, "Context")}
+        </CardContent>
+      )}
     </Card>
   );
 }
 
 function PrepPrioritiesCard({ priorities }: { priorities: PrepPriority[] }) {
+  const [expanded, setExpanded] = useState(false);
   if (!priorities?.length) return null;
   const high = priorities.filter(p => p.priority === "high");
   const medium = priorities.filter(p => p.priority === "medium");
@@ -248,17 +259,30 @@ function PrepPrioritiesCard({ priorities }: { priorities: PrepPriority[] }) {
     );
   };
 
+  const topPriority = high[0]?.label || medium[0]?.label;
+
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Prep priorities</CardTitle>
-        <CardDescription>What to prepare first, and what to deprioritize</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base">Prep priorities</CardTitle>
+            <CardDescription>
+              {topPriority ? `Top: ${topPriority}` : "What to prepare first"}
+            </CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)}>
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {renderGroup(high, "Prepare first")}
-        {renderGroup(medium, "Important but secondary")}
-        {renderGroup(low, "Deprioritize for now")}
-      </CardContent>
+      {expanded && (
+        <CardContent className="space-y-4">
+          {renderGroup(high, "Prepare first")}
+          {renderGroup(medium, "Important but secondary")}
+          {renderGroup(low, "Deprioritize for now")}
+        </CardContent>
+      )}
     </Card>
   );
 }
@@ -677,30 +701,19 @@ const Dashboard = () => {
     return (
       <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
-        <div className="container mx-auto px-4 py-8">
-          <div className="max-w-2xl mx-auto text-center">
-            <Card className="p-8">
-              <CardHeader>
-                <div className="flex items-center justify-center mb-4">
-                  <Brain className="h-12 w-12 text-primary" />
-                </div>
-                <CardTitle>No Active Search</CardTitle>
-                <CardDescription>
-                  Start a new search to get personalized interview insights for any company
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Button onClick={() => navigate('/')} size="lg" className="w-full">
-                    <Search className="h-4 w-4 mr-2" />
-                    Start New Search
-                  </Button>
-                  <p className="text-sm text-muted-foreground">
-                    Open the History menu in the top bar to jump back into an earlier research run.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+        <div className="container mx-auto px-4 py-12">
+          <div className="max-w-md mx-auto text-center space-y-6">
+            <Brain className="h-10 w-10 text-primary mx-auto" />
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold">No research selected</h2>
+              <p className="text-sm text-muted-foreground">
+                Start a new research run or pick one from the menu above.
+              </p>
+            </div>
+            <Button onClick={() => navigate('/')} size="lg">
+              <Search className="h-4 w-4 mr-2" />
+              New research
+            </Button>
           </div>
         </div>
       </div>
@@ -782,40 +795,24 @@ const Dashboard = () => {
     <>
       {/* Header */}
       <header className="space-y-2">
-        {!isMobile && (
-          <nav className="mb-3 text-sm text-muted-foreground">
-            <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
-            <span className="mx-2">›</span>
-            <span className="text-foreground">{searchData?.company || 'Company'} Prep Plan</span>
-          </nav>
-        )}
         <div className={isMobile ? "" : "flex items-center justify-between"}>
           <div className="space-y-1">
-            {isMobile && (
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
-                Prep plan
-              </p>
-            )}
-            <h1 className={`min-w-0 break-words font-bold leading-tight ${isMobile ? "text-3xl" : "text-3xl"}`}>
+            <h1 className={`min-w-0 break-words font-bold leading-tight ${isMobile ? "text-2xl" : "text-3xl"}`}>
               {searchData?.company || 'Company'}
             </h1>
             <p className="min-w-0 break-words text-sm leading-6 text-muted-foreground">
               {searchSubtitle}
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-              {searchStatusLabel && <Badge variant="secondary">{searchStatusLabel}</Badge>}
-              {summary?.overallConfidence && (
-                <Badge className={confidenceColor(summary.overallConfidence)}>
-                  {summary.overallConfidence} confidence
-                </Badge>
-              )}
-              {summary?.industryFocus && summary.industryFocus !== 'unknown' && (
-                <Badge variant="outline">{summary.industryFocus}</Badge>
-              )}
-              {summary?.level && summary.level !== 'unknown' && (
-                <Badge variant="outline">{summary.level.replace('_', ' ')}</Badge>
-              )}
-            </div>
+            {(searchStatusLabel || summary?.overallConfidence) && (
+              <div className="flex flex-wrap items-center gap-2">
+                {searchStatusLabel && <Badge variant="secondary">{searchStatusLabel}</Badge>}
+                {summary?.overallConfidence && (
+                  <Badge className={confidenceColor(summary.overallConfidence)}>
+                    {summary.overallConfidence} confidence
+                  </Badge>
+                )}
+              </div>
+            )}
           </div>
           {!isMobile && (
             <Button onClick={startPractice} disabled={selectedQuestionCount === 0 || isOffline}>
@@ -880,29 +877,18 @@ const Dashboard = () => {
 
         {/* Mobile bottom bar */}
         <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
-          <div className="mx-auto max-w-md space-y-3" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
-            <div className="rounded-[24px] border bg-card/95 px-4 py-3 shadow-sm">
-              <p className="text-sm font-medium">
-                {selectedQuestionCount} question{selectedQuestionCount === 1 ? '' : 's'} across {selectedStageCount} stage{selectedStageCount === 1 ? '' : 's'}
-              </p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                {isOffline
-                  ? "Reconnect to launch practice."
-                  : selectedQuestionCount > 0
-                  ? topFocus
-                    ? `Focus: ${topFocus}`
-                    : "Start practice when the mix looks right."
-                  : "Select at least one stage to unlock practice."}
-              </p>
-            </div>
+          <div className="mx-auto max-w-md" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
             <Button
               onClick={startPractice}
               disabled={selectedQuestionCount === 0 || isOffline}
               className="h-12 w-full rounded-2xl text-base"
             >
               <PlayCircle className="mr-2 h-4 w-4" />
-              Start practice
+              Practice ({selectedQuestionCount} question{selectedQuestionCount === 1 ? '' : 's'})
             </Button>
+            {isOffline && (
+              <p className="mt-2 text-center text-xs text-amber-700">Reconnect to start practice.</p>
+            )}
           </div>
         </div>
       </div>

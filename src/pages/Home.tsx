@@ -78,18 +78,18 @@ const MOBILE_STEP_COPY: Record<
 > = {
   company: {
     eyebrow: "Step 1 of 3",
-    title: "Start with the company",
-    description: "You only need one field to get moving.",
+    title: "Company",
+    description: "Which company are you interviewing with?",
   },
   details: {
     eyebrow: "Step 2 of 3",
-    title: "Add optional details",
-    description: "Role, country, and level help tune the research depth.",
+    title: "Details",
+    description: "Optional — helps us tailor the research.",
   },
   tailoring: {
     eyebrow: "Step 3 of 3",
-    title: "Tailor the prep",
-    description: "Add your CV or job links when you want sharper practice.",
+    title: "Personalize",
+    description: "Optional — add your CV or the job listing for sharper prep.",
   },
 };
 
@@ -169,6 +169,7 @@ const Home = () => {
   const [isLoadingProfileResume, setIsLoadingProfileResume] = useState(false);
   const [isUsingProfileResume, setIsUsingProfileResume] = useState(false);
   const [isUploadingResume, setIsUploadingResume] = useState(false);
+  const [showOptionalFields, setShowOptionalFields] = useState(false);
 
   useEffect(() => {
     const draft = loadResearchDraft();
@@ -185,6 +186,11 @@ const Home = () => {
       level: draft.level ?? "auto",
     });
     setMobileStep(draft.step);
+
+    const hasOptionalContent =
+      draft.cv.trim() || draft.roleLinks.trim() || draft.userNote?.trim() || draft.jobDescription?.trim() ||
+      draft.country.trim() || (draft.level && draft.level !== "auto");
+    if (hasOptionalContent) setShowOptionalFields(true);
   }, []);
 
   useEffect(() => {
@@ -647,11 +653,8 @@ const Home = () => {
       case "company":
         return (
           <section className="space-y-5">
-            <div className="space-y-2">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {mobileStepCopy.eyebrow}
-              </p>
-              <h2 className="text-2xl font-semibold tracking-tight">{mobileStepCopy.title}</h2>
+            <div className="space-y-1">
+              <h2 className="text-xl font-semibold tracking-tight">{mobileStepCopy.title}</h2>
               <p className="text-sm leading-6 text-muted-foreground">{mobileStepCopy.description}</p>
             </div>
 
@@ -659,7 +662,7 @@ const Home = () => {
               <Label htmlFor="company-mobile">Company *</Label>
               <Input
                 id="company-mobile"
-                placeholder="e.g. Google, Microsoft, Stripe"
+                placeholder="e.g. Google, Stripe, OpenAI"
                 value={formData.company}
                 onChange={(e) => setFormData((prev) => ({ ...prev, company: e.target.value }))}
                 className="h-12 rounded-2xl text-base"
@@ -668,23 +671,19 @@ const Home = () => {
               />
             </div>
 
-            <div className="space-y-3">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                Suggested companies
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {SUGGESTED_COMPANIES.map((company) => (
-                  <Button
-                    key={company}
-                    type="button"
-                    variant={formData.company === company ? "default" : "outline"}
-                    onClick={() => setFormData((prev) => ({ ...prev, company }))}
-                    className="h-11 rounded-full px-4 text-sm"
-                  >
-                    {company}
-                  </Button>
-                ))}
-              </div>
+            <div className="flex flex-wrap gap-2">
+              {SUGGESTED_COMPANIES.map((company) => (
+                <Button
+                  key={company}
+                  type="button"
+                  variant={formData.company === company ? "default" : "outline"}
+                  onClick={() => setFormData((prev) => ({ ...prev, company }))}
+                  className="h-9 rounded-full px-3 text-xs"
+                  size="sm"
+                >
+                  {company}
+                </Button>
+              ))}
             </div>
           </section>
         );
@@ -692,11 +691,8 @@ const Home = () => {
       case "details":
         return (
           <section className="space-y-5">
-            <div className="space-y-2">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {mobileStepCopy.eyebrow}
-              </p>
-              <h2 className="text-2xl font-semibold tracking-tight">{mobileStepCopy.title}</h2>
+            <div className="space-y-1">
+              <h2 className="text-xl font-semibold tracking-tight">{mobileStepCopy.title}</h2>
               <p className="text-sm leading-6 text-muted-foreground">{mobileStepCopy.description}</p>
             </div>
 
@@ -747,21 +743,14 @@ const Home = () => {
                 </Select>
               </div>
             </div>
-
-            <div className="rounded-[24px] border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
-              Everything on this step is optional. Skip it if you want broad company prep first.
-            </div>
           </section>
         );
 
       case "tailoring":
         return (
           <section className="space-y-5">
-            <div className="space-y-2">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {mobileStepCopy.eyebrow}
-              </p>
-              <h2 className="text-2xl font-semibold tracking-tight">{mobileStepCopy.title}</h2>
+            <div className="space-y-1">
+              <h2 className="text-xl font-semibold tracking-tight">{mobileStepCopy.title}</h2>
               <p className="text-sm leading-6 text-muted-foreground">{mobileStepCopy.description}</p>
             </div>
 
@@ -776,46 +765,39 @@ const Home = () => {
             >
               <AccordionItem value="resume" className="rounded-[24px] border bg-muted/20 px-4">
                 <AccordionTrigger className="py-4 text-left text-sm hover:no-underline">
-                  <div>
-                    <p className="font-medium text-foreground">CV / Resume</p>
-                    <p className="mt-1 text-xs font-normal text-muted-foreground">
-                      Import a source resume, then keep a richer interview profile.
-                    </p>
-                  </div>
+                  <p className="font-medium text-foreground">CV / Resume</p>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-4 pb-4">
                   {renderProfileResumeNote("h-10")}
 
-                  <div className="rounded-[24px] border-2 border-dashed border-border bg-background p-5">
-                    <div className="flex flex-col items-center gap-4 text-center">
-                      <Upload className="h-8 w-8 text-muted-foreground" />
-                      <div className="space-y-2">
-                        <p className="text-sm leading-6 text-muted-foreground">
-                          Upload a PDF or DOCX, or paste your CV below. Signed-in uploads create a new resume version and a profile merge draft.
-                        </p>
-                        <input
-                          type="file"
-                          accept={ACCEPTED_RESUME_TYPES}
-                          onChange={handleFileUpload}
-                          className="hidden"
-                          id={HOME_CV_UPLOAD_ID}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => document.getElementById(HOME_CV_UPLOAD_ID)?.click()}
-                          disabled={isUploadingResume}
-                          className="h-11 rounded-full px-4"
-                        >
-                          {isUploadingResume ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <FileText className="mr-2 h-4 w-4" />
-                          )}
-                          {isUploadingResume ? "Processing..." : "Upload PDF / DOCX"}
-                        </Button>
-                      </div>
+                  <div className="rounded-[24px] border-2 border-dashed border-border bg-background p-4">
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      <Upload className="h-6 w-6 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">
+                        Upload a PDF or DOCX, or paste text below.
+                      </p>
+                      <input
+                        type="file"
+                        accept={ACCEPTED_RESUME_TYPES}
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        id={HOME_CV_UPLOAD_ID}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => document.getElementById(HOME_CV_UPLOAD_ID)?.click()}
+                        disabled={isUploadingResume}
+                        className="h-10 rounded-full px-4"
+                      >
+                        {isUploadingResume ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <FileText className="mr-2 h-4 w-4" />
+                        )}
+                        {isUploadingResume ? "Processing..." : "Upload PDF / DOCX"}
+                      </Button>
                     </div>
                   </div>
 
@@ -823,58 +805,40 @@ const Home = () => {
                     placeholder="Or paste your CV text here..."
                     value={formData.cv}
                     onChange={(e) => setFormData((prev) => ({ ...prev, cv: e.target.value }))}
-                    rows={7}
-                    className="min-h-[180px] resize-none rounded-[24px] border bg-background p-4 text-base"
+                    rows={5}
+                    className="min-h-[140px] resize-none rounded-[24px] border bg-background p-4 text-base"
                   />
                 </AccordionContent>
               </AccordionItem>
 
               <AccordionItem value="role-links" className="rounded-[24px] border bg-muted/20 px-4">
                 <AccordionTrigger className="py-4 text-left text-sm hover:no-underline">
-                  <div>
-                    <p className="font-medium text-foreground">Job link or description</p>
-                    <p className="mt-1 text-xs font-normal text-muted-foreground">
-                      Add job links or paste the job description to match a specific opening.
-                    </p>
-                  </div>
+                  <p className="font-medium text-foreground">Job link or description</p>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-3 pb-4">
                   <Textarea
                     id="role-links-mobile"
-                    placeholder="Paste job description links here (one per line)..."
+                    placeholder="Paste a job listing URL or the full description..."
                     value={formData.roleLinks}
                     onChange={(e) => setFormData((prev) => ({ ...prev, roleLinks: e.target.value }))}
-                    rows={3}
-                    className="min-h-[100px] resize-none rounded-[24px] border bg-background p-4 text-base"
-                  />
-                  <Textarea
-                    id="job-description-mobile"
-                    placeholder="Or paste the full job description here..."
-                    value={formData.jobDescription}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, jobDescription: e.target.value }))}
                     rows={4}
-                    className="min-h-[140px] resize-none rounded-[24px] border bg-background p-4 text-base"
+                    className="min-h-[120px] resize-none rounded-[24px] border bg-background p-4 text-base"
                   />
                 </AccordionContent>
               </AccordionItem>
 
               <AccordionItem value="user-note" className="rounded-[24px] border bg-muted/20 px-4">
                 <AccordionTrigger className="py-4 text-left text-sm hover:no-underline">
-                  <div>
-                    <p className="font-medium text-foreground">Notes for the research</p>
-                    <p className="mt-1 text-xs font-normal text-muted-foreground">
-                      Share anything that helps — known stages, interviewers, format, deadline.
-                    </p>
-                  </div>
+                  <p className="font-medium text-foreground">Notes</p>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-3 pb-4">
                   <Textarea
                     id="user-note-mobile"
-                    placeholder={"e.g. I spoke with the recruiter — they mentioned a system design round and a bar raiser.\nInterview is next Thursday.\nI'd like more focus on behavioral questions."}
+                    placeholder="Known stages, interviewers, or areas to focus on..."
                     value={formData.userNote}
                     onChange={(e) => setFormData((prev) => ({ ...prev, userNote: e.target.value }))}
-                    rows={5}
-                    className="min-h-[160px] resize-none rounded-[24px] border bg-background p-4 text-base"
+                    rows={4}
+                    className="min-h-[120px] resize-none rounded-[24px] border bg-background p-4 text-base"
                   />
                 </AccordionContent>
               </AccordionItem>
@@ -889,10 +853,10 @@ const Home = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Search className="h-5 w-5 text-primary" />
-          Start Your Interview Research
+          New research
         </CardTitle>
         <CardDescription>
-          Enter company details to get personalized interview insights and preparation guidance.
+          Enter a company name to get started. Add more details for sharper results.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -906,7 +870,7 @@ const Home = () => {
           <Alert className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Sign in before starting research so your results, practice sessions, interview profile, and resume versions stay attached to your account.
+              Sign in so your results and practice stay saved to your account.
             </AlertDescription>
           </Alert>
         )}
@@ -914,8 +878,7 @@ const Home = () => {
             <Alert className="mb-6 border-amber-300 bg-amber-50 text-amber-950">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                You&apos;re offline. Reconnect before you start research. Resume files still parse
-                locally, but profile sync waits until you&apos;re back online.
+                You&apos;re offline. Reconnect before starting research.
               </AlertDescription>
             </Alert>
           )}
@@ -925,138 +888,146 @@ const Home = () => {
             <Label htmlFor="company">Company *</Label>
             <Input
               id="company"
-              placeholder="e.g., Google, Microsoft, Stripe..."
+              placeholder="e.g. Google, Stripe, OpenAI"
               value={formData.company}
               onChange={(e) => setFormData((prev) => ({ ...prev, company: e.target.value }))}
               required
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="role">Role (optional)</Label>
-              <Input
-                id="role"
-                placeholder="e.g., Software Engineer"
-                value={formData.role}
-                onChange={(e) => setFormData((prev) => ({ ...prev, role: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="country">Country (optional)</Label>
-              <Input
-                id="country"
-                placeholder="e.g., United States"
-                value={formData.country}
-                onChange={(e) => setFormData((prev) => ({ ...prev, country: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="level">Level (optional)</Label>
-              <Select
-                value={formData.level}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    level: value === "auto" ? "auto" : (value as Level),
-                  }))
-                }
-              >
-                <SelectTrigger id="level">
-                  <SelectValue placeholder="Auto-detect from CV" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Auto-detect from CV</SelectItem>
-                  <SelectItem value="junior">Junior (0-2 years)</SelectItem>
-                  <SelectItem value="mid">Mid-level (3-7 years)</SelectItem>
-                  <SelectItem value="senior_ic">Senior IC (8+ years)</SelectItem>
-                  <SelectItem value="people_manager">People Manager</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="role">Role</Label>
+            <Input
+              id="role"
+              placeholder="e.g. Software Engineer"
+              value={formData.role}
+              onChange={(e) => setFormData((prev) => ({ ...prev, role: e.target.value }))}
+            />
           </div>
 
-          <div className="space-y-4">
-            <Label>CV / Resume</Label>
-            {renderProfileResumeNote()}
-
-            <div className="rounded-lg border-2 border-dashed border-border p-6">
-              <div className="flex flex-col items-center justify-center space-y-4">
-                <Upload className="h-8 w-8 text-muted-foreground" />
-                <div className="text-center">
-                  <p className="mb-2 text-sm text-muted-foreground">
-                    Upload a PDF or DOCX, or paste your CV text below. Signed-in uploads create a resume version and a profile merge draft.
-                  </p>
-                  <input
-                    type="file"
-                    accept={ACCEPTED_RESUME_TYPES}
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    id={HOME_CV_UPLOAD_ID}
+          {!showOptionalFields ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full text-muted-foreground"
+              onClick={() => setShowOptionalFields(true)}
+            >
+              + Add CV, job description, or other details
+            </Button>
+          ) : (
+            <div className="space-y-6 rounded-xl border bg-muted/20 p-5">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="country">Country</Label>
+                  <Input
+                    id="country"
+                    placeholder="e.g. United States"
+                    value={formData.country}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, country: e.target.value }))}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => document.getElementById(HOME_CV_UPLOAD_ID)?.click()}
-                    disabled={isUploadingResume}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="level">Level</Label>
+                  <Select
+                    value={formData.level}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        level: value === "auto" ? "auto" : (value as Level),
+                      }))
+                    }
                   >
-                    {isUploadingResume ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <FileText className="mr-2 h-4 w-4" />
-                    )}
-                    {isUploadingResume ? "Processing..." : "Upload PDF / DOCX"}
-                  </Button>
+                    <SelectTrigger id="level">
+                      <SelectValue placeholder="Auto-detect from CV" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Auto-detect from CV</SelectItem>
+                      <SelectItem value="junior">Junior (0-2 years)</SelectItem>
+                      <SelectItem value="mid">Mid-level (3-7 years)</SelectItem>
+                      <SelectItem value="senior_ic">Senior IC (8+ years)</SelectItem>
+                      <SelectItem value="people_manager">People Manager</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
+
+              <div className="space-y-3">
+                <Label>CV / Resume</Label>
+                {renderProfileResumeNote()}
+
+                <div className="rounded-lg border-2 border-dashed border-border bg-background p-5">
+                  <div className="flex flex-col items-center justify-center space-y-3">
+                    <Upload className="h-6 w-6 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      Upload a PDF or DOCX, or paste text below.
+                    </p>
+                    <input
+                      type="file"
+                      accept={ACCEPTED_RESUME_TYPES}
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      id={HOME_CV_UPLOAD_ID}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => document.getElementById(HOME_CV_UPLOAD_ID)?.click()}
+                      disabled={isUploadingResume}
+                    >
+                      {isUploadingResume ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileText className="mr-2 h-4 w-4" />
+                      )}
+                      {isUploadingResume ? "Processing..." : "Upload PDF / DOCX"}
+                    </Button>
+                  </div>
+                </div>
+
+                <Textarea
+                  placeholder="Or paste your CV text here..."
+                  value={formData.cv}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, cv: e.target.value }))}
+                  rows={4}
+                  className="resize-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role-links">Job link or description</Label>
+                <Textarea
+                  id="role-links"
+                  placeholder="Paste a job listing URL..."
+                  value={formData.roleLinks}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, roleLinks: e.target.value }))}
+                  rows={2}
+                  className="resize-none"
+                />
+                <Textarea
+                  id="job-description"
+                  placeholder="Or paste the full job description here..."
+                  value={formData.jobDescription}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, jobDescription: e.target.value }))}
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="user-note">Notes</Label>
+                <Textarea
+                  id="user-note"
+                  placeholder="Known stages, interviewers, or areas to focus on..."
+                  value={formData.userNote}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, userNote: e.target.value }))}
+                  rows={2}
+                  className="resize-none"
+                />
+              </div>
             </div>
-
-            <Textarea
-              placeholder="Or paste your CV text here..."
-              value={formData.cv}
-              onChange={(e) => setFormData((prev) => ({ ...prev, cv: e.target.value }))}
-              rows={6}
-              className="resize-none"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="role-links">Job Link or Description (optional)</Label>
-            <Textarea
-              id="role-links"
-              placeholder="Paste job description links here (one per line)..."
-              value={formData.roleLinks}
-              onChange={(e) => setFormData((prev) => ({ ...prev, roleLinks: e.target.value }))}
-              rows={2}
-              className="resize-none"
-            />
-            <Textarea
-              id="job-description"
-              placeholder="Or paste the full job description here..."
-              value={formData.jobDescription}
-              onChange={(e) => setFormData((prev) => ({ ...prev, jobDescription: e.target.value }))}
-              rows={4}
-              className="resize-none"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="user-note">Notes (optional)</Label>
-            <Textarea
-              id="user-note"
-              placeholder={"Known stages, interviewers, format, deadline, or where you want more focus..."}
-              value={formData.userNote}
-              onChange={(e) => setFormData((prev) => ({ ...prev, userNote: e.target.value }))}
-              rows={3}
-              className="resize-none"
-            />
-            <p className="text-xs text-muted-foreground">
-              Share anything from recruiter calls, known interview stages, or areas you want to focus on.
-            </p>
-          </div>
+          )}
 
           <Button
             type={user ? "submit" : "button"}
@@ -1077,130 +1048,101 @@ const Home = () => {
   );
 
   const renderGuestHome = () => (
-    <div className="mx-auto max-w-6xl space-y-8 md:space-y-10">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-        <Card className="border shadow-sm">
-          <CardHeader className="space-y-4">
-            <div className="w-fit rounded-full border px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              Research preview
-            </div>
-            <div className="space-y-3">
-              <CardTitle className="text-3xl leading-tight tracking-tight">
-                See the interview brief before you create an account.
-              </CardTitle>
-              <CardDescription className="text-base leading-7">
-                Enter the company and role, then finish auth. We keep the draft and reopen the
-                full research flow with your context intact.
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                navigateToAuth(GUEST_RESEARCH_RESUME_STEP);
-              }}
-              className="space-y-4"
-            >
-              <div className="space-y-2">
-                <Label htmlFor="guest-company">Company *</Label>
-                <Input
-                  id="guest-company"
-                  placeholder="e.g. Stripe, OpenAI, Ramp"
-                  value={formData.company}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, company: e.target.value }))}
-                  autoComplete="organization"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="guest-role">Role (optional)</Label>
-                <Input
-                  id="guest-role"
-                  placeholder="e.g. Product Manager"
-                  value={formData.role}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, role: e.target.value }))}
-                  autoComplete="organization-title"
-                />
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full"
-                size="lg"
-                disabled={!formData.company.trim()}
-              >
-                Continue to sign in
-              </Button>
-            </form>
-
-            <Alert className="border-primary/20 bg-primary/5">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                We save this draft before auth and reopen the full research form when you return.
-              </AlertDescription>
-            </Alert>
-            {canInstall && (
-              <Button type="button" variant="outline" className="w-full" onClick={() => void promptInstall()}>
-                Install app
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border bg-muted/20 shadow-sm">
-          <CardHeader className="space-y-3">
-            <div className="w-fit rounded-full border bg-background px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              Sample output
-            </div>
-            <CardTitle className="text-2xl tracking-tight">What the first brief looks like</CardTitle>
-            <CardDescription className="text-sm leading-6">
-              A preview of the research package you unlock after sign-in.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-3 md:grid-cols-3">
-              {GUEST_SAMPLE_STAGES.map((stage) => (
-                <div key={stage.title} className="rounded-2xl border bg-background p-4">
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Stage
-                  </p>
-                  <p className="mt-2 text-base font-semibold">{stage.title}</p>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{stage.detail}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="rounded-[28px] border bg-background p-5">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Search className="h-4 w-4 text-primary" />
-                Sample prep highlights
-              </div>
-              <div className="mt-4 space-y-3">
-                {GUEST_SAMPLE_SIGNALS.map((signal) => (
-                  <div key={signal} className="flex items-start gap-3">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-primary" />
-                    <p className="text-sm leading-6 text-muted-foreground">{signal}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="mx-auto max-w-4xl space-y-10 md:space-y-12">
+      {/* Hero + CTA */}
+      <div className="text-center space-y-4">
+        <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
+          Prep smarter for your next interview
+        </h1>
+        <p className="mx-auto max-w-lg text-lg leading-7 text-muted-foreground">
+          Enter a company, get a tailored research brief with likely stages and questions, then practice until you&apos;re ready.
+        </p>
       </div>
 
-      <section className="rounded-[32px] border bg-card p-6 shadow-sm">
-        <div className="mb-5">
-          <h2 className="text-lg font-semibold tracking-tight">How it works</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Keep the first touch light, then drop into the full signed-in workflow once auth is
-            done.
+      <Card className="mx-auto max-w-lg border shadow-sm">
+        <CardContent className="pt-6 space-y-5">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              navigateToAuth(GUEST_RESEARCH_RESUME_STEP);
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="guest-company">Company *</Label>
+              <Input
+                id="guest-company"
+                placeholder="e.g. Stripe, OpenAI, Ramp"
+                value={formData.company}
+                onChange={(e) => setFormData((prev) => ({ ...prev, company: e.target.value }))}
+                autoComplete="organization"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="guest-role">Role (optional)</Label>
+              <Input
+                id="guest-role"
+                placeholder="e.g. Product Manager"
+                value={formData.role}
+                onChange={(e) => setFormData((prev) => ({ ...prev, role: e.target.value }))}
+                autoComplete="organization-title"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={!formData.company.trim()}
+            >
+              Get started
+            </Button>
+          </form>
+
+          <p className="text-center text-xs text-muted-foreground">
+            We&apos;ll save your draft and pick up where you left off after sign-in.
           </p>
+          {canInstall && (
+            <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => void promptInstall()}>
+              Install app
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* What you get */}
+      <section className="space-y-6">
+        <h2 className="text-center text-lg font-semibold tracking-tight">What you get</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          {GUEST_SAMPLE_STAGES.map((stage) => (
+            <div key={stage.title} className="rounded-2xl border bg-card p-5">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                Stage
+              </p>
+              <p className="mt-2 text-base font-semibold">{stage.title}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{stage.detail}</p>
+            </div>
+          ))}
         </div>
+
+        <div className="mx-auto max-w-lg space-y-3">
+          {GUEST_SAMPLE_SIGNALS.map((signal) => (
+            <div key={signal} className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <p className="text-sm leading-6 text-muted-foreground">{signal}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="space-y-5">
+        <h2 className="text-center text-lg font-semibold tracking-tight">How it works</h2>
         <div className="grid gap-4 md:grid-cols-3">
           {GUEST_HOME_STEPS.map((step, index) => (
-            <div key={step.title} className="rounded-2xl border bg-muted/20 p-4">
+            <div key={step.title} className="rounded-2xl border bg-muted/20 p-5">
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 0{index + 1}
               </p>
@@ -1236,19 +1178,10 @@ const Home = () => {
 
       <div className={user ? signedInContainerClassName : "container mx-auto px-4 py-8 md:py-12"}>
         {!user ? renderGuestHome() : isMobile ? (
-          <div className="mx-auto max-w-md space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-3">
-                <h1 className="text-4xl font-bold tracking-tight">
-                  <span className="text-primary">Prepio</span>
-                </h1>
-                <p className="max-w-xs text-sm leading-6 text-muted-foreground">
-                  Move from company research to practice in three short steps, without the
-                  desktop-style sprawl.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 rounded-[24px] border bg-muted/20 p-2">
+          <div className="mx-auto max-w-md space-y-5">
+            <div className="space-y-3">
+              {/* Compact step indicator */}
+              <div className="flex items-center gap-2">
                 {MOBILE_STEP_ORDER.map((step, index) => {
                   const isComplete = index < currentStepIndex;
                   const isCurrent = step === mobileStep;
@@ -1257,29 +1190,10 @@ const Home = () => {
                     <div
                       key={step}
                       className={cn(
-                        "rounded-2xl px-3 py-3 text-center transition-colors",
-                        isCurrent ? "bg-background shadow-sm" : "bg-transparent",
+                        "h-1.5 flex-1 rounded-full transition-colors",
+                        isComplete ? "bg-primary" : isCurrent ? "bg-primary/60" : "bg-border",
                       )}
-                    >
-                      <div
-                        className={cn(
-                          "mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold",
-                          isCurrent || isComplete
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-background text-muted-foreground",
-                        )}
-                      >
-                        {isComplete ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-                      </div>
-                      <p
-                        className={cn(
-                          "mt-2 text-[11px] font-medium uppercase tracking-[0.16em]",
-                          isCurrent ? "text-foreground" : "text-muted-foreground",
-                        )}
-                      >
-                        {step === "company" ? "Company" : step === "details" ? "Role Details" : "Personalize"}
-                      </p>
-                    </div>
+                    />
                   );
                 })}
               </div>
@@ -1311,22 +1225,16 @@ const Home = () => {
               className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85"
               data-mobile-home-footer
             >
-              <div className="mx-auto max-w-md space-y-3" style={{ paddingBottom: mobileFooterPadding }}>
-                <div className="flex items-center justify-between text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  <span>{mobileStepCopy.eyebrow}</span>
-                  <span>{formData.company.trim() || "Company not set"}</span>
-                </div>
-
+              <div className="mx-auto max-w-md" style={{ paddingBottom: mobileFooterPadding }}>
                 <div className="flex gap-3">
                   {mobileStep !== "company" && (
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => setMobileStep(getPreviousStep(mobileStep))}
-                      className="h-12 flex-1 rounded-2xl"
+                      className="h-12 rounded-2xl px-5"
                     >
-                      <ChevronLeft className="mr-2 h-4 w-4" />
-                      Back
+                      <ChevronLeft className="h-4 w-4" />
                     </Button>
                   )}
 
@@ -1334,10 +1242,7 @@ const Home = () => {
                     type="button"
                     onClick={handleMobilePrimaryAction}
                     disabled={mobilePrimaryDisabled}
-                    className={cn(
-                      "h-12 rounded-2xl",
-                      mobileStep === "company" ? "w-full" : "flex-1",
-                    )}
+                    className="h-12 flex-1 rounded-2xl"
                   >
                     {mobilePrimaryLabel}
                     {!isLoading && mobileStep !== "tailoring" && (
@@ -1346,8 +1251,8 @@ const Home = () => {
                   </Button>
                 </div>
                 {mobileStep === "tailoring" && isOffline && (
-                  <p className="text-center text-xs text-amber-700">
-                    Reconnect to start research. Resume files can still be parsed locally.
+                  <p className="mt-2 text-center text-xs text-amber-700">
+                    Reconnect to start research.
                   </p>
                 )}
               </div>
@@ -1355,12 +1260,12 @@ const Home = () => {
           </div>
         ) : (
           <>
-            <div className="mb-12 text-center">
-              <h1 className="mb-4 text-5xl font-bold tracking-tight">
+            <div className="mb-10 text-center">
+              <h1 className="mb-3 text-4xl font-bold tracking-tight">
                 <span className="text-primary">Prepio</span>
               </h1>
-              <p className="mb-8 text-xl text-muted-foreground">
-                Get insider insights on any company's interview process. Tailored prep for you and your friends.
+              <p className="text-lg text-muted-foreground">
+                Research any company&apos;s interview process and practice with tailored questions.
               </p>
             </div>
 
