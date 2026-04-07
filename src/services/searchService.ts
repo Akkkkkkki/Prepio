@@ -16,6 +16,10 @@ interface CreateSearchParams {
   country?: string;
   roleLinks?: string;
   cv?: string;
+  level?: 'junior' | 'mid' | 'senior_ic' | 'people_manager' | 'unknown';
+  userNote?: string;
+  jobDescription?: string;
+  // Legacy — mapped to level in the edge function
   targetSeniority?: 'junior' | 'mid' | 'senior';
 }
 
@@ -237,16 +241,17 @@ const toCandidateProfileRow = (profile: CandidateProfile) => ({
 
 export const searchService = {
   // Step 1: Create search record only (fast, synchronous)
-  async createSearchRecord({ company, role, country, roleLinks, cv, targetSeniority }: CreateSearchParams) {
+  async createSearchRecord({ company, role, country, roleLinks, cv, level, userNote, jobDescription, targetSeniority }: CreateSearchParams) {
     try {
-      // Get the current user first
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
+
       if (userError || !user) {
         throw new Error("No authenticated user");
       }
 
-      // Create a search record with user_id (status: pending)
+      // Resolve level from new field or legacy targetSeniority
+      const resolvedLevel = level || (targetSeniority === 'senior' ? 'senior_ic' : targetSeniority) || null;
+
       const { data: searchData, error: searchError } = await supabase
         .from("searches")
         .insert({
@@ -255,7 +260,9 @@ export const searchService = {
           role,
           country,
           role_links: roleLinks,
-          target_seniority: targetSeniority,
+          level: resolvedLevel,
+          user_note: userNote || null,
+          job_description: jobDescription || null,
           status: "pending",
         })
         .select()
@@ -271,9 +278,8 @@ export const searchService = {
   },
 
   // Step 2: Start processing asynchronously (can take minutes)
-  async startProcessing(searchId: string, { company, role, country, roleLinks, cv, targetSeniority }: CreateSearchParams) {
+  async startProcessing(searchId: string, { company, role, country, roleLinks, cv, level, userNote, jobDescription, targetSeniority }: CreateSearchParams) {
     try {
-      // Get the current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) {
         throw new Error("No authenticated user");
@@ -287,6 +293,9 @@ export const searchService = {
             country,
             roleLinks: roleLinks ? roleLinks.split("\n").filter(link => link.trim()) : [],
             cv,
+            level: level || (targetSeniority === 'senior' ? 'senior_ic' : targetSeniority) || undefined,
+            userNote,
+            jobDescription,
             targetSeniority,
             userId: user.id,
             searchId,
@@ -419,6 +428,51 @@ export const searchService = {
       };
     } catch (error) {
       console.error("Error getting search results:", error);
+      return { error, success: false };
+    }
+  },
+
+  async getPrepPlan(searchId: string) {
+    try {
+      const { data, error } = await supabase
+        .from("prep_plans")
+        .select("*")
+        .eq("search_id", searchId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      return { prepPlan: data, success: true };
+    } catch (error) {
+      console.error("Error getting prep plan:", error);
+      return { error, success: false };
+    }
+  },
+
+  async dismissBanner(searchId: string) {
+    try {
+      const { error } = await supabase
+        .from("searches")
+        .update({ banner_dismissed: true })
+        .eq("id", searchId);
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error("Error dismissing banner:", error);
+      return { error, success: false };
+    }
+  },
+
+  async saveSelfRating(answerId: string, rating: number) {
+    try {
+      const { error } = await supabase
+        .from("practice_answers")
+        .update({ self_rating: rating })
+        .eq("id", answerId);
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error("Error saving self rating:", error);
       return { error, success: false };
     }
   },
