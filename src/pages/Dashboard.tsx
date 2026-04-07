@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MobileStageCard } from "@/components/dashboard/MobileStageCard";
 import {
   PlayCircle,
   ArrowRight,
@@ -162,26 +164,51 @@ function WeakSignalNotice() {
 
 function AssessmentSignalsCard({ signals }: { signals: AssessmentSignal[] }) {
   if (!signals?.length) return null;
+
+  const high = signals.filter((signal) => signal.importance === "high");
+  const medium = signals.filter((signal) => signal.importance === "medium");
+  const low = signals.filter((signal) => signal.importance === "low");
+
+  const renderGroup = (items: AssessmentSignal[], label: string) => {
+    if (!items.length) return null;
+
+    return (
+      <div className="space-y-2">
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+        {items.map((signal, index) => {
+          const accentClass =
+            signal.importance === "high"
+              ? "border-l-red-400"
+              : signal.importance === "medium"
+                ? "border-l-amber-400"
+                : "border-l-slate-300 dark:border-l-slate-700";
+
+          return (
+            <div key={`${signal.name}-${index}`} className={`rounded-r-xl border-l-2 bg-muted/20 px-3 py-3 ${accentClass}`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium">{signal.name}</p>
+                <Badge className={`text-[10px] ${priorityColor(signal.importance)}`}>
+                  {signal.importance}
+                </Badge>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{signal.rationale}</p>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Key assessment signals</CardTitle>
         <CardDescription>What this employer is most likely evaluating</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {signals.map((signal, i) => (
-            <div key={i} className="flex items-start gap-3">
-              <Badge className={`shrink-0 text-[10px] ${priorityColor(signal.importance)}`}>
-                {signal.importance}
-              </Badge>
-              <div className="min-w-0">
-                <p className="text-sm font-medium">{signal.name}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{signal.rationale}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+      <CardContent className="space-y-4">
+        {renderGroup(high, "Critical signals")}
+        {renderGroup(medium, "Supporting signals")}
+        {renderGroup(low, "Context signals")}
       </CardContent>
     </Card>
   );
@@ -238,17 +265,38 @@ function PrepPrioritiesCard({ priorities }: { priorities: PrepPriority[] }) {
 
 function CandidatePositioningCard({ positioning }: { positioning: CandidatePositioning | null }) {
   if (!positioning) return null;
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const hasContent = positioning.strengthsToLeanOn?.length > 0 ||
     positioning.weakSpotsToAddress?.length > 0 ||
-    positioning.storyCoverageGaps?.length > 0;
+    positioning.storyCoverageGaps?.length > 0 ||
+    positioning.mismatchRisks?.length > 0;
   if (!hasContent) return null;
 
-  const renderList = (items: string[] | undefined, label: string) => {
+  const renderList = ({
+    items,
+    label,
+    subtitle,
+    icon: Icon,
+    iconClassName,
+    sectionClassName,
+  }: {
+    items: string[] | undefined;
+    label: string;
+    subtitle: string;
+    icon: typeof CheckCircle2;
+    iconClassName: string;
+    sectionClassName: string;
+  }) => {
     if (!items?.length) return null;
     return (
-      <div className="space-y-1.5">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+      <div className={`space-y-3 rounded-xl p-3 ${sectionClassName}`}>
+        <div className="flex items-start gap-3">
+          <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${iconClassName}`} />
+          <div className="space-y-1">
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
+          </div>
+        </div>
         <ul className="space-y-1">
           {items.map((item, i) => (
             <li key={i} className="text-sm text-foreground/85">{item}</li>
@@ -266,30 +314,129 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
             <CardTitle className="text-base">Your positioning</CardTitle>
             <CardDescription>How your background maps to the assessment</CardDescription>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setExpanded(!expanded)}
+            aria-expanded={expanded}
+            aria-label={expanded ? "Collapse positioning details" : "Expand positioning details"}
+          >
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
         </div>
       </CardHeader>
       {expanded && (
         <CardContent className="space-y-4">
-          {renderList(positioning.strengthsToLeanOn, "Lean on")}
-          {renderList(positioning.weakSpotsToAddress, "Address")}
-          {renderList(positioning.storyCoverageGaps, "Story gaps")}
-          {renderList(positioning.mismatchRisks, "Mismatch risks")}
+          {renderList({
+            items: positioning.strengthsToLeanOn,
+            label: "Lean on",
+            subtitle: "Highlight these in your answers",
+            icon: CheckCircle2,
+            iconClassName: "text-green-600",
+            sectionClassName: "bg-green-50 dark:bg-green-950/40",
+          })}
+          {renderList({
+            items: positioning.weakSpotsToAddress,
+            label: "Address",
+            subtitle: "Prepare responses for these gaps",
+            icon: AlertTriangle,
+            iconClassName: "text-amber-600",
+            sectionClassName: "bg-amber-50 dark:bg-amber-950/40",
+          })}
+          {renderList({
+            items: positioning.storyCoverageGaps,
+            label: "Story gaps",
+            subtitle: "Find examples to cover these",
+            icon: Search,
+            iconClassName: "text-blue-600",
+            sectionClassName: "bg-blue-50 dark:bg-blue-950/40",
+          })}
+          {renderList({
+            items: positioning.mismatchRisks,
+            label: "Mismatch risks",
+            subtitle: "Be ready if these come up",
+            icon: AlertCircle,
+            iconClassName: "text-red-600",
+            sectionClassName: "bg-red-50 dark:bg-red-950/40",
+          })}
         </CardContent>
       )}
     </Card>
   );
 }
 
+function ReadinessSummaryStrip({
+  stageCount,
+  selectedStageCount,
+  selectedQuestionCount,
+  topFocus,
+}: {
+  stageCount: number;
+  selectedStageCount: number;
+  selectedQuestionCount: number;
+  topFocus: string | null;
+}) {
+  const cells = [
+    {
+      title: `${stageCount} stage${stageCount === 1 ? "" : "s"} identified`,
+      subtitle: `${selectedStageCount} selected`,
+    },
+    {
+      title: `${selectedQuestionCount} practice question${selectedQuestionCount === 1 ? "" : "s"}`,
+      subtitle: "Ready across selected stages",
+    },
+    {
+      title: "Top focus area",
+      subtitle: topFocus || "No high-priority focus yet",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+      {cells.map((cell) => (
+        <div key={cell.title} className="rounded-2xl border bg-muted/30 px-4 py-3">
+          <p className="text-sm font-medium text-foreground">{cell.title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{cell.subtitle}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function StageRoadmapCard({
   stages,
   onToggle,
+  isMobile,
 }: {
   stages: InterviewStage[];
   onToggle: (id: string) => void;
+  isMobile: boolean;
 }) {
+  if (isMobile) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Stage roadmap</CardTitle>
+          <CardDescription>Select stages to include in your practice session</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {stages.map((stage, index) => (
+              <MobileStageCard
+                key={stage.id}
+                stage={stage}
+                index={index}
+                questionCount={stage.questions?.length || 0}
+                selected={stage.selected}
+                onToggle={onToggle}
+              />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -297,24 +444,27 @@ function StageRoadmapCard({
         <CardDescription>Select stages to include in your practice session</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <Accordion type="multiple" className="space-y-4">
           {stages.map((stage, index) => (
-            <div
+            <AccordionItem
               key={stage.id}
-              className={`rounded-xl border p-4 transition-colors ${
+              value={stage.id}
+              className={`rounded-xl border px-4 transition-colors ${
                 stage.selected ? "border-primary/30 bg-primary/5" : ""
               }`}
             >
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  checked={stage.selected}
-                  onCheckedChange={() => onToggle(stage.id)}
-                  className="mt-1"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
+              <div className="flex items-center gap-3 py-4">
+                <div className="shrink-0">
+                  <Checkbox
+                    checked={stage.selected}
+                    onCheckedChange={() => onToggle(stage.id)}
+                    aria-label={`${stage.selected ? "Deselect" : "Select"} ${stage.name}`}
+                  />
+                </div>
+                <AccordionTrigger className="py-0 hover:no-underline">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 pr-4">
                     <Badge variant="outline" className="text-[10px]">Stage {index + 1}</Badge>
-                    <h3 className="text-sm font-semibold">{stage.name}</h3>
+                    <h3 className="min-w-0 text-sm font-semibold">{stage.name}</h3>
                     {stage.confidence && (
                       <Badge className={`text-[10px] ${confidenceColor(stage.confidence)}`}>
                         {stage.confidence} confidence
@@ -325,51 +475,76 @@ function StageRoadmapCard({
                         {stage.prep_priority} priority
                       </Badge>
                     )}
+                    <span className="text-xs text-muted-foreground">
+                      {stage.questions?.length || 0} question{(stage.questions?.length || 0) === 1 ? "" : "s"}
+                    </span>
                   </div>
-
+                </AccordionTrigger>
+              </div>
+              <AccordionContent className="pb-4 pt-1">
+                <div className="space-y-4 rounded-xl bg-muted/20 p-4">
                   {stage.what_it_tests && stage.what_it_tests.length > 0 && (
-                    <p className="text-xs text-muted-foreground mb-2">
-                      <span className="font-medium">Tests:</span> {stage.what_it_tests.join(", ")}
-                    </p>
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        Tests
+                      </p>
+                      <p className="text-sm text-foreground/85">{stage.what_it_tests.join(", ")}</p>
+                    </div>
                   )}
 
                   {stage.why_likely && (
-                    <p className="text-xs text-muted-foreground mb-2">{stage.why_likely}</p>
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        Why likely
+                      </p>
+                      <p className="text-sm text-foreground/85">{stage.why_likely}</p>
+                    </div>
                   )}
 
                   {stage.question_themes && stage.question_themes.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {stage.question_themes.map((theme, i) => (
-                        <Badge key={i} variant="secondary" className="text-[10px]">{theme}</Badge>
-                      ))}
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        Question themes
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {stage.question_themes.map((theme, i) => (
+                          <Badge key={i} variant="secondary" className="text-[10px]">{theme}</Badge>
+                        ))}
+                      </div>
                     </div>
                   )}
 
                   {stage.prep_actions && stage.prep_actions.length > 0 && (
-                    <ul className="space-y-1 mt-2">
-                      {stage.prep_actions.map((action, i) => (
-                        <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                          <ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
-                          {action}
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        Prep actions
+                      </p>
+                      <ul className="space-y-1">
+                        {stage.prep_actions.map((action, i) => (
+                          <li key={i} className="flex items-start gap-1.5 text-sm text-foreground/85">
+                            <ArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-primary" />
+                            {action}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
 
                   {stage.low_confidence_guidance && (
-                    <p className="mt-2 text-xs italic text-amber-600 dark:text-amber-400">
-                      {stage.low_confidence_guidance}
-                    </p>
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        Low-confidence guidance
+                      </p>
+                      <p className="text-sm italic text-amber-700 dark:text-amber-400">
+                        {stage.low_confidence_guidance}
+                      </p>
+                    </div>
                   )}
-
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {stage.questions?.length || 0} question{(stage.questions?.length || 0) === 1 ? "" : "s"}
-                  </p>
                 </div>
-              </div>
-            </div>
+              </AccordionContent>
+            </AccordionItem>
           ))}
-        </div>
+        </Accordion>
       </CardContent>
     </Card>
   );
@@ -477,6 +652,7 @@ const Dashboard = () => {
     .filter(s => s.selected)
     .reduce((acc, s) => acc + (s.questions?.length || 0), 0);
   const selectedStageCount = stages.filter(s => s.selected).length;
+  const topFocus = prepPlan?.prep_priorities?.find((priority) => priority.priority === "high")?.label || null;
 
   const startPractice = () => {
     if (isOffline) return;
@@ -650,6 +826,13 @@ const Dashboard = () => {
         </div>
       </header>
 
+      <ReadinessSummaryStrip
+        stageCount={stages.length}
+        selectedStageCount={selectedStageCount}
+        selectedQuestionCount={selectedQuestionCount}
+        topFocus={topFocus}
+      />
+
       {/* Completion banner */}
       {showBanner && searchData?.company && (
         <CompletionBanner company={searchData.company} onDismiss={handleDismissBanner} />
@@ -665,16 +848,23 @@ const Dashboard = () => {
       )}
 
       {/* Assessment signals + Prep priorities */}
-      <div className={isMobile ? "space-y-4" : "grid grid-cols-2 gap-6"}>
-        <AssessmentSignalsCard signals={assessmentSignals} />
-        <PrepPrioritiesCard priorities={prepPriorities} />
-      </div>
+      {isMobile ? (
+        <div className="space-y-4">
+          <PrepPrioritiesCard priorities={prepPriorities} />
+          <AssessmentSignalsCard signals={assessmentSignals} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-6">
+          <AssessmentSignalsCard signals={assessmentSignals} />
+          <PrepPrioritiesCard priorities={prepPriorities} />
+        </div>
+      )}
 
       {/* Candidate positioning */}
       <CandidatePositioningCard positioning={candidatePositioning} />
 
       {/* Stage roadmap */}
-      <StageRoadmapCard stages={stages} onToggle={handleStageToggle} />
+      <StageRoadmapCard stages={stages} onToggle={handleStageToggle} isMobile={isMobile} />
     </>
   );
 
@@ -699,7 +889,9 @@ const Dashboard = () => {
                 {isOffline
                   ? "Reconnect to launch practice."
                   : selectedQuestionCount > 0
-                  ? "Start practice when the mix looks right."
+                  ? topFocus
+                    ? `Focus: ${topFocus}`
+                    : "Start practice when the mix looks right."
                   : "Select at least one stage to unlock practice."}
               </p>
             </div>
