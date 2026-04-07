@@ -579,17 +579,17 @@ const Auth = () => {
         }
       : authView === "reset-password"
         ? {
-            title: "Reset your password",
-            description: "Send a recovery email without losing your place in the app.",
+            title: "Reset password",
+            description: "We'll send a recovery link to your email.",
           }
         : authView === "resend-verification"
           ? {
-              title: "Resend verification email",
-              description: "Use the latest verification email so the sign-in flow stays predictable.",
+              title: "Resend verification",
+              description: "Check your inbox for the latest link.",
             }
           : {
               title: "Welcome",
-              description: "Sign in or create an account to continue.",
+              description: resumeTarget ? `Sign in to continue.` : "Sign in or create an account.",
             };
 
   return (
@@ -608,9 +608,6 @@ const Auth = () => {
             <h1 className="text-3xl font-bold tracking-tight">
               <span className="text-primary">Prepio</span>
             </h1>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Sign in to access your interview research, practice history, and saved prep.
-            </p>
           </div>
 
           <Card>
