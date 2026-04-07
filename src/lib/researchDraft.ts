@@ -54,6 +54,10 @@ const isLevel = (value: unknown): value is Level =>
 const normalizeString = (value: unknown) => (typeof value === "string" ? value : "");
 
 export const getAuthIntentFromPath = (pathname: string): AuthIntent | undefined => {
+  if (pathname === "/profile" || pathname.startsWith("/profile/")) {
+    return "profile";
+  }
+
   switch (pathname) {
     case "/":
       return "research";
@@ -61,8 +65,6 @@ export const getAuthIntentFromPath = (pathname: string): AuthIntent | undefined 
       return "practice";
     case "/dashboard":
       return "dashboard";
-    case "/profile":
-      return "profile";
     default:
       return pathname.startsWith("/search/") ? "dashboard" : undefined;
   }

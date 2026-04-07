@@ -137,7 +137,13 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
     }
   };
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => {
+    if (path === "/") {
+      return location.pathname === path;
+    }
+
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  };
 
   const getCurrentSearchDisplay = () => {
     if (!currentSearchId) return "Choose research";

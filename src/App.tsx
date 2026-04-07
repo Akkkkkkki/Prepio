@@ -108,7 +108,7 @@ const App = () => (
               }
             />
             <Route
-              path="/profile"
+              path="/profile/*"
               element={
                 <ProtectedRoute>
                   <RouteElement>

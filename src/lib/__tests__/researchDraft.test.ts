@@ -97,6 +97,7 @@ describe("getAuthIntentFromPath", () => {
     expect(getAuthIntentFromPath("/practice")).toBe("practice");
     expect(getAuthIntentFromPath("/dashboard")).toBe("dashboard");
     expect(getAuthIntentFromPath("/profile")).toBe("profile");
+    expect(getAuthIntentFromPath("/profile/import")).toBe("profile");
   });
 
   it("maps /search/:id paths to dashboard", () => {
