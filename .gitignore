@@ -11,6 +11,9 @@ lerna-debug.log*
 supabase/functions/logs/
 supabase/functions/**/logs/
 
+# Supabase CLI temp files
+supabase/.temp/
+
 # Dependencies
 node_modules
 
