@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthContext } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import {
   Home, 
   BarChart3, 
   Play, 
+  ClipboardList,
   User, 
   History,
   LogOut,
@@ -18,7 +19,7 @@ import {
   AlertCircle,
   ChevronDown
 } from "lucide-react";
-import { searchService } from "@/services/searchService";
+import { useSearchHistory } from "@/hooks/useSearchHistory";
 
 interface NavigationProps {
   showHistory?: boolean;
@@ -41,43 +42,19 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
   const currentSearchId = searchParams.get('searchId');
   const { signOut, user } = useAuthContext();
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [historyError, setHistoryError] = useState<string | null>(null);
+  const {
+    data: searchHistory = [],
+    isLoading: isLoadingHistory,
+    error: historyError,
+  } = useSearchHistory(Boolean(user));
 
   const navigationItems = [
     { path: "/", label: "Home", icon: Home },
     { path: "/dashboard", label: "Dashboard", icon: BarChart3 },
     { path: "/practice", label: "Practice", icon: Play },
+    { path: "/history", label: "History", icon: ClipboardList },
     { path: "/profile", label: "Profile", icon: User },
   ];
-
-  // Load search history when component mounts and user is authenticated
-  useEffect(() => {
-    const loadSearchHistory = async () => {
-      if (!user) return;
-
-      setIsLoadingHistory(true);
-      setHistoryError(null);
-
-      try {
-        const result = await searchService.getSearchHistory();
-        
-        if (result.success && result.searches) {
-          setSearchHistory(result.searches);
-        } else {
-          setHistoryError("Failed to load search history");
-        }
-      } catch (err) {
-        console.error("Error loading search history:", err);
-        setHistoryError("Failed to load search history");
-      } finally {
-        setIsLoadingHistory(false);
-      }
-    };
-
-    loadSearchHistory();
-  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -86,6 +63,11 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
 
   const handleHistoryItemClick = (searchItem: SearchHistoryItem) => {
     navigate(`/dashboard?searchId=${searchItem.id}`);
+    setIsHistoryOpen(false);
+  };
+
+  const handlePracticeNeedsWork = (searchItem: SearchHistoryItem) => {
+    navigate(`/practice?searchId=${searchItem.id}&focus=needs_work`);
     setIsHistoryOpen(false);
   };
 
@@ -221,7 +203,7 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                       ) : historyError ? (
                         <div className="flex items-center gap-2 p-3 border border-red-200 rounded-lg bg-red-50">
                           <AlertCircle className="h-4 w-4 text-red-600" />
-                          <span className="text-sm text-red-800">{historyError}</span>
+                          <span className="text-sm text-red-800">Failed to load search history</span>
                         </div>
                       ) : searchHistory.length === 0 ? (
                         <div className="text-center py-8">
@@ -234,20 +216,36 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                           {searchHistory.map((item) => (
                             <div
                               key={item.id}
-                              className="p-3 border rounded-lg cursor-pointer hover:bg-muted transition-colors"
-                              onClick={() => handleHistoryItemClick(item)}
+                              className="space-y-3 rounded-lg border p-3 transition-colors hover:bg-muted"
                             >
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="font-medium truncate">{item.company}</div>
-                                {getStatusBadge(item.status)}
+                              <div
+                                className="cursor-pointer"
+                                onClick={() => handleHistoryItemClick(item)}
+                              >
+                                <div className="mb-2 flex items-start justify-between">
+                                  <div className="font-medium truncate">{item.company}</div>
+                                  {getStatusBadge(item.status)}
+                                </div>
+                                {item.role && (
+                                  <div className="mb-1 text-sm text-muted-foreground">{item.role}</div>
+                                )}
+                                {item.country && (
+                                  <div className="mb-1 text-xs text-muted-foreground">{item.country}</div>
+                                )}
+                                <div className="text-xs text-muted-foreground">{formatDate(item.created_at)}</div>
                               </div>
-                              {item.role && (
-                                <div className="text-sm text-muted-foreground mb-1">{item.role}</div>
+
+                              {item.status === "completed" && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full"
+                                  onClick={() => handlePracticeNeedsWork(item)}
+                                >
+                                  Practice flagged questions
+                                </Button>
                               )}
-                              {item.country && (
-                                <div className="text-xs text-muted-foreground mb-1">{item.country}</div>
-                              )}
-                              <div className="text-xs text-muted-foreground">{formatDate(item.created_at)}</div>
                             </div>
                           ))}
                         </div>
@@ -330,6 +328,10 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
                           <span className="text-xs text-muted-foreground">Loading...</span>
                         </div>
+                      ) : historyError ? (
+                        <div className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+                          Failed to load search history
+                        </div>
                       ) : searchHistory.length === 0 ? (
                         <div className="text-center py-4">
                           <p className="text-xs text-muted-foreground">No searches yet</p>
@@ -339,15 +341,30 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                           {searchHistory.slice(0, 3).map((item) => (
                             <div
                               key={item.id}
-                              className="p-2 border rounded cursor-pointer hover:bg-muted text-sm"
-                              onClick={() => handleHistoryItemClick(item)}
+                              className="space-y-2 rounded border p-2 text-sm"
                             >
-                              <div className="flex items-center justify-between">
-                                <div className="font-medium truncate">{item.company}</div>
-                                {getStatusBadge(item.status)}
+                              <div
+                                className="cursor-pointer hover:bg-muted"
+                                onClick={() => handleHistoryItemClick(item)}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="font-medium truncate">{item.company}</div>
+                                  {getStatusBadge(item.status)}
+                                </div>
+                                {item.role && (
+                                  <div className="text-xs text-muted-foreground">{item.role}</div>
+                                )}
                               </div>
-                              {item.role && (
-                                <div className="text-xs text-muted-foreground">{item.role}</div>
+                              {item.status === "completed" && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full"
+                                  onClick={() => handlePracticeNeedsWork(item)}
+                                >
+                                  Practice flagged questions
+                                </Button>
                               )}
                             </div>
                           ))}

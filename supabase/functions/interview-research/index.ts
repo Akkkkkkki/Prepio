@@ -1219,6 +1219,151 @@ function getUnifiedSynthesisSchema(): any {
   };
 }
 
+function getPrepPlanConfidence(overallFitScore?: number | null) {
+  if ((overallFitScore || 0) >= 75) return "high";
+  if ((overallFitScore || 0) >= 45) return "medium";
+  return "low";
+}
+
+function normalizePrepPriority(index: number) {
+  if (index < 2) return "high";
+  if (index < 5) return "medium";
+  return "low";
+}
+
+function buildPrepPlanRecord({
+  company,
+  role,
+  rawData,
+  synthesis,
+}: {
+  company: string;
+  role?: string;
+  rawData: RawResearchData;
+  synthesis: UnifiedSynthesisOutput;
+}) {
+  const overallFitScore = synthesis.comparison_analysis?.overall_fit_score || 0;
+  const overallConfidence = getPrepPlanConfidence(overallFitScore);
+  const strengths =
+    synthesis.comparison_analysis?.interview_prep_strategy?.strengths_to_emphasize || [];
+  const weaknesses =
+    synthesis.comparison_analysis?.interview_prep_strategy?.weaknesses_to_address || [];
+  const missingExperience =
+    synthesis.comparison_analysis?.experience_gap_analysis?.missing_experience || [];
+  const missingTechnicalSkills =
+    synthesis.comparison_analysis?.skill_gap_analysis?.missing_skills?.technical || [];
+  const missingSoftSkills =
+    synthesis.comparison_analysis?.skill_gap_analysis?.missing_skills?.soft || [];
+  const preparationPriorities =
+    synthesis.preparation_guidance?.preparation_priorities || [];
+  const stages = synthesis.interview_stages || [];
+  const weakSignalCase =
+    stages.length < 3 ||
+    (!rawData.company_research_raw && !rawData.job_analysis_raw);
+
+  const assessmentSignals = [
+    ...strengths.slice(0, 2).map((signal: string) => ({
+      name: signal,
+      importance: "high",
+      rationale: "Your background already gives you usable signal here. Prepare to lean on it clearly.",
+    })),
+    ...missingTechnicalSkills.slice(0, 2).map((signal: string) => ({
+      name: signal,
+      importance: "medium",
+      rationale: "This appears in the role requirements and may come up in depth follow-ups.",
+    })),
+    ...missingSoftSkills.slice(0, 1).map((signal: string) => ({
+      name: signal,
+      importance: "low",
+      rationale: "This is less likely to dominate the interview, but it still affects your overall story.",
+    })),
+  ].slice(0, 5);
+
+  const stageRoadmap = stages.map((stage: any, index: number) => ({
+    stageName: stage.name,
+    orderIndex: stage.order_index || index + 1,
+    confidence: overallConfidence,
+    whatItTests: stage.common_questions?.slice(0, 3) || [],
+    whyLikely: stage.content || "",
+    prepPriority: normalizePrepPriority(index),
+    questionThemes: stage.common_questions?.slice(0, 4) || [],
+    prepActions: stage.preparation_tips?.slice(0, 4) || [],
+    lowConfidenceGuidance: weakSignalCase
+      ? "Limited public interview evidence was available. Prepare flexible stories for this stage."
+      : null,
+  }));
+
+  const prepPriorities = preparationPriorities.map((priority: string, index: number) => ({
+    label: priority,
+    priority: normalizePrepPriority(index),
+    whyItMatters: index === 0
+      ? "This is the highest-leverage prep area based on the synthesized job and background match."
+      : "This is likely to improve answer quality in later follow-ups.",
+    recommendedActions: [
+      ...(synthesis.preparation_guidance?.preparation_timeline?.week_before || []).slice(index, index + 1),
+      ...(synthesis.preparation_guidance?.preparation_timeline?.day_before || []).slice(index, index + 1),
+    ].filter(Boolean),
+  }));
+
+  const questionEntries = Object.entries(synthesis.interview_questions_data || {})
+    .flatMap(([category, questions]: [string, any]) =>
+      Array.isArray(questions)
+        ? questions.map((question: any, index: number) => ({
+            category,
+            index,
+            question,
+          }))
+        : [],
+    );
+
+  const toQuestionPlanItem = (entry: { category: string; question: any }, priorityLabel?: string) => ({
+    question: entry.question.question,
+    stageName:
+      entry.category === "behavioral" || entry.category === "cultural_fit"
+        ? stages[0]?.name ?? null
+        : entry.category === "technical" || entry.category === "role_specific"
+          ? stages[1]?.name ?? stages[0]?.name ?? null
+          : stages[2]?.name ?? stages[stages.length - 1]?.name ?? null,
+    linkedPriority: priorityLabel || prepPriorities[0]?.label || "General preparation",
+    reason: entry.question.company_context || entry.question.rationale || "This question was synthesized from the role, company, and background match.",
+    answerGuidanceStatus: entry.question.suggested_answer_approach ? "generated" : "pending",
+  });
+
+  const coreEntries = questionEntries
+    .filter((entry) => ["behavioral", "technical", "role_specific"].includes(entry.category))
+    .slice(0, 6);
+  const followUpEntries = questionEntries
+    .filter((entry) => ["situational", "experience_based", "company_specific", "cultural_fit"].includes(entry.category))
+    .slice(0, 6);
+  const extraDepthEntries = questionEntries
+    .filter((entry) => !coreEntries.includes(entry) && !followUpEntries.includes(entry))
+    .slice(0, 6);
+
+  return {
+    summary: {
+      company,
+      roleName: role || null,
+      overallConfidence,
+      weakSignalCase,
+      overallFitScore,
+    },
+    assessment_signals: assessmentSignals,
+    stage_roadmap: stageRoadmap,
+    prep_priorities: prepPriorities,
+    candidate_positioning: {
+      strengthsToLeanOn: strengths,
+      weakSpotsToAddress: weaknesses,
+      storyCoverageGaps: missingExperience.map((item: any) => item.requirement).filter(Boolean),
+      mismatchRisks: [...missingTechnicalSkills, ...missingSoftSkills].slice(0, 6),
+    },
+    question_plan: {
+      coreMustPractice: coreEntries.map((entry, index) => toQuestionPlanItem(entry, prepPriorities[index]?.label)),
+      likelyFollowUps: followUpEntries.map((entry, index) => toQuestionPlanItem(entry, prepPriorities[index + 1]?.label)),
+      extraDepth: extraDepthEntries.map((entry) => toQuestionPlanItem(entry)),
+    },
+  };
+}
+
 // ============================================================
 // PHASE 3: Database Operations with Timeout Protection
 // ============================================================
@@ -1243,6 +1388,8 @@ async function saveToDatabase(
   supabase: any,
   searchId: string,
   userId: string,
+  company: string,
+  role: string | undefined,
   rawData: RawResearchData,
   synthesis: UnifiedSynthesisOutput
 ) {
@@ -1463,7 +1610,34 @@ async function saveToDatabase(
       console.warn(`⚠️ WARNING: Only ${totalQuestionsCount} questions were saved. Expected 30-50 questions.`);
     }
 
-    // CHECKPOINT 5: Update search status
+    // CHECKPOINT 5: Save prep plan for dashboard and practice guidance
+    console.log("  → Saving prep plan...");
+    const prepPlanRecord = buildPrepPlanRecord({
+      company,
+      role,
+      rawData,
+      synthesis,
+    });
+
+    await withDbTimeout(
+      async () => {
+        const { error } = await supabase
+          .from("prep_plans")
+          .upsert({
+            search_id: searchId,
+            user_id: userId,
+            ...prepPlanRecord,
+          }, { onConflict: "search_id" });
+
+        if (error) throw error;
+        return true;
+      },
+      "Save prep plan"
+    );
+
+    console.log("✅ Prep plan saved");
+
+    // CHECKPOINT 6: Update search status
     console.log("  → Updating search status...");
     await withDbTimeout(
       async () => {
@@ -1713,7 +1887,15 @@ serve(async (req: Request) => {
     logger?.log("PHASE_START", "DATABASE_SAVE");
     await tracker.updateStep('QUESTION_GENERATION_START');
 
-    await saveToDatabase(supabase, searchId, userId, rawData, finalSynthesis);
+    await saveToDatabase(
+      supabase,
+      searchId,
+      userId,
+      requestData.company,
+      requestData.role,
+      rawData,
+      finalSynthesis,
+    );
 
     console.log("✅ PHASE 4 Complete");
     logger?.log("PHASE_COMPLETE", "DATABASE_SAVE");

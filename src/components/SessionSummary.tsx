@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle, Star, SkipForward, Loader2 } from "lucide-react";
+import type { SavedPracticeAnswerRecord } from "@/hooks/usePracticeSession";
 
 interface SessionSummaryProps {
   answeredCount: number;
@@ -16,6 +17,9 @@ interface SessionSummaryProps {
   onStartNewSession: () => void;
   onBackToDashboard: () => void;
   isSaving?: boolean;
+  savedAnswers?: SavedPracticeAnswerRecord[];
+  onRateAnswer?: (answerId: string, rating: number) => Promise<void>;
+  isSavingRating?: boolean;
 }
 
 export const SessionSummary = ({
@@ -29,6 +33,9 @@ export const SessionSummary = ({
   onStartNewSession,
   onBackToDashboard,
   isSaving = false,
+  savedAnswers = [],
+  onRateAnswer,
+  isSavingRating = false,
 }: SessionSummaryProps) => {
   const [sessionNotes, setSessionNotes] = useState("");
   const [notesSaved, setNotesSaved] = useState(false);
@@ -137,6 +144,59 @@ export const SessionSummary = ({
           )}
         </div>
 
+        {savedAnswers.length > 0 && onRateAnswer && (
+          <div className="space-y-3 text-left">
+            <div>
+              <label className="text-sm font-medium">Self-rate each answer</label>
+              <p className="text-sm text-muted-foreground">
+                Use 1 to 5 stars so your weaker answers are easier to revisit later.
+              </p>
+            </div>
+            <div className="space-y-3">
+              {savedAnswers.map((answer) => (
+                <div key={answer.id} className="rounded-2xl border bg-background p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {answer.stageName}
+                    </span>
+                    {answer.audioUrl && (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                        Voice saved
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-2 text-sm font-medium">{answer.question}</p>
+                  <div className="mt-3 flex gap-1">
+                    {[1, 2, 3, 4, 5].map((rating) => (
+                      <button
+                        key={`${answer.id}-${rating}`}
+                        type="button"
+                        className="rounded-full border p-2 transition hover:border-primary disabled:opacity-60"
+                        aria-label={`Rate ${answer.question} ${rating} stars`}
+                        disabled={isSavingRating}
+                        onClick={() => onRateAnswer(answer.id, rating)}
+                      >
+                        <Star
+                          className={`h-4 w-4 ${
+                            (answer.selfRating ?? 0) >= rating
+                              ? "fill-current text-amber-500"
+                              : "text-muted-foreground"
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  {(answer.textAnswer || answer.transcriptText) && (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {answer.textAnswer || answer.transcriptText}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="space-y-3 pt-4">
           <Button
@@ -159,4 +219,3 @@ export const SessionSummary = ({
     </Card>
   );
 };
-

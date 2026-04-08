@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSwipeable } from "react-swipeable";
 import Navigation from "@/components/Navigation";
@@ -7,8 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   ChevronLeft, 
@@ -25,11 +23,8 @@ import {
   Mic,
   MicOff,
   Square,
-  Filter,
-  Shuffle,
   Star,
   ArrowLeft,
-  ArrowRight,
   Info
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
@@ -41,6 +36,9 @@ import { HintBanner } from "@/components/practice/HintBanner";
 import { BottomPracticeNav } from "@/components/practice/BottomPracticeNav";
 import { PracticeHelperDrawer } from "@/components/practice/PracticeHelperDrawer";
 import { QuestionInsightsPanel } from "@/components/practice/QuestionInsightsPanel";
+import { PracticeSetupWizard } from "@/components/practice/PracticeSetupWizard";
+import { VoiceRecorder } from "@/components/practice/VoiceRecorder";
+import { usePracticeSession } from "@/hooks/usePracticeSession";
 
 const SWIPE_THRESHOLD_PX = 60;
 const VERTICAL_SCROLL_SUPPRESSION_DELTA = 12;
@@ -164,6 +162,7 @@ const Practice = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchId = searchParams.get('searchId');
   const urlStageIds = searchParams.get('stages')?.split(',') || [];
+  const focusMode = searchParams.get("focus");
   const swipeHintStorageKey = useMemo(
     () => `${SWIPE_HINT_STORAGE_PREFIX}:${searchId ?? 'global'}`,
     [searchId]
@@ -174,19 +173,17 @@ const Practice = () => {
   const [searchData, setSearchData] = useState<{ status: string; company?: string; role?: string } | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Map<string, string>>(new Map());
-  const [questionTimers, setQuestionTimers] = useState<Map<string, number>>(new Map());
-  const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(Date.now());
-  const [timerTick, setTimerTick] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [isSavingRating, setIsSavingRating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [practiceSession, setPracticeSession] = useState<PracticeSession | null>(null);
-  const [savedAnswers, setSavedAnswers] = useState<Map<string, boolean>>(new Map());
   
   // Question flags (Epic 1.3)
   const [questionFlags, setQuestionFlags] = useState<Record<string, { flag_type: string; id: string }>>({});
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [showNeedsWorkOnly, setShowNeedsWorkOnly] = useState(focusMode === "needs_work");
   
   // Enhanced question filtering - applied filters (used during session)
   const [appliedCategories, setAppliedCategories] = useState<string[]>([]);
@@ -227,12 +224,23 @@ const Practice = () => {
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [hasRecording, setHasRecording] = useState(false);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Swipe gesture states
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const [swipeDelta, setSwipeDelta] = useState(0);
+  const {
+    currentQuestionTime,
+    questionTimers,
+    savedAnswers,
+    savedAnswerRecords,
+    markAnswerSaved,
+    resetCurrentQuestionTimer,
+    resetSessionState,
+    updateAnswerRating,
+  } = usePracticeSession(questions[currentIndex]?.id);
 
   const loadPracticeDefaults = () => {
     if (typeof window === "undefined") return false;
@@ -473,9 +481,9 @@ const getInterviewerFocus = (
     }
   }, [allStages]); // Only reload flags when stages change
 
-  // Load practice session when stages are selected
+  // Load practice questions when stages or filters change
   useEffect(() => {
-    const loadPracticeSession = async () => {
+    const loadPracticeQuestions = async () => {
       if (!searchId) return;
 
       const selectedStages = allStages.filter(stage => stage.selected);
@@ -536,10 +544,16 @@ const getInterviewerFocus = (
           );
         }
         
-        // Filter by favorites only (Epic 1.3) - uses questionFlags from separate effect
+        // Filter by favorites only
         if (showFavoritesOnly) {
           filteredQuestions = filteredQuestions.filter(q => 
             questionFlags[q.id]?.flag_type === 'favorite'
+          );
+        }
+
+        if (showNeedsWorkOnly) {
+          filteredQuestions = filteredQuestions.filter(
+            (question) => questionFlags[question.id]?.flag_type === "needs_work",
           );
         }
         
@@ -561,17 +575,8 @@ const getInterviewerFocus = (
         }
         
         setQuestions(processedQuestions);
-
-        // Create practice session if questions exist
-        if (processedQuestions.length > 0) {
-          const sessionResult = await searchService.createPracticeSession(searchId);
-          
-          if (sessionResult.success && sessionResult.session) {
-            setPracticeSession(sessionResult.session);
-          }
-        }
       } catch (err) {
-        console.error("Error loading practice session:", err);
+        console.error("Error loading practice questions:", err);
         setError("An unexpected error occurred while loading practice questions");
       } finally {
         setIsLoading(false);
@@ -579,18 +584,28 @@ const getInterviewerFocus = (
     };
 
     if (allStages.length > 0) {
-      loadPracticeSession();
+      loadPracticeQuestions();
     }
-  }, [allStages, appliedCategories, appliedDifficulties, appliedShuffle, searchId, useSampling, sampleSize, showFavoritesOnly]);
+  }, [
+    allStages,
+    appliedCategories,
+    appliedDifficulties,
+    appliedShuffle,
+    questionFlags,
+    searchId,
+    showFavoritesOnly,
+    showNeedsWorkOnly,
+    useSampling,
+    sampleSize,
+  ]);
 
-  // Reset timer when question changes
+  // Reset recorder when changing questions
   useEffect(() => {
-    setCurrentQuestionStartTime(Date.now());
-    // Reset recording state when changing questions
     setIsRecording(false);
     setRecordingTime(0);
     setAudioBlob(null);
     setHasRecording(false);
+    setRecordingError(null);
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
@@ -696,10 +711,6 @@ const getInterviewerFocus = (
     }
   };
 
-  const getCurrentQuestionTime = () => {
-    return Math.floor((Date.now() - currentQuestionStartTime) / 1000);
-  };
-
   const handleAnswerChange = (value: string) => {
     const newAnswers = new Map(answers);
     newAnswers.set(currentQuestion.id, value);
@@ -708,8 +719,17 @@ const getInterviewerFocus = (
 
   const startRecording = async () => {
     try {
+      setRecordingError(null);
+      setAudioBlob(null);
+      setHasRecording(false);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const preferredMimeType =
+        typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : undefined;
+      const mediaRecorder = preferredMimeType
+        ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       
       const audioChunks: BlobPart[] = [];
@@ -719,7 +739,7 @@ const getInterviewerFocus = (
       };
       
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
         setAudioBlob(audioBlob);
         setHasRecording(true);
         
@@ -732,7 +752,7 @@ const getInterviewerFocus = (
       setRecordingTime(0);
     } catch (error) {
       console.error('Error starting recording:', error);
-      alert('Could not access microphone. Please check permissions.');
+      setRecordingError('Could not access your microphone. Check browser permissions and try again.');
     }
   };
 
@@ -754,9 +774,10 @@ const getInterviewerFocus = (
     setAudioBlob(null);
     setHasRecording(false);
     setRecordingTime(0);
+    setRecordingError(null);
   };
 
-  const handleBeginSession = () => {
+  const handleBeginSession = async () => {
     // Apply temporary filters to active filters
     setAppliedCategories(tempCategories);
     setAppliedDifficulties(tempDifficulties);
@@ -775,7 +796,14 @@ const getInterviewerFocus = (
     setIsVerticalScrollGuarded(false);
     setSetupStep(0);
     setSelectedPreset(null);
-    
+
+    const sessionResult = await searchService.createPracticeSession(searchId!);
+    if (!sessionResult.success || !sessionResult.session) {
+      setError("We couldn't start the practice session. Please try again.");
+      return;
+    }
+
+    setPracticeSession(sessionResult.session);
     setUseSampling(true);
     setSessionState('inProgress');
     setCurrentIndex(0);
@@ -787,14 +815,15 @@ const getInterviewerFocus = (
     setUseSampling(false);
     setCurrentIndex(0);
     setAnswers(new Map());
-    setQuestionTimers(new Map());
-    setSavedAnswers(new Map());
+    resetSessionState();
+    setPracticeSession(null);
     
     // Reset filters
     setAppliedCategories([]);
     setAppliedDifficulties([]);
     setAppliedShuffle(false);
     setShowFavoritesOnly(false);
+    setShowNeedsWorkOnly(focusMode === "needs_work");
     const restoredDefaults = loadPracticeDefaults();
     if (!restoredDefaults) {
       setSampleSize(10);
@@ -862,45 +891,84 @@ const getInterviewerFocus = (
   };
 
   const handleSaveAnswer = async () => {
+    if (!currentQuestion || !practiceSession) return;
+
     const currentAnswer = answers.get(currentQuestion.id) || "";
-    if (!currentAnswer.trim() && !hasRecording || !practiceSession) return;
+    if ((!currentAnswer.trim() && !hasRecording) || !practiceSession) return;
 
     setIsSaving(true);
     const questionId = currentQuestion.id;
-    const timeSpent = getCurrentQuestionTime();
+    const timeSpent = currentQuestionTime;
     
     try {
-      // For now, we'll save the text answer and recording status
-      // In a full implementation, you'd upload the audio file
+      let audioPath: string | undefined;
+      let transcriptText: string | undefined;
+
+      if (hasRecording && audioBlob && user) {
+        const mimeType = audioBlob.type || "audio/webm";
+        const extension = mimeType.split("/")[1] || "webm";
+        const file = new File([audioBlob], `practice-answer.${extension}`, { type: mimeType });
+        const safeQuestionId = questionId.replace(/[^a-zA-Z0-9-]/g, "");
+        const audioUploadPath = `${user.id}/${practiceSession.id}/${safeQuestionId}-${Date.now()}.${extension}`;
+
+        const uploadResult = await searchService.uploadPracticeAudio(file, audioUploadPath);
+        if (!uploadResult.success || !uploadResult.path) {
+          throw new Error(uploadResult.error instanceof Error ? uploadResult.error.message : "Failed to upload voice answer");
+        }
+        audioPath = uploadResult.path;
+
+        const transcriptionResult = await searchService.transcribePracticeAudio({
+          path: uploadResult.path,
+          mimeType,
+          fileName: file.name,
+        });
+
+        if (transcriptionResult.success) {
+          transcriptText = transcriptionResult.transcript?.trim() || undefined;
+        } else {
+          console.warn("Voice transcription failed", transcriptionResult.error);
+        }
+      }
+
       const result = await searchService.savePracticeAnswer({
         sessionId: practiceSession.id,
         questionId: questionId,
-        textAnswer: currentAnswer.trim() || (hasRecording ? "[Voice recording provided]" : ""),
+        textAnswer: currentAnswer.trim() || null,
+        audioUrl: audioPath,
+        transcriptText,
         answerTime: timeSpent
       });
 
-      if (result.success) {
+      if (result.success && result.answer) {
         // Mark question as answered
         setQuestions(prev => 
           prev.map(q => 
             q.id === questionId ? { ...q, answered: true } : q
           )
         );
-        setSavedAnswers(prev => new Map(prev).set(questionId, true));
-        
-        // Save question time
-        setQuestionTimers(prev => new Map(prev).set(questionId, timeSpent));
+
+        markAnswerSaved({
+          questionId,
+          timeSpent,
+          answer: {
+            id: result.answer.id,
+            questionId,
+            question: currentQuestion.question,
+            stageName: currentQuestion.stage_name,
+            textAnswer: currentAnswer.trim() || null,
+            transcriptText: transcriptText || null,
+            audioUrl: audioPath || null,
+            selfRating: (result.answer as Record<string, unknown>).self_rating as number | null | undefined,
+          },
+        });
 
         clearAutosavedAnswer(questionId);
         setAutosaveState('saved');
+        setRecordingError(null);
         
         // Check if this is the last question
         if (currentIndex >= questions.length - 1) {
-          // Mark session as completed in database
-          if (practiceSession) {
-            await searchService.completePracticeSession(practiceSession.id);
-          }
-          // Mark session as completed in UI
+          await searchService.completePracticeSession(practiceSession.id);
           setSessionState('completed');
         } else {
           // Auto-advance to next question
@@ -942,10 +1010,6 @@ const getInterviewerFocus = (
     }
   };
 
-  const resetCurrentQuestionTimer = () => {
-    setCurrentQuestionStartTime(Date.now());
-  };
-
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -955,7 +1019,6 @@ const getInterviewerFocus = (
   const progress = questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
   const answeredCount = questions.filter(q => q.answered).length;
   const selectedStagesCount = allStages.filter(stage => stage.selected).length;
-  const currentQuestionTime = getCurrentQuestionTime();
   const interviewerFocus = getInterviewerFocus(currentQuestion ?? null, {
     company: searchData?.company,
     role: searchData?.role
@@ -1009,6 +1072,18 @@ const getInterviewerFocus = (
   const canSubmitAnswer = hasTypedAnswer || hasRecording;
   const primaryCtaLabel = currentIndex >= questions.length - 1 ? 'Save & Finish' : 'Save & Continue';
   const isPrimaryDisabled = !canSubmitAnswer || isSaving;
+
+  const handleRateAnswer = async (answerId: string, rating: number) => {
+    setIsSavingRating(true);
+    try {
+      const result = await searchService.saveSelfRating(answerId, rating);
+      if (result.success) {
+        updateAnswerRating(answerId, rating);
+      }
+    } finally {
+      setIsSavingRating(false);
+    }
+  };
 
   // Swipe handlers
   const handleSwipeLeft = () => {
@@ -1119,17 +1194,6 @@ const getInterviewerFocus = (
     preventScrollOnSwipe: false,
     delta: SWIPE_THRESHOLD_PX,
   });
-
-  // Update timer display every second
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Increment timerTick to force re-render and update timer display
-      if (currentQuestion) {
-        setTimerTick(prev => prev + 1);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [currentQuestion]);
 
   // Show default state when no search ID provided
   if (!searchId) {
@@ -1316,247 +1380,43 @@ const getInterviewerFocus = (
 
   // Session Setup State - Show filters and configuration
   if (sessionState === 'setup') {
-    const renderSetupStepContent = () => {
-      switch (setupStep) {
-        case 0:
-          return (
-            <div className="space-y-6">
-              <div className="grid gap-3 md:grid-cols-2">
-                {Object.entries(practicePresets).map(([key, preset]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => handlePresetSelect(key as keyof typeof practicePresets)}
-                    className={`rounded-xl border p-4 text-left transition hover:border-primary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${
-                      selectedPreset === key ? 'border-primary bg-primary/5' : 'border-border'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{preset.label}</span>
-                      {selectedPreset === key && (
-                        <Badge variant="secondary" className="text-xs">
-                          Selected
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="mt-2 text-sm text-muted-foreground">{preset.description}</p>
-                  </button>
-                ))}
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Number of Questions</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={sampleSize}
-                  onChange={(e) => setSampleSize(sessionSampler.validateSampleSize(parseInt(e.target.value) || 10))}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                <p className="text-xs text-muted-foreground">Pick 1–100 questions for this session. Presets adjust this automatically.</p>
-              </div>
-            </div>
-          );
-        case 1:
-          return (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Choose at least one stage to include in this practice run.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {allStages.map((stage, index) => {
-                  const totalQuestions = stage.questions?.length || 0;
-                  return (
-                    <div key={stage.id} className="flex items-center space-x-3 rounded-lg border p-3">
-                      <Checkbox
-                        checked={stage.selected}
-                        onCheckedChange={() => handleStageToggle(stage.id)}
-                        aria-label={`Toggle ${stage.name}`}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="outline" className="text-xs">
-                            Stage {index + 1}
-                          </Badge>
-                          <span className="font-medium text-sm truncate">{stage.name}</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">{totalQuestions} question{totalQuestions !== 1 ? 's' : ''} available</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {selectedStagesCount === 0 && (
-                <p className="text-xs text-amber-600">Select at least one stage to continue.</p>
-              )}
-            </div>
-          );
-        case 2:
-          return (
-            <div className="space-y-5">
-              <div className="space-y-3">
-                <label className="text-xs font-medium text-muted-foreground">Categories</label>
-                <p className="text-xs text-muted-foreground">Leave unselected to include all categories.</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {questionCategories.filter(cat => cat.value !== 'all').map(cat => (
-                    <div key={cat.value} className="flex items-center space-x-2 rounded-md border bg-background px-2 py-1">
-                      <Checkbox
-                        id={`cat-${cat.value}`}
-                        checked={tempCategories.includes(cat.value)}
-                        onCheckedChange={() => toggleCategory(cat.value)}
-                      />
-                      <label htmlFor={`cat-${cat.value}`} className="text-xs cursor-pointer">{cat.label}</label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-3">
-                <label className="text-xs font-medium text-muted-foreground">Difficulty</label>
-                <div className="flex flex-wrap gap-2">
-                  {difficultyLevels.filter(level => level.value !== 'all').map(level => (
-                    <div key={level.value} className="flex items-center space-x-2 rounded-md border bg-background px-3 py-2">
-                      <Checkbox
-                        id={`diff-${level.value}`}
-                        checked={tempDifficulties.includes(level.value)}
-                        onCheckedChange={() => toggleDifficulty(level.value)}
-                      />
-                      <label htmlFor={`diff-${level.value}`} className="text-xs cursor-pointer">{level.label}</label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Order & Favorites</label>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="flex items-center space-x-2 rounded-md border bg-background px-3 py-2">
-                    <Checkbox
-                      id="shuffle"
-                      checked={tempShuffle}
-                      onCheckedChange={(checked) => setTempShuffle(!!checked)}
-                    />
-                    <label htmlFor="shuffle" className="text-xs cursor-pointer">Shuffle questions randomly</label>
-                  </div>
-                  <div className="flex items-center space-x-2 rounded-md border bg-background px-3 py-2">
-                    <Checkbox
-                      id="favorites-only"
-                      checked={tempShowFavoritesOnly}
-                      onCheckedChange={(checked) => setTempShowFavoritesOnly(!!checked)}
-                    />
-                    <label htmlFor="favorites-only" className="text-xs cursor-pointer flex items-center gap-1">
-                      <Star className="h-3 w-3 text-amber-500" />
-                      Favorites only
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        default:
-          return (
-            <div className="space-y-4">
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <h4 className="text-sm font-medium mb-2">Session Summary</h4>
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  <li>• {sampleSize} question{sampleSize !== 1 ? 's' : ''} selected</li>
-                  <li>• {selectedStagesCount} stage{selectedStagesCount !== 1 ? 's' : ''} included</li>
-                  <li>• Categories: {tempCategories.length ? tempCategories.map(c => questionCategories.find(cat => cat.value === c)?.label).join(", ") : "All"}</li>
-                  <li>• Difficulty: {tempDifficulties.length ? tempDifficulties.join(", ") : "All levels"}</li>
-                  <li>• Order: {tempShuffle ? "Shuffled" : "Stage order"}</li>
-                  <li>• Favorites: {tempShowFavoritesOnly ? "Only favorited questions" : "All questions"}</li>
-                </ul>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="remember-defaults"
-                  checked={rememberDefaults}
-                  onCheckedChange={(checked) => setRememberDefaults(!!checked)}
-                />
-                <label htmlFor="remember-defaults" className="text-sm text-muted-foreground">
-                  Remember these defaults for next time
-                </label>
-              </div>
-            </div>
-          );
-      }
-    };
-
     return (
-      <div className="min-h-screen bg-background">
+      <>
         <Navigation />
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          <div className="flex items-center justify-between mb-6">
-            <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}>
-              <ChevronLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Button>
-            <div className="text-sm text-muted-foreground">
-              {searchData?.company && `${searchData.company}`}
-              {searchData?.role && ` - ${searchData.role}`}
-            </div>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5 text-primary" />
-                Configure Your Practice Session
-              </CardTitle>
-              <CardDescription>
-                Step {setupStep + 1} of {SETUP_STEPS.length}: {SETUP_STEPS[setupStep].label}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex flex-wrap items-center gap-3">
-                {SETUP_STEPS.map((step, index) => (
-                  <div key={step.key} className="flex items-center gap-2">
-                    <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
-                        index <= setupStep ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {index + 1}
-                    </div>
-                    <span className={`text-sm ${index === setupStep ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                      {step.label}
-                    </span>
-                    {index < SETUP_STEPS.length - 1 && <div className="h-px w-6 bg-border" />}
-                  </div>
-                ))}
-              </div>
-
-              {renderSetupStepContent()}
-
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t">
-                <Button
-                  variant="ghost"
-                  onClick={goToPreviousSetupStep}
-                  disabled={setupStep === 0}
-                  className="w-full sm:w-auto"
-                >
-                  <ChevronLeft className="h-4 w-4 mr-2" />
-                  Previous
-                </Button>
-                {setupStep < SETUP_STEPS.length - 1 ? (
-                  <Button
-                    onClick={goToNextSetupStep}
-                    disabled={!canProceedFromSetupStep()}
-                    className="w-full sm:w-auto"
-                  >
-                    Next • {SETUP_STEPS[setupStep + 1].label}
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={handleBeginSession}
-                    disabled={!canProceedFromSetupStep() || selectedStagesCount === 0}
-                    className="w-full sm:w-auto"
-                  >
-                    <Play className="h-4 w-4 mr-2" />
-                    Start Practice
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+        <PracticeSetupWizard
+          searchId={searchId}
+          company={searchData?.company}
+          role={searchData?.role}
+          setupStep={setupStep}
+          setupSteps={SETUP_STEPS}
+          selectedPreset={selectedPreset}
+          practicePresets={practicePresets}
+          onPresetSelect={(presetKey) => handlePresetSelect(presetKey as keyof typeof practicePresets)}
+          sampleSize={sampleSize}
+          onSampleSizeChange={(value) => setSampleSize(sessionSampler.validateSampleSize(value))}
+          allStages={allStages}
+          onStageToggle={handleStageToggle}
+          selectedStagesCount={selectedStagesCount}
+          questionCategories={questionCategories}
+          tempCategories={tempCategories}
+          toggleCategory={toggleCategory}
+          difficultyLevels={difficultyLevels}
+          tempDifficulties={tempDifficulties}
+          toggleDifficulty={toggleDifficulty}
+          tempShuffle={tempShuffle}
+          setTempShuffle={setTempShuffle}
+          tempShowFavoritesOnly={tempShowFavoritesOnly}
+          setTempShowFavoritesOnly={setTempShowFavoritesOnly}
+          rememberDefaults={rememberDefaults}
+          setRememberDefaults={setRememberDefaults}
+          canProceedFromSetupStep={canProceedFromSetupStep()}
+          onPrevious={goToPreviousSetupStep}
+          onNext={goToNextSetupStep}
+          onStart={handleBeginSession}
+          onBack={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
+          showNeedsWorkOnly={showNeedsWorkOnly}
+        />
+      </>
     );
   }
 
@@ -1598,6 +1458,9 @@ const getInterviewerFocus = (
             onStartNewSession={handleStartNewSession}
             onBackToDashboard={() => navigate(`/dashboard?searchId=${searchId}`)}
             isSaving={isSavingNotes}
+            savedAnswers={savedAnswerRecords}
+            onRateAnswer={handleRateAnswer}
+            isSavingRating={isSavingRating}
           />
         </div>
       </div>
@@ -1808,60 +1671,19 @@ const getInterviewerFocus = (
             >
               <TooltipProvider delayDuration={150}>
                 <div className="space-y-4">
-                  <div className="space-y-3 rounded-2xl border bg-background p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        Voice preview
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              className="text-muted-foreground transition hover:text-foreground"
-                              aria-label="Voice preview info"
-                            >
-                              <Info className="h-4 w-4" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>Audio stays on this device until uploads ship.</TooltipContent>
-                        </Tooltip>
-                      </div>
-                      <Badge variant={voiceStatus.variant} className="text-xs">
-                        {voiceStatus.label}
-                      </Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {!isRecording && !hasRecording && (
-                        <Button onClick={startRecording} className="flex-1 min-w-[140px]">
-                          <Mic className="mr-2 h-4 w-4" />
-                          Start recording
-                        </Button>
-                      )}
-
-                      {isRecording && (
-                        <Button onClick={stopRecording} variant="destructive" className="flex-1 min-w-[140px]">
-                          <Square className="mr-2 h-4 w-4" />
-                          Stop
-                        </Button>
-                      )}
-
-                      {hasRecording && !isRecording && (
-                        <>
-                          <Button onClick={playRecording} variant="outline" className="flex-1 min-w-[140px]">
-                            <Play className="mr-2 h-4 w-4" />
-                            Play
-                          </Button>
-                          <Button onClick={startRecording} variant="outline" className="flex-1 min-w-[140px]">
-                            <MicOff className="mr-2 h-4 w-4" />
-                            Re-record
-                          </Button>
-                          <Button onClick={clearRecording} variant="ghost" size="sm" className="h-10 px-3">
-                            <RotateCcw className="h-4 w-4 mr-1" />
-                            Reset
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  <VoiceRecorder
+                    isRecording={isRecording}
+                    hasRecording={hasRecording}
+                    recordingTimeLabel={hasRecording ? `${formatTime(recordingTime)} captured` : `${formatTime(recordingTime)} ready`}
+                    statusLabel={voiceStatus.label}
+                    statusVariant={voiceStatus.variant}
+                    onStartRecording={startRecording}
+                    onStopRecording={stopRecording}
+                    onPlayRecording={playRecording}
+                    onClearRecording={clearRecording}
+                    helperText="Audio is uploaded when you save the answer. We also attempt a transcript so you can review it later."
+                    error={recordingError}
+                  />
 
                   <div className="space-y-3 rounded-2xl border bg-background p-4">
                     <div className="flex items-center justify-between gap-2">

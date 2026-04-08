@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Upload, Search, FileText, AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { searchService } from "@/services/searchService";
@@ -35,7 +36,6 @@ const Home = () => {
   const [error, setError] = useState<string | null>(null);
   const [showProgressDialog, setShowProgressDialog] = useState(false);
   const [currentSearchId, setCurrentSearchId] = useState<string | null>(null);
-  const [searchStatus, setSearchStatus] = useState<'pending' | 'processing' | 'completed' | 'failed'>('pending');
   const [profileResume, setProfileResume] = useState<{ content: string; created_at?: string } | null>(null);
   const [isLoadingProfileResume, setIsLoadingProfileResume] = useState(false);
   const [isUsingProfileResume, setIsUsingProfileResume] = useState(false);
@@ -115,7 +115,6 @@ const Home = () => {
       if (result.success && result.searchId) {
         // Immediately show progress dialog
         setCurrentSearchId(result.searchId);
-        setSearchStatus('pending');
         setShowProgressDialog(true);
         setIsLoading(false); // Stop the button loading state
         
@@ -135,9 +134,6 @@ const Home = () => {
           cv: formData.cv.trim() || undefined,
           targetSeniority: formData.targetSeniority === 'auto' ? undefined : formData.targetSeniority
         });
-        
-        // Step 3: Start polling for status updates
-        startStatusPolling(result.searchId);
         
       } else {
         const errorMessage = result.error?.message || "Failed to create search. Please try again.";
@@ -162,98 +158,6 @@ const Home = () => {
       });
       setIsLoading(false);
     }
-  };
-
-  const startStatusPolling = (searchId: string) => {
-    let pollCount = 0;
-    let hasShownTimeoutWarning = false;
-    
-    const poll = async () => {
-      try {
-        const status = await searchService.getSearchStatus(searchId);
-        if (status) {
-          const newStatus = status.status as 'pending' | 'processing' | 'completed' | 'failed';
-          setSearchStatus(newStatus);
-          
-          // Stop polling when complete or failed
-          if (newStatus === 'completed' || newStatus === 'failed') {
-            if (newStatus === 'failed') {
-              toast({
-                title: "Research Failed",
-                description: "The research process encountered an error. Please try again.",
-                variant: "destructive",
-                duration: 5000,
-              });
-            }
-            return false; // Stop polling
-          }
-        }
-        
-        // Show timeout warning after 2.5 minutes of processing
-        if (pollCount > 75 && !hasShownTimeoutWarning) {
-          hasShownTimeoutWarning = true;
-          toast({
-            title: "Research Taking Longer",
-            description: "The research is taking longer than expected. You can close this dialog and check back later.",
-            duration: 8000,
-          });
-        }
-        
-        pollCount++;
-        return true; // Continue polling
-      } catch (error) {
-        console.error('Error polling search status:', error);
-        pollCount++;
-        return true; // Continue polling despite errors
-      }
-    };
-
-    // Initial poll immediately
-    poll().then(shouldContinue => {
-      if (!shouldContinue) return;
-
-      // Adaptive polling: start fast, then slow down
-      const pollInterval = setInterval(async () => {
-        const shouldContinue = await poll();
-        if (!shouldContinue) {
-          clearInterval(pollInterval);
-          return;
-        }
-
-        // After 40 polls (2 minutes), switch to less frequent polling
-        if (pollCount > 40) {
-          clearInterval(pollInterval);
-          
-          // Switch to 5-second intervals for long-running searches
-          const slowPollInterval = setInterval(async () => {
-            const shouldContinue = await poll();
-            if (!shouldContinue) {
-              clearInterval(slowPollInterval);
-            }
-          }, 5000);
-
-          // Clear slow polling after 8 minutes total
-          setTimeout(() => {
-            clearInterval(slowPollInterval);
-            // If still processing after 8 minutes, assume timeout
-            if (searchStatus === 'processing' || searchStatus === 'pending') {
-              setSearchStatus('failed');
-              toast({
-                title: "Research Timeout",
-                description: "The research process has timed out. Please try again with a smaller scope.",
-                variant: "destructive",
-                duration: 10000,
-              });
-            }
-          }, 360000); // 6 more minutes (8 total)
-        }
-      }, 3000); // Poll every 3 seconds initially
-
-      // Clear fast polling after 2 minutes
-      setTimeout(() => {
-        clearInterval(pollInterval);
-      }, 120000);
-    });
   };
 
   const handleCloseProgressDialog = () => {
@@ -475,109 +379,123 @@ const Home = () => {
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <Label>CV / Resume</Label>
-                {isLoadingProfileResume && (
-                  <p className="text-xs text-muted-foreground">Loading your saved resume...</p>
-                )}
-                {!isLoadingProfileResume && profileResume && (
-                  <div className="flex flex-col gap-2 text-xs text-muted-foreground">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span>
-                        {isUsingProfileResume
-                          ? "Using resume saved on your Profile."
-                          : "You have a saved resume on your Profile. Edit it there to update defaults."}
-                      </span>
-                      {profileResume.created_at && (
-                        <span className="text-[11px] text-muted-foreground/80">
-                          Last updated {new Date(profileResume.created_at).toLocaleDateString()}
-                        </span>
+              <Accordion type="multiple" defaultValue={["resume"]} className="space-y-3">
+                <AccordionItem value="resume" className="rounded-2xl border px-4">
+                  <AccordionTrigger className="py-4 text-left hover:no-underline">
+                    Add your resume and background
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-4 pb-4">
+                    <div className="space-y-4">
+                      <Label>CV / Resume</Label>
+                      {isLoadingProfileResume && (
+                        <p className="text-xs text-muted-foreground">Loading your saved resume...</p>
                       )}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => navigate("/profile")}
-                      >
-                        Manage Profile Resume
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={handleRestoreProfileResume}
-                        disabled={isUsingProfileResume}
-                      >
-                        Restore Saved CV
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                <div className="border-2 border-dashed border-border rounded-lg p-6">
-                  <div className="flex flex-col items-center justify-center space-y-4">
-                    <Upload className="h-8 w-8 text-muted-foreground" />
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Upload a PDF or DOCX, or paste your CV text below. Signed-in uploads also update the resume saved on your profile.
-                      </p>
-                      <input
-                        type="file"
-                        accept={ACCEPTED_RESUME_TYPES}
-                        onChange={handleFileUpload}
-                        className="hidden"
-                        id={HOME_CV_UPLOAD_ID}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => document.getElementById(HOME_CV_UPLOAD_ID)?.click()}
-                        disabled={isUploadingResume}
-                      >
-                        {isUploadingResume ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <FileText className="h-4 w-4 mr-2" />
-                        )}
-                        {isUploadingResume ? "Processing..." : "Upload PDF / DOCX"}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-                
-                <Textarea
-                  placeholder="Or paste your CV text here..."
-                  value={formData.cv}
-                  onChange={(e) => {
-                    const updatedValue = e.target.value;
-                    setFormData(prev => ({ ...prev, cv: updatedValue }));
-                    if (profileResume?.content) {
-                      setIsUsingProfileResume(updatedValue.trim() === profileResume.content.trim());
-                    } else {
-                      setIsUsingProfileResume(false);
-                    }
-                  }}
-                  rows={6}
-                  className="resize-none"
-                />
-              </div>
+                      {!isLoadingProfileResume && profileResume && (
+                        <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span>
+                              {isUsingProfileResume
+                                ? "Using resume saved on your Profile."
+                                : "You have a saved resume on your Profile. Edit it there to update defaults."}
+                            </span>
+                            {profileResume.created_at && (
+                              <span className="text-[11px] text-muted-foreground/80">
+                                Last updated {new Date(profileResume.created_at).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => navigate("/profile")}
+                            >
+                              Manage Profile Resume
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={handleRestoreProfileResume}
+                              disabled={isUsingProfileResume}
+                            >
+                              Restore Saved CV
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      <div className="rounded-lg border-2 border-dashed border-border p-6">
+                        <div className="flex flex-col items-center justify-center space-y-4">
+                          <Upload className="h-8 w-8 text-muted-foreground" />
+                          <div className="text-center">
+                            <p className="mb-2 text-sm text-muted-foreground">
+                              Upload a PDF or DOCX, or paste your CV text below. Signed-in uploads also update the resume saved on your profile.
+                            </p>
+                            <input
+                              type="file"
+                              accept={ACCEPTED_RESUME_TYPES}
+                              onChange={handleFileUpload}
+                              className="hidden"
+                              id={HOME_CV_UPLOAD_ID}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => document.getElementById(HOME_CV_UPLOAD_ID)?.click()}
+                              disabled={isUploadingResume}
+                            >
+                              {isUploadingResume ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <FileText className="mr-2 h-4 w-4" />
+                              )}
+                              {isUploadingResume ? "Processing..." : "Upload PDF / DOCX"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="role-links">Role Description Links (optional)</Label>
-                <Textarea
-                  id="role-links"
-                  placeholder="Paste job description links here (one per line)..."
-                  value={formData.roleLinks}
-                  onChange={(e) => setFormData(prev => ({ ...prev, roleLinks: e.target.value }))}
-                  rows={3}
-                  className="resize-none"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Add links to job descriptions to improve research accuracy
-                </p>
-              </div>
+                      <Textarea
+                        placeholder="Or paste your CV text here..."
+                        value={formData.cv}
+                        onChange={(e) => {
+                          const updatedValue = e.target.value;
+                          setFormData(prev => ({ ...prev, cv: updatedValue }));
+                          if (profileResume?.content) {
+                            setIsUsingProfileResume(updatedValue.trim() === profileResume.content.trim());
+                          } else {
+                            setIsUsingProfileResume(false);
+                          }
+                        }}
+                        rows={6}
+                        className="resize-none"
+                      />
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="job-links" className="rounded-2xl border px-4">
+                  <AccordionTrigger className="py-4 text-left hover:no-underline">
+                    Add role description links
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-2 pb-4">
+                    <Label htmlFor="role-links">Role description links</Label>
+                    <Textarea
+                      id="role-links"
+                      placeholder="Paste job description links here, one per line..."
+                      value={formData.roleLinks}
+                      onChange={(e) => setFormData(prev => ({ ...prev, roleLinks: e.target.value }))}
+                      rows={3}
+                      className="resize-none"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Add links to job descriptions to improve research accuracy.
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
 
               <Button
                 type={user ? "submit" : "button"}

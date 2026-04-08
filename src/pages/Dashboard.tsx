@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { 
   Building2, 
   Clock, 
@@ -18,9 +19,14 @@ import {
   Brain,
   AlertCircle,
   RefreshCw,
-  Search
+  Search,
+  Target as TargetIcon,
+  Sparkles,
+  ChevronRight,
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
+import { useSearchProgress } from "@/hooks/useSearchProgress";
+import type { PrepPlanRow, PrepPriority, QuestionPlan, AssessmentSignal } from "@/types/prepPlan";
 
 interface InterviewQuestion {
   id: string;
@@ -49,6 +55,184 @@ interface SearchData {
   country: string | null;
   status: string;
   created_at: string;
+  banner_dismissed?: boolean | null;
+}
+
+const priorityTone = (priority: PrepPriority["priority"]) => {
+  if (priority === "high") return "bg-rose-100 text-rose-700";
+  if (priority === "medium") return "bg-amber-100 text-amber-700";
+  return "bg-slate-100 text-slate-700";
+};
+
+function DashboardEmptyState({ onStartSearch }: { onStartSearch: () => void }) {
+  return (
+    <div className="min-h-screen bg-background">
+      <Navigation />
+      <div className="container mx-auto px-4 py-10">
+        <div className="mx-auto max-w-3xl">
+          <Card className="overflow-hidden border-dashed">
+            <div className="grid gap-8 p-8 md:grid-cols-[1.1fr_0.9fr] md:items-center">
+              <div className="space-y-5">
+                <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
+                  <Sparkles className="h-4 w-4" />
+                  Interview prep starts here
+                </div>
+                <div className="space-y-3">
+                  <h1 className="text-3xl font-semibold tracking-tight">
+                    Start your first search and we&apos;ll turn it into a practice agenda.
+                  </h1>
+                  <p className="text-base text-muted-foreground">
+                    Research a company, get stage-by-stage signals, and jump straight into the questions that matter most.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button size="lg" onClick={onStartSearch}>
+                    <Search className="mr-2 h-4 w-4" />
+                    Start your first search
+                  </Button>
+                  <div className="rounded-2xl border px-4 py-3 text-sm text-muted-foreground">
+                    Tip: once research finishes, this dashboard becomes your prep plan and launch point for practice.
+                  </div>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3 md:grid-cols-1">
+                <div className="rounded-3xl border bg-muted/30 p-5">
+                  <p className="text-sm font-medium">1. Research</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Company, role, and interview patterns.</p>
+                </div>
+                <div className="rounded-3xl border bg-muted/30 p-5">
+                  <p className="text-sm font-medium">2. Plan</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Must-practice questions and prep priorities.</p>
+                </div>
+                <div className="rounded-3xl border bg-muted/30 p-5">
+                  <p className="text-sm font-medium">3. Practice</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Focused sessions on the stages you pick.</p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuestionPlanCard({ questionPlan }: { questionPlan: QuestionPlan | null | undefined }) {
+  if (!questionPlan) return null;
+
+  const sections = [
+    { key: "core", label: "Must practice", items: questionPlan.coreMustPractice ?? [] },
+    { key: "followUps", label: "Likely follow-ups", items: questionPlan.likelyFollowUps ?? [] },
+    { key: "extraDepth", label: "Extra depth", items: questionPlan.extraDepth ?? [] },
+  ].filter((section) => section.items.length > 0);
+
+  if (sections.length === 0) return null;
+
+  return (
+    <Card className="mb-8">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-primary" />
+          Practice agenda
+        </CardTitle>
+        <CardDescription>The AI already picked the question sequence. Start with the core set, then move deeper.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Accordion type="multiple" defaultValue={sections.map((section) => section.key)} className="space-y-3">
+          {sections.map((section) => (
+            <AccordionItem key={section.key} value={section.key} className="rounded-2xl border px-4">
+              <AccordionTrigger className="py-4 text-left text-sm font-medium hover:no-underline">
+                {section.label}
+              </AccordionTrigger>
+              <AccordionContent className="space-y-3 pb-4">
+                {section.items.map((item, index) => (
+                  <div key={`${section.key}-${index}`} className="rounded-2xl bg-muted/30 p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {item.stageName && <Badge variant="outline">{item.stageName}</Badge>}
+                      {item.linkedPriority && (
+                        <Badge variant="secondary" className="bg-primary/10 text-primary">
+                          {item.linkedPriority}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-3 text-sm font-medium">{item.question}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">{item.reason}</p>
+                  </div>
+                ))}
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PrepPrioritiesCard({ priorities, signals }: { priorities: PrepPriority[]; signals: AssessmentSignal[] }) {
+  if (priorities.length === 0 && signals.length === 0) return null;
+
+  return (
+    <div className="mb-8 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TargetIcon className="h-5 w-5 text-primary" />
+            Prep priorities
+          </CardTitle>
+          <CardDescription>What to attack first before you spend time on everything else.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {priorities.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No explicit prep priorities were generated for this run.</p>
+          ) : (
+            priorities.map((priority, index) => (
+              <div key={`${priority.label}-${index}`} className="rounded-2xl border bg-muted/20 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className={priorityTone(priority.priority)}>{priority.priority}</Badge>
+                  <p className="font-medium">{priority.label}</p>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">{priority.whyItMatters}</p>
+                {priority.recommendedActions?.length > 0 && (
+                  <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+                    {priority.recommendedActions.map((action, actionIndex) => (
+                      <li key={`${priority.label}-action-${actionIndex}`} className="flex items-start gap-2">
+                        <ChevronRight className="mt-0.5 h-4 w-4 text-primary" />
+                        <span>{action}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Assessment signals</CardTitle>
+          <CardDescription>What this interview loop is likely testing.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {signals.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Signals were not available for this run yet.</p>
+          ) : (
+            signals.map((signal, index) => (
+              <div key={`${signal.name}-${index}`} className="rounded-2xl border bg-muted/20 p-4">
+                <div className="flex items-center gap-2">
+                  <Badge className={priorityTone(signal.importance as PrepPriority["priority"])}>
+                    {signal.importance}
+                  </Badge>
+                  <p className="font-medium">{signal.name}</p>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">{signal.rationale}</p>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 const Dashboard = () => {
@@ -60,14 +244,17 @@ const Dashboard = () => {
   const searchId = urlSearchId || searchParams.get('searchId');
   
   const [isLoading, setIsLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [stages, setStages] = useState<InterviewStage[]>([]);
   const [searchData, setSearchData] = useState<SearchData | null>(null);
-  const [enhancedQuestions, setEnhancedQuestions] = useState<any[]>([]);
+  const [prepPlan, setPrepPlan] = useState<PrepPlanRow | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const { data: progressState } = useSearchProgress(searchId, { enabled: Boolean(searchId) });
 
-  // Load search data and poll for updates
+  const currentStatus = progressState?.status ?? searchData?.status ?? "pending";
+  const currentProgress = progressState?.progress_pct ?? (currentStatus === "completed" ? 100 : 0);
+  const progressLabel = progressState?.progress_step || "Preparing your interview research...";
+
   const loadSearchData = async () => {
     if (!searchId) return;
 
@@ -77,86 +264,47 @@ const Dashboard = () => {
       
       if (result.success && result.search && result.stages) {
         setSearchData(result.search);
+        setPrepPlan((result.prepPlan as PrepPlanRow | null) ?? null);
         
-        // Transform stages data and add selection state
         const transformedStages = result.stages
           .sort((a, b) => a.order_index - b.order_index)
           .map(stage => ({
             ...stage,
-            selected: true // Default to selected
+            selected: true
           }));
         
         setStages(transformedStages);
-        
-        // Load enhanced questions if available
-        if (result.enhancedQuestions) {
-          setEnhancedQuestions(result.enhancedQuestions as any[]);
-        }
-        
-        // If search is completed, stop loading
-        if (result.search.status === 'completed') {
-          setIsLoading(false);
-          setProgress(100);
-        } else if (result.search.status === 'failed') {
+
+        if (result.search.status === 'failed') {
           setError("Search processing failed. Please try again.");
-          setIsLoading(false);
         }
-        // If still processing, continue polling
       } else {
         setError(result.error?.message || "Failed to load search data");
-        setIsLoading(false);
       }
     } catch (err) {
       console.error("Error loading search data:", err);
       setError("An unexpected error occurred while loading data");
+    } finally {
       setIsLoading(false);
+      setHasLoadedOnce(true);
     }
   };
 
   useEffect(() => {
     if (!searchId) {
-      // No search ID provided - show default dashboard state
       setIsLoading(false);
       return;
     }
 
-    // Initial load
     loadSearchData();
+  }, [searchId]);
 
-    // Set up polling for pending/processing searches
-    const poll = setInterval(async () => {
-      // Re-fetch current search data to check status
-      const result = await searchService.getSearchResults(searchId);
-      if (result.success && result.search) {
-        const currentStatus = result.search.status;
-        if (currentStatus === 'pending' || currentStatus === 'processing') {
-          await loadSearchData();
-          setProgress(prev => Math.min(prev + 5, 95)); // Increment progress while polling
-        } else {
-          // Search is completed, stop polling
-          clearInterval(poll);
-        }
-      }
-    }, 3000); // Poll every 3 seconds
-
-    setPollingInterval(poll);
-
-    return () => {
-      if (pollingInterval) clearInterval(pollingInterval);
-      clearInterval(poll);
-    };
-  }, [searchId]); // Only depend on searchId - loadSearchData and pollingInterval are intentionally excluded
-
-  // Progress simulation for pending/processing states
   useEffect(() => {
-    if (searchData?.status === 'pending' || searchData?.status === 'processing') {
-      const timer = setInterval(() => {
-        setProgress(prev => Math.min(prev + 1, 95));
-      }, 500);
-
-      return () => clearInterval(timer);
+    if (!searchId) return;
+    if (currentStatus === "completed" || currentStatus === "failed") {
+      loadSearchData();
     }
-  }, [searchData?.status]);
+  }, [currentStatus, searchId]);
 
   const handleStageToggle = (stageId: string) => {
     setStages(prev => 
@@ -171,23 +319,7 @@ const Dashboard = () => {
   const getSelectedQuestions = () => {
     return stages
       .filter(stage => stage.selected)
-      .reduce((acc, stage) => acc + getStageQuestionCount(stage), 0);
-  };
-
-  const getStageQuestionCount = (stage: any) => {
-    const basicCount = stage.questions?.length || 0;
-    const enhancedCount = getEnhancedQuestionCount(stage);
-    return basicCount + enhancedCount;
-  };
-
-  const getEnhancedQuestionCount = (stage: any) => {
-    if (!enhancedQuestions) return 0;
-    
-    const enhancedBank = enhancedQuestions.find((bank: any) => 
-      bank.interview_stage === stage.name
-    );
-    
-    return enhancedBank?.total_questions || 0;
+      .reduce((acc, stage) => acc + (stage.questions?.length || 0), 0);
   };
 
   const startPractice = () => {
@@ -200,43 +332,21 @@ const Dashboard = () => {
   };
 
   // Show default empty state when no search ID is provided
-  if (!searchId) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Navigation />
-        <div className="container mx-auto px-4 py-8">
+  const prepPriorities = useMemo(
+    () => (prepPlan?.prep_priorities ?? []) as PrepPriority[],
+    [prepPlan],
+  );
+  const assessmentSignals = useMemo(
+    () => (prepPlan?.assessment_signals ?? []) as AssessmentSignal[],
+    [prepPlan],
+  );
+  const questionPlan = useMemo(
+    () => (prepPlan?.question_plan ?? null) as QuestionPlan | null,
+    [prepPlan],
+  );
 
-          <div className="max-w-2xl mx-auto text-center">
-            <Card className="p-8">
-              <CardHeader>
-                <div className="flex items-center justify-center mb-4">
-                  <Brain className="h-12 w-12 text-primary" />
-                </div>
-                <CardTitle>No Active Search</CardTitle>
-                <CardDescription>
-                  Start a new search to get personalized interview insights for any company
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Button 
-                    onClick={() => navigate('/')}
-                    size="lg"
-                    className="w-full"
-                  >
-                    <Search className="h-4 w-4 mr-2" />
-                    Start New Search
-                  </Button>
-                  <p className="text-sm text-muted-foreground">
-                    Open the History menu in the top bar to jump back into an earlier research run.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    );
+  if (!searchId) {
+    return <DashboardEmptyState onStartSearch={() => navigate("/")} />;
   }
 
   if (error) {
@@ -278,15 +388,7 @@ const Dashboard = () => {
     );
   }
 
-  if (isLoading) {
-    const statusMessages = {
-      pending: "Initializing research...",
-      processing: "Analyzing company data and generating personalized guidance...",
-      completed: "Research complete!"
-    };
-    
-    const currentStatus = searchData?.status || 'pending';
-    
+  if (isLoading && !hasLoadedOnce) {
     return (
       <div className="min-h-screen bg-background">
         <Navigation />
@@ -301,12 +403,12 @@ const Dashboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Progress value={progress} className="mb-4" />
+              <Progress value={currentProgress} className="mb-4" />
               <p className="text-sm text-muted-foreground text-center">
-                {statusMessages[currentStatus as keyof typeof statusMessages] || statusMessages.pending}
+                {progressLabel}
               </p>
               <p className="text-xs text-muted-foreground text-center mt-2">
-                {progress}% complete
+                {Math.round(currentProgress)}% complete
               </p>
             </CardContent>
           </Card>
@@ -319,6 +421,24 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background">
       <Navigation />
       <div className="container mx-auto px-4 py-8">
+        {(currentStatus === "pending" || currentStatus === "processing") && (
+          <Card className="mb-8 border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Brain className="h-5 w-5 text-primary" />
+                Research in progress
+              </CardTitle>
+              <CardDescription>{progressLabel}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Progress value={currentProgress} className="mb-2" />
+              <p className="text-sm text-muted-foreground">
+                Safe to leave this page. We&apos;ll keep updating the dashboard as the run finishes.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -332,12 +452,15 @@ const Dashboard = () => {
                 {!searchData?.role && !searchData?.country && 'Interview Preparation'}
               </p>
             </div>
-            <Button onClick={startPractice} disabled={getSelectedQuestions() === 0}>
+            <Button onClick={startPractice} disabled={getSelectedQuestions() === 0 || currentStatus !== "completed"}>
               <PlayCircle className="h-4 w-4 mr-2" />
               Start Practice ({getSelectedQuestions()} questions)
             </Button>
           </div>
         </div>
+
+        <PrepPrioritiesCard priorities={prepPriorities} signals={assessmentSignals} />
+        <QuestionPlanCard questionPlan={questionPlan} />
 
         {/* Interview Process Overview */}
         <Card className="mb-8">
@@ -418,7 +541,7 @@ const Dashboard = () => {
                         </div>
                         <div>
                           <h4 className="text-sm font-medium mb-2">
-                            Practice Questions ({getStageQuestionCount(stage)})
+                            Practice Questions ({stage.questions?.length || 0})
                           </h4>
                           <ul className="text-sm text-muted-foreground space-y-1">
                             {stage.questions?.slice(0, 2).map((questionObj, qIndex) => (
@@ -432,12 +555,7 @@ const Dashboard = () => {
                                 +{(stage.questions?.length || 0) - 2} more basic questions
                               </li>
                             )}
-                            {getEnhancedQuestionCount(stage) > 0 && (
-                              <li className="text-xs text-primary font-medium">
-                                + {getEnhancedQuestionCount(stage)} enhanced questions (behavioral, technical, situational, etc.)
-                              </li>
-                            )}
-                            {(!stage.questions || stage.questions.length === 0) && getEnhancedQuestionCount(stage) === 0 && (
+                            {(!stage.questions || stage.questions.length === 0) && (
                               <li className="text-xs text-muted-foreground italic">
                                 Questions will be generated during research
                               </li>

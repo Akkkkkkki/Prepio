@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Practice from "./pages/Practice";
 import Profile from "./pages/Profile";
+import History from "./pages/History";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -66,6 +67,14 @@ const App = () => (
                   <Profile />
                 </ProtectedRoute>
               } 
+            />
+            <Route
+              path="/history"
+              element={
+                <ProtectedRoute>
+                  <History />
+                </ProtectedRoute>
+              }
             />
             <Route 
               path="/search/:searchId" 
