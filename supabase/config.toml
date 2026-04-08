@@ -1,5 +1,8 @@
 project_id = "vjwrirrqprjzdorignlz"
 
+[edge_runtime]
+policy = "per_worker"
+
 [functions.cv-analysis]
 verify_jwt = false
 

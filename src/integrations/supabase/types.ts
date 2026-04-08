@@ -238,6 +238,71 @@ export type Database = {
           },
         ]
       }
+      candidate_profiles: {
+        Row: {
+          certifications: Json
+          completion_score: number
+          created_at: string
+          education: Json
+          experiences: Json
+          headline: string
+          languages: Json
+          last_resume_id: string | null
+          links: Json
+          location: string
+          preferences: Json
+          projects: Json
+          skills: Json
+          summary: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          certifications?: Json
+          completion_score?: number
+          created_at?: string
+          education?: Json
+          experiences?: Json
+          headline?: string
+          languages?: Json
+          last_resume_id?: string | null
+          links?: Json
+          location?: string
+          preferences?: Json
+          projects?: Json
+          skills?: Json
+          summary?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          certifications?: Json
+          completion_score?: number
+          created_at?: string
+          education?: Json
+          experiences?: Json
+          headline?: string
+          languages?: Json
+          last_resume_id?: string | null
+          links?: Json
+          location?: string
+          preferences?: Json
+          projects?: Json
+          skills?: Json
+          summary?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_profiles_last_resume_id_fkey"
+            columns: ["last_resume_id"]
+            isOneToOne: false
+            referencedRelation: "resumes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -265,6 +330,53 @@ export type Database = {
         }
         Relationships: []
       }
+      profile_imports: {
+        Row: {
+          applied_at: string | null
+          created_at: string
+          draft_profile: Json
+          id: string
+          import_summary: Json
+          merge_suggestions: Json
+          resume_id: string | null
+          source: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          created_at?: string
+          draft_profile?: Json
+          id?: string
+          import_summary?: Json
+          merge_suggestions?: Json
+          resume_id?: string | null
+          source?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          created_at?: string
+          draft_profile?: Json
+          id?: string
+          import_summary?: Json
+          merge_suggestions?: Json
+          resume_id?: string | null
+          source?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_imports_resume_id_fkey"
+            columns: ["resume_id"]
+            isOneToOne: false
+            referencedRelation: "resumes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resumes: {
         Row: {
           content: string
@@ -273,10 +385,12 @@ export type Database = {
           file_path: string | null
           file_size_bytes: number | null
           id: string
+          is_active: boolean
           mime_type: string | null
           parsed_data: Json | null
           search_id: string | null
           source: string
+          superseded_at: string | null
           user_id: string
         }
         Insert: {
@@ -286,10 +400,12 @@ export type Database = {
           file_path?: string | null
           file_size_bytes?: number | null
           id?: string
+          is_active?: boolean
           mime_type?: string | null
           parsed_data?: Json | null
           search_id?: string | null
           source?: string
+          superseded_at?: string | null
           user_id: string
         }
         Update: {
@@ -299,10 +415,12 @@ export type Database = {
           file_path?: string | null
           file_size_bytes?: number | null
           id?: string
+          is_active?: boolean
           mime_type?: string | null
           parsed_data?: Json | null
           search_id?: string | null
           source?: string
+          superseded_at?: string | null
           user_id?: string
         }
         Relationships: [

@@ -1,8 +1,8 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
 import { CheckCircle, Star, SkipForward, Loader2 } from "lucide-react";
 import type { SavedPracticeAnswerRecord } from "@/hooks/usePracticeSession";
 
@@ -13,10 +13,13 @@ interface SessionSummaryProps {
   favoritedCount: number;
   totalTime: number;
   avgTime: number;
-  onSaveNotes: (notes: string) => Promise<void>;
+  onSaveNotes: (notes: string) => Promise<boolean>;
   onStartNewSession: () => void;
   onBackToDashboard: () => void;
+  historyHref?: string;
   isSaving?: boolean;
+  disableSaveNotes?: boolean;
+  saveNotesHelper?: string;
   savedAnswers?: SavedPracticeAnswerRecord[];
   onRateAnswer?: (answerId: string, rating: number) => Promise<void>;
   isSavingRating?: boolean;
@@ -32,7 +35,10 @@ export const SessionSummary = ({
   onSaveNotes,
   onStartNewSession,
   onBackToDashboard,
+  historyHref = "/history",
   isSaving = false,
+  disableSaveNotes = false,
+  saveNotesHelper,
   savedAnswers = [],
   onRateAnswer,
   isSavingRating = false,
@@ -47,97 +53,106 @@ export const SessionSummary = ({
   };
 
   const handleSaveNotes = async () => {
-    if (notesSaved) return;
+    if (notesSaved || disableSaveNotes) return;
     
     try {
-      await onSaveNotes(sessionNotes);
-      setNotesSaved(true);
+      const didSave = await onSaveNotes(sessionNotes);
+      if (didSave) {
+        setNotesSaved(true);
+      }
     } catch (error) {
       console.error("Error saving notes:", error);
     }
   };
 
+  const completionHeadline = answeredCount >= totalQuestions
+    ? `Great depth — you worked through all ${totalQuestions} questions`
+    : answeredCount > totalQuestions * 0.5
+      ? `Solid session — you covered ${answeredCount} of ${totalQuestions} questions`
+      : `Good start — ${answeredCount} question${answeredCount !== 1 ? 's' : ''} down, ${totalQuestions - answeredCount} to go`;
+
   return (
-    <Card className="text-center">
+    <Card className="overflow-hidden text-center motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300">
       <CardHeader>
         <div className="flex justify-center mb-4">
-          <div className="rounded-full bg-green-100 p-4">
-            <CheckCircle className="h-12 w-12 text-green-600" />
+          <div className="rounded-full bg-success/10 p-4 motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-500">
+            <CheckCircle className="h-12 w-12 text-success" />
           </div>
         </div>
-        <CardTitle className="text-2xl">Practice Session Complete!</CardTitle>
-        <CardDescription>
-          Great job! You've completed your practice session.
+        <CardTitle className="text-2xl">Practice complete</CardTitle>
+        <CardDescription className="text-base">
+          {completionHeadline}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Session Statistics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-6">
-          <div className="space-y-1">
+        <div className="grid grid-cols-2 gap-3 text-left sm:grid-cols-4">
+          <div className="rounded-2xl bg-muted/40 p-4">
             <div className="text-3xl font-bold text-primary">{answeredCount}</div>
-            <div className="text-xs text-muted-foreground">Answered</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Answered</div>
           </div>
-          <div className="space-y-1">
-            <div className="text-3xl font-bold text-amber-600">{skippedCount}</div>
-            <div className="text-xs text-muted-foreground">Skipped</div>
+          <div className="rounded-2xl bg-muted/40 p-4">
+            <div className="text-3xl font-bold text-muted-foreground">{skippedCount}</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Skipped</div>
           </div>
-          <div className="space-y-1">
+          <div className="rounded-2xl bg-muted/40 p-4">
             <div className="text-3xl font-bold text-primary">{formatTime(totalTime)}</div>
-            <div className="text-xs text-muted-foreground">Total Time</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Total time</div>
           </div>
-          <div className="space-y-1">
-            <div className="text-3xl font-bold text-primary">{formatTime(avgTime)}</div>
-            <div className="text-xs text-muted-foreground">Avg. Per Question</div>
+          <div className="rounded-2xl bg-muted/40 p-4">
+            <div className="text-3xl font-bold text-primary">{favoritedCount}</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Favorited</div>
           </div>
         </div>
 
-        {/* Favorites Count */}
-        {favoritedCount > 0 && (
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Star className="h-4 w-4 text-amber-500 fill-current" />
-            <span>{favoritedCount} question{favoritedCount !== 1 ? 's' : ''} favorited</span>
+        <div className="rounded-2xl border bg-background p-4 text-left">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Average per answer</span>
+            <span className="font-medium">{formatTime(avgTime)}</span>
           </div>
-        )}
-
-        {/* Progress Bar */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
+          <div className="mt-2 flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Completion</span>
             <span className="font-medium">{answeredCount}/{totalQuestions}</span>
           </div>
-          <Progress value={(answeredCount / totalQuestions) * 100} className="h-2" />
+          {favoritedCount > 0 && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+              <Star className="h-4 w-4 text-amber-500 fill-current" />
+              <span>{favoritedCount} question{favoritedCount !== 1 ? 's' : ''} worth revisiting</span>
+            </div>
+          )}
         </div>
 
-        {/* Session Notes */}
         <div className="space-y-2 text-left">
-          <label className="text-sm font-medium">Session Notes (Optional)</label>
+          <label className="text-sm font-medium">What felt weak today?</label>
           <Textarea
             value={sessionNotes}
             onChange={(e) => setSessionNotes(e.target.value)}
-            placeholder="Add any notes about this practice session..."
-            className="min-h-[100px] resize-none"
+            placeholder="Add a short reflection for your next round..."
+            className="min-h-[100px] resize-none rounded-2xl"
             disabled={notesSaved}
           />
           {!notesSaved && (
             <Button
               onClick={handleSaveNotes}
-              disabled={isSaving}
+              disabled={isSaving || disableSaveNotes}
               variant="outline"
               size="sm"
-              className="w-full"
+              className="w-full sm:w-auto"
             >
               {isSaving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
+                  Saving reflection...
                 </>
               ) : (
-                "Save Notes"
+                "Save reflection"
               )}
             </Button>
           )}
+          {!notesSaved && disableSaveNotes && saveNotesHelper && (
+            <p className="text-sm text-amber-700">{saveNotesHelper}</p>
+          )}
           {notesSaved && (
-            <div className="flex items-center justify-center gap-2 text-sm text-green-600">
+            <div className="flex items-center justify-center gap-2 text-sm text-success">
               <CheckCircle className="h-4 w-4" />
               Notes saved
             </div>
@@ -149,7 +164,7 @@ export const SessionSummary = ({
             <div>
               <label className="text-sm font-medium">Self-rate each answer</label>
               <p className="text-sm text-muted-foreground">
-                Use 1 to 5 stars so your weaker answers are easier to revisit later.
+                Use 1 to 5 stars so the answers that need another pass stand out in history.
               </p>
             </div>
             <div className="space-y-3">
@@ -174,7 +189,7 @@ export const SessionSummary = ({
                         className="rounded-full border p-2 transition hover:border-primary disabled:opacity-60"
                         aria-label={`Rate ${answer.question} ${rating} stars`}
                         disabled={isSavingRating}
-                        onClick={() => onRateAnswer(answer.id, rating)}
+                        onClick={() => void onRateAnswer(answer.id, rating)}
                       >
                         <Star
                           className={`h-4 w-4 ${
@@ -197,15 +212,14 @@ export const SessionSummary = ({
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="space-y-3 pt-4">
+        <div className="space-y-3 pt-2">
           <Button
             onClick={onStartNewSession}
             size="lg"
             className="w-full"
           >
             <SkipForward className="h-4 w-4 mr-2" />
-            Start New Practice Session
+            Start another round
           </Button>
           <Button
             variant="outline"
@@ -214,6 +228,12 @@ export const SessionSummary = ({
           >
             Back to Dashboard
           </Button>
+          <Link
+            to={historyHref}
+            className="block text-sm text-muted-foreground transition-colors hover:text-primary"
+          >
+            View practice history -&gt;
+          </Link>
         </div>
       </CardContent>
     </Card>

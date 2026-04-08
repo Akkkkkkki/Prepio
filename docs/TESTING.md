@@ -1,67 +1,88 @@
 # Testing
 
-Single reference for how we test intel-prep-ace: what already exists, how to run it, and what still needs to be covered.
+How to run tests, what they really cover today, and where the gaps still are.
 
 ## Quick Start
-- `make test` – run everything (Deno + Node).
-- `make test-unit` – fast unit sweep (current suite).
-- Edge Functions stay in Deno under `tests/unit/test_edge_functions`.
-- Frontend code should use Vitest + React Testing Library (planned; add `vitest run` npm script when suites land).
 
-## Suite Layout
-```
-tests/
-├── unit/
-│   └── test_edge_functions/
-│       ├── test_01_search_creation.ts          ✅ (5 tests)
-│       ├── test_02_interview_research.ts       ✅ (5 tests)
-│       ├── test_03_company_research.ts         ✅ (4 tests)
-│       ├── test_04_job_analysis.ts             ✅ (4 tests)
-│       ├── test_05_cv_analysis.ts              ✅ (4 tests)
-│       └── test_06_question_generator.ts       ✅ (4 tests)
-└── integration/
-    └── test_workflows/
-        └── test_07_complete_workflow.ts        ✅ (2 tests)
+```bash
+npm test
+npm test -- src/services/searchService.test.ts src/pages/__tests__/Home.mobile.test.tsx
+make test
 ```
 
-**Current coverage:** 28 automated tests (26 Deno edge-function unit tests + 2 workflow integrations) and all are passing. The integration slots now cover the full interview prep flow end-to-end.
+- `npm test` is the main automated suite in this repo right now.
+- `make test` runs older Deno files. Treat it as legacy, not as a release gate.
 
-## Key Scenarios
-- **Test 07.1 – Complete workflow integration**: Located in `tests/integration/test_workflows/test_07_complete_workflow.ts`. Creates a real search, triggers `interview-research`, waits for the async pipeline to complete, then asserts CV/job comparison rows, ≥10 interview questions, stage generation, and cleans up the seeded `searches` record. Run with `deno test --allow-all tests/integration/test_workflows/test_07_complete_workflow.ts`.
-- **Test 07.2 – Post-workflow database consistency**: Reuses the same file to trigger another end-to-end run (Meta → PwC scenario) and verifies every downstream table (`interview_questions`, `interview_stages`, `cv_job_comparisons`) references the new `search_id`, catching orphaned data regressions.
-- **Next up – Dedicated CV/Job comparison edge unit**: Still planned to hammer the `cv-job-comparison` function in isolation (gap analysis structure, skill match %, fallback paths, and database writes) without waiting on the full workflow.
+## Current Reality
 
-## Backlog & Priorities
-Treat **P0** as blockers, **P1** as near-term, **P2** as nice-to-have if timelines allow.
+### Frontend
 
-| Priority | Focus | What to prove |
-| --- | --- | --- |
-| P0 | Search artifacts persist | `supabase/functions/interview-research` writes artifacts + comparison data, falls back on zero-row updates. |
-| P0 | Progress + stall UI | `ProgressDialog`, `useSearchProgress`, and stall detection animate correctly and recover from retries. |
-| P0 | Search creation flow | Authenticated submissions create searches, invoke edge workflows, and show accurate polling. |
-| P1 | Practice session pipeline | `sessionSampler`, favorites filters, and session persistence remain stable. |
-| P2 | Tavily analytics math | Metrics/credit math in `tavilyAnalyticsService` stays accurate on empty + happy paths. |
+The Vitest suite is the only routinely runnable safety net here. It covers selected UI flows,
+hooks, and service helpers. It does not provide full end-to-end coverage of the research pipeline.
 
-### P0 Details
-- **Search artifact persistence & CV-job comparison**
-  - Files: `supabase/functions/interview-research/index.ts`, `_shared/progress-tracker.ts`, `src/services/searchService.ts`, related migrations.
-  - Tests: Deno unit for `saveToDatabase` (update/insert/upsert paths, progress timestamps) plus integration assertion that `search_artifacts` + `cv_job_comparisons` stay in sync with `searchService.getSearchResults`.
-- **Progress & stall detection UI**
-  - Files: `src/components/ProgressDialog.tsx`, `src/hooks/useSearchProgress.ts`, `src/pages/Home.tsx`.
-  - Tests: Vitest/RTL states (`pending`, `processing`, `completed`, `failed`, stalled >45s), adaptive polling intervals with fake timers, retry CTA toggles, toast usage mocked.
-- **Search creation & polling flow**
-  - Files: `src/pages/Home.tsx`, `src/services/searchService.ts`.
-  - Tests: form submission happy/error paths, Supabase client mocks for `createSearchRecord/startProcessing/getSearchStatus`, polling timeouts (warnings at 2.5m, fail at 8m).
+Most relevant files for the research flow:
 
-### P1 – Practice pipeline
-- Files: `src/pages/Practice.tsx`, `src/services/sessionSampler.ts`, `src/services/searchService.ts` practice helpers.
-- Tests: sampler sizing + randomness (seeded RNG), UI filters (favorites-only, stage toggles), persistence helpers with mocked Supabase + localStorage.
+- `src/services/searchService.test.ts`
+- `src/pages/__tests__/Home.mobile.test.tsx`
+- `src/hooks/__tests__/useSearchProgress.test.ts`
+- `src/components/__tests__/ProgressDialog.test.tsx`
 
-### P2 – Tavily analytics
-- Files: `src/services/tavilyAnalyticsService.ts`.
-- Tests: Supabase call mocks covering totals, averages, ranking, cost conversions, and graceful empty results.
+### Backend
 
-## Tooling Notes
-- Keep Deno-based suites under `tests/` and run with `deno test --allow-all`.
-- New frontend suites should add `"test": "vitest run"` plus `vitest`, `@testing-library/react`, `@testing-library/user-event`, and `@testing-library/jest-dom`.
-- Prefer lightweight Supabase client mocks; only hit the hosted project for end-to-end checks when necessary.
+The `tests/` Deno files are not trustworthy as production coverage today.
+
+Why:
+
+- `make test` only runs `tests/unit/test_edge_functions/*.ts`.
+- The integration workflow files are not part of that command.
+- Multiple Deno tests still reference old schema fields like `search_status`.
+- They depend on real Supabase credentials in `.env.local`.
+- They do not exercise the real browser-to-Edge-Function startup handshake that broke research.
+
+That means previous green runs could still miss a broken research trigger.
+
+## What Was Missing
+
+The failure mode from this incident lived between:
+
+1. creating the `searches` row in the browser
+2. starting `interview-research`
+3. getting an acknowledgement back from the Edge Function
+
+That boundary was previously untested. The browser marked the search as active before the function
+had actually accepted the job, and the tests mostly mocked `startProcessing`, so they never caught
+that gap.
+
+## Coverage Reality
+
+- There is no automated line or branch coverage report configured in this repo today.
+- There is no trustworthy single percentage for coverage in the current setup.
+- The frontend suite covers slices of behavior, not the complete product.
+- The legacy Deno files should not be counted as reliable coverage until they are updated and wired
+  into a real CI gate.
+
+If you need an actual coverage number, add a coverage provider and generate a report as a separate
+change. Right now any percentage would be guesswork.
+
+## Priorities
+
+### P0
+
+| Focus | Key files |
+|-------|-----------|
+| Research startup handshake | `src/services/searchService.ts`, `src/pages/Home.tsx`, `supabase/functions/interview-research/index.ts` |
+| Search artifact persistence and CV-job comparison | `supabase/functions/interview-research/index.ts`, `supabase/functions/_shared/progress-tracker.ts`, `src/services/searchService.ts` |
+| Progress and stall detection UI | `src/components/ProgressDialog.tsx`, `src/hooks/useSearchProgress.ts` |
+
+### P1
+
+| Focus | Key files |
+|-------|-----------|
+| Practice session pipeline | `src/pages/Practice.tsx`, `src/services/sessionSampler.ts`, `src/services/searchService.ts` |
+| Full dashboard and history regressions | `src/pages/Dashboard.tsx`, `src/pages/History.tsx` |
+
+## Tooling
+
+- Frontend: Vitest with jsdom and Testing Library. Setup file: `vitest.setup.ts`.
+- Backend: legacy Deno tests under `tests/`, currently requiring cleanup before they can be used as a release gate.
+- Mocking: prefer focused Supabase client mocks for browser-side logic. Use hosted Supabase only for explicit end-to-end checks.

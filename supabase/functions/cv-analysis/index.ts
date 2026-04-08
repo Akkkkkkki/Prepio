@@ -22,7 +22,7 @@ interface CVAnalysis {
   current_role?: string;
   experience_years?: number;
   skills: {
-    technical: string[];
+    categories: { name: string; skills: string[] }[];
     soft: string[];
     certifications: string[];
   };
@@ -69,10 +69,7 @@ interface ProfileParsedData {
     description?: string;
   }[];
   skills: {
-    technical: string[];
-    programming: string[];
-    frameworks: string[];
-    tools: string[];
+    categories: { name: string; skills: string[] }[];
     soft: string[];
   };
   projects: {
@@ -101,7 +98,9 @@ const buildStubCvAnalysis = (): CVAnalysis => ({
   current_role: "Software Engineer",
   experience_years: 3,
   skills: {
-    technical: ["JavaScript", "TypeScript", "React", "APIs"],
+    categories: [
+      { name: "General", skills: ["JavaScript", "TypeScript", "React", "APIs"] },
+    ],
     soft: ["Collaboration", "Communication"],
     certifications: [],
   },
@@ -143,12 +142,12 @@ async function analyzeCV(
 {
   "name": "string",
   "email": "string",
-  "phone": "string", 
+  "phone": "string",
   "location": "string",
   "current_role": "string",
   "experience_years": number,
   "skills": {
-    "technical": ["array of technical skills"],
+    "categories": [{"name": "category name", "skills": ["skill1", "skill2"]}],
     "soft": ["array of soft skills"],
     "certifications": ["array of certifications"]
   },
@@ -168,6 +167,8 @@ async function analyzeCV(
   "projects": ["array of notable projects"],
   "key_achievements": ["array of major accomplishments"]
 }
+
+For skills.categories, create 2-4 categories fitting the candidate's profession (e.g., "Programming Languages", "Frameworks" and "DevOps" for engineers; "Analytics Tools" and "Marketing Platforms" for marketers; "Legal Research" and "Compliance" for lawyers). Each category should have a descriptive name and an array of skills.
 
 CV Text:
 ${cvText}`
@@ -211,7 +212,7 @@ ${cvText}`
     location: "",
     current_role: "",
     experience_years: 0,
-    skills: { technical: [], soft: [], certifications: [] },
+    skills: { categories: [], soft: [], certifications: [] },
     education: { degree: "", institution: "", graduation_year: new Date().getFullYear() },
     experience: [],
     projects: [],
@@ -223,26 +224,6 @@ ${cvText}`
 
 // Convert OpenAI CV analysis to Profile component format
 function convertToProfileFormat(aiAnalysis: CVAnalysis): ProfileParsedData {
-  // Extract programming languages, frameworks, and tools from technical skills
-  const technicalSkills = aiAnalysis.skills.technical || [];
-  const programmingLanguages = technicalSkills.filter(skill => 
-    ['javascript', 'python', 'java', 'typescript', 'c++', 'c#', 'php', 'ruby', 'go', 'rust', 'swift', 'kotlin', 'scala', 'r', 'matlab', 'sql', 'html', 'css'].some(lang => 
-      skill.toLowerCase().includes(lang)
-    )
-  );
-  
-  const frameworks = technicalSkills.filter(skill =>
-    ['react', 'angular', 'vue', 'svelte', 'nextjs', 'nuxt', 'express', 'nestjs', 'django', 'flask', 'spring', 'laravel', 'rails', 'asp.net', 'tensorflow', 'pytorch'].some(framework =>
-      skill.toLowerCase().includes(framework)
-    )
-  );
-  
-  const tools = technicalSkills.filter(skill =>
-    ['docker', 'kubernetes', 'aws', 'azure', 'gcp', 'jenkins', 'gitlab', 'github', 'git', 'mongodb', 'postgresql', 'mysql', 'redis', 'elasticsearch'].some(tool =>
-      skill.toLowerCase().includes(tool)
-    )
-  );
-
   return {
     personalInfo: {
       name: aiAnalysis.name,
@@ -272,14 +253,11 @@ function convertToProfileFormat(aiAnalysis: CVAnalysis): ProfileParsedData {
       description: ''
     }] : [],
     skills: {
-      technical: technicalSkills,
-      programming: programmingLanguages,
-      frameworks: frameworks,
-      tools: tools,
-      soft: aiAnalysis.skills.soft || []
+      categories: (aiAnalysis.skills.categories || []).filter(c => c.skills.length > 0),
+      soft: aiAnalysis.skills.soft || [],
     },
     projects: (aiAnalysis.projects && aiAnalysis.projects.length > 0)
-      ? (typeof aiAnalysis.projects[0] === 'string' 
+      ? (typeof aiAnalysis.projects[0] === 'string'
           ? aiAnalysis.projects.map((project: string) => ({
               name: project.split(':')[0] || project,
               description: project,
@@ -287,7 +265,7 @@ function convertToProfileFormat(aiAnalysis: CVAnalysis): ProfileParsedData {
             }))
           : aiAnalysis.projects.map((project: any) => ({
               name: project.name || project,
-              description: project.description || project,
+              description: project.description || "",
               technologies: project.technologies || []
             })))
       : [],
@@ -425,30 +403,26 @@ serve(async (req) => {
   } catch (error) {
     console.error("CV analysis error:", error);
 
-    // Graceful fallback to stubbed analysis so CI can pass without external services
-    const aiAnalysis = buildStubCvAnalysis();
-    const profileData = convertToProfileFormat(aiAnalysis);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
     if (logger && executionId) {
       await logger.updateFunctionExecution(executionId, {
-        rawOutputs: { aiAnalysis },
-        processedOutputs: { profileData },
-        status: 'completed',
+        rawOutputs: {},
+        processedOutputs: {},
+        status: 'failed',
         executionTimeMs: Date.now() - executionStartTime,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error (served fallback)',
+        errorMessage,
       });
     }
 
     return new Response(
       JSON.stringify({
-        success: true,
-        parsedData: profileData,
-        aiAnalysis,
-        fallback: true,
+        success: false,
+        error: errorMessage,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+        status: 500,
       }
     );
   }

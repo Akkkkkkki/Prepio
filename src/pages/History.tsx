@@ -1,69 +1,140 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ClipboardList, RotateCcw, Search } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import Navigation from "@/components/Navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { OverviewStats } from "@/components/history/OverviewStats";
+import {
+  HISTORY_FILTER_ALL,
+  SearchFilter,
+} from "@/components/history/SearchFilter";
+import { SessionList } from "@/components/history/SessionList";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { searchService } from "@/services/searchService";
-import { useSearchHistory } from "@/hooks/useSearchHistory";
+import type {
+  PracticeHistoryOverviewStats,
+  PracticeHistorySession,
+  PracticeQuestionFlagMap,
+} from "@/services/searchService";
 
-type PracticeSessionHistoryItem = {
-  id: string;
-  search_id: string;
-  started_at: string;
-  completed_at?: string | null;
-  session_notes?: string | null;
-  searches?: {
-    company?: string | null;
-    role?: string | null;
-    country?: string | null;
-  } | null;
-};
+const calculateOverviewStats = (
+  sessions: PracticeHistorySession[],
+  questionFlags: PracticeQuestionFlagMap
+): PracticeHistoryOverviewStats => {
+  const needsWorkQuestionIds = new Set<string>();
 
-const HISTORY_ALL_VALUE = "all";
+  const totalQuestionsAnswered = sessions.reduce(
+    (total, session) => total + session.practice_answers.length,
+    0
+  );
 
-const formatDateTime = (dateValue?: string | null) => {
-  if (!dateValue) return "In progress";
-  return new Date(dateValue).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
+  const totalTimeSeconds = sessions.reduce(
+    (total, session) =>
+      total +
+      session.practice_answers.reduce(
+        (sessionTotal, answer) => sessionTotal + (answer.answer_time_seconds ?? 0),
+        0
+      ),
+    0
+  );
+
+  sessions.forEach((session) => {
+    session.practice_answers.forEach((answer) => {
+      if (questionFlags[answer.question_id]?.flag_type === "needs_work") {
+        needsWorkQuestionIds.add(answer.question_id);
+      }
+    });
   });
+
+  return {
+    totalSessions: sessions.length,
+    totalQuestionsAnswered,
+    totalTimeSeconds,
+    needsWorkCount: needsWorkQuestionIds.size,
+  };
 };
+
+const OverviewStatsSkeleton = () => (
+  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    {Array.from({ length: 4 }).map((_, index) => (
+      <Card key={index} className="rounded-2xl border-border/70 shadow-sm">
+        <CardContent className="space-y-3 p-5">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-8 w-16" />
+          <Skeleton className="h-3 w-32" />
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+);
+
+const SessionListSkeleton = () => (
+  <div className="space-y-4">
+    {Array.from({ length: 3 }).map((_, index) => (
+      <Card key={index} className="rounded-3xl border-border/70 shadow-sm">
+        <CardContent className="space-y-4 p-5">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-6 w-60" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-48" />
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+);
 
 const History = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [sessions, setSessions] = useState<PracticeSessionHistoryItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { isOffline } = useNetworkStatus();
+  const [sessions, setSessions] = useState<PracticeHistorySession[]>([]);
+  const [questionFlags, setQuestionFlags] = useState<PracticeQuestionFlagMap>({});
+  const [stats, setStats] = useState<PracticeHistoryOverviewStats | null>(null);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(true);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { data: searchHistory = [] } = useSearchHistory(true);
 
-  const selectedSearchId = searchParams.get("searchId") ?? HISTORY_ALL_VALUE;
+  const selectedSearchId = searchParams.get("searchId") ?? HISTORY_FILTER_ALL;
 
   useEffect(() => {
     let isActive = true;
 
     const loadSessions = async () => {
-      setIsLoading(true);
+      setIsLoadingSessions(true);
       setError(null);
 
-      const result = await searchService.getPracticeSessions(
-        selectedSearchId === HISTORY_ALL_VALUE ? undefined : selectedSearchId,
-      );
+      const sessionsResult = await searchService.getPracticeSessions();
 
       if (!isActive) return;
 
-      if (!result.success) {
+      if (!sessionsResult.success || !sessionsResult.sessions) {
         setError("Failed to load practice history.");
-      } else {
-        setSessions((result.sessions as PracticeSessionHistoryItem[]) ?? []);
+        setIsLoadingSessions(false);
+        return;
       }
 
-      setIsLoading(false);
+      setSessions(sessionsResult.sessions);
+
+      const questionIds = Array.from(
+        new Set(
+          sessionsResult.sessions.flatMap((session) =>
+            session.practice_answers.map((answer) => answer.question_id)
+          )
+        )
+      );
+
+      if (questionIds.length > 0) {
+        const flagsResult = await searchService.getQuestionFlags(questionIds);
+
+        if (!isActive) return;
+
+        if (flagsResult.success && flagsResult.flags) {
+          setQuestionFlags(flagsResult.flags);
+        }
+      }
+
+      setIsLoadingSessions(false);
     };
 
     loadSessions();
@@ -71,159 +142,190 @@ const History = () => {
     return () => {
       isActive = false;
     };
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadStats = async () => {
+      setIsLoadingStats(true);
+      setStats(null);
+
+      const statsResult = await searchService.getPracticeOverviewStats(
+        selectedSearchId === HISTORY_FILTER_ALL ? undefined : selectedSearchId
+      );
+
+      if (!isActive) return;
+
+      if (statsResult.success && statsResult.stats) {
+        setStats(statsResult.stats);
+      } else {
+        setStats(null);
+      }
+
+      setIsLoadingStats(false);
+    };
+
+    loadStats();
+
+    return () => {
+      isActive = false;
+    };
   }, [selectedSearchId]);
 
   const filteredSessions = useMemo(() => {
-    if (selectedSearchId === HISTORY_ALL_VALUE) return sessions;
+    if (selectedSearchId === HISTORY_FILTER_ALL) {
+      return sessions;
+    }
+
     return sessions.filter((session) => session.search_id === selectedSearchId);
   }, [selectedSearchId, sessions]);
 
+  const fallbackStats = useMemo(
+    () => calculateOverviewStats(filteredSessions, questionFlags),
+    [filteredSessions, questionFlags]
+  );
+
+  const practiceEntryHref = selectedSearchId !== HISTORY_FILTER_ALL
+    ? `/practice?searchId=${selectedSearchId}`
+    : "/dashboard";
+  const practiceEntryLabel = selectedSearchId !== HISTORY_FILTER_ALL
+    ? "Start practice for this research"
+    : "Go to Dashboard";
+  const primaryEmptyHref = selectedSearchId !== HISTORY_FILTER_ALL
+    ? `/dashboard?searchId=${selectedSearchId}`
+    : "/dashboard";
+  const primaryEmptyLabel = selectedSearchId !== HISTORY_FILTER_ALL
+    ? "Open research dashboard"
+    : "Go to Dashboard";
+  const secondaryEmptyHref = selectedSearchId !== HISTORY_FILTER_ALL ? practiceEntryHref : "/";
+  const secondaryEmptyLabel = selectedSearchId !== HISTORY_FILTER_ALL
+    ? "Start practice"
+    : "Start new research";
+  const displayedStats = isLoadingStats ? fallbackStats : stats ?? fallbackStats;
+
   const handleFilterChange = (value: string) => {
-    const next = new URLSearchParams(searchParams);
-    if (value === HISTORY_ALL_VALUE) {
-      next.delete("searchId");
+    const nextSearchParams = new URLSearchParams(searchParams);
+
+    if (value === HISTORY_FILTER_ALL) {
+      nextSearchParams.delete("searchId");
     } else {
-      next.set("searchId", value);
+      nextSearchParams.set("searchId", value);
     }
-    setSearchParams(next);
+
+    setSearchParams(nextSearchParams);
   };
 
+  if (isLoadingSessions && sessions.length === 0) {
+    return (
+      <div id="main-content" className="min-h-screen bg-background">
+        <Navigation showSearchSelector={false} />
+        <div className="container mx-auto max-w-4xl px-4 py-8">
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-10 w-72 max-w-full" />
+              <Skeleton className="h-4 w-80 max-w-full" />
+            </div>
+            <OverviewStatsSkeleton />
+            <SessionListSkeleton />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background">
+    <div id="main-content" className="min-h-screen bg-background">
       <Navigation showSearchSelector={false} />
-      <div className="container mx-auto max-w-5xl px-4 py-8">
+      <div className="container mx-auto max-w-6xl px-4 py-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-primary">
               <ClipboardList className="h-4 w-4" />
-              Practice history
+              Practice History
             </div>
-            <h1 className="text-3xl font-semibold tracking-tight">Review your recent practice rounds</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">Review how each round went</h1>
             <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
-              Jump back into a research run, or go straight to the questions you marked as needing another pass.
+              See what you practiced, how long you spent, and which questions still need another pass.
             </p>
           </div>
 
-          <div className="w-full md:w-[280px]">
-            <Select value={selectedSearchId} onValueChange={handleFilterChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by research" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={HISTORY_ALL_VALUE}>All research</SelectItem>
-                {searchHistory.map((search) => (
-                  <SelectItem key={search.id} value={search.id}>
-                    {search.company}
-                    {search.role ? ` - ${search.role}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {sessions.length > 0 && (
+            <SearchFilter
+              sessions={sessions}
+              value={selectedSearchId}
+              onChange={handleFilterChange}
+            />
+          )}
         </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          <Card>
-            <CardContent className="p-5">
-              <p className="text-sm text-muted-foreground">Practice sessions</p>
-              <p className="mt-2 text-3xl font-semibold">{filteredSessions.length}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-5">
-              <p className="text-sm text-muted-foreground">Active filter</p>
-              <p className="mt-2 text-lg font-semibold">
-                {selectedSearchId === HISTORY_ALL_VALUE ? "All research" : "Single research run"}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-5">
-              <p className="text-sm text-muted-foreground">Fast path</p>
-              <Button asChild variant="outline" className="mt-3 w-full">
-                <Link to={selectedSearchId === HISTORY_ALL_VALUE ? "/dashboard" : `/practice?searchId=${selectedSearchId}&focus=needs_work`}>
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Practice flagged questions
-                </Link>
+        {error && sessions.length === 0 ? (
+          <Card className="mx-auto mt-8 max-w-xl">
+            <CardHeader>
+              <CardTitle>Practice history unavailable</CardTitle>
+              <CardDescription>
+                {isOffline ? "Reconnect to load your practice history." : error}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 sm:flex-row">
+              <Button asChild>
+                <Link to={primaryEmptyHref}>{primaryEmptyLabel}</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to={secondaryEmptyHref}>{secondaryEmptyLabel}</Link>
               </Button>
             </CardContent>
           </Card>
-        </div>
-
-        <div className="mt-8 space-y-4">
-          {isLoading ? (
-            <Card>
-              <CardContent className="p-6 text-sm text-muted-foreground">Loading practice history...</CardContent>
-            </Card>
-          ) : error ? (
-            <Card>
-              <CardContent className="space-y-3 p-6">
-                <p className="text-sm text-destructive">{error}</p>
-                <Button onClick={() => window.location.reload()}>Retry</Button>
-              </CardContent>
-            </Card>
-          ) : filteredSessions.length === 0 ? (
-            <Card className="border-dashed">
-              <CardHeader>
-                <CardTitle>No practice sessions yet</CardTitle>
-                <CardDescription>
-                  Finish one practice round and it will show up here with a shortcut back into flagged questions.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3 sm:flex-row">
-                <Button asChild>
-                  <Link to={selectedSearchId === HISTORY_ALL_VALUE ? "/dashboard" : `/dashboard?searchId=${selectedSearchId}`}>
-                    <Search className="mr-2 h-4 w-4" />
-                    Open research dashboard
-                  </Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link to={selectedSearchId === HISTORY_ALL_VALUE ? "/" : `/practice?searchId=${selectedSearchId}`}>
-                    Start practice
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            filteredSessions.map((session) => (
-              <Card key={session.id}>
-                <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {session.searches?.company && <Badge variant="secondary">{session.searches.company}</Badge>}
-                      {session.searches?.role && <Badge variant="outline">{session.searches.role}</Badge>}
-                      {session.searches?.country && <Badge variant="outline">{session.searches.country}</Badge>}
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">
-                        Started {formatDateTime(session.started_at)}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {session.completed_at ? `Completed ${formatDateTime(session.completed_at)}` : "Session still open"}
-                      </p>
-                    </div>
-                    <p className="max-w-2xl text-sm text-muted-foreground">
-                      {session.session_notes || "No reflection saved for this round yet."}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-3 sm:flex-row md:flex-col">
-                    <Button asChild>
-                      <Link to={`/practice?searchId=${session.search_id}`}>Start another round</Link>
-                    </Button>
-                    <Button asChild variant="outline">
-                      <Link to={`/practice?searchId=${session.search_id}&focus=needs_work`}>
-                        Practice flagged questions
-                      </Link>
-                    </Button>
-                    <Button asChild variant="ghost">
-                      <Link to={`/dashboard?searchId=${session.search_id}`}>Open dashboard</Link>
-                    </Button>
-                  </div>
+        ) : sessions.length === 0 ? (
+          <Card className="mx-auto mt-8 max-w-2xl rounded-3xl border-dashed text-center">
+            <CardHeader>
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                <ClipboardList className="h-7 w-7 text-muted-foreground" />
+              </div>
+              <CardTitle>Ready to start practicing</CardTitle>
+              <CardDescription>
+                Your first practice session will appear here with answers, timing, and notes so you can track your preparation progress.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <Button asChild>
+                <Link to={secondaryEmptyHref}>{secondaryEmptyLabel}</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to={primaryEmptyHref}>{primaryEmptyLabel}</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="mt-8 space-y-6">
+            {isLoadingStats && !stats ? (
+              <OverviewStatsSkeleton />
+            ) : (
+              <OverviewStats stats={displayedStats} />
+            )}
+            {filteredSessions.length === 0 ? (
+              <Card className="rounded-3xl border-dashed">
+                <CardHeader>
+                  <CardTitle>No sessions for this research yet</CardTitle>
+                  <CardDescription>
+                    You haven't practiced questions from this research run yet. Start a session to build your confidence and track progress here.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3 sm:flex-row">
+                  <Button asChild>
+                    <Link to={practiceEntryHref}>{practiceEntryLabel}</Link>
+                  </Button>
+                  <Button variant="outline" onClick={() => handleFilterChange(HISTORY_FILTER_ALL)}>
+                    Show all sessions
+                  </Button>
                 </CardContent>
               </Card>
-            ))
-          )}
-        </div>
+            ) : (
+              <SessionList sessions={filteredSessions} questionFlags={questionFlags} />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

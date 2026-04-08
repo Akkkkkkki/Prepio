@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSwipeable } from "react-swipeable";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { 
   ChevronLeft, 
-  ChevronRight, 
   RotateCcw, 
   Timer,
   CheckCircle,
@@ -25,20 +33,28 @@ import {
   Square,
   Star,
   ArrowLeft,
-  Info
+  Info,
+  MoreHorizontal,
+  Pause,
+  FileText,
+  Trash2
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
 import { sessionSampler } from "@/services/sessionSampler";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { SessionSummary } from "@/components/SessionSummary";
 import { QuestionFrame } from "@/components/practice/QuestionFrame";
 import { HintBanner } from "@/components/practice/HintBanner";
 import { BottomPracticeNav } from "@/components/practice/BottomPracticeNav";
 import { PracticeHelperDrawer } from "@/components/practice/PracticeHelperDrawer";
 import { QuestionInsightsPanel } from "@/components/practice/QuestionInsightsPanel";
-import { PracticeSetupWizard } from "@/components/practice/PracticeSetupWizard";
-import { VoiceRecorder } from "@/components/practice/VoiceRecorder";
-import { usePracticeSession } from "@/hooks/usePracticeSession";
+import { MobileCoachModal } from "@/components/practice/MobileCoachModal";
+import { CompletionCheckmark } from "@/components/practice/CompletionCheckmark";
+import { BreathingBreak, BREATHING_DISMISSED_KEY } from "@/components/practice/BreathingBreak";
+import type { SavedPracticeAnswerRecord } from "@/hooks/usePracticeSession";
+import { cn } from "@/lib/utils";
 
 const SWIPE_THRESHOLD_PX = 60;
 const VERTICAL_SCROLL_SUPPRESSION_DELTA = 12;
@@ -46,6 +62,11 @@ const SWIPE_HINT_STORAGE_PREFIX = "practiceSwipeHintDismissed";
 const ANSWER_AUTOSAVE_PREFIX = "practiceAnswerAutosave";
 const AUTOSAVE_DELAY_MS = 5000;
 const PRACTICE_SETUP_STORAGE_KEY = "practiceSetupDefaults";
+const COMPLETE_SESSION_ERROR_MESSAGE = "We couldn't mark this session complete. Try again.";
+const OFFLINE_PRACTICE_MESSAGE = "Reconnect to start practice, save answers, or update favorites.";
+const RECOMMENDED_ANSWER_TIME_COPY = "Aim for 1-2 min";
+const ABORTED_RECORDING_ERROR_MESSAGE =
+  "Recording stopped before any audio was captured. Try again or switch to notes.";
 
 const SETUP_STEPS = [
   { key: "goal", label: "Goal" },
@@ -159,6 +180,8 @@ interface PracticeSession {
 const Practice = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
+  const { isOffline } = useNetworkStatus();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchId = searchParams.get('searchId');
   const urlStageIds = searchParams.get('stages')?.split(',') || [];
@@ -173,12 +196,22 @@ const Practice = () => {
   const [searchData, setSearchData] = useState<{ status: string; company?: string; role?: string } | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Map<string, string>>(new Map());
+  const [questionTimers, setQuestionTimers] = useState<Map<string, number>>(new Map());
+  const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(Date.now());
+  const [timerTick, setTimerTick] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [showKeyboardHint, setShowKeyboardHint] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !localStorage.getItem('prepio_keyboard_hint_dismissed');
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
-  const [isSavingRating, setIsSavingRating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [completionError, setCompletionError] = useState<string | null>(null);
   const [practiceSession, setPracticeSession] = useState<PracticeSession | null>(null);
+  const [savedAnswers, setSavedAnswers] = useState<Map<string, boolean>>(new Map());
+  const [savedAnswerRecords, setSavedAnswerRecords] = useState<SavedPracticeAnswerRecord[]>([]);
+  const [isSavingRating, setIsSavingRating] = useState(false);
   
   // Question flags (Epic 1.3)
   const [questionFlags, setQuestionFlags] = useState<Record<string, { flag_type: string; id: string }>>({});
@@ -200,14 +233,20 @@ const Practice = () => {
   const [useSampling, setUseSampling] = useState<boolean>(false);
   const [tempShowFavoritesOnly, setTempShowFavoritesOnly] = useState(false);
   
-  // Session state: 'setup' | 'inProgress' | 'completed'
-  const [sessionState, setSessionState] = useState<'setup' | 'inProgress' | 'completed'>('setup');
+  // Session state: 'setup' | 'breathing' | 'inProgress' | 'completed'
+  const [sessionState, setSessionState] = useState<'setup' | 'breathing' | 'inProgress' | 'completed'>('setup');
   const [setupStep, setSetupStep] = useState(0);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [mobileSetupMode, setMobileSetupMode] = useState<'quick' | 'custom'>('quick');
   const [rememberDefaults, setRememberDefaults] = useState(true);
   const [shouldShowSwipeHint, setShouldShowSwipeHint] = useState(false);
   const [isVerticalScrollGuarded, setIsVerticalScrollGuarded] = useState(false);
   const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [showCheckmark, setShowCheckmark] = useState(false);
+  const [isCoachSheetOpen, setIsCoachSheetOpen] = useState(false);
+  const [isNotesExpanded, setIsNotesExpanded] = useState(false);
+  const [mobileFooterHeight, setMobileFooterHeight] = useState(0);
+  const [mobileFooterElement, setMobileFooterElement] = useState<HTMLDivElement | null>(null);
   const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hydratedAnswersRef = useRef<Set<string>>(new Set());
 
@@ -218,29 +257,81 @@ const Practice = () => {
     if (typeof window === "undefined") return;
     sessionStorage.removeItem(getAutosaveKey(questionId));
   };
+
+  const clearSavedRecording = () => {
+    setAudioBlob(null);
+    setHasRecording(false);
+    setRecordingTime(0);
+  };
+
+  const stopMediaStream = () => {
+    mediaStreamRef.current?.getTracks().forEach(track => track.stop());
+    mediaStreamRef.current = null;
+  };
+
+  const resetRecordingUi = () => {
+    setIsRecording(false);
+    setIsRecordingPaused(false);
+    setRecordingTime(0);
+    setAudioBlob(null);
+    setHasRecording(false);
+  };
+
+  const discardRecordingDraft = () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.ondataavailable = null;
+      recorder.onstop = null;
+      try {
+        recorder.stop();
+      } catch (error) {
+        console.error("Error discarding recording", error);
+      }
+    }
+
+    mediaRecorderRef.current = null;
+    audioChunksRef.current = [];
+    stopMediaStream();
+    resetRecordingUi();
+  };
+
+  const getMicrophoneErrorMessage = (error: unknown) => {
+    if (error instanceof DOMException) {
+      switch (error.name) {
+        case "NotAllowedError":
+        case "PermissionDeniedError":
+          return "Microphone access is blocked. Allow microphone access in your browser settings, then try again.";
+        case "NotFoundError":
+        case "DevicesNotFoundError":
+          return "No microphone was found on this device. Connect one or use notes instead.";
+        case "NotReadableError":
+        case "TrackStartError":
+          return "Your microphone is busy in another app. Close the other app and try again.";
+        case "AbortError":
+          return ABORTED_RECORDING_ERROR_MESSAGE;
+        default:
+          break;
+      }
+    }
+
+    return "Microphone access failed. Check browser permissions and try again.";
+  };
   
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
+  const [isRecordingPaused, setIsRecordingPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [hasRecording, setHasRecording] = useState(false);
-  const [recordingError, setRecordingError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Swipe gesture states
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const [swipeDelta, setSwipeDelta] = useState(0);
-  const {
-    currentQuestionTime,
-    questionTimers,
-    savedAnswers,
-    savedAnswerRecords,
-    markAnswerSaved,
-    resetCurrentQuestionTimer,
-    resetSessionState,
-    updateAnswerRating,
-  } = usePracticeSession(questions[currentIndex]?.id);
 
   const loadPracticeDefaults = () => {
     if (typeof window === "undefined") return false;
@@ -263,6 +354,13 @@ const Practice = () => {
         if (typeof parsed.favoritesOnly === "boolean") {
           setTempShowFavoritesOnly(parsed.favoritesOnly);
         }
+        const isQuickDefault =
+          parsed.sampleSize === practicePresets.quick.config.sampleSize &&
+          parsed.categories.length === 0 &&
+          parsed.difficulties.length === 0 &&
+          parsed.shuffle === practicePresets.quick.config.shuffle &&
+          parsed.favoritesOnly === practicePresets.quick.config.favoritesOnly;
+        setMobileSetupMode(isQuickDefault ? 'quick' : 'custom');
         setRememberDefaults(true);
         return true;
       }
@@ -272,14 +370,14 @@ const Practice = () => {
     return false;
   };
 
-  const persistPracticeDefaults = () => {
+  const persistPracticeDefaults = (defaults?: PracticeDefaults) => {
     if (typeof window === "undefined") return;
     if (!rememberDefaults) {
       localStorage.removeItem(PRACTICE_SETUP_STORAGE_KEY);
       return;
     }
 
-    const payload: PracticeDefaults = {
+    const payload: PracticeDefaults = defaults ?? {
       sampleSize,
       categories: tempCategories,
       difficulties: tempDifficulties,
@@ -455,6 +553,10 @@ const getInterviewerFocus = (
     loadSearchData();
   }, [searchId]);
 
+  useEffect(() => {
+    setShowNeedsWorkOnly(focusMode === "needs_work");
+  }, [focusMode]);
+
   // Load question flags when stages are loaded (separate effect to avoid infinite loop)
   useEffect(() => {
     const loadFlags = async () => {
@@ -481,9 +583,9 @@ const getInterviewerFocus = (
     }
   }, [allStages]); // Only reload flags when stages change
 
-  // Load practice questions when stages or filters change
+  // Load practice session when stages are selected
   useEffect(() => {
-    const loadPracticeQuestions = async () => {
+    const loadPracticeSession = async () => {
       if (!searchId) return;
 
       const selectedStages = allStages.filter(stage => stage.selected);
@@ -544,7 +646,7 @@ const getInterviewerFocus = (
           );
         }
         
-        // Filter by favorites only
+        // Filter by favorites only (Epic 1.3) - uses questionFlags from separate effect
         if (showFavoritesOnly) {
           filteredQuestions = filteredQuestions.filter(q => 
             questionFlags[q.id]?.flag_type === 'favorite'
@@ -564,10 +666,15 @@ const getInterviewerFocus = (
           return (stageA?.order_index || 0) - (stageB?.order_index || 0);
         });
         
-        // Shuffle if requested
-        let processedQuestions = appliedShuffle 
-          ? sortedQuestions.sort(() => Math.random() - 0.5)
-          : sortedQuestions;
+        // Fisher-Yates shuffle for unbiased randomization
+        let processedQuestions = sortedQuestions;
+        if (appliedShuffle) {
+          processedQuestions = [...sortedQuestions];
+          for (let i = processedQuestions.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [processedQuestions[i], processedQuestions[j]] = [processedQuestions[j], processedQuestions[i]];
+          }
+        }
         
         // Apply sampling if enabled
         if (useSampling && sampleSize > 0) {
@@ -575,8 +682,9 @@ const getInterviewerFocus = (
         }
         
         setQuestions(processedQuestions);
+
       } catch (err) {
-        console.error("Error loading practice questions:", err);
+        console.error("Error loading practice session:", err);
         setError("An unexpected error occurred while loading practice questions");
       } finally {
         setIsLoading(false);
@@ -584,7 +692,7 @@ const getInterviewerFocus = (
     };
 
     if (allStages.length > 0) {
-      loadPracticeQuestions();
+      loadPracticeSession();
     }
   }, [
     allStages,
@@ -599,17 +707,28 @@ const getInterviewerFocus = (
     sampleSize,
   ]);
 
-  // Reset recorder when changing questions
+  // Reset timer when question changes
   useEffect(() => {
-    setIsRecording(false);
-    setRecordingTime(0);
-    setAudioBlob(null);
-    setHasRecording(false);
+    setCurrentQuestionStartTime(Date.now());
+    setIsCoachSheetOpen(false);
+    setIsNotesExpanded(false);
     setRecordingError(null);
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
-    }
+    discardRecordingDraft();
   }, [currentIndex]);
+
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (error) {
+          console.error("Error stopping recorder on cleanup", error);
+        }
+      }
+      stopMediaStream();
+      audioChunksRef.current = [];
+    };
+  }, []);
 
   useEffect(() => {
     if (!currentQuestion) return;
@@ -651,7 +770,7 @@ const getInterviewerFocus = (
   }, [currentAnswer, currentQuestion?.id, sessionState]);
 
   useEffect(() => {
-    if (sessionState !== 'inProgress') {
+    if (sessionState !== 'inProgress' || isMobile) {
       setShouldShowSwipeHint(false);
       return;
     }
@@ -664,7 +783,48 @@ const getInterviewerFocus = (
     } else {
       setShouldShowSwipeHint(false);
     }
-  }, [currentIndex, sessionState, swipeHintStorageKey]);
+  }, [currentIndex, isMobile, sessionState, swipeHintStorageKey]);
+
+  useLayoutEffect(() => {
+    if (!isMobile || sessionState !== 'inProgress') {
+      setMobileFooterHeight(0);
+      return;
+    }
+
+    const footer = mobileFooterElement;
+    if (!footer) return;
+
+    const measureFooter = () => {
+      setMobileFooterHeight(Math.ceil(footer.getBoundingClientRect().height));
+    };
+
+    measureFooter();
+
+    const handleResize = () => measureFooter();
+    window.addEventListener('resize', handleResize);
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => window.removeEventListener('resize', handleResize);
+    }
+
+    const observer = new ResizeObserver(() => measureFooter());
+    observer.observe(footer);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [
+    currentQuestion?.id,
+    hasRecording,
+    isMobile,
+    isNotesExpanded,
+    isRecording,
+    isRecordingPaused,
+    mobileFooterElement,
+    recordingError,
+    sessionState,
+  ]);
 
   // Recording timer
   useEffect(() => {
@@ -711,55 +871,106 @@ const getInterviewerFocus = (
     }
   };
 
+  const getCurrentQuestionTime = () => {
+    return Math.floor((Date.now() - currentQuestionStartTime) / 1000);
+  };
+
   const handleAnswerChange = (value: string) => {
-    const newAnswers = new Map(answers);
-    newAnswers.set(currentQuestion.id, value);
-    setAnswers(newAnswers);
+    setAnswers(prev => {
+      const next = new Map(prev);
+      next.set(currentQuestion.id, value);
+      return next;
+    });
   };
 
   const startRecording = async () => {
+    setRecordingError(null);
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setRecordingError("Microphone recording is not supported in this browser. Use quick notes instead.");
+      return;
+    }
+
+    if (mediaRecorderRef.current?.state === 'paused') {
+      mediaRecorderRef.current.resume();
+      setIsRecording(true);
+      setIsRecordingPaused(false);
+      return;
+    }
+
     try {
-      setRecordingError(null);
-      setAudioBlob(null);
-      setHasRecording(false);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const preferredMimeType =
-        typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? "audio/webm;codecs=opus"
-          : undefined;
-      const mediaRecorder = preferredMimeType
-        ? new MediaRecorder(stream, { mimeType: preferredMimeType })
-        : new MediaRecorder(stream);
+      if (stream.getAudioTracks().length === 0) {
+        stream.getTracks().forEach((track) => track.stop());
+        setRecordingError("No microphone input was detected. Choose another input or use notes instead.");
+        return;
+      }
+
+      const mediaRecorder = new MediaRecorder(stream);
+
+      stopMediaStream();
+      mediaRecorderRef.current = null;
+      audioChunksRef.current = [];
+      clearSavedRecording();
+      mediaStreamRef.current = stream;
       mediaRecorderRef.current = mediaRecorder;
-      
-      const audioChunks: BlobPart[] = [];
-      
+
       mediaRecorder.ondataavailable = (event) => {
-        audioChunks.push(event.data);
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
       };
-      
+
+      mediaRecorder.onerror = (event) => {
+        const recorderError = (event as Event & { error?: DOMException }).error;
+        setRecordingError(getMicrophoneErrorMessage(recorderError ?? new DOMException("", "AbortError")));
+      };
+
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-        setAudioBlob(audioBlob);
-        setHasRecording(true);
-        
-        // Clean up stream
-        stream.getTracks().forEach(track => track.stop());
+        const nextBlob = audioChunksRef.current.length > 0
+          ? new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' })
+          : null;
+
+        setAudioBlob(nextBlob);
+        setHasRecording(Boolean(nextBlob && nextBlob.size > 0));
+        if (!nextBlob || nextBlob.size === 0) {
+          setRecordingError(ABORTED_RECORDING_ERROR_MESSAGE);
+        }
+        stopMediaStream();
+        mediaRecorderRef.current = null;
+        audioChunksRef.current = [];
+        setIsRecording(false);
+        setIsRecordingPaused(false);
       };
-      
+
       mediaRecorder.start();
       setIsRecording(true);
+      setIsRecordingPaused(false);
       setRecordingTime(0);
     } catch (error) {
       console.error('Error starting recording:', error);
-      setRecordingError('Could not access your microphone. Check browser permissions and try again.');
+      setRecordingError(getMicrophoneErrorMessage(error));
+      mediaRecorderRef.current = null;
+      audioChunksRef.current = [];
+      stopMediaStream();
+      setIsRecording(false);
+      setIsRecordingPaused(false);
+    }
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.pause();
+      setIsRecording(false);
+      setIsRecordingPaused(true);
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      setIsRecordingPaused(false);
     }
   };
 
@@ -771,59 +982,172 @@ const getInterviewerFocus = (
   };
 
   const clearRecording = () => {
-    setAudioBlob(null);
-    setHasRecording(false);
-    setRecordingTime(0);
     setRecordingError(null);
+    discardRecordingDraft();
   };
 
-  const handleBeginSession = async () => {
-    // Apply temporary filters to active filters
-    setAppliedCategories(tempCategories);
-    setAppliedDifficulties(tempDifficulties);
-    setAppliedShuffle(tempShuffle);
-    setShowFavoritesOnly(tempShowFavoritesOnly);
-    const hasSelectedStages = allStages.some(stage => stage.selected);
+  const finalizeSession = async () => {
+    if (!practiceSession) {
+      setCompletionError(COMPLETE_SESSION_ERROR_MESSAGE);
+      return false;
+    }
+
+    setCompletionError(null);
+
+    try {
+      const result = await searchService.completePracticeSession(practiceSession.id);
+
+      if (!result.success || !result.session) {
+        console.error("Failed to complete practice session:", result.error);
+        setCompletionError(COMPLETE_SESSION_ERROR_MESSAGE);
+        return false;
+      }
+
+      setPracticeSession(result.session);
+      setSessionState('completed');
+      return true;
+    } catch (error) {
+      console.error("Error completing practice session:", error);
+      setCompletionError(COMPLETE_SESSION_ERROR_MESSAGE);
+      return false;
+    }
+  };
+
+  const beginSession = ({
+    categories = tempCategories,
+    difficulties = tempDifficulties,
+    shuffle = tempShuffle,
+    favoritesOnly = tempShowFavoritesOnly,
+    stages = allStages,
+    nextSampleSize = sampleSize,
+    nextPreset = selectedPreset,
+  }: {
+    categories?: string[];
+    difficulties?: string[];
+    shuffle?: boolean;
+    favoritesOnly?: boolean;
+    stages?: InterviewStage[];
+    nextSampleSize?: number;
+    nextPreset?: string | null;
+  } = {}) => {
+    if (isOffline) {
+      return false;
+    }
+
+    setAllStages(stages);
+    setSampleSize(nextSampleSize);
+    setAppliedCategories(categories);
+    setAppliedDifficulties(difficulties);
+    setAppliedShuffle(shuffle);
+    setShowFavoritesOnly(favoritesOnly);
+
+    const hasSelectedStages = stages.some(stage => stage.selected);
     if (!hasSelectedStages) {
       setSetupStep(1);
-      return;
+      setMobileSetupMode('custom');
+      return false;
     }
-    persistPracticeDefaults();
+
+    if (searchId) {
+      const selectedStageIds = stages.filter(stage => stage.selected).map(stage => stage.id);
+      const nextParams: Record<string, string> = {
+        searchId,
+        stages: selectedStageIds.join(','),
+      };
+      if (focusMode) {
+        nextParams.focus = focusMode;
+      }
+      setSearchParams(nextParams);
+    }
+
+    persistPracticeDefaults({
+      sampleSize: nextSampleSize,
+      categories,
+      difficulties,
+      shuffle,
+      favoritesOnly
+    });
     if (typeof window !== "undefined") {
       sessionStorage.removeItem(swipeHintStorageKey);
     }
-    setShouldShowSwipeHint(true);
+    setShouldShowSwipeHint(!isMobile);
     setIsVerticalScrollGuarded(false);
+    setCompletionError(null);
     setSetupStep(0);
-    setSelectedPreset(null);
+    setSelectedPreset(nextPreset);
+    setUseSampling(true);
+    const breathingDismissed = localStorage.getItem(BREATHING_DISMISSED_KEY) === "true";
+    setSessionState(breathingDismissed ? 'inProgress' : 'breathing');
+    setCurrentIndex(0);
+    setIsCoachSheetOpen(false);
+    setIsNotesExpanded(false);
+    setRecordingError(null);
+    return true;
+  };
 
-    const sessionResult = await searchService.createPracticeSession(searchId!);
+  const startPracticeSession = async () => {
+    if (!searchId) {
+      return false;
+    }
+
+    const sessionResult = await searchService.createPracticeSession(searchId);
     if (!sessionResult.success || !sessionResult.session) {
       setError("We couldn't start the practice session. Please try again.");
-      return;
+      setSessionState("setup");
+      return false;
     }
 
     setPracticeSession(sessionResult.session);
-    setUseSampling(true);
-    setSessionState('inProgress');
-    setCurrentIndex(0);
+    return true;
+  };
+
+  const handleBeginSession = async () => {
+    const didBegin = beginSession({
+      nextPreset: isMobile ? null : selectedPreset
+    });
+
+    if (!didBegin) return;
+
+    await startPracticeSession();
+  };
+
+  const handleBeginQuickStart = async () => {
+    const selectedStages = allStages.some(stage => stage.selected)
+      ? allStages
+      : allStages.map(stage => ({ ...stage, selected: true }));
+    const didBegin = beginSession({
+      categories: [],
+      difficulties: [],
+      shuffle: practicePresets.quick.config.shuffle,
+      favoritesOnly: practicePresets.quick.config.favoritesOnly,
+      stages: selectedStages,
+      nextSampleSize: practicePresets.quick.config.sampleSize,
+      nextPreset: 'quick'
+    });
+
+    if (!didBegin) return;
+
+    await startPracticeSession();
   };
 
   const handleStartNewSession = () => {
     setSessionState('setup');
     setSetupStep(0);
+    setMobileSetupMode('quick');
     setUseSampling(false);
     setCurrentIndex(0);
     setAnswers(new Map());
-    resetSessionState();
+    setQuestionTimers(new Map());
+    setSavedAnswers(new Map());
+    setSavedAnswerRecords([]);
     setPracticeSession(null);
+    setShowNeedsWorkOnly(focusMode === "needs_work");
     
     // Reset filters
     setAppliedCategories([]);
     setAppliedDifficulties([]);
     setAppliedShuffle(false);
     setShowFavoritesOnly(false);
-    setShowNeedsWorkOnly(focusMode === "needs_work");
     const restoredDefaults = loadPracticeDefaults();
     if (!restoredDefaults) {
       setSampleSize(10);
@@ -838,6 +1162,11 @@ const getInterviewerFocus = (
     }
     setShouldShowSwipeHint(false);
     setIsVerticalScrollGuarded(false);
+    setCompletionError(null);
+    setIsCoachSheetOpen(false);
+    setIsNotesExpanded(false);
+    setRecordingError(null);
+    discardRecordingDraft();
   };
   
   const toggleCategory = (category: string) => {
@@ -858,6 +1187,10 @@ const getInterviewerFocus = (
 
   // Flag handling functions (Epic 1.3)
   const handleToggleFlag = async (questionId: string, flagType: 'favorite' | 'needs_work' | 'skipped') => {
+    if (isOffline) {
+      return;
+    }
+
     try {
       const currentFlag = questionFlags[questionId];
       
@@ -891,50 +1224,50 @@ const getInterviewerFocus = (
   };
 
   const handleSaveAnswer = async () => {
-    if (!currentQuestion || !practiceSession) return;
+    if (isOffline) return;
 
     const currentAnswer = answers.get(currentQuestion.id) || "";
-    if ((!currentAnswer.trim() && !hasRecording) || !practiceSession) return;
+    if (!currentAnswer.trim() && !hasRecording || !practiceSession) return;
 
+    setCompletionError(null);
     setIsSaving(true);
     const questionId = currentQuestion.id;
-    const timeSpent = currentQuestionTime;
+    const timeSpent = getCurrentQuestionTime();
     
     try {
-      let audioPath: string | undefined;
+      let audioUrl: string | undefined;
       let transcriptText: string | undefined;
 
-      if (hasRecording && audioBlob && user) {
-        const mimeType = audioBlob.type || "audio/webm";
-        const extension = mimeType.split("/")[1] || "webm";
-        const file = new File([audioBlob], `practice-answer.${extension}`, { type: mimeType });
-        const safeQuestionId = questionId.replace(/[^a-zA-Z0-9-]/g, "");
-        const audioUploadPath = `${user.id}/${practiceSession.id}/${safeQuestionId}-${Date.now()}.${extension}`;
+      if (audioBlob && user?.id) {
+        const extension = audioBlob.type.split("/")[1]?.split(";")[0] || "webm";
+        const audioPath = `${user.id}/${practiceSession.id}/${questionId}-${Date.now()}.${extension}`;
+        const audioFile = new File([audioBlob], `practice-answer.${extension}`, {
+          type: audioBlob.type || "audio/webm",
+        });
 
-        const uploadResult = await searchService.uploadPracticeAudio(file, audioUploadPath);
+        const uploadResult = await searchService.uploadPracticeAudio(audioFile, audioPath);
         if (!uploadResult.success || !uploadResult.path) {
-          throw new Error(uploadResult.error instanceof Error ? uploadResult.error.message : "Failed to upload voice answer");
+          throw uploadResult.error ?? new Error("Failed to upload practice audio");
         }
-        audioPath = uploadResult.path;
+
+        audioUrl = uploadResult.path;
 
         const transcriptionResult = await searchService.transcribePracticeAudio({
           path: uploadResult.path,
-          mimeType,
-          fileName: file.name,
+          mimeType: audioFile.type,
+          fileName: audioFile.name,
         });
 
-        if (transcriptionResult.success) {
-          transcriptText = transcriptionResult.transcript?.trim() || undefined;
-        } else {
-          console.warn("Voice transcription failed", transcriptionResult.error);
+        if (transcriptionResult.success && typeof transcriptionResult.transcript === "string") {
+          transcriptText = transcriptionResult.transcript.trim() || undefined;
         }
       }
 
       const result = await searchService.savePracticeAnswer({
         sessionId: practiceSession.id,
         questionId: questionId,
-        textAnswer: currentAnswer.trim() || null,
-        audioUrl: audioPath,
+        textAnswer: currentAnswer.trim() || undefined,
+        audioUrl,
         transcriptText,
         answerTime: timeSpent
       });
@@ -946,30 +1279,33 @@ const getInterviewerFocus = (
             q.id === questionId ? { ...q, answered: true } : q
           )
         );
-
-        markAnswerSaved({
-          questionId,
-          timeSpent,
-          answer: {
+        setSavedAnswers(prev => new Map(prev).set(questionId, true));
+        setSavedAnswerRecords((prev) => {
+          const next = prev.filter((record) => record.questionId !== questionId);
+          next.push({
             id: result.answer.id,
             questionId,
             question: currentQuestion.question,
             stageName: currentQuestion.stage_name,
             textAnswer: currentAnswer.trim() || null,
-            transcriptText: transcriptText || null,
-            audioUrl: audioPath || null,
-            selfRating: (result.answer as Record<string, unknown>).self_rating as number | null | undefined,
-          },
+            transcriptText: transcriptText ?? null,
+            audioUrl: audioUrl ?? null,
+            selfRating: result.answer.self_rating ?? null,
+          });
+          return next;
         });
+        
+        // Save question time
+        setQuestionTimers(prev => new Map(prev).set(questionId, timeSpent));
 
         clearAutosavedAnswer(questionId);
         setAutosaveState('saved');
-        setRecordingError(null);
+        setShowCheckmark(true);
+        clearRecording();
         
         // Check if this is the last question
         if (currentIndex >= questions.length - 1) {
-          await searchService.completePracticeSession(practiceSession.id);
-          setSessionState('completed');
+          await finalizeSession();
         } else {
           // Auto-advance to next question
           setTimeout(() => {
@@ -998,9 +1334,24 @@ const getInterviewerFocus = (
     }
   };
 
-  const skipQuestion = () => {
+  const skipQuestion = async () => {
+    if (isRecording || isRecordingPaused || isSaving) return;
+
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
+      return;
+    }
+
+    if (currentQuestion && canSubmitAnswer && !savedAnswers.get(currentQuestion.id)) {
+      await handleSaveAnswer();
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await finalizeSession();
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1008,6 +1359,10 @@ const getInterviewerFocus = (
     if (index >= 0 && index < questions.length) {
       setCurrentIndex(index);
     }
+  };
+
+  const resetCurrentQuestionTimer = () => {
+    setCurrentQuestionStartTime(Date.now());
   };
 
   const formatTime = (seconds: number) => {
@@ -1019,6 +1374,7 @@ const getInterviewerFocus = (
   const progress = questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
   const answeredCount = questions.filter(q => q.answered).length;
   const selectedStagesCount = allStages.filter(stage => stage.selected).length;
+  const currentQuestionTime = getCurrentQuestionTime();
   const interviewerFocus = getInterviewerFocus(currentQuestion ?? null, {
     company: searchData?.company,
     role: searchData?.role
@@ -1061,6 +1417,8 @@ const getInterviewerFocus = (
 
   const voiceStatus = isRecording
     ? { label: `Recording ${formatTime(recordingTime)}`, variant: 'destructive' as const }
+    : isRecordingPaused
+      ? { label: `Paused ${formatTime(recordingTime)}`, variant: 'outline' as const }
     : hasRecording
       ? { label: `Preview ${formatTime(recordingTime)}`, variant: 'secondary' as const }
       : { label: 'Mic idle', variant: 'outline' as const };
@@ -1070,31 +1428,50 @@ const getInterviewerFocus = (
 
   const hasTypedAnswer = Boolean(currentAnswer.trim());
   const canSubmitAnswer = hasTypedAnswer || hasRecording;
+  const hasUnsavedCurrentResponse = Boolean(
+    currentQuestion &&
+    canSubmitAnswer &&
+    !savedAnswers.get(currentQuestion.id)
+  );
   const primaryCtaLabel = currentIndex >= questions.length - 1 ? 'Save & Finish' : 'Save & Continue';
-  const isPrimaryDisabled = !canSubmitAnswer || isSaving;
-
-  const handleRateAnswer = async (answerId: string, rating: number) => {
-    setIsSavingRating(true);
-    try {
-      const result = await searchService.saveSelfRating(answerId, rating);
-      if (result.success) {
-        updateAnswerRating(answerId, rating);
-      }
-    } finally {
-      setIsSavingRating(false);
-    }
+  const isFinalQuestion = currentIndex >= questions.length - 1;
+  const isPrimaryDisabled =
+    isOffline || !canSubmitAnswer || isSaving || isRecording || isRecordingPaused;
+  const isSkipDisabled =
+    isSaving || isRecording || isRecordingPaused || (isOffline && isFinalQuestion);
+  const skipActionLabel = currentIndex >= questions.length - 1
+    ? hasUnsavedCurrentResponse ? 'Finish & Save' : 'Finish'
+    : 'Skip';
+  const networkGuardCopy = isFinalQuestion
+    ? "Reconnect before you finish the session or save this answer."
+    : OFFLINE_PRACTICE_MESSAGE;
+  const mobileQuestionCount = mobileSetupMode === 'quick'
+    ? practicePresets.quick.config.sampleSize
+    : sampleSize;
+  const estimateDurationRange = (count: number) => {
+    const minMinutes = Math.max(5, Math.round(count * 1.5));
+    const maxMinutes = Math.max(minMinutes + 2, Math.round(count * 2));
+    return `${minMinutes} to ${maxMinutes} min`;
   };
+  const notePreview = currentAnswer.trim()
+    ? currentAnswer.trim().slice(0, 120)
+    : "Tap Notes to keep a quick outline.";
+  const recordingHeaderCopy = isRecording
+    ? `REC ${formatTime(recordingTime)}`
+    : isRecordingPaused
+      ? `Paused ${formatTime(recordingTime)}`
+      : formatTime(currentQuestionTime);
+  const practiceHistoryHref = searchId ? `/history?searchId=${searchId}` : "/history";
 
   // Swipe handlers
   const handleSwipeLeft = () => {
+    if (isSkipDisabled) return;
     if (isVerticalScrollGuarded) {
       setIsVerticalScrollGuarded(false);
       return;
     }
     hideSwipeHint();
-    if (currentIndex < questions.length - 1) {
-      skipQuestion();
-    }
+    skipQuestion();
   };
 
   const handleSwipeRight = () => {
@@ -1128,11 +1505,11 @@ const getInterviewerFocus = (
         event.preventDefault();
         previousQuestion();
       } else if (event.key === 'ArrowRight') {
-        if (!canSubmitAnswer || isSaving) return;
+        if (isPrimaryDisabled) return;
         event.preventDefault();
         handleSaveAnswer();
       } else if (event.key.toLowerCase() === 's') {
-        if (currentIndex >= questions.length - 1) return;
+        if (isSkipDisabled) return;
         event.preventDefault();
         skipQuestion();
       }
@@ -1147,8 +1524,8 @@ const getInterviewerFocus = (
     previousQuestion,
     skipQuestion,
     handleSaveAnswer,
-    canSubmitAnswer,
-    isSaving
+    isPrimaryDisabled,
+    isSkipDisabled
   ]);
 
   // Swipe configuration
@@ -1189,16 +1566,27 @@ const getInterviewerFocus = (
       }, 200);
       setIsVerticalScrollGuarded(false);
     },
-    trackMouse: true, // Enable mouse drag for desktop
-    trackTouch: true, // Enable touch for mobile
+    trackMouse: !isMobile,
+    trackTouch: true,
     preventScrollOnSwipe: false,
     delta: SWIPE_THRESHOLD_PX,
   });
 
+  // Update timer display every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Increment timerTick to force re-render and update timer display
+      if (currentQuestion) {
+        setTimerTick(prev => prev + 1);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [currentQuestion]);
+
   // Show default state when no search ID provided
   if (!searchId) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto text-center">
@@ -1240,7 +1628,7 @@ const getInterviewerFocus = (
   // Only show full-screen loading during initial load, not during setup configuration
   if (isLoading && sessionState !== 'setup') {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto text-center">
@@ -1262,7 +1650,7 @@ const getInterviewerFocus = (
   // Show processing state when research is still being processed
   if (searchData && (searchData.status === 'pending' || searchData.status === 'processing')) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto text-center">
@@ -1305,7 +1693,7 @@ const getInterviewerFocus = (
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto text-center">
@@ -1342,7 +1730,7 @@ const getInterviewerFocus = (
   // If no questions available after filtering, show appropriate message
   if (!currentQuestion && sessionState === 'inProgress') {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto text-center">
@@ -1378,45 +1766,499 @@ const getInterviewerFocus = (
     );
   }
 
+  if (sessionState === 'breathing') {
+    const handleBreathingDone = () => setSessionState('inProgress');
+    return (
+      <BreathingBreak onComplete={handleBreathingDone} onSkip={handleBreathingDone} />
+    );
+  }
+
+  if (sessionState === 'setup' && isMobile) {
+    return (
+      <div id="main-content" className="min-h-screen bg-background">
+        <div className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <div className="flex h-14 items-center justify-between px-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
+              aria-label="Back to dashboard"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div className="text-sm font-medium">Practice setup</div>
+            <Button variant="link" size="sm" asChild className="px-0 text-xs">
+              <Link to={practiceHistoryHref}>History</Link>
+            </Button>
+          </div>
+        </div>
+
+        <div className="px-4 py-5 pb-8">
+          <div className="space-y-5">
+            <section className="rounded-[28px] border bg-muted/30 p-5 shadow-sm">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                Practice summary
+              </p>
+              <div className="mt-3 space-y-1">
+                <h1 className="text-xl font-semibold leading-tight">
+                  {searchData?.company || "Practice session"}
+                </h1>
+                {(searchData?.role || searchData?.company) && (
+                  <p className="text-sm text-muted-foreground">
+                    {searchData?.role || "Interview practice"}
+                  </p>
+                )}
+              </div>
+              <div className="mt-4 flex items-center justify-between rounded-2xl bg-background/80 px-4 py-3 text-sm">
+                <span>{mobileQuestionCount} question{mobileQuestionCount !== 1 ? 's' : ''}</span>
+                <span className="text-muted-foreground">{estimateDurationRange(mobileQuestionCount)}</span>
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setMobileSetupMode('quick')}
+                className={cn(
+                  "w-full rounded-[24px] border p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+                  mobileSetupMode === 'quick'
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-background"
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">Quick start</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Jump in with 10 shuffled questions across your selected stages.
+                    </p>
+                  </div>
+                  <div
+                    className={cn(
+                      "flex h-5 w-5 items-center justify-center rounded-full border",
+                      mobileSetupMode === 'quick'
+                        ? "border-primary bg-primary"
+                        : "border-muted-foreground/40"
+                    )}
+                  >
+                    <div className="h-2.5 w-2.5 rounded-full bg-primary-foreground" />
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileSetupMode('custom')}
+                className={cn(
+                  "w-full rounded-[24px] border p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+                  mobileSetupMode === 'custom'
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-background"
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">Custom session</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Pick stages, tune difficulty, and keep the setup light.
+                    </p>
+                  </div>
+                  <div
+                    className={cn(
+                      "flex h-5 w-5 items-center justify-center rounded-full border",
+                      mobileSetupMode === 'custom'
+                        ? "border-primary bg-primary"
+                        : "border-muted-foreground/40"
+                    )}
+                  >
+                    <div className="h-2.5 w-2.5 rounded-full bg-primary-foreground" />
+                  </div>
+                </div>
+              </button>
+            </section>
+
+            {mobileSetupMode === 'custom' && (
+              <section className="space-y-5 rounded-[28px] border bg-background p-5 shadow-sm">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">Question count</label>
+                    <span className="text-sm text-muted-foreground">{sampleSize}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="5"
+                    max="30"
+                    step="1"
+                    value={sampleSize}
+                    onChange={(e) => setSampleSize(sessionSampler.validateSampleSize(parseInt(e.target.value, 10) || 10))}
+                    className="w-full accent-primary"
+                    aria-label="Question count"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {estimateDurationRange(sampleSize)}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">Stages</label>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedStagesCount} selected
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {allStages.map((stage) => (
+                      <button
+                        key={stage.id}
+                        type="button"
+                        onClick={() => handleStageToggle(stage.id)}
+                        className={cn(
+                          "rounded-full border px-3 py-2 text-sm transition",
+                          stage.selected
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background text-foreground"
+                        )}
+                      >
+                        {stage.name}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedStagesCount === 0 && (
+                    <p className="text-xs text-destructive">Select at least one stage.</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Difficulty</label>
+                  <div className="flex flex-wrap gap-2">
+                    {difficultyLevels.filter(level => level.value !== 'all').map(level => (
+                      <button
+                        key={level.value}
+                        type="button"
+                        onClick={() => toggleDifficulty(level.value)}
+                        className={cn(
+                          "rounded-full border px-3 py-2 text-sm transition",
+                          tempDifficulties.includes(level.value)
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-background text-foreground"
+                        )}
+                      >
+                        {level.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Leave unselected to include every level.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Options</label>
+                  <div className="grid gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTempShuffle(prev => !prev)}
+                      className={cn(
+                        "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition",
+                        tempShuffle ? "border-primary bg-primary/5" : "border-border bg-background"
+                      )}
+                    >
+                      <span>Shuffle questions</span>
+                      <span className="text-muted-foreground">{tempShuffle ? "On" : "Off"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTempShowFavoritesOnly(prev => !prev)}
+                      className={cn(
+                        "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition",
+                        tempShowFavoritesOnly ? "border-primary bg-primary/5" : "border-border bg-background"
+                      )}
+                    >
+                      <span>Favorites only</span>
+                      <span className="text-muted-foreground">{tempShowFavoritesOnly ? "On" : "Off"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRememberDefaults(prev => !prev)}
+                      className={cn(
+                        "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition",
+                        rememberDefaults ? "border-primary bg-primary/5" : "border-border bg-background"
+                      )}
+                    >
+                      <span>Remember these defaults</span>
+                      <span className="text-muted-foreground">{rememberDefaults ? "On" : "Off"}</span>
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            <Button
+              onClick={mobileSetupMode === 'quick' ? handleBeginQuickStart : handleBeginSession}
+              disabled={isOffline || (mobileSetupMode === 'custom' && selectedStagesCount === 0)}
+              className="h-12 w-full rounded-2xl text-base"
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Start practice
+            </Button>
+            {isOffline && (
+              <p className="text-center text-sm text-amber-700">{OFFLINE_PRACTICE_MESSAGE}</p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Session Setup State - Show filters and configuration
   if (sessionState === 'setup') {
+    const renderSetupStepContent = () => {
+      switch (setupStep) {
+        case 0:
+          return (
+            <div className="space-y-6">
+              <div className="grid gap-3 md:grid-cols-2">
+                {Object.entries(practicePresets).map(([key, preset]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handlePresetSelect(key as keyof typeof practicePresets)}
+                    className={`rounded-xl border p-4 text-left transition hover:border-primary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${
+                      selectedPreset === key ? 'border-primary bg-primary/5' : 'border-border'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{preset.label}</span>
+                      {selectedPreset === key && (
+                        <Badge variant="secondary" className="text-xs">
+                          Selected
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">{preset.description}</p>
+                  </button>
+                ))}
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Number of Questions</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={sampleSize}
+                  onChange={(e) => setSampleSize(sessionSampler.validateSampleSize(parseInt(e.target.value) || 10))}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <p className="text-xs text-muted-foreground">Pick 1–100 questions for this session. Presets adjust this automatically.</p>
+              </div>
+            </div>
+          );
+        case 1:
+          return (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">Choose at least one stage to include in this practice run.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {allStages.map((stage, index) => {
+                  const totalQuestions = stage.questions?.length || 0;
+                  return (
+                    <div key={stage.id} className="flex items-center space-x-3 rounded-lg border p-3">
+                      <Checkbox
+                        checked={stage.selected}
+                        onCheckedChange={() => handleStageToggle(stage.id)}
+                        aria-label={`Toggle ${stage.name}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className="text-xs">
+                            Stage {index + 1}
+                          </Badge>
+                          <span className="font-medium text-sm truncate">{stage.name}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">{totalQuestions} question{totalQuestions !== 1 ? 's' : ''} available</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {selectedStagesCount === 0 && (
+                <p className="text-xs text-amber-600">Select at least one stage to continue.</p>
+              )}
+            </div>
+          );
+        case 2:
+          return (
+            <div className="space-y-5">
+              <div className="space-y-3">
+                <label className="text-xs font-medium text-muted-foreground">Categories</label>
+                <p className="text-xs text-muted-foreground">Leave unselected to include all categories.</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {questionCategories.filter(cat => cat.value !== 'all').map(cat => (
+                    <div key={cat.value} className="flex items-center space-x-2 rounded-md border bg-background px-2 py-1">
+                      <Checkbox
+                        id={`cat-${cat.value}`}
+                        checked={tempCategories.includes(cat.value)}
+                        onCheckedChange={() => toggleCategory(cat.value)}
+                      />
+                      <label htmlFor={`cat-${cat.value}`} className="text-xs cursor-pointer">{cat.label}</label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-3">
+                <label className="text-xs font-medium text-muted-foreground">Difficulty</label>
+                <div className="flex flex-wrap gap-2">
+                  {difficultyLevels.filter(level => level.value !== 'all').map(level => (
+                    <div key={level.value} className="flex items-center space-x-2 rounded-md border bg-background px-3 py-2">
+                      <Checkbox
+                        id={`diff-${level.value}`}
+                        checked={tempDifficulties.includes(level.value)}
+                        onCheckedChange={() => toggleDifficulty(level.value)}
+                      />
+                      <label htmlFor={`diff-${level.value}`} className="text-xs cursor-pointer">{level.label}</label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Order & Favorites</label>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex items-center space-x-2 rounded-md border bg-background px-3 py-2">
+                    <Checkbox
+                      id="shuffle"
+                      checked={tempShuffle}
+                      onCheckedChange={(checked) => setTempShuffle(!!checked)}
+                    />
+                    <label htmlFor="shuffle" className="text-xs cursor-pointer">Shuffle questions randomly</label>
+                  </div>
+                  <div className="flex items-center space-x-2 rounded-md border bg-background px-3 py-2">
+                    <Checkbox
+                      id="favorites-only"
+                      checked={tempShowFavoritesOnly}
+                      onCheckedChange={(checked) => setTempShowFavoritesOnly(!!checked)}
+                    />
+                    <label htmlFor="favorites-only" className="text-xs cursor-pointer flex items-center gap-1">
+                      <Star className="h-3 w-3 text-amber-500" />
+                      Favorites only
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        default:
+          return (
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <h4 className="text-sm font-medium mb-2">Session Summary</h4>
+                <ul className="space-y-1 text-sm text-muted-foreground">
+                  <li>• {sampleSize} question{sampleSize !== 1 ? 's' : ''} selected</li>
+                  <li>• {selectedStagesCount} stage{selectedStagesCount !== 1 ? 's' : ''} included</li>
+                  <li>• Categories: {tempCategories.length ? tempCategories.map(c => questionCategories.find(cat => cat.value === c)?.label).join(", ") : "All"}</li>
+                  <li>• Difficulty: {tempDifficulties.length ? tempDifficulties.join(", ") : "All levels"}</li>
+                  <li>• Order: {tempShuffle ? "Shuffled" : "Stage order"}</li>
+                  <li>• Favorites: {tempShowFavoritesOnly ? "Only favorited questions" : "All questions"}</li>
+                </ul>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember-defaults"
+                  checked={rememberDefaults}
+                  onCheckedChange={(checked) => setRememberDefaults(!!checked)}
+                />
+                <label htmlFor="remember-defaults" className="text-sm text-muted-foreground">
+                  Remember these defaults for next time
+                </label>
+              </div>
+            </div>
+          );
+      }
+    };
+
     return (
-      <>
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
-        <PracticeSetupWizard
-          searchId={searchId}
-          company={searchData?.company}
-          role={searchData?.role}
-          setupStep={setupStep}
-          setupSteps={SETUP_STEPS}
-          selectedPreset={selectedPreset}
-          practicePresets={practicePresets}
-          onPresetSelect={(presetKey) => handlePresetSelect(presetKey as keyof typeof practicePresets)}
-          sampleSize={sampleSize}
-          onSampleSizeChange={(value) => setSampleSize(sessionSampler.validateSampleSize(value))}
-          allStages={allStages}
-          onStageToggle={handleStageToggle}
-          selectedStagesCount={selectedStagesCount}
-          questionCategories={questionCategories}
-          tempCategories={tempCategories}
-          toggleCategory={toggleCategory}
-          difficultyLevels={difficultyLevels}
-          tempDifficulties={tempDifficulties}
-          toggleDifficulty={toggleDifficulty}
-          tempShuffle={tempShuffle}
-          setTempShuffle={setTempShuffle}
-          tempShowFavoritesOnly={tempShowFavoritesOnly}
-          setTempShowFavoritesOnly={setTempShowFavoritesOnly}
-          rememberDefaults={rememberDefaults}
-          setRememberDefaults={setRememberDefaults}
-          canProceedFromSetupStep={canProceedFromSetupStep()}
-          onPrevious={goToPreviousSetupStep}
-          onNext={goToNextSetupStep}
-          onStart={handleBeginSession}
-          onBack={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
-          showNeedsWorkOnly={showNeedsWorkOnly}
-        />
-      </>
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}>
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Button>
+              <Button variant="link" size="sm" asChild className="px-0">
+                <Link to={practiceHistoryHref}>View history</Link>
+              </Button>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {searchData?.company && `${searchData.company}`}
+              {searchData?.role && ` - ${searchData.role}`}
+            </div>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5 text-primary" />
+                Configure Your Practice Session
+              </CardTitle>
+              <CardDescription>
+                Step {setupStep + 1} of {SETUP_STEPS.length}: {SETUP_STEPS[setupStep].label}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex flex-wrap items-center gap-3">
+                {SETUP_STEPS.map((step, index) => (
+                  <div key={step.key} className="flex items-center gap-2">
+                    <div
+                      className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
+                        index <= setupStep ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {index + 1}
+                    </div>
+                    <span className={`text-sm ${index === setupStep ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                      {step.label}
+                    </span>
+                    {index < SETUP_STEPS.length - 1 && <div className="h-px w-6 bg-border" />}
+                  </div>
+                ))}
+              </div>
+
+              {renderSetupStepContent()}
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t">
+                <Button
+                  variant="ghost"
+                  onClick={goToPreviousSetupStep}
+                  disabled={setupStep === 0}
+                  className="w-full sm:w-auto"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-2" />
+                  Previous
+                </Button>
+                {setupStep < SETUP_STEPS.length - 1 ? (
+                  <Button
+                    onClick={goToNextSetupStep}
+                    disabled={!canProceedFromSetupStep()}
+                    className="w-full sm:w-auto"
+                  >
+                    Next • {SETUP_STEPS[setupStep + 1].label}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleBeginSession}
+                    disabled={isOffline || !canProceedFromSetupStep() || selectedStagesCount === 0}
+                    className="w-full sm:w-auto"
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    Start Practice
+                  </Button>
+                )}
+              </div>
+              {isOffline && (
+                <p className="text-sm text-amber-700">{OFFLINE_PRACTICE_MESSAGE}</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     );
   }
 
@@ -1428,23 +2270,51 @@ const getInterviewerFocus = (
     const favoritedCount = questions.filter(q => questionFlags[q.id]?.flag_type === 'favorite').length;
 
     const handleSaveNotes = async (notes: string) => {
-      if (!practiceSession) return;
+      if (!practiceSession) return false;
+      if (isOffline) return false;
       
       setIsSavingNotes(true);
       try {
-        const result = await searchService.completePracticeSession(practiceSession.id, notes);
+        const result = await searchService.savePracticeSessionNotes(practiceSession.id, notes);
         if (!result.success) {
           console.error("Failed to save session notes:", result.error);
+          return false;
         }
+
+        if (result.session) {
+          setPracticeSession(result.session);
+        }
+
+        return true;
       } catch (error) {
         console.error("Error saving session notes:", error);
+        return false;
       } finally {
         setIsSavingNotes(false);
       }
     };
 
+    const handleRateAnswer = async (answerId: string, rating: number) => {
+      setIsSavingRating(true);
+      try {
+        const result = await searchService.saveSelfRating(answerId, rating);
+        if (!result.success) {
+          console.error("Failed to save self rating:", result.error);
+          return;
+        }
+
+        setSavedAnswerRecords((prev) =>
+          prev.map((record) => (record.id === answerId ? { ...record, selfRating: rating } : record)),
+        );
+      } catch (error) {
+        console.error("Error saving self rating:", error);
+      } finally {
+        setIsSavingRating(false);
+      }
+    };
+
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8 max-w-2xl">
           <SessionSummary
@@ -1457,7 +2327,10 @@ const getInterviewerFocus = (
             onSaveNotes={handleSaveNotes}
             onStartNewSession={handleStartNewSession}
             onBackToDashboard={() => navigate(`/dashboard?searchId=${searchId}`)}
+            historyHref={practiceHistoryHref}
             isSaving={isSavingNotes}
+            disableSaveNotes={isOffline}
+            saveNotesHelper={isOffline ? "Reconnect to save this reflection to your history." : undefined}
             savedAnswers={savedAnswerRecords}
             onRateAnswer={handleRateAnswer}
             isSavingRating={isSavingRating}
@@ -1467,10 +2340,367 @@ const getInterviewerFocus = (
     );
   }
 
+  if (isMobile) {
+    const favoriteActive = questionFlags[currentQuestion.id]?.flag_type === 'favorite';
+
+    return (
+      <div
+        data-mobile-practice-shell
+        className={cn(
+          "min-h-[100dvh] bg-background transition-[padding] duration-200"
+        )}
+        style={{ paddingBottom: mobileFooterHeight > 0 ? `${mobileFooterHeight}px` : undefined }}
+      >
+        <div className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <div className="flex h-14 items-center gap-2 px-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
+              aria-label="Back to dashboard"
+              className="h-11 w-11"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+
+            <div className="min-w-0 flex-1 text-center">
+              <p className="text-sm font-semibold">
+                Q{currentIndex + 1}/{questions.length || 1}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-xs font-medium",
+                  isRecording
+                    ? "bg-destructive/10 text-destructive"
+                    : isRecordingPaused
+                      ? "bg-amber-500/10 text-amber-700"
+                      : "bg-muted text-muted-foreground"
+                )}
+              >
+                {recordingHeaderCopy}
+              </span>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Practice actions" className="h-11 w-11">
+                    <MoreHorizontal className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Practice actions</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {currentIndex > 0 && (
+                    <DropdownMenuItem onClick={previousQuestion}>
+                      Previous question
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={resetCurrentQuestionTimer}>
+                    Reset timer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleStartNewSession}>
+                    Change setup
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}>
+                    Exit practice
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          <div className="h-1.5 w-full bg-muted">
+            <div
+              className="h-full rounded-r-full bg-primary transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        <main className="px-4 py-4">
+          <div className="space-y-4">
+            <QuestionFrame
+              animateIn={false}
+              className={cn(
+                "rounded-[30px] border bg-card p-5 shadow-sm",
+                swipeDirection === 'left'
+                  ? 'transform -translate-x-2'
+                  : swipeDirection === 'right'
+                    ? 'transform translate-x-2'
+                    : ''
+              )}
+              {...swipeHandlers}
+            >
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary" className="bg-primary/10 text-primary">
+                    {currentQuestion.stage_name}
+                  </Badge>
+                  {currentQuestion.difficulty && (
+                    <Badge variant="outline">{currentQuestion.difficulty}</Badge>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <p className="break-words text-xl font-semibold leading-8 text-foreground">
+                    {currentQuestion.question}
+                  </p>
+                  {currentQuestion.answered && (
+                    <div className="inline-flex items-center gap-2 rounded-full bg-green-500/10 px-3 py-1 text-sm text-green-700">
+                      <CheckCircle className="h-4 w-4" />
+                      Answer saved
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between rounded-[24px] bg-muted/30 px-4 py-3">
+                  <div className="flex items-center gap-2 font-mono text-sm text-foreground">
+                    <Timer className="h-4 w-4 text-muted-foreground" />
+                    {formatTime(currentQuestionTime)}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      Recommended
+                    </p>
+                    <p className="text-sm font-medium text-foreground">{RECOMMENDED_ANSWER_TIME_COPY}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 border-t pt-4">
+                  <Button
+                    type="button"
+                    variant={favoriteActive ? "secondary" : "outline"}
+                    onClick={() => handleToggleFlag(currentQuestion.id, 'favorite')}
+                    disabled={isOffline}
+                    className={cn(
+                      "h-11 rounded-full px-4",
+                      favoriteActive
+                        ? "border-amber-200 bg-amber-100 text-amber-700 hover:bg-amber-200"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    <Star className={cn("h-4 w-4", favoriteActive && "fill-current")} />
+                    {favoriteActive ? "Favorited" : "Favorite"}
+                  </Button>
+
+                  {questionInsights && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsCoachSheetOpen(true)}
+                      className="h-11 rounded-full px-4 text-foreground"
+                    >
+                      Answer guide
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </QuestionFrame>
+
+            {!isNotesExpanded && hasTypedAnswer && (
+              <div className="rounded-[24px] border bg-muted/20 p-4">
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  Note preview
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{notePreview}</p>
+              </div>
+            )}
+          </div>
+        </main>
+
+        <div
+          ref={setMobileFooterElement}
+          data-mobile-practice-footer
+          className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85"
+        >
+          <div
+            className="mx-auto max-w-md space-y-3"
+            style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+          >
+            {(isRecording || isRecordingPaused) ? (
+              <div className="rounded-[28px] border border-destructive/20 bg-destructive/5 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Recording</p>
+                    <p className="mt-1 text-2xl font-semibold">{formatTime(recordingTime)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-destructive">
+                    <span className={cn("h-2.5 w-2.5 rounded-full", isRecording ? "animate-pulse bg-destructive" : "bg-amber-500")} />
+                    {isRecording ? "Live" : "Paused"}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={clearRecording}
+                    className="h-12 rounded-2xl border-destructive/20 bg-background"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={isRecording ? pauseRecording : startRecording}
+                    className="h-12 rounded-2xl bg-background"
+                  >
+                    {isRecording ? (
+                      <>
+                        <Pause className="mr-2 h-4 w-4" />
+                        Pause
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="mr-2 h-4 w-4" />
+                        Resume
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-[28px] border bg-card/90 p-3 shadow-sm">
+                <div className="grid grid-cols-[1fr_auto] gap-3">
+                  <Button
+                    onClick={hasRecording ? playRecording : startRecording}
+                    variant={hasRecording ? "outline" : "default"}
+                    className="h-12 justify-start rounded-2xl px-4"
+                  >
+                    {hasRecording ? (
+                      <>
+                        <Play className="mr-2 h-4 w-4" />
+                        Play recording
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="mr-2 h-4 w-4" />
+                        Record answer
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant={isNotesExpanded ? "secondary" : "outline"}
+                    onClick={() => setIsNotesExpanded(prev => !prev)}
+                    className="h-12 rounded-2xl px-4"
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Notes
+                  </Button>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                  <span>
+                    {hasRecording
+                      ? `Recording ready • ${formatTime(recordingTime)}`
+                      : notePreview}
+                  </span>
+                  {hasRecording && (
+                    <button
+                      type="button"
+                      onClick={startRecording}
+                      className="font-medium text-foreground"
+                    >
+                      Re-record
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {recordingError && (
+              <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                {recordingError}
+              </div>
+            )}
+
+            {isOffline && (
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                {networkGuardCopy}
+              </div>
+            )}
+
+            {completionError && (
+              <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                {completionError}
+              </div>
+            )}
+
+            {isNotesExpanded && (
+              <div className="rounded-[28px] border bg-card p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Quick notes</p>
+                    <p className="text-xs text-muted-foreground">Saved on this device while you practice.</p>
+                  </div>
+                  <span className={cn("text-xs", autosaveState === 'saved' ? "text-green-600" : "text-muted-foreground")}>
+                    {autosaveStatusCopy}
+                  </span>
+                </div>
+                <Textarea
+                  value={currentAnswer}
+                  onChange={(e) => handleAnswerChange(e.target.value)}
+                  placeholder="Jot the beats you want to hit..."
+                  className="mt-3 min-h-[132px] resize-none rounded-2xl border-0 bg-muted/30 text-sm shadow-none focus-visible:ring-1"
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                onClick={skipQuestion}
+                disabled={isSkipDisabled}
+                className="h-12 rounded-2xl"
+              >
+                <SkipForward className="mr-2 h-4 w-4" />
+                {skipActionLabel}
+              </Button>
+
+              {(isRecording || isRecordingPaused) ? (
+                <Button
+                  variant="destructive"
+                  onClick={stopRecording}
+                  className="h-12 rounded-2xl"
+                >
+                  <Square className="mr-2 h-4 w-4" />
+                  Stop recording
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleSaveAnswer}
+                  disabled={isPrimaryDisabled}
+                  className="h-12 rounded-2xl"
+                >
+                  {isSaving ? 'Saving…' : primaryCtaLabel}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <MobileCoachModal
+          open={isCoachSheetOpen}
+          onOpenChange={setIsCoachSheetOpen}
+          question={currentQuestion.question}
+          insights={questionInsights}
+        />
+      </div>
+    );
+  }
+
   // Active Practice Session - Show questions
   return (
-    <div className="min-h-screen bg-background">
+    <div id="main-content" className="min-h-screen bg-background">
       <Navigation />
+      <span className="sr-only" aria-live="polite">
+        Question {currentIndex + 1} of {questions.length}
+      </span>
+      <CompletionCheckmark visible={showCheckmark} />
       <div className="container mx-auto max-w-6xl px-4 py-6 pb-32 lg:py-8 lg:pb-40">
         <div className="space-y-3 mb-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1504,9 +2734,12 @@ const getInterviewerFocus = (
                 </div>
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <div className="flex items-center gap-1 rounded-full bg-background/80 px-3 py-1 font-mono">
-                  <Timer className="h-4 w-4" />
-                  {formatTime(currentQuestionTime)}
+                <div className="text-right">
+                  <div className="flex items-center gap-1 rounded-full bg-background/80 px-3 py-1 font-mono">
+                    <Timer className="h-4 w-4" />
+                    {formatTime(currentQuestionTime)}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{RECOMMENDED_ANSWER_TIME_COPY}</p>
                 </div>
                 <div className="text-muted-foreground">
                   {answeredCount} answered
@@ -1515,6 +2748,29 @@ const getInterviewerFocus = (
             </div>
           </div>
         </div>
+
+        {showKeyboardHint && !isMobile && (
+          <div className="mb-4 flex items-center justify-between rounded-xl border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
+            <span>
+              <kbd className="rounded border bg-background px-1.5 py-0.5 text-xs font-mono">←</kbd>
+              {' '}<kbd className="rounded border bg-background px-1.5 py-0.5 text-xs font-mono">→</kbd>
+              {' '}to navigate
+              {' · '}
+              <kbd className="rounded border bg-background px-1.5 py-0.5 text-xs font-mono">S</kbd>
+              {' '}to skip
+            </span>
+            <button
+              type="button"
+              className="ml-4 text-xs hover:text-foreground transition-colors"
+              onClick={() => {
+                setShowKeyboardHint(false);
+                localStorage.setItem('prepio_keyboard_hint_dismissed', '1');
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
           <section className="relative">
@@ -1612,11 +2868,11 @@ const getInterviewerFocus = (
                       variant="ghost"
                       size="sm"
                       onClick={skipQuestion}
-                      disabled={currentIndex >= questions.length - 1}
+                      disabled={isSkipDisabled}
                       aria-label="Skip question"
                     >
                       <SkipForward className="h-4 w-4 mr-1" />
-                      Skip
+                      {skipActionLabel}
                     </Button>
                   </div>
                 </div>
@@ -1629,6 +2885,7 @@ const getInterviewerFocus = (
                     variant="ghost"
                     size="sm"
                     onClick={() => handleToggleFlag(currentQuestion.id, 'favorite')}
+                    disabled={isOffline}
                     className={`h-7 px-2 ${
                       questionFlags[currentQuestion.id]?.flag_type === 'favorite'
                         ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
@@ -1671,19 +2928,78 @@ const getInterviewerFocus = (
             >
               <TooltipProvider delayDuration={150}>
                 <div className="space-y-4">
-                  <VoiceRecorder
-                    isRecording={isRecording}
-                    hasRecording={hasRecording}
-                    recordingTimeLabel={hasRecording ? `${formatTime(recordingTime)} captured` : `${formatTime(recordingTime)} ready`}
-                    statusLabel={voiceStatus.label}
-                    statusVariant={voiceStatus.variant}
-                    onStartRecording={startRecording}
-                    onStopRecording={stopRecording}
-                    onPlayRecording={playRecording}
-                    onClearRecording={clearRecording}
-                    helperText="Audio is uploaded when you save the answer. We also attempt a transcript so you can review it later."
-                    error={recordingError}
-                  />
+                  {isOffline && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                      {networkGuardCopy}
+                    </div>
+                  )}
+
+                  <div className="space-y-3 rounded-2xl border bg-background p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        Voice preview
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="text-muted-foreground transition hover:text-foreground"
+                              aria-label="Voice preview info"
+                            >
+                              <Info className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Audio stays on this device until uploads ship.</TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <Badge variant={voiceStatus.variant} className="text-xs">
+                        {voiceStatus.label}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {!isRecording && !hasRecording && (
+                        <Button onClick={startRecording} className="flex-1 min-w-[140px]">
+                          <Mic className="mr-2 h-4 w-4" />
+                          Start recording
+                        </Button>
+                      )}
+
+                      {isRecording && (
+                        <Button onClick={stopRecording} variant="destructive" className="flex-1 min-w-[140px]">
+                          <Square className="mr-2 h-4 w-4" />
+                          Stop
+                        </Button>
+                      )}
+
+                      {hasRecording && !isRecording && (
+                        <>
+                          <Button onClick={playRecording} variant="outline" className="flex-1 min-w-[140px]">
+                            <Play className="mr-2 h-4 w-4" />
+                            Play
+                          </Button>
+                          <Button onClick={startRecording} variant="outline" className="flex-1 min-w-[140px]">
+                            <MicOff className="mr-2 h-4 w-4" />
+                            Re-record
+                          </Button>
+                          <Button onClick={clearRecording} variant="ghost" size="sm" className="h-10 px-3">
+                            <RotateCcw className="h-4 w-4 mr-1" />
+                            Reset
+                          </Button>
+                        </>
+                      )}
+                    </div>
+
+                    {recordingError && (
+                      <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                        {recordingError}
+                      </div>
+                    )}
+
+                    {completionError && (
+                      <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                        {completionError}
+                      </div>
+                    )}
+                  </div>
 
                   <div className="space-y-3 rounded-2xl border bg-background p-4">
                     <div className="flex items-center justify-between gap-2">

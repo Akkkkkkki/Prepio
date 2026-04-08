@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams, useParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams, useParams, Link } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,25 +8,37 @@ import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { 
-  Building2, 
-  Clock, 
-  Users, 
-  Target, 
-  PlayCircle, 
-  CheckCircle2,
+import { Skeleton } from "@/components/ui/skeleton";
+import { MobileStageCard } from "@/components/dashboard/MobileStageCard";
+import {
+  PlayCircle,
   ArrowRight,
   Brain,
   AlertCircle,
   RefreshCw,
   Search,
-  Target as TargetIcon,
-  Sparkles,
-  ChevronRight,
+  AlertTriangle,
+  CheckCircle2,
+  Target,
+  Shield,
+  TrendingUp,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
-import { useSearchProgress } from "@/hooks/useSearchProgress";
-import type { PrepPlanRow, PrepPriority, QuestionPlan, AssessmentSignal } from "@/types/prepPlan";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import type {
+  PrepPlanRow,
+  StagePlan,
+  AssessmentSignal,
+  PrepPriority,
+  CandidatePositioning,
+  Confidence,
+  Priority,
+} from "@/types/prepPlan";
+
+// ── Types ────────────────────────────────────────────────────
 
 interface InterviewQuestion {
   id: string;
@@ -44,6 +56,13 @@ interface InterviewStage {
   order_index: number;
   search_id: string;
   created_at: string;
+  confidence?: Confidence | null;
+  what_it_tests?: string[] | null;
+  why_likely?: string | null;
+  prep_priority?: Priority | null;
+  question_themes?: string[] | null;
+  prep_actions?: string[] | null;
+  low_confidence_guidance?: string | null;
   questions: InterviewQuestion[];
   selected: boolean;
 }
@@ -55,110 +74,473 @@ interface SearchData {
   country: string | null;
   status: string;
   created_at: string;
-  banner_dismissed?: boolean | null;
+  banner_dismissed?: boolean;
 }
 
-const priorityTone = (priority: PrepPriority["priority"]) => {
-  if (priority === "high") return "bg-rose-100 text-rose-700";
-  if (priority === "medium") return "bg-amber-100 text-amber-700";
-  return "bg-slate-100 text-slate-700";
+// ── Helpers ──────────────────────────────────────────────────
+
+const confidenceColor = (c?: Confidence | null) => {
+  if (c === "high") return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+  if (c === "medium") return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+  return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
 };
 
-function DashboardEmptyState({ onStartSearch }: { onStartSearch: () => void }) {
-  return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      <div className="container mx-auto px-4 py-10">
-        <div className="mx-auto max-w-3xl">
-          <Card className="overflow-hidden border-dashed">
-            <div className="grid gap-8 p-8 md:grid-cols-[1.1fr_0.9fr] md:items-center">
-              <div className="space-y-5">
-                <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-                  <Sparkles className="h-4 w-4" />
-                  Interview prep starts here
-                </div>
-                <div className="space-y-3">
-                  <h1 className="text-3xl font-semibold tracking-tight">
-                    Start your first search and we&apos;ll turn it into a practice agenda.
-                  </h1>
-                  <p className="text-base text-muted-foreground">
-                    Research a company, get stage-by-stage signals, and jump straight into the questions that matter most.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <Button size="lg" onClick={onStartSearch}>
-                    <Search className="mr-2 h-4 w-4" />
-                    Start your first search
-                  </Button>
-                  <div className="rounded-2xl border px-4 py-3 text-sm text-muted-foreground">
-                    Tip: once research finishes, this dashboard becomes your prep plan and launch point for practice.
-                  </div>
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3 md:grid-cols-1">
-                <div className="rounded-3xl border bg-muted/30 p-5">
-                  <p className="text-sm font-medium">1. Research</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Company, role, and interview patterns.</p>
-                </div>
-                <div className="rounded-3xl border bg-muted/30 p-5">
-                  <p className="text-sm font-medium">2. Plan</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Must-practice questions and prep priorities.</p>
-                </div>
-                <div className="rounded-3xl border bg-muted/30 p-5">
-                  <p className="text-sm font-medium">3. Practice</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Focused sessions on the stages you pick.</p>
-                </div>
-              </div>
-            </div>
-          </Card>
+const priorityColor = (p?: Priority | null) => {
+  if (p === "high") return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+  if (p === "medium") return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+  return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
+};
+
+const priorityIcon = (p?: Priority | null) => {
+  if (p === "high") return <Target className="h-3.5 w-3.5" />;
+  if (p === "medium") return <TrendingUp className="h-3.5 w-3.5" />;
+  return <Shield className="h-3.5 w-3.5" />;
+};
+
+const formatSearchStatus = (status?: string) => {
+  switch (status) {
+    case "completed": return "Ready";
+    case "processing": return "Processing";
+    case "pending": return "Queued";
+    case "failed": return "Failed";
+    default: return null;
+  }
+};
+
+// ── Skeleton ─────────────────────────────────────────────────
+
+const DashboardSkeleton = ({ isMobile }: { isMobile: boolean }) => (
+  <div id="main-content" className="min-h-screen bg-background">
+    <Navigation />
+    <div className={isMobile ? "px-4 py-5" : "container mx-auto px-4 py-8"}>
+      <div className="space-y-6">
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-10 w-72 max-w-full" />
+          <Skeleton className="h-4 w-56 max-w-full" />
+        </div>
+        <div className={isMobile ? "grid grid-cols-2 gap-3" : "grid gap-4 md:grid-cols-3"}>
+          <Skeleton className="h-24 rounded-3xl" />
+          <Skeleton className="h-24 rounded-3xl" />
+          {!isMobile && <Skeleton className="h-24 rounded-3xl" />}
+        </div>
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-36 rounded-3xl" />
+          <Skeleton className="h-36 rounded-3xl" />
         </div>
       </div>
+    </div>
+  </div>
+);
+
+// ── Sub-components ───────────────────────────────────────────
+
+function CompletionBanner({ company, onDismiss }: { company: string; onDismiss: () => void }) {
+  return (
+    <Alert className="mb-6 border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950">
+      <CheckCircle2 className="h-4 w-4 text-green-600" />
+      <AlertDescription className="flex items-center justify-between">
+        <span>Research for <strong>{company}</strong> is complete. Your prep plan is ready.</span>
+        <Button variant="ghost" size="sm" onClick={onDismiss} className="ml-4 shrink-0">
+          Dismiss
+        </Button>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+function WeakSignalNotice() {
+  return (
+    <Alert className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950">
+      <AlertTriangle className="h-4 w-4 text-amber-600" />
+      <AlertDescription>
+        <strong>Best-guess process.</strong> Limited public data was available for this employer.
+        The stage order may not be exact — focus on cross-stage practice first.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+function AssessmentSignalsCard({ signals }: { signals: AssessmentSignal[] }) {
+  if (!signals?.length) return null;
+
+  const high = signals.filter((signal) => signal.importance === "high");
+  const medium = signals.filter((signal) => signal.importance === "medium");
+  const low = signals.filter((signal) => signal.importance === "low");
+
+  const renderGroup = (items: AssessmentSignal[], label: string) => {
+    if (!items.length) return null;
+
+    return (
+      <div className="space-y-2">
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+        {items.map((signal, index) => {
+          const accentClass =
+            signal.importance === "high"
+              ? "border-l-red-400"
+              : signal.importance === "medium"
+                ? "border-l-amber-400"
+                : "border-l-slate-300 dark:border-l-slate-700";
+
+          return (
+            <div key={`${signal.name}-${index}`} className={`rounded-r-xl border-l-2 bg-muted/20 px-3 py-3 ${accentClass}`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium">{signal.name}</p>
+                <Badge className={`text-[10px] ${priorityColor(signal.importance)}`}>
+                  {signal.importance}
+                </Badge>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{signal.rationale}</p>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Key assessment signals</CardTitle>
+        <CardDescription>What this employer is most likely evaluating</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {renderGroup(high, "Critical signals")}
+        {renderGroup(medium, "Supporting signals")}
+        {renderGroup(low, "Context signals")}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PrepPrioritiesCard({ priorities }: { priorities: PrepPriority[] }) {
+  if (!priorities?.length) return null;
+  const high = priorities.filter(p => p.priority === "high");
+  const medium = priorities.filter(p => p.priority === "medium");
+  const low = priorities.filter(p => p.priority === "low");
+
+  const renderGroup = (items: PrepPriority[], label: string) => {
+    if (!items.length) return null;
+    return (
+      <div className="space-y-2">
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+        {items.map((p, i) => (
+          <div key={i} className="rounded-xl border bg-muted/20 p-3">
+            <div className="flex items-center gap-2">
+              {priorityIcon(p.priority)}
+              <p className="text-sm font-medium">{p.label}</p>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{p.whyItMatters}</p>
+            {p.recommendedActions?.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {p.recommendedActions.map((action, j) => (
+                  <li key={j} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                    <ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
+                    {action}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Prep priorities</CardTitle>
+        <CardDescription>What to prepare first, and what to deprioritize</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {renderGroup(high, "Prepare first")}
+        {renderGroup(medium, "Important but secondary")}
+        {renderGroup(low, "Deprioritize for now")}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CandidatePositioningCard({ positioning }: { positioning: CandidatePositioning | null }) {
+  if (!positioning) return null;
+  const [expanded, setExpanded] = useState(true);
+  const hasContent = positioning.strengthsToLeanOn?.length > 0 ||
+    positioning.weakSpotsToAddress?.length > 0 ||
+    positioning.storyCoverageGaps?.length > 0 ||
+    positioning.mismatchRisks?.length > 0;
+  if (!hasContent) return null;
+
+  const renderList = ({
+    items,
+    label,
+    subtitle,
+    icon: Icon,
+    iconClassName,
+    sectionClassName,
+  }: {
+    items: string[] | undefined;
+    label: string;
+    subtitle: string;
+    icon: typeof CheckCircle2;
+    iconClassName: string;
+    sectionClassName: string;
+  }) => {
+    if (!items?.length) return null;
+    return (
+      <div className={`space-y-3 rounded-xl p-3 ${sectionClassName}`}>
+        <div className="flex items-start gap-3">
+          <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${iconClassName}`} />
+          <div className="space-y-1">
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
+          </div>
+        </div>
+        <ul className="space-y-1">
+          {items.map((item, i) => (
+            <li key={i} className="text-sm text-foreground/85">{item}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base">Your positioning</CardTitle>
+            <CardDescription>How your background maps to the assessment</CardDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setExpanded(!expanded)}
+            aria-expanded={expanded}
+            aria-label={expanded ? "Collapse positioning details" : "Expand positioning details"}
+          >
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
+      </CardHeader>
+      {expanded && (
+        <CardContent className="space-y-4">
+          {renderList({
+            items: positioning.strengthsToLeanOn,
+            label: "Lean on",
+            subtitle: "Highlight these in your answers",
+            icon: CheckCircle2,
+            iconClassName: "text-green-600",
+            sectionClassName: "bg-green-50 dark:bg-green-950/40",
+          })}
+          {renderList({
+            items: positioning.weakSpotsToAddress,
+            label: "Address",
+            subtitle: "Prepare responses for these gaps",
+            icon: AlertTriangle,
+            iconClassName: "text-amber-600",
+            sectionClassName: "bg-amber-50 dark:bg-amber-950/40",
+          })}
+          {renderList({
+            items: positioning.storyCoverageGaps,
+            label: "Story gaps",
+            subtitle: "Find examples to cover these",
+            icon: Search,
+            iconClassName: "text-blue-600",
+            sectionClassName: "bg-blue-50 dark:bg-blue-950/40",
+          })}
+          {renderList({
+            items: positioning.mismatchRisks,
+            label: "Mismatch risks",
+            subtitle: "Be ready if these come up",
+            icon: AlertCircle,
+            iconClassName: "text-red-600",
+            sectionClassName: "bg-red-50 dark:bg-red-950/40",
+          })}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+function ReadinessSummaryStrip({
+  stageCount,
+  selectedStageCount,
+  selectedQuestionCount,
+  topFocus,
+}: {
+  stageCount: number;
+  selectedStageCount: number;
+  selectedQuestionCount: number;
+  topFocus: string | null;
+}) {
+  const cells = [
+    {
+      title: `${stageCount} stage${stageCount === 1 ? "" : "s"} identified`,
+      subtitle: `${selectedStageCount} selected`,
+    },
+    {
+      title: `${selectedQuestionCount} practice question${selectedQuestionCount === 1 ? "" : "s"}`,
+      subtitle: "Ready across selected stages",
+    },
+    {
+      title: "Top focus area",
+      subtitle: topFocus || "No high-priority focus yet",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+      {cells.map((cell) => (
+        <div key={cell.title} className="rounded-2xl border bg-muted/30 px-4 py-3">
+          <p className="text-sm font-medium text-foreground">{cell.title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{cell.subtitle}</p>
+        </div>
+      ))}
     </div>
   );
 }
 
-function QuestionPlanCard({ questionPlan }: { questionPlan: QuestionPlan | null | undefined }) {
-  if (!questionPlan) return null;
-
-  const sections = [
-    { key: "core", label: "Must practice", items: questionPlan.coreMustPractice ?? [] },
-    { key: "followUps", label: "Likely follow-ups", items: questionPlan.likelyFollowUps ?? [] },
-    { key: "extraDepth", label: "Extra depth", items: questionPlan.extraDepth ?? [] },
-  ].filter((section) => section.items.length > 0);
-
-  if (sections.length === 0) return null;
+function StageRoadmapCard({
+  stages,
+  onToggle,
+  isMobile,
+}: {
+  stages: InterviewStage[];
+  onToggle: (id: string) => void;
+  isMobile: boolean;
+}) {
+  if (isMobile) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Stage roadmap</CardTitle>
+          <CardDescription>Select stages to include in your practice session</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {stages.map((stage, index) => (
+              <MobileStageCard
+                key={stage.id}
+                stage={stage}
+                index={index}
+                questionCount={stage.questions?.length || 0}
+                selected={stage.selected}
+                onToggle={onToggle}
+              />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <Card className="mb-8">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          Practice agenda
-        </CardTitle>
-        <CardDescription>The AI already picked the question sequence. Start with the core set, then move deeper.</CardDescription>
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Stage roadmap</CardTitle>
+        <CardDescription>Select stages to include in your practice session</CardDescription>
       </CardHeader>
       <CardContent>
-        <Accordion type="multiple" defaultValue={sections.map((section) => section.key)} className="space-y-3">
-          {sections.map((section) => (
-            <AccordionItem key={section.key} value={section.key} className="rounded-2xl border px-4">
-              <AccordionTrigger className="py-4 text-left text-sm font-medium hover:no-underline">
-                {section.label}
-              </AccordionTrigger>
-              <AccordionContent className="space-y-3 pb-4">
-                {section.items.map((item, index) => (
-                  <div key={`${section.key}-${index}`} className="rounded-2xl bg-muted/30 p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {item.stageName && <Badge variant="outline">{item.stageName}</Badge>}
-                      {item.linkedPriority && (
-                        <Badge variant="secondary" className="bg-primary/10 text-primary">
-                          {item.linkedPriority}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="mt-3 text-sm font-medium">{item.question}</p>
-                    <p className="mt-2 text-sm text-muted-foreground">{item.reason}</p>
+        <Accordion type="multiple" className="space-y-4">
+          {stages.map((stage, index) => (
+            <AccordionItem
+              key={stage.id}
+              value={stage.id}
+              className={`rounded-xl border px-4 transition-colors ${
+                stage.selected ? "border-primary/30 bg-primary/5" : ""
+              }`}
+            >
+              <div className="flex items-center gap-3 py-4">
+                <div className="shrink-0">
+                  <Checkbox
+                    checked={stage.selected}
+                    onCheckedChange={() => onToggle(stage.id)}
+                    aria-label={`${stage.selected ? "Deselect" : "Select"} ${stage.name}`}
+                  />
+                </div>
+                <AccordionTrigger className="py-0 hover:no-underline">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 pr-4">
+                    <Badge variant="outline" className="text-[10px]">Stage {index + 1}</Badge>
+                    <h3 className="min-w-0 text-sm font-semibold">{stage.name}</h3>
+                    {stage.confidence && (
+                      <Badge className={`text-[10px] ${confidenceColor(stage.confidence)}`}>
+                        {stage.confidence} confidence
+                      </Badge>
+                    )}
+                    {stage.prep_priority && (
+                      <Badge className={`text-[10px] ${priorityColor(stage.prep_priority)}`}>
+                        {stage.prep_priority} priority
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {stage.questions?.length || 0} question{(stage.questions?.length || 0) === 1 ? "" : "s"}
+                    </span>
                   </div>
-                ))}
+                </AccordionTrigger>
+              </div>
+              <AccordionContent className="pb-4 pt-1">
+                <div className="space-y-4 rounded-xl bg-muted/20 p-4">
+                  {stage.what_it_tests && stage.what_it_tests.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        Tests
+                      </p>
+                      <p className="text-sm text-foreground/85">{stage.what_it_tests.join(", ")}</p>
+                    </div>
+                  )}
+
+                  {stage.why_likely && (
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        Why likely
+                      </p>
+                      <p className="text-sm text-foreground/85">{stage.why_likely}</p>
+                    </div>
+                  )}
+
+                  {stage.question_themes && stage.question_themes.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        Question themes
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {stage.question_themes.map((theme, i) => (
+                          <Badge key={i} variant="secondary" className="text-[10px]">{theme}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {stage.prep_actions && stage.prep_actions.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        Prep actions
+                      </p>
+                      <ul className="space-y-1">
+                        {stage.prep_actions.map((action, i) => (
+                          <li key={i} className="flex items-start gap-1.5 text-sm text-foreground/85">
+                            <ArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-primary" />
+                            {action}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {stage.low_confidence_guidance && (
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        Low-confidence guidance
+                      </p>
+                      <p className="text-sm italic text-amber-700 dark:text-amber-400">
+                        {stage.low_confidence_guidance}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </AccordionContent>
             </AccordionItem>
           ))}
@@ -168,125 +550,63 @@ function QuestionPlanCard({ questionPlan }: { questionPlan: QuestionPlan | null 
   );
 }
 
-function PrepPrioritiesCard({ priorities, signals }: { priorities: PrepPriority[]; signals: AssessmentSignal[] }) {
-  if (priorities.length === 0 && signals.length === 0) return null;
-
-  return (
-    <div className="mb-8 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TargetIcon className="h-5 w-5 text-primary" />
-            Prep priorities
-          </CardTitle>
-          <CardDescription>What to attack first before you spend time on everything else.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {priorities.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No explicit prep priorities were generated for this run.</p>
-          ) : (
-            priorities.map((priority, index) => (
-              <div key={`${priority.label}-${index}`} className="rounded-2xl border bg-muted/20 p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className={priorityTone(priority.priority)}>{priority.priority}</Badge>
-                  <p className="font-medium">{priority.label}</p>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">{priority.whyItMatters}</p>
-                {priority.recommendedActions?.length > 0 && (
-                  <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-                    {priority.recommendedActions.map((action, actionIndex) => (
-                      <li key={`${priority.label}-action-${actionIndex}`} className="flex items-start gap-2">
-                        <ChevronRight className="mt-0.5 h-4 w-4 text-primary" />
-                        <span>{action}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Assessment signals</CardTitle>
-          <CardDescription>What this interview loop is likely testing.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {signals.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Signals were not available for this run yet.</p>
-          ) : (
-            signals.map((signal, index) => (
-              <div key={`${signal.name}-${index}`} className="rounded-2xl border bg-muted/20 p-4">
-                <div className="flex items-center gap-2">
-                  <Badge className={priorityTone(signal.importance as PrepPriority["priority"])}>
-                    {signal.importance}
-                  </Badge>
-                  <p className="font-medium">{signal.name}</p>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">{signal.rationale}</p>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+// ── Main component ───────────────────────────────────────────
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const { isOffline } = useNetworkStatus();
   const [searchParams] = useSearchParams();
   const { searchId: urlSearchId } = useParams();
-  
-  // Support both URL params and search params for backward compatibility
+
   const searchId = urlSearchId || searchParams.get('searchId');
-  
+
   const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [stages, setStages] = useState<InterviewStage[]>([]);
   const [searchData, setSearchData] = useState<SearchData | null>(null);
   const [prepPlan, setPrepPlan] = useState<PrepPlanRow | null>(null);
+  const [showBanner, setShowBanner] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const { data: progressState } = useSearchProgress(searchId, { enabled: Boolean(searchId) });
-
-  const currentStatus = progressState?.status ?? searchData?.status ?? "pending";
-  const currentProgress = progressState?.progress_pct ?? (currentStatus === "completed" ? 100 : 0);
-  const progressLabel = progressState?.progress_step || "Preparing your interview research...";
 
   const loadSearchData = async () => {
     if (!searchId) return;
-
     setIsLoading(true);
     try {
       const result = await searchService.getSearchResults(searchId);
-      
+
       if (result.success && result.search && result.stages) {
         setSearchData(result.search);
-        setPrepPlan((result.prepPlan as PrepPlanRow | null) ?? null);
-        
+
         const transformedStages = result.stages
-          .sort((a, b) => a.order_index - b.order_index)
-          .map(stage => ({
-            ...stage,
-            selected: true
-          }));
-        
+          .sort((a: any, b: any) => a.order_index - b.order_index)
+          .map((stage: any) => ({ ...stage, selected: true }));
         setStages(transformedStages);
 
-        if (result.search.status === 'failed') {
+        // Load prep plan
+        const planResult = await searchService.getPrepPlan(searchId);
+        if (planResult.success && planResult.prepPlan) {
+          setPrepPlan(planResult.prepPlan);
+        }
+
+        if (result.search.status === 'completed') {
+          setIsLoading(false);
+          setProgress(100);
+          if (!result.search.banner_dismissed) {
+            setShowBanner(true);
+          }
+        } else if (result.search.status === 'failed') {
           setError("Search processing failed. Please try again.");
+          setIsLoading(false);
         }
       } else {
         setError(result.error?.message || "Failed to load search data");
+        setIsLoading(false);
       }
     } catch (err) {
       console.error("Error loading search data:", err);
       setError("An unexpected error occurred while loading data");
-    } finally {
       setIsLoading(false);
-      setHasLoadedOnce(true);
     }
   };
 
@@ -295,63 +615,105 @@ const Dashboard = () => {
       setIsLoading(false);
       return;
     }
-
     loadSearchData();
+    const poll = setInterval(async () => {
+      const result = await searchService.getSearchResults(searchId);
+      if (result.success && result.search) {
+        if (result.search.status === 'pending' || result.search.status === 'processing') {
+          await loadSearchData();
+          setProgress(prev => Math.min(prev + 5, 95));
+        } else {
+          clearInterval(poll);
+        }
+      }
+    }, 3000);
+    return () => clearInterval(poll);
   }, [searchId]);
 
   useEffect(() => {
-    if (!searchId) return;
-    if (currentStatus === "completed" || currentStatus === "failed") {
-      loadSearchData();
+    if (searchData?.status === 'pending' || searchData?.status === 'processing') {
+      const timer = setInterval(() => {
+        setProgress(prev => Math.min(prev + 1, 95));
+      }, 500);
+      return () => clearInterval(timer);
     }
-  }, [currentStatus, searchId]);
+  }, [searchData?.status]);
 
   const handleStageToggle = (stageId: string) => {
-    setStages(prev => 
-      prev.map(stage => 
-        stage.id === stageId 
-          ? { ...stage, selected: !stage.selected }
-          : stage
-      )
-    );
+    setStages(prev => prev.map(s => s.id === stageId ? { ...s, selected: !s.selected } : s));
   };
 
-  const getSelectedQuestions = () => {
-    return stages
-      .filter(stage => stage.selected)
-      .reduce((acc, stage) => acc + (stage.questions?.length || 0), 0);
+  const handleDismissBanner = async () => {
+    setShowBanner(false);
+    if (searchId) await searchService.dismissBanner(searchId);
   };
+
+  const selectedQuestionCount = stages
+    .filter(s => s.selected)
+    .reduce((acc, s) => acc + (s.questions?.length || 0), 0);
+  const selectedStageCount = stages.filter(s => s.selected).length;
+  const topFocus = prepPlan?.prep_priorities?.find((priority) => priority.priority === "high")?.label || null;
 
   const startPractice = () => {
-    const selectedStages = stages.filter(stage => stage.selected);
+    if (isOffline) return;
+    const selectedStages = stages.filter(s => s.selected);
     if (selectedStages.length > 0 && searchId) {
-      // Pass selected stage IDs to practice page
-      const selectedStageIds = selectedStages.map(stage => stage.id);
-      navigate(`/practice?searchId=${searchId}&stages=${selectedStageIds.join(',')}`);
+      navigate(`/practice?searchId=${searchId}&stages=${selectedStages.map(s => s.id).join(',')}`);
     }
   };
 
-  // Show default empty state when no search ID is provided
-  const prepPriorities = useMemo(
-    () => (prepPlan?.prep_priorities ?? []) as PrepPriority[],
-    [prepPlan],
-  );
-  const assessmentSignals = useMemo(
-    () => (prepPlan?.assessment_signals ?? []) as AssessmentSignal[],
-    [prepPlan],
-  );
-  const questionPlan = useMemo(
-    () => (prepPlan?.question_plan ?? null) as QuestionPlan | null,
-    [prepPlan],
-  );
+  const searchSubtitle = [searchData?.role, searchData?.country].filter(Boolean).join(' · ') || 'Interview Preparation';
+  const searchStatusLabel = formatSearchStatus(searchData?.status);
 
+  // Extract PrepPlan data
+  const summary = prepPlan?.summary;
+  const assessmentSignals = (prepPlan?.assessment_signals || []) as AssessmentSignal[];
+  const prepPriorities = (prepPlan?.prep_priorities || []) as PrepPriority[];
+  const candidatePositioning = (prepPlan?.candidate_positioning || null) as CandidatePositioning | null;
+  const isWeakSignal = summary?.weakSignalCase === true;
+
+  // ── Empty state ──
   if (!searchId) {
-    return <DashboardEmptyState onStartSearch={() => navigate("/")} />;
+    return (
+      <div id="main-content" className="min-h-screen bg-background">
+        <Navigation />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto text-center">
+            <Card className="p-8">
+              <CardHeader>
+                <div className="flex items-center justify-center mb-4">
+                  <Brain className="h-12 w-12 text-primary" />
+                </div>
+                <CardTitle>No Active Search</CardTitle>
+                <CardDescription>
+                  Start a new search to get personalized interview insights for any company
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <Button onClick={() => navigate('/')} size="lg" className="w-full">
+                    <Search className="h-4 w-4 mr-2" />
+                    Start New Search
+                  </Button>
+                  <p className="text-sm text-muted-foreground">
+                    Open the History menu in the top bar to jump back into an earlier research run.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading && !searchData && !error) {
+    return <DashboardSkeleton isMobile={isMobile} />;
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto">
@@ -363,22 +725,16 @@ const Dashboard = () => {
               <Alert variant="destructive" className="mb-4">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
-              <Button 
-                onClick={() => {
-                  setError(null);
-                  setIsLoading(true);
-                  loadSearchData();
-                }}
-                className="w-full"
-              >
+              {isOffline && (
+                <p className="mb-4 text-sm text-amber-700">
+                  You&apos;re offline. Reconnect before you try loading this research again.
+                </p>
+              )}
+              <Button onClick={() => { setError(null); setIsLoading(true); loadSearchData(); }} className="w-full">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Try Again
               </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => navigate('/')}
-                className="w-full mt-2"
-              >
+              <Button variant="outline" onClick={() => navigate('/')} className="w-full mt-2">
                 Start New Search
               </Button>
             </CardContent>
@@ -388,28 +744,32 @@ const Dashboard = () => {
     );
   }
 
-  if (isLoading && !hasLoadedOnce) {
+  if (isLoading) {
+    const statusMessages: Record<string, string> = {
+      pending: "Initializing research...",
+      processing: "Analyzing company data and building your prep plan...",
+      completed: "Research complete!",
+    };
+    const currentStatus = searchData?.status || 'pending';
     return (
-      <div className="min-h-screen bg-background">
+      <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <Card className="w-full max-w-md mx-auto">
             <CardHeader className="text-center">
               <Brain className="h-12 w-12 text-primary mx-auto mb-4" />
-              <CardTitle>Researching Interview Insights</CardTitle>
+              <CardTitle>Building Your Prep Plan</CardTitle>
               <CardDescription>
                 {searchData?.company && `for ${searchData.company}`}
-                {searchData?.role && ` - ${searchData.role}`}
+                {searchData?.role && ` — ${searchData.role}`}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Progress value={currentProgress} className="mb-4" />
+              <Progress value={progress} className="mb-4" />
               <p className="text-sm text-muted-foreground text-center">
-                {progressLabel}
+                {statusMessages[currentStatus] || statusMessages.pending}
               </p>
-              <p className="text-xs text-muted-foreground text-center mt-2">
-                {Math.round(currentProgress)}% complete
-              </p>
+              <p className="text-xs text-muted-foreground text-center mt-2">{progress}% complete</p>
             </CardContent>
           </Card>
         </div>
@@ -417,159 +777,145 @@ const Dashboard = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      <div className="container mx-auto px-4 py-8">
-        {(currentStatus === "pending" || currentStatus === "processing") && (
-          <Card className="mb-8 border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Brain className="h-5 w-5 text-primary" />
-                Research in progress
-              </CardTitle>
-              <CardDescription>{progressLabel}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Progress value={currentProgress} className="mb-2" />
-              <p className="text-sm text-muted-foreground">
-                Safe to leave this page. We&apos;ll keep updating the dashboard as the run finishes.
-              </p>
-            </CardContent>
-          </Card>
+  // ── Main dashboard content ──
+  const content = (
+    <>
+      {/* Header */}
+      <header className="space-y-2">
+        {!isMobile && (
+          <nav className="mb-3 text-sm text-muted-foreground">
+            <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
+            <span className="mx-2">›</span>
+            <span className="text-foreground">{searchData?.company || 'Company'} Prep Plan</span>
+          </nav>
         )}
-
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-3xl font-bold">
-                {searchData?.company || 'Company'} Interview Research
-              </h1>
-              <p className="text-muted-foreground">
-                {searchData?.role && `${searchData.role}`}
-                {searchData?.role && searchData?.country && ' • '}
-                {searchData?.country}
-                {!searchData?.role && !searchData?.country && 'Interview Preparation'}
+        <div className={isMobile ? "" : "flex items-center justify-between"}>
+          <div className="space-y-1">
+            {isMobile && (
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
+                Prep plan
               </p>
+            )}
+            <h1 className={`min-w-0 break-words font-bold leading-tight ${isMobile ? "text-3xl" : "text-3xl"}`}>
+              {searchData?.company || 'Company'}
+            </h1>
+            <p className="min-w-0 break-words text-sm leading-6 text-muted-foreground">
+              {searchSubtitle}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {searchStatusLabel && <Badge variant="secondary">{searchStatusLabel}</Badge>}
+              {summary?.overallConfidence && (
+                <Badge className={confidenceColor(summary.overallConfidence)}>
+                  {summary.overallConfidence} confidence
+                </Badge>
+              )}
+              {summary?.industryFocus && summary.industryFocus !== 'unknown' && (
+                <Badge variant="outline">{summary.industryFocus}</Badge>
+              )}
+              {summary?.level && summary.level !== 'unknown' && (
+                <Badge variant="outline">{summary.level.replace('_', ' ')}</Badge>
+              )}
             </div>
-            <Button onClick={startPractice} disabled={getSelectedQuestions() === 0 || currentStatus !== "completed"}>
+          </div>
+          {!isMobile && (
+            <Button onClick={startPractice} disabled={selectedQuestionCount === 0 || isOffline}>
               <PlayCircle className="h-4 w-4 mr-2" />
-              Start Practice ({getSelectedQuestions()} questions)
+              Start Practice ({selectedQuestionCount})
             </Button>
+          )}
+        </div>
+      </header>
+
+      <ReadinessSummaryStrip
+        stageCount={stages.length}
+        selectedStageCount={selectedStageCount}
+        selectedQuestionCount={selectedQuestionCount}
+        topFocus={topFocus}
+      />
+
+      {/* Completion banner */}
+      {showBanner && searchData?.company && (
+        <CompletionBanner company={searchData.company} onDismiss={handleDismissBanner} />
+      )}
+
+      {/* Weak signal notice */}
+      {isWeakSignal && <WeakSignalNotice />}
+
+      {isOffline && (
+        <p className="text-sm text-amber-700">
+          Reconnect to launch practice or refresh this research.
+        </p>
+      )}
+
+      {/* Assessment signals + Prep priorities */}
+      {isMobile ? (
+        <div className="space-y-4">
+          <PrepPrioritiesCard priorities={prepPriorities} />
+          <AssessmentSignalsCard signals={assessmentSignals} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-6">
+          <AssessmentSignalsCard signals={assessmentSignals} />
+          <PrepPrioritiesCard priorities={prepPriorities} />
+        </div>
+      )}
+
+      {/* Candidate positioning */}
+      <CandidatePositioningCard positioning={candidatePositioning} />
+
+      {/* Stage roadmap */}
+      <StageRoadmapCard stages={stages} onToggle={handleStageToggle} isMobile={isMobile} />
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <div id="main-content" className="min-h-screen bg-background">
+        <Navigation />
+        <div className="px-4 py-5 pb-36">
+          <div className="space-y-5">
+            {content}
           </div>
         </div>
 
-        <PrepPrioritiesCard priorities={prepPriorities} signals={assessmentSignals} />
-        <QuestionPlanCard questionPlan={questionPlan} />
-
-        {/* Interview Process Overview */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              Interview Process Overview
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="flex items-center gap-3">
-                <Clock className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium">Total Duration</p>
-                  <p className="text-sm text-muted-foreground">3-4 weeks</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <Users className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium">Interview Stages</p>
-                  <p className="text-sm text-muted-foreground">{stages.length} rounds</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <Target className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium">Focus Areas</p>
-                  <p className="text-sm text-muted-foreground">Technical + Behavioral</p>
-                </div>
-              </div>
+        {/* Mobile bottom bar */}
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+          <div className="mx-auto max-w-md space-y-3" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
+            <div className="rounded-[24px] border bg-card/95 px-4 py-3 shadow-sm">
+              <p className="text-sm font-medium">
+                {selectedQuestionCount} question{selectedQuestionCount === 1 ? '' : 's'} across {selectedStageCount} stage{selectedStageCount === 1 ? '' : 's'}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {isOffline
+                  ? "Reconnect to launch practice."
+                  : selectedQuestionCount > 0
+                  ? topFocus
+                    ? `Focus: ${topFocus}`
+                    : "Start practice when the mix looks right."
+                  : "Select at least one stage to unlock practice."}
+              </p>
             </div>
-          </CardContent>
-        </Card>
+            <Button
+              onClick={startPractice}
+              disabled={selectedQuestionCount === 0 || isOffline}
+              className="h-12 w-full rounded-2xl text-base"
+            >
+              <PlayCircle className="mr-2 h-4 w-4" />
+              Start practice
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-        {/* Preparation Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Preparation Roadmap</CardTitle>
-            <CardDescription>
-              Select the stages you want to practice. Questions are personalized based on your CV.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {stages.map((stage, index) => (
-                <div key={stage.id} className="border rounded-lg p-6">
-                  <div className="flex items-start gap-4">
-                    <Checkbox
-                      checked={stage.selected}
-                      onCheckedChange={() => handleStageToggle(stage.id)}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <Badge variant="outline" className="text-xs">
-                          Stage {index + 1}
-                        </Badge>
-                        <h3 className="font-semibold">{stage.name}</h3>
-                        <span className="text-sm text-muted-foreground">
-                          {stage.duration || "Duration TBD"} • {stage.interviewer || "Interviewer TBD"}
-                        </span>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-                        <div>
-                          <h4 className="text-sm font-medium mb-2">Content</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {stage.content || "Interview content details"}
-                          </p>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-medium mb-2">Targeted Guidance</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {stage.guidance || "Preparation guidance will be provided"}
-                          </p>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-medium mb-2">
-                            Practice Questions ({stage.questions?.length || 0})
-                          </h4>
-                          <ul className="text-sm text-muted-foreground space-y-1">
-                            {stage.questions?.slice(0, 2).map((questionObj, qIndex) => (
-                              <li key={qIndex} className="flex items-start gap-2">
-                                <ArrowRight className="h-3 w-3 mt-1 text-primary flex-shrink-0" />
-                                {questionObj.question}
-                              </li>
-                            ))}
-                            {(stage.questions?.length || 0) > 2 && (
-                              <li className="text-xs text-muted-foreground">
-                                +{(stage.questions?.length || 0) - 2} more basic questions
-                              </li>
-                            )}
-                            {(!stage.questions || stage.questions.length === 0) && (
-                              <li className="text-xs text-muted-foreground italic">
-                                Questions will be generated during research
-                              </li>
-                            )}
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+  return (
+    <div id="main-content" className="min-h-screen bg-background">
+      <Navigation />
+      <div className="container mx-auto px-4 py-8">
+        <div className="space-y-6">
+          {content}
+        </div>
       </div>
     </div>
   );

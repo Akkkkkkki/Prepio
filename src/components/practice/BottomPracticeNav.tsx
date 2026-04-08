@@ -40,14 +40,7 @@ export const BottomPracticeNav = ({
               aria-current={index === currentIndex ? "true" : undefined}
               aria-label={`Go to question ${index + 1}${answered ? " (answered)" : ""}`}
               title={`${question.stage || "Question"} ${index + 1}`}
-              className={cn(
-                "h-[12px] w-[12px] rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
-                index === currentIndex
-                  ? "bg-primary shadow-inner shadow-primary/40 scale-125"
-                  : answered
-                  ? "bg-green-500/90 hover:scale-110"
-                  : "bg-muted hover:bg-muted-foreground/60 hover:scale-110"
-              )}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center"
               style={{
                 transition: buildTransition(
                   ["transform", "background-color", "box-shadow"],
@@ -55,7 +48,25 @@ export const BottomPracticeNav = ({
                   "easeInOut"
                 ),
               }}
-            />
+            >
+              <span
+                className={cn(
+                  "h-[12px] w-[12px] rounded-full",
+                  index === currentIndex
+                    ? "bg-primary shadow-inner shadow-primary/40 scale-125 animate-[dot-pulse_2s_ease-in-out_infinite]"
+                    : answered
+                    ? "bg-green-500/90 hover:scale-110"
+                    : "bg-muted hover:bg-muted-foreground/60 hover:scale-110"
+                )}
+                style={{
+                  transition: buildTransition(
+                    ["transform", "background-color", "box-shadow"],
+                    "fast",
+                    "easeInOut"
+                  ),
+                }}
+              />
+            </button>
           );
         })}
       </div>
