@@ -249,6 +249,7 @@ const Practice = () => {
   const [mobileFooterElement, setMobileFooterElement] = useState<HTMLDivElement | null>(null);
   const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hydratedAnswersRef = useRef<Set<string>>(new Set());
+  const answeredIdsRef = useRef<Set<string>>(new Set());
 
   const getAutosaveKey = (questionId: string) =>
     `${ANSWER_AUTOSAVE_PREFIX}:${questionId}`;
@@ -609,7 +610,7 @@ const getInterviewerFocus = (
                 stage_id: stage.id,
                 stage_name: stage.name,
                 question: questionObj.question,
-                answered: false,
+                answered: answeredIdsRef.current.has(questionObj.id),
                 type: questionObj.type,
                 difficulty: questionObj.difficulty,
                 rationale: questionObj.rationale,
@@ -1274,8 +1275,9 @@ const getInterviewerFocus = (
 
       if (result.success && result.answer) {
         // Mark question as answered
-        setQuestions(prev => 
-          prev.map(q => 
+        answeredIdsRef.current.add(questionId);
+        setQuestions(prev =>
+          prev.map(q =>
             q.id === questionId ? { ...q, answered: true } : q
           )
         );
