@@ -328,11 +328,13 @@ STAGE INFERENCE:
 - Mark each stage with confidence: high, medium, or low.
 - In low-confidence cases, set weakSignalCase: true and add lowConfidenceGuidance to stages.
 
-QUESTION GENERATION:
+QUESTION GENERATION — MINIMUM 40 QUESTIONS TOTAL:
 - Generate questions in three tiers: coreMustPractice, likelyFollowUps, extraDepth.
+- MANDATORY MINIMUMS: coreMustPractice ≥ 15, likelyFollowUps ≥ 15, extraDepth ≥ 10. Total ≥ 40.
+- If evidence is rich, scale UP (50-70 questions). Never scale below 40.
+- A candidate cannot be fully prepared with only a handful of questions. Cover every stage, every assessment dimension, and every weak spot.
 - Weight questions using stage hypotheses, prep priorities, and candidate weak spots.
 - Questions must feel downstream of the research, not generic.
-- Do NOT use a fixed question count. Generate what the evidence supports.
 - Set answerGuidanceStatus to "pending" for all questions.
 
 INDUSTRY SUPPORT: Optimize for tech, consulting, and finance. Do not assume software engineering everywhere.
@@ -532,13 +534,21 @@ function getPrepPlanSchema(): any {
     ],
     questionPlan: {
       coreMustPractice: [
-        { question: "Specific question", stageName: "Phone Screen", linkedPriority: "high", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Core question 1 — tailored to stage and candidate", stageName: "Phone Screen", linkedPriority: "high", reason: "Why this matters", answerGuidanceStatus: "pending" },
+        { question: "Core question 2 — different dimension", stageName: "Technical Round", linkedPriority: "high", reason: "Why this matters", answerGuidanceStatus: "pending" },
+        { question: "Core question 3 — covers weak spot", stageName: "Behavioral Round", linkedPriority: "high", reason: "Why this matters", answerGuidanceStatus: "pending" },
+        "... MUST generate ≥ 15 items in this array"
       ],
       likelyFollowUps: [
-        { question: "Follow-up question", stageName: null, linkedPriority: "medium", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Follow-up question 1", stageName: null, linkedPriority: "medium", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Follow-up question 2", stageName: "Phone Screen", linkedPriority: "medium", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Follow-up question 3", stageName: null, linkedPriority: "medium", reason: "Why", answerGuidanceStatus: "pending" },
+        "... MUST generate ≥ 15 items in this array"
       ],
       extraDepth: [
-        { question: "Depth question", stageName: null, linkedPriority: "low", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Depth question 1", stageName: null, linkedPriority: "low", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Depth question 2", stageName: "Final Round", linkedPriority: "low", reason: "Why", answerGuidanceStatus: "pending" },
+        "... MUST generate ≥ 10 items in this array"
       ],
     },
     internalEvidenceLog: [
