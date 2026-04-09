@@ -24,6 +24,7 @@ interface CreateSearchParams {
 }
 
 const RESEARCH_START_TIMEOUT_MS = 15000;
+const PRACTICE_AUDIO_BUCKET = "practice-audio";
 
 interface ResumeFileInput {
   name: string;
@@ -773,11 +774,12 @@ export const searchService = {
     }
   },
 
-  async savePracticeAnswer({ sessionId, questionId, textAnswer, audioUrl, answerTime }: {
+  async savePracticeAnswer({ sessionId, questionId, textAnswer, audioUrl, transcriptText, answerTime }: {
     sessionId: string;
     questionId: string;
     textAnswer?: string;
     audioUrl?: string;
+    transcriptText?: string;
     answerTime?: number;
   }) {
     try {
@@ -807,6 +809,7 @@ export const searchService = {
           .update({
             text_answer: textAnswer,
             audio_url: audioUrl,
+            transcript_text: transcriptText,
             answer_time_seconds: answerTime,
           })
           .eq("id", latestAnswer.id)
@@ -825,6 +828,7 @@ export const searchService = {
           question_id: questionId,
           text_answer: textAnswer,
           audio_url: audioUrl,
+          transcript_text: transcriptText,
           answer_time_seconds: answerTime,
         })
         .select()
@@ -835,6 +839,50 @@ export const searchService = {
       return { answer: data, success: true };
     } catch (error) {
       console.error("Error saving practice answer:", error);
+      return { error, success: false };
+    }
+  },
+
+  async uploadPracticeAudio(file: File, path: string) {
+    try {
+      const { data, error } = await supabase.storage
+        .from(PRACTICE_AUDIO_BUCKET)
+        .upload(path, file, {
+          contentType: file.type,
+          upsert: true,
+        });
+
+      if (error) throw error;
+
+      return { path: data.path, success: true };
+    } catch (error) {
+      console.error("Error uploading practice audio:", error);
+      return { error, success: false };
+    }
+  },
+
+  async transcribePracticeAudio({
+    path,
+    mimeType,
+    fileName,
+  }: {
+    path: string;
+    mimeType?: string;
+    fileName?: string;
+  }) {
+    try {
+      const response = await supabase.functions.invoke("practice-audio-transcribe", {
+        body: { path, mimeType, fileName },
+      });
+
+      if (response.error) throw new Error(response.error.message);
+
+      return {
+        transcript: response.data?.transcript ?? "",
+        success: true,
+      };
+    } catch (error) {
+      console.error("Error transcribing practice audio:", error);
       return { error, success: false };
     }
   },
@@ -936,98 +984,120 @@ export const searchService = {
     source?: ResumeSource;
   }) {
     try {
-      const user = await getCurrentUser();
+      if (typeof supabase.rpc !== "function") {
+        const user = await getCurrentUser();
+        const nextSource = source ?? (file ? "upload" : "manual");
+
+        const { data: activeResumes, error: existingError } = await supabase
+          .from("resumes")
+          .select("id, file_name, file_path, file_size_bytes, mime_type, parsed_data")
+          .eq("user_id", user.id)
+          .is("search_id", null)
+          .eq("is_active", true)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (existingError) throw existingError;
+
+        const currentResume = activeResumes?.[0] ?? null;
+        const nextFile =
+          file ??
+          (nextSource === "upload" && currentResume?.file_path
+            ? {
+                name: currentResume.file_name,
+                path: currentResume.file_path,
+                size: currentResume.file_size_bytes,
+                mimeType: currentResume.mime_type,
+              }
+            : null);
+        const nextParsedData =
+          parsedData === undefined
+            ? (buildResumeParsedDataFallback(content) as Json)
+            : ((parsedData as Json) ?? null);
+
+        const { data, error } = await supabase
+          .from("resumes")
+          .insert({
+            content,
+            parsed_data: nextParsedData,
+            user_id: user.id,
+            file_name: nextFile?.name ?? null,
+            file_path: nextFile?.path ?? null,
+            file_size_bytes: nextFile?.size ?? null,
+            mime_type: nextFile?.mimeType ?? null,
+            source: nextSource,
+            is_active: currentResume ? false : true,
+            superseded_at: null,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        if (!currentResume) {
+          return { resume: data, success: true };
+        }
+
+        const supersededAt = new Date().toISOString();
+        const { error: deactivateError } = await supabase
+          .from("resumes")
+          .update({
+            is_active: false,
+            superseded_at: supersededAt,
+          })
+          .eq("id", currentResume.id);
+
+        if (deactivateError) {
+          await supabase.from("resumes").delete().eq("id", data.id);
+          throw deactivateError;
+        }
+
+        const { data: activatedResume, error: activateError } = await supabase
+          .from("resumes")
+          .update({
+            is_active: true,
+            superseded_at: null,
+          })
+          .eq("id", data.id)
+          .select()
+          .single();
+
+        if (activateError) {
+          await Promise.all([
+            supabase.from("resumes").delete().eq("id", data.id),
+            supabase
+              .from("resumes")
+              .update({
+                is_active: true,
+                superseded_at: null,
+              })
+              .eq("id", currentResume.id),
+          ]);
+          throw activateError;
+        }
+
+        return { resume: activatedResume, success: true };
+      }
+
       const nextSource = source ?? (file ? "upload" : "manual");
-
-      const { data: activeResumes, error: existingError } = await supabase
-        .from("resumes")
-        .select("id, file_name, file_path, file_size_bytes, mime_type, parsed_data")
-        .eq("user_id", user.id)
-        .is("search_id", null)
-        .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      if (existingError) throw existingError;
-
-      const currentResume = activeResumes?.[0] ?? null;
-      const nextFile =
-        file ??
-        (nextSource === "upload" && currentResume?.file_path
-          ? {
-              name: currentResume.file_name,
-              path: currentResume.file_path,
-              size: currentResume.file_size_bytes,
-              mimeType: currentResume.mime_type,
-            }
-          : null);
       const nextParsedData =
         parsedData === undefined
           ? (buildResumeParsedDataFallback(content) as Json)
           : ((parsedData as Json) ?? null);
 
-      const { data, error } = await supabase
-        .from("resumes")
-        .insert({
-          content,
-          parsed_data: nextParsedData,
-          user_id: user.id,
-          file_name: nextFile?.name ?? null,
-          file_path: nextFile?.path ?? null,
-          file_size_bytes: nextFile?.size ?? null,
-          mime_type: nextFile?.mimeType ?? null,
-          source: nextSource,
-          is_active: currentResume ? false : true,
-          superseded_at: null,
-        })
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc("save_resume_version", {
+        p_content: content,
+        p_parsed_data: nextParsedData as never,
+        p_file_name: file?.name ?? null,
+        p_file_path: file?.path ?? null,
+        p_file_size_bytes: file?.size ?? null,
+        p_mime_type: file?.mimeType ?? null,
+        p_source: nextSource,
+      });
 
       if (error) throw error;
 
-      if (!currentResume) {
-        return { resume: data, success: true };
-      }
-
-      const supersededAt = new Date().toISOString();
-      const { error: deactivateError } = await supabase
-        .from("resumes")
-        .update({
-          is_active: false,
-          superseded_at: supersededAt,
-        })
-        .eq("id", currentResume.id);
-
-      if (deactivateError) {
-        await supabase.from("resumes").delete().eq("id", data.id);
-        throw deactivateError;
-      }
-
-      const { data: activatedResume, error: activateError } = await supabase
-        .from("resumes")
-        .update({
-          is_active: true,
-          superseded_at: null,
-        })
-        .eq("id", data.id)
-        .select()
-        .single();
-
-      if (activateError) {
-        await Promise.all([
-          supabase.from("resumes").delete().eq("id", data.id),
-          supabase
-            .from("resumes")
-            .update({
-              is_active: true,
-              superseded_at: null,
-            })
-            .eq("id", currentResume.id),
-        ]);
-        throw activateError;
-      }
-
-      return { resume: activatedResume, success: true };
+      return { resume: Array.isArray(data) ? data[0] : data, success: true };
     } catch (error) {
       console.error("Error saving resume:", error);
       return { error, success: false };

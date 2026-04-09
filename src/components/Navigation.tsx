@@ -101,6 +101,11 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
     setIsHistoryOpen(false);
   };
 
+  const handlePracticeNeedsWork = (searchItem: SearchHistoryItem) => {
+    navigate(`/practice?searchId=${searchItem.id}&focus=needs_work`);
+    setIsHistoryOpen(false);
+  };
+
   const handleInstall = async () => {
     await promptInstall();
   };
@@ -266,24 +271,36 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                       ) : (
                         <div className="space-y-3">
                           {searchHistory.map((item) => (
-                            <button
-                              key={item.id}
-                              type="button"
-                              className="w-full text-left p-3 border rounded-lg cursor-pointer hover:bg-muted transition-colors"
-                              onClick={() => handleHistoryItemClick(item)}
-                            >
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="font-medium truncate">{item.company}</div>
-                                {getStatusBadge(item.status)}
-                              </div>
-                              {item.role && (
-                                <div className="text-sm text-muted-foreground mb-1">{item.role}</div>
+                            <div key={item.id} className="space-y-3 rounded-lg border p-3">
+                              <button
+                                type="button"
+                                className="w-full text-left transition-colors hover:bg-muted"
+                                onClick={() => handleHistoryItemClick(item)}
+                              >
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="font-medium truncate">{item.company}</div>
+                                  {getStatusBadge(item.status)}
+                                </div>
+                                {item.role && (
+                                  <div className="text-sm text-muted-foreground mb-1">{item.role}</div>
+                                )}
+                                {item.country && (
+                                  <div className="text-xs text-muted-foreground mb-1">{item.country}</div>
+                                )}
+                                <div className="text-xs text-muted-foreground">{formatDate(item.created_at)}</div>
+                              </button>
+                              {item.status === "completed" && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full"
+                                  onClick={() => handlePracticeNeedsWork(item)}
+                                >
+                                  Practice flagged questions
+                                </Button>
                               )}
-                              {item.country && (
-                                <div className="text-xs text-muted-foreground mb-1">{item.country}</div>
-                              )}
-                              <div className="text-xs text-muted-foreground">{formatDate(item.created_at)}</div>
-                            </button>
+                            </div>
                           ))}
                         </div>
                       )}
@@ -396,20 +413,32 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                       ) : (
                         <div className="space-y-2">
                           {searchHistory.slice(0, 3).map((item) => (
-                            <button
-                              key={item.id}
-                              type="button"
-                              className="w-full text-left p-2 border rounded cursor-pointer hover:bg-muted text-sm"
-                              onClick={() => handleHistoryItemClick(item)}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="font-medium truncate">{item.company}</div>
-                                {getStatusBadge(item.status)}
-                              </div>
-                              {item.role && (
-                                <div className="text-xs text-muted-foreground">{item.role}</div>
+                            <div key={item.id} className="space-y-2 rounded border p-2 text-sm">
+                              <button
+                                type="button"
+                                className="w-full text-left hover:bg-muted"
+                                onClick={() => handleHistoryItemClick(item)}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="font-medium truncate">{item.company}</div>
+                                  {getStatusBadge(item.status)}
+                                </div>
+                                {item.role && (
+                                  <div className="text-xs text-muted-foreground">{item.role}</div>
+                                )}
+                              </button>
+                              {item.status === "completed" && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full"
+                                  onClick={() => handlePracticeNeedsWork(item)}
+                                >
+                                  Practice flagged questions
+                                </Button>
                               )}
-                            </button>
+                            </div>
                           ))}
                         </div>
                       )}

@@ -1024,7 +1024,7 @@ const Home = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="role-links">Job Link or Description (optional)</Label>
+            <Label htmlFor="role-links">Role Description Links (optional)</Label>
             <Textarea
               id="role-links"
               placeholder="Paste job description links here (one per line)..."

@@ -1,12 +1,12 @@
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { CheckCircle2, Circle, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface MobileStageCardProps {
@@ -51,25 +51,22 @@ export const MobileStageCard = ({
             {questionCount} question{questionCount === 1 ? "" : "s"}
           </span>
         </div>
-        <Button
-          type="button"
-          variant={selected ? "secondary" : "outline"}
-          size="sm"
-          onClick={() => onToggle(stage.id)}
+        <label
           className={cn(
-            "h-11 shrink-0 rounded-full px-4",
-            selected && "border-primary/20 bg-primary/10 text-primary hover:bg-primary/15"
+            "flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-full border px-4 text-sm font-medium",
+            selected
+              ? "border-primary/20 bg-primary/10 text-primary"
+              : "border-border bg-background text-foreground"
           )}
-          aria-pressed={selected}
           aria-label={`${selected ? "Remove" : "Include"} ${stage.name}`}
         >
-          {selected ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : (
-            <Circle className="h-4 w-4" />
-          )}
+          <Checkbox
+            checked={selected}
+            onCheckedChange={() => onToggle(stage.id)}
+            aria-label={`${selected ? "Remove" : "Include"} ${stage.name}`}
+          />
           {selected ? "Included" : "Include"}
-        </Button>
+        </label>
       </div>
 
       <Accordion type="single" collapsible className="mt-3">

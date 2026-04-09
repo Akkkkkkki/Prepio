@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.interview-research]
 verify_jwt = false
+
+[functions.practice-audio-transcribe]
+verify_jwt = false

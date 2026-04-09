@@ -53,6 +53,7 @@ import { QuestionInsightsPanel } from "@/components/practice/QuestionInsightsPan
 import { MobileCoachModal } from "@/components/practice/MobileCoachModal";
 import { CompletionCheckmark } from "@/components/practice/CompletionCheckmark";
 import { BreathingBreak, BREATHING_DISMISSED_KEY } from "@/components/practice/BreathingBreak";
+import type { SavedPracticeAnswerRecord } from "@/hooks/usePracticeSession";
 import { cn } from "@/lib/utils";
 
 const SWIPE_THRESHOLD_PX = 60;
@@ -184,6 +185,7 @@ const Practice = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchId = searchParams.get('searchId');
   const urlStageIds = searchParams.get('stages')?.split(',') || [];
+  const focusMode = searchParams.get("focus");
   const swipeHintStorageKey = useMemo(
     () => `${SWIPE_HINT_STORAGE_PREFIX}:${searchId ?? 'global'}`,
     [searchId]
@@ -208,10 +210,13 @@ const Practice = () => {
   const [completionError, setCompletionError] = useState<string | null>(null);
   const [practiceSession, setPracticeSession] = useState<PracticeSession | null>(null);
   const [savedAnswers, setSavedAnswers] = useState<Map<string, boolean>>(new Map());
+  const [savedAnswerRecords, setSavedAnswerRecords] = useState<SavedPracticeAnswerRecord[]>([]);
+  const [isSavingRating, setIsSavingRating] = useState(false);
   
   // Question flags (Epic 1.3)
   const [questionFlags, setQuestionFlags] = useState<Record<string, { flag_type: string; id: string }>>({});
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [showNeedsWorkOnly, setShowNeedsWorkOnly] = useState(focusMode === "needs_work");
   
   // Enhanced question filtering - applied filters (used during session)
   const [appliedCategories, setAppliedCategories] = useState<string[]>([]);
@@ -548,6 +553,10 @@ const getInterviewerFocus = (
     loadSearchData();
   }, [searchId]);
 
+  useEffect(() => {
+    setShowNeedsWorkOnly(focusMode === "needs_work");
+  }, [focusMode]);
+
   // Load question flags when stages are loaded (separate effect to avoid infinite loop)
   useEffect(() => {
     const loadFlags = async () => {
@@ -643,6 +652,12 @@ const getInterviewerFocus = (
             questionFlags[q.id]?.flag_type === 'favorite'
           );
         }
+
+        if (showNeedsWorkOnly) {
+          filteredQuestions = filteredQuestions.filter(
+            (question) => questionFlags[question.id]?.flag_type === "needs_work",
+          );
+        }
         
         // Sort questions by stage order for consistent experience
         const sortedQuestions = filteredQuestions.sort((a, b) => {
@@ -668,14 +683,6 @@ const getInterviewerFocus = (
         
         setQuestions(processedQuestions);
 
-        // Create practice session if questions exist
-        if (processedQuestions.length > 0) {
-          const sessionResult = await searchService.createPracticeSession(searchId);
-          
-          if (sessionResult.success && sessionResult.session) {
-            setPracticeSession(sessionResult.session);
-          }
-        }
       } catch (err) {
         console.error("Error loading practice session:", err);
         setError("An unexpected error occurred while loading practice questions");
@@ -687,7 +694,18 @@ const getInterviewerFocus = (
     if (allStages.length > 0) {
       loadPracticeSession();
     }
-  }, [allStages, appliedCategories, appliedDifficulties, appliedShuffle, searchId, useSampling, sampleSize, showFavoritesOnly]);
+  }, [
+    allStages,
+    appliedCategories,
+    appliedDifficulties,
+    appliedShuffle,
+    questionFlags,
+    searchId,
+    showFavoritesOnly,
+    showNeedsWorkOnly,
+    useSampling,
+    sampleSize,
+  ]);
 
   // Reset timer when question changes
   useEffect(() => {
@@ -1013,7 +1031,7 @@ const getInterviewerFocus = (
     nextPreset?: string | null;
   } = {}) => {
     if (isOffline) {
-      return;
+      return false;
     }
 
     setAllStages(stages);
@@ -1027,12 +1045,19 @@ const getInterviewerFocus = (
     if (!hasSelectedStages) {
       setSetupStep(1);
       setMobileSetupMode('custom');
-      return;
+      return false;
     }
 
     if (searchId) {
       const selectedStageIds = stages.filter(stage => stage.selected).map(stage => stage.id);
-      setSearchParams({ searchId, stages: selectedStageIds.join(',') });
+      const nextParams: Record<string, string> = {
+        searchId,
+        stages: selectedStageIds.join(','),
+      };
+      if (focusMode) {
+        nextParams.focus = focusMode;
+      }
+      setSearchParams(nextParams);
     }
 
     persistPracticeDefaults({
@@ -1057,19 +1082,40 @@ const getInterviewerFocus = (
     setIsCoachSheetOpen(false);
     setIsNotesExpanded(false);
     setRecordingError(null);
+    return true;
   };
 
-  const handleBeginSession = () => {
-    beginSession({
+  const startPracticeSession = async () => {
+    if (!searchId) {
+      return false;
+    }
+
+    const sessionResult = await searchService.createPracticeSession(searchId);
+    if (!sessionResult.success || !sessionResult.session) {
+      setError("We couldn't start the practice session. Please try again.");
+      setSessionState("setup");
+      return false;
+    }
+
+    setPracticeSession(sessionResult.session);
+    return true;
+  };
+
+  const handleBeginSession = async () => {
+    const didBegin = beginSession({
       nextPreset: isMobile ? null : selectedPreset
     });
+
+    if (!didBegin) return;
+
+    await startPracticeSession();
   };
 
-  const handleBeginQuickStart = () => {
+  const handleBeginQuickStart = async () => {
     const selectedStages = allStages.some(stage => stage.selected)
       ? allStages
       : allStages.map(stage => ({ ...stage, selected: true }));
-    beginSession({
+    const didBegin = beginSession({
       categories: [],
       difficulties: [],
       shuffle: practicePresets.quick.config.shuffle,
@@ -1078,6 +1124,10 @@ const getInterviewerFocus = (
       nextSampleSize: practicePresets.quick.config.sampleSize,
       nextPreset: 'quick'
     });
+
+    if (!didBegin) return;
+
+    await startPracticeSession();
   };
 
   const handleStartNewSession = () => {
@@ -1089,6 +1139,9 @@ const getInterviewerFocus = (
     setAnswers(new Map());
     setQuestionTimers(new Map());
     setSavedAnswers(new Map());
+    setSavedAnswerRecords([]);
+    setPracticeSession(null);
+    setShowNeedsWorkOnly(focusMode === "needs_work");
     
     // Reset filters
     setAppliedCategories([]);
@@ -1182,16 +1235,44 @@ const getInterviewerFocus = (
     const timeSpent = getCurrentQuestionTime();
     
     try {
-      // For now, we'll save the text answer and recording status
-      // In a full implementation, you'd upload the audio file
+      let audioUrl: string | undefined;
+      let transcriptText: string | undefined;
+
+      if (audioBlob && user?.id) {
+        const extension = audioBlob.type.split("/")[1]?.split(";")[0] || "webm";
+        const audioPath = `${user.id}/${practiceSession.id}/${questionId}-${Date.now()}.${extension}`;
+        const audioFile = new File([audioBlob], `practice-answer.${extension}`, {
+          type: audioBlob.type || "audio/webm",
+        });
+
+        const uploadResult = await searchService.uploadPracticeAudio(audioFile, audioPath);
+        if (!uploadResult.success || !uploadResult.path) {
+          throw uploadResult.error ?? new Error("Failed to upload practice audio");
+        }
+
+        audioUrl = uploadResult.path;
+
+        const transcriptionResult = await searchService.transcribePracticeAudio({
+          path: uploadResult.path,
+          mimeType: audioFile.type,
+          fileName: audioFile.name,
+        });
+
+        if (transcriptionResult.success && typeof transcriptionResult.transcript === "string") {
+          transcriptText = transcriptionResult.transcript.trim() || undefined;
+        }
+      }
+
       const result = await searchService.savePracticeAnswer({
         sessionId: practiceSession.id,
         questionId: questionId,
-        textAnswer: currentAnswer.trim() || (hasRecording ? "[Voice recording provided]" : ""),
+        textAnswer: currentAnswer.trim() || undefined,
+        audioUrl,
+        transcriptText,
         answerTime: timeSpent
       });
 
-      if (result.success) {
+      if (result.success && result.answer) {
         // Mark question as answered
         setQuestions(prev => 
           prev.map(q => 
@@ -1199,6 +1280,20 @@ const getInterviewerFocus = (
           )
         );
         setSavedAnswers(prev => new Map(prev).set(questionId, true));
+        setSavedAnswerRecords((prev) => {
+          const next = prev.filter((record) => record.questionId !== questionId);
+          next.push({
+            id: result.answer.id,
+            questionId,
+            question: currentQuestion.question,
+            stageName: currentQuestion.stage_name,
+            textAnswer: currentAnswer.trim() || null,
+            transcriptText: transcriptText ?? null,
+            audioUrl: audioUrl ?? null,
+            selfRating: result.answer.self_rating ?? null,
+          });
+          return next;
+        });
         
         // Save question time
         setQuestionTimers(prev => new Map(prev).set(questionId, timeSpent));
@@ -1206,6 +1301,7 @@ const getInterviewerFocus = (
         clearAutosavedAnswer(questionId);
         setAutosaveState('saved');
         setShowCheckmark(true);
+        clearRecording();
         
         // Check if this is the last question
         if (currentIndex >= questions.length - 1) {
@@ -2198,6 +2294,25 @@ const getInterviewerFocus = (
       }
     };
 
+    const handleRateAnswer = async (answerId: string, rating: number) => {
+      setIsSavingRating(true);
+      try {
+        const result = await searchService.saveSelfRating(answerId, rating);
+        if (!result.success) {
+          console.error("Failed to save self rating:", result.error);
+          return;
+        }
+
+        setSavedAnswerRecords((prev) =>
+          prev.map((record) => (record.id === answerId ? { ...record, selfRating: rating } : record)),
+        );
+      } catch (error) {
+        console.error("Error saving self rating:", error);
+      } finally {
+        setIsSavingRating(false);
+      }
+    };
+
     return (
       <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
@@ -2216,6 +2331,9 @@ const getInterviewerFocus = (
             isSaving={isSavingNotes}
             disableSaveNotes={isOffline}
             saveNotesHelper={isOffline ? "Reconnect to save this reflection to your history." : undefined}
+            savedAnswers={savedAnswerRecords}
+            onRateAnswer={handleRateAnswer}
+            isSavingRating={isSavingRating}
           />
         </div>
       </div>
