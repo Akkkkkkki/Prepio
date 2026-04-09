@@ -624,6 +624,7 @@ const Dashboard = () => {
           setProgress(prev => Math.min(prev + 5, 95));
         } else {
           clearInterval(poll);
+          await loadSearchData();
         }
       }
     }, 3000);
