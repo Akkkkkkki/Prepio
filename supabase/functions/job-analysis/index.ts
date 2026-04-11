@@ -116,6 +116,7 @@ async function extractJobDescriptions(
     if (supabase && searchId && userId) {
       try {
         await supabase
+          .schema("ops")
           .from("tavily_searches")
           .insert({
             search_id: searchId,
@@ -146,6 +147,7 @@ async function extractJobDescriptions(
     if (supabase && searchId && userId) {
       try {
         await supabase
+          .schema("ops")
           .from("tavily_searches")
           .insert({
             search_id: searchId,

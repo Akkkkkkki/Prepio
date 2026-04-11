@@ -175,7 +175,7 @@ Deno.test({
         console.log("  🧹 Cleaning up test data...");
         await supabase.from("interview_questions").delete().eq("search_id", searchId);
         await supabase.from("interview_stages").delete().eq("search_id", searchId);
-        await supabase.from("cv_job_comparisons").delete().eq("search_id", searchId);
+        await supabase.from("prep_plans").delete().eq("search_id", searchId);
         await supabase.from("searches").delete().eq("id", searchId);
         console.log("  ✅ Test data cleaned up");
       }
@@ -279,7 +279,7 @@ Experience: Led iOS team at TechCorp`;
         await supabase.from("resumes").delete().eq("search_id", searchId);
         await supabase.from("interview_questions").delete().eq("search_id", searchId);
         await supabase.from("interview_stages").delete().eq("search_id", searchId);
-        await supabase.from("cv_job_comparisons").delete().eq("search_id", searchId);
+        await supabase.from("prep_plans").delete().eq("search_id", searchId);
         await supabase.from("searches").delete().eq("id", searchId);
         console.log("  ✅ Test data cleaned up");
       }
@@ -370,7 +370,7 @@ Experience: Built multi-region platforms`;
         await supabase.from("resumes").delete().eq("search_id", searchId);
         await supabase.from("interview_questions").delete().eq("search_id", searchId);
         await supabase.from("interview_stages").delete().eq("search_id", searchId);
-        await supabase.from("cv_job_comparisons").delete().eq("search_id", searchId);
+        await supabase.from("prep_plans").delete().eq("search_id", searchId);
         await supabase.from("searches").delete().eq("id", searchId);
         console.log("  ✅ Test data cleaned up");
       }
@@ -459,7 +459,7 @@ Deno.test({
         console.log("  🧹 Cleaning up test data...");
         await supabase.from("interview_questions").delete().eq("search_id", searchId);
         await supabase.from("interview_stages").delete().eq("search_id", searchId);
-        await supabase.from("cv_job_comparisons").delete().eq("search_id", searchId);
+        await supabase.from("prep_plans").delete().eq("search_id", searchId);
         await supabase.from("searches").delete().eq("id", searchId);
         console.log("  ✅ Test data cleaned up");
       }

@@ -34,7 +34,6 @@ import {
   type ResearchDraft,
   type ResearchStep,
   saveResearchDraft,
-  type SeniorityLevel,
   type Level,
 } from "@/lib/researchDraft";
 import { ACCEPTED_RESUME_TYPES, ResumeUploadError, buildResumeStoragePath, extractResumeText } from "@/lib/resumeUpload";
@@ -53,8 +52,6 @@ type ResearchFormData = {
   userNote: string;
   jobDescription: string;
   level: FormLevel;
-  /** @deprecated kept for draft compat */
-  targetSeniority?: SeniorityLevel | "auto";
 };
 
 const HOME_CV_UPLOAD_ID = "home-cv-upload";
@@ -103,11 +100,17 @@ const getPreviousStep = (step: ResearchStep) => {
   return MOBILE_STEP_ORDER[Math.max(currentIndex - 1, 0)];
 };
 
+const parseRoleLinks = (value: string) =>
+  value
+    .split("\n")
+    .map((link) => link.trim())
+    .filter(Boolean);
+
 const buildSearchPayload = (formData: ResearchFormData) => ({
   company: formData.company.trim(),
   role: formData.role.trim() || undefined,
   country: formData.country.trim() || undefined,
-  roleLinks: formData.roleLinks.trim() || undefined,
+  roleLinks: parseRoleLinks(formData.roleLinks),
   cv: formData.cv.trim() || undefined,
   level: formData.level === "auto" ? undefined : formData.level,
   userNote: formData.userNote?.trim() || undefined,

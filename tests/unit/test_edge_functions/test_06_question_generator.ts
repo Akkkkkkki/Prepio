@@ -183,7 +183,7 @@ Deno.test({
           cvAnalysis: generateMockCVAnalysis(5), // 5 years = mid-level
           interviewStage: "Technical Phone Screen",
           stageDetails: { focus: "Technical depth and problem-solving" },
-          targetSeniority: "mid"
+          level: "mid"
         })
       });
 
@@ -307,7 +307,7 @@ Deno.test({
           cvAnalysis: generateMockCVAnalysis(1), // 1 year = junior
           interviewStage: "Phone Screen",
           stageDetails: { focus: "Fundamentals and learning ability" },
-          targetSeniority: "junior"
+          level: "junior"
         })
       });
 
@@ -379,7 +379,7 @@ Deno.test({
           cvAnalysis: generateMockCVAnalysis(10), // 10 years = senior
           interviewStage: "Onsite Technical",
           stageDetails: { focus: "System design and architecture" },
-          targetSeniority: "senior"
+          level: "senior_ic"
         })
       });
 

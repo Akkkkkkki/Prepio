@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import ProfileHeader from "./ProfileHeader";
 import ProfileSectionCard from "./ProfileSectionCard";
 import { splitCsv } from "./profileUtils";
-import type { ProfileWorkspaceState, SeniorityLevel } from "./useProfileWorkspace";
+import type { ProfileLevel, ProfileWorkspaceState } from "./useProfileWorkspace";
 
 interface ProfilePreferencesViewProps {
   workspace: ProfileWorkspaceState;
@@ -38,13 +38,13 @@ const CsvField = ({
 
 const ProfilePreferencesView = ({ workspace }: ProfilePreferencesViewProps) => {
   const {
-    handleSaveSeniority,
+    handleSaveLevel,
     isPendingTransition,
     isSaving,
-    isSavingSeniority,
+    isSavingLevel,
     profile,
     saveProfile,
-    seniority,
+    level,
     updateProfile,
   } = workspace;
 
@@ -135,18 +135,19 @@ const ProfilePreferencesView = ({ workspace }: ProfilePreferencesViewProps) => {
         icon={<MapPin className="h-5 w-5 text-primary" />}
       >
         <div className="max-w-sm space-y-2">
-          <Label htmlFor="profile-seniority">Experience level</Label>
-          <Select value={seniority} onValueChange={(value) => void handleSaveSeniority(value as SeniorityLevel)}>
-            <SelectTrigger id="profile-seniority">
+          <Label htmlFor="profile-level">Experience level</Label>
+          <Select value={level} onValueChange={(value) => void handleSaveLevel(value as ProfileLevel)}>
+            <SelectTrigger id="profile-level">
               <SelectValue placeholder="Select experience level" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="junior">Junior</SelectItem>
               <SelectItem value="mid">Mid-level</SelectItem>
-              <SelectItem value="senior">Senior</SelectItem>
+              <SelectItem value="senior_ic">Senior IC</SelectItem>
+              <SelectItem value="people_manager">People manager</SelectItem>
             </SelectContent>
           </Select>
-          {isSavingSeniority ? (
+          {isSavingLevel ? (
             <p className="text-xs text-muted-foreground">Saving experience level...</p>
           ) : null}
         </div>

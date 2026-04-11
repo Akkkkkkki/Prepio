@@ -146,6 +146,7 @@ Deno.test({
       // Step 4: Cross-verify database - Check tavily_searches table
       console.log("  🔍 Cross-verifying Tavily API calls in database...");
       const { data: tavilySearches, error: tavilyError } = await supabase
+        .schema("ops")
         .from("tavily_searches")
         .select("*")
         .eq("search_id", searchId)
@@ -170,6 +171,7 @@ Deno.test({
       // Note: scraped_urls uses company_name for deduplication, not search_id
       console.log("  🔍 Cross-verifying scraped URLs in database...");
       const { data: scrapedUrls, error: urlsError } = await supabase
+        .schema("ops")
         .from("scraped_urls")
         .select("*")
         .eq("company_name", "Google")
@@ -197,8 +199,8 @@ Deno.test({
       // Cleanup
       if (searchId) {
         console.log("  🧹 Cleaning up test data...");
-        await supabase.from("scraped_urls").delete().eq("search_id", searchId);
-        await supabase.from("tavily_searches").delete().eq("search_id", searchId);
+        await supabase.schema("ops").from("scraped_urls").delete().eq("search_id", searchId);
+        await supabase.schema("ops").from("tavily_searches").delete().eq("search_id", searchId);
         await supabase.from("searches").delete().eq("id", searchId);
         console.log("  ✅ Test data cleaned up");
       }
@@ -311,8 +313,8 @@ Deno.test({
     } finally {
       if (searchId) {
         console.log("  🧹 Cleaning up test data...");
-        await supabase.from("scraped_urls").delete().eq("search_id", searchId);
-        await supabase.from("tavily_searches").delete().eq("search_id", searchId);
+        await supabase.schema("ops").from("scraped_urls").delete().eq("search_id", searchId);
+        await supabase.schema("ops").from("tavily_searches").delete().eq("search_id", searchId);
         await supabase.from("searches").delete().eq("id", searchId);
         console.log("  ✅ Test data cleaned up");
       }

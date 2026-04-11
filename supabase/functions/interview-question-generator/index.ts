@@ -15,7 +15,7 @@ interface QuestionGenerationRequest {
   cvAnalysis: any;
   interviewStage: string;
   stageDetails: any;
-  targetSeniority?: 'junior' | 'mid' | 'senior';
+  level?: 'junior' | 'mid' | 'senior_ic' | 'people_manager' | 'unknown';
 }
 
 interface GeneratedQuestion {
@@ -149,7 +149,7 @@ async function generateInterviewQuestions(
   cvAnalysis: any,
   interviewStage: string,
   stageDetails: any,
-  targetSeniority: 'junior' | 'mid' | 'senior' | undefined,
+  level: 'junior' | 'mid' | 'senior_ic' | 'people_manager' | 'unknown' | undefined,
   openaiApiKey: string
 ): Promise<QuestionBank> {
   
@@ -197,16 +197,15 @@ async function generateInterviewQuestions(
   }
   
   // Determine experience level with fallback logic:
-  // 1. Use targetSeniority if provided (user's explicit choice)
+  // 1. Use canonical level if provided (user's explicit choice)
   // 2. Fall back to CV-inferred level
   // 3. Default to 'mid' if neither exists
   let experienceLevel = 'mid'; // Default
   let experienceYears = 0;
-  
-  if (targetSeniority) {
-    // User explicitly set target seniority - use it
-    experienceLevel = targetSeniority;
-    console.log(`Using user-specified target seniority: ${experienceLevel}`);
+
+  if (level) {
+    experienceLevel = level === 'senior_ic' || level === 'people_manager' ? 'senior' : level;
+    console.log(`Using user-specified level: ${experienceLevel}`);
   } else if (cvAnalysis) {
     // Infer from CV experience
     experienceYears = cvAnalysis.experience_years || 0;
@@ -480,7 +479,7 @@ serve(async (req) => {
   }
 
   try {
-    const { searchId, userId, companyInsights, jobRequirements, cvAnalysis, interviewStage, stageDetails, targetSeniority } = await req.json() as QuestionGenerationRequest;
+    const { searchId, userId, companyInsights, jobRequirements, cvAnalysis, interviewStage, stageDetails, level } = await req.json() as QuestionGenerationRequest;
 
     if (!searchId || !userId) {
       throw new Error("Missing required parameters: searchId and userId");
@@ -490,7 +489,7 @@ serve(async (req) => {
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
     const useFallback = !openaiApiKey;
 
-    console.log("Starting interview question generation for search:", searchId, "stage:", interviewStage, "targetSeniority:", targetSeniority);
+    console.log("Starting interview question generation for search:", searchId, "stage:", interviewStage, "level:", level);
 
     // Generate comprehensive question bank (fallback when offline/CI)
     let questionBank: QuestionBank;
@@ -505,7 +504,7 @@ serve(async (req) => {
           cvAnalysis,
           interviewStage,
           stageDetails,
-          targetSeniority,
+          level,
           openaiApiKey!
         );
       } catch (generationError) {

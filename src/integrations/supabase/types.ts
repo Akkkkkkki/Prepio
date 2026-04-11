@@ -12,232 +12,8 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
-      interview_questions: {
-        Row: {
-          category: string
-          company_context: string | null
-          created_at: string
-          depth_label: string | null
-          difficulty: string
-          evaluation_criteria: string[] | null
-          follow_up_questions: string[] | null
-          good_answer_signals: string[] | null
-          id: string
-          question: string
-          rationale: string | null
-          sample_answer_outline: string | null
-          search_id: string
-          seniority_expectation: string | null
-          stage_id: string
-          star_story_fit: boolean | null
-          suggested_answer_approach: string | null
-          weak_answer_signals: string[] | null
-        }
-        Insert: {
-          category: string
-          company_context?: string | null
-          created_at?: string
-          depth_label?: string | null
-          difficulty: string
-          evaluation_criteria?: string[] | null
-          follow_up_questions?: string[] | null
-          good_answer_signals?: string[] | null
-          id?: string
-          question: string
-          rationale?: string | null
-          sample_answer_outline?: string | null
-          search_id: string
-          seniority_expectation?: string | null
-          stage_id: string
-          star_story_fit?: boolean | null
-          suggested_answer_approach?: string | null
-          weak_answer_signals?: string[] | null
-        }
-        Update: {
-          category?: string
-          company_context?: string | null
-          created_at?: string
-          depth_label?: string | null
-          difficulty?: string
-          evaluation_criteria?: string[] | null
-          follow_up_questions?: string[] | null
-          good_answer_signals?: string[] | null
-          id?: string
-          question?: string
-          rationale?: string | null
-          sample_answer_outline?: string | null
-          search_id?: string
-          seniority_expectation?: string | null
-          stage_id?: string
-          star_story_fit?: boolean | null
-          suggested_answer_approach?: string | null
-          weak_answer_signals?: string[] | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "interview_questions_search_id_fkey"
-            columns: ["search_id"]
-            isOneToOne: false
-            referencedRelation: "searches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "interview_questions_stage_id_fkey"
-            columns: ["stage_id"]
-            isOneToOne: false
-            referencedRelation: "interview_stages"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      interview_stages: {
-        Row: {
-          content: string | null
-          created_at: string
-          duration: string | null
-          guidance: string | null
-          id: string
-          interviewer: string | null
-          name: string
-          order_index: number
-          search_id: string
-        }
-        Insert: {
-          content?: string | null
-          created_at?: string
-          duration?: string | null
-          guidance?: string | null
-          id?: string
-          interviewer?: string | null
-          name: string
-          order_index: number
-          search_id: string
-        }
-        Update: {
-          content?: string | null
-          created_at?: string
-          duration?: string | null
-          guidance?: string | null
-          id?: string
-          interviewer?: string | null
-          name?: string
-          order_index?: number
-          search_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "interview_stages_search_id_fkey"
-            columns: ["search_id"]
-            isOneToOne: false
-            referencedRelation: "searches"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      practice_answers: {
-        Row: {
-          answer_time_seconds: number | null
-          created_at: string
-          id: string
-          question_id: string
-          session_id: string
-          text_answer: string | null
-        }
-        Insert: {
-          answer_time_seconds?: number | null
-          created_at?: string
-          id?: string
-          question_id: string
-          session_id: string
-          text_answer?: string | null
-        }
-        Update: {
-          answer_time_seconds?: number | null
-          created_at?: string
-          id?: string
-          question_id?: string
-          session_id?: string
-          text_answer?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "practice_answers_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "interview_questions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "practice_answers_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "practice_sessions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      practice_sessions: {
-        Row: {
-          completed_at: string | null
-          id: string
-          search_id: string
-          session_notes: string | null
-          started_at: string
-          user_id: string
-        }
-        Insert: {
-          completed_at?: string | null
-          id?: string
-          search_id: string
-          session_notes?: string | null
-          started_at?: string
-          user_id: string
-        }
-        Update: {
-          completed_at?: string | null
-          id?: string
-          search_id?: string
-          session_notes?: string | null
-          started_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "practice_sessions_search_id_fkey"
-            columns: ["search_id"]
-            isOneToOne: false
-            referencedRelation: "searches"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       candidate_profiles: {
         Row: {
           certifications: Json
@@ -303,32 +79,296 @@ export type Database = {
           },
         ]
       }
-      profiles: {
+      interview_questions: {
         Row: {
+          answer_guidance_status: string | null
+          category: string
+          company_context: string | null
           created_at: string
-          email: string | null
-          full_name: string | null
+          depth_label: string | null
+          difficulty: string
+          evaluation_criteria: string[] | null
+          follow_up_questions: string[] | null
+          good_answer_signals: string[] | null
           id: string
-          seniority: string | null
-          updated_at: string
+          linked_priority: string | null
+          question: string
+          rationale: string | null
+          reason: string | null
+          sample_answer_outline: string | null
+          search_id: string
+          seniority_expectation: string | null
+          stage_id: string | null
+          star_story_fit: boolean | null
+          suggested_answer_approach: string | null
+          tier: string | null
+          weak_answer_signals: string[] | null
         }
         Insert: {
+          answer_guidance_status?: string | null
+          category: string
+          company_context?: string | null
           created_at?: string
-          email?: string | null
-          full_name?: string | null
-          id: string
-          seniority?: string | null
-          updated_at?: string
+          depth_label?: string | null
+          difficulty: string
+          evaluation_criteria?: string[] | null
+          follow_up_questions?: string[] | null
+          good_answer_signals?: string[] | null
+          id?: string
+          linked_priority?: string | null
+          question: string
+          rationale?: string | null
+          reason?: string | null
+          sample_answer_outline?: string | null
+          search_id: string
+          seniority_expectation?: string | null
+          stage_id?: string | null
+          star_story_fit?: boolean | null
+          suggested_answer_approach?: string | null
+          tier?: string | null
+          weak_answer_signals?: string[] | null
         }
         Update: {
+          answer_guidance_status?: string | null
+          category?: string
+          company_context?: string | null
           created_at?: string
-          email?: string | null
-          full_name?: string | null
+          depth_label?: string | null
+          difficulty?: string
+          evaluation_criteria?: string[] | null
+          follow_up_questions?: string[] | null
+          good_answer_signals?: string[] | null
           id?: string
-          seniority?: string | null
-          updated_at?: string
+          linked_priority?: string | null
+          question?: string
+          rationale?: string | null
+          reason?: string | null
+          sample_answer_outline?: string | null
+          search_id?: string
+          seniority_expectation?: string | null
+          stage_id?: string | null
+          star_story_fit?: boolean | null
+          suggested_answer_approach?: string | null
+          tier?: string | null
+          weak_answer_signals?: string[] | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "interview_questions_search_id_fkey"
+            columns: ["search_id"]
+            isOneToOne: false
+            referencedRelation: "searches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_questions_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "interview_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_stages: {
+        Row: {
+          confidence: string | null
+          content: string | null
+          created_at: string
+          duration: string | null
+          guidance: string | null
+          id: string
+          interviewer: string | null
+          low_confidence_guidance: string | null
+          name: string
+          order_index: number
+          prep_actions: string[] | null
+          prep_priority: string | null
+          question_themes: string[] | null
+          search_id: string
+          what_it_tests: string[] | null
+          why_likely: string | null
+        }
+        Insert: {
+          confidence?: string | null
+          content?: string | null
+          created_at?: string
+          duration?: string | null
+          guidance?: string | null
+          id?: string
+          interviewer?: string | null
+          low_confidence_guidance?: string | null
+          name: string
+          order_index: number
+          prep_actions?: string[] | null
+          prep_priority?: string | null
+          question_themes?: string[] | null
+          search_id: string
+          what_it_tests?: string[] | null
+          why_likely?: string | null
+        }
+        Update: {
+          confidence?: string | null
+          content?: string | null
+          created_at?: string
+          duration?: string | null
+          guidance?: string | null
+          id?: string
+          interviewer?: string | null
+          low_confidence_guidance?: string | null
+          name?: string
+          order_index?: number
+          prep_actions?: string[] | null
+          prep_priority?: string | null
+          question_themes?: string[] | null
+          search_id?: string
+          what_it_tests?: string[] | null
+          why_likely?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_stages_search_id_fkey"
+            columns: ["search_id"]
+            isOneToOne: false
+            referencedRelation: "searches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practice_answers: {
+        Row: {
+          answer_time_seconds: number | null
+          audio_path: string | null
+          created_at: string
+          id: string
+          question_id: string
+          self_rating: number | null
+          session_id: string
+          text_answer: string | null
+          transcript_text: string | null
+        }
+        Insert: {
+          answer_time_seconds?: number | null
+          audio_path?: string | null
+          created_at?: string
+          id?: string
+          question_id: string
+          self_rating?: number | null
+          session_id: string
+          text_answer?: string | null
+          transcript_text?: string | null
+        }
+        Update: {
+          answer_time_seconds?: number | null
+          audio_path?: string | null
+          created_at?: string
+          id?: string
+          question_id?: string
+          self_rating?: number | null
+          session_id?: string
+          text_answer?: string | null
+          transcript_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "interview_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_answers_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "practice_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practice_sessions: {
+        Row: {
+          completed_at: string | null
+          id: string
+          search_id: string
+          session_notes: string | null
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          id?: string
+          search_id: string
+          session_notes?: string | null
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          id?: string
+          search_id?: string
+          session_notes?: string | null
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_sessions_search_id_fkey"
+            columns: ["search_id"]
+            isOneToOne: false
+            referencedRelation: "searches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prep_plans: {
+        Row: {
+          assessment_signals: Json
+          candidate_positioning: Json
+          created_at: string
+          id: string
+          internal_evidence_log: Json
+          practice_sequence: Json
+          prep_priorities: Json
+          question_plan: Json
+          search_id: string
+          stage_roadmap: Json
+          summary: Json
+        }
+        Insert: {
+          assessment_signals?: Json
+          candidate_positioning?: Json
+          created_at?: string
+          id?: string
+          internal_evidence_log?: Json
+          practice_sequence?: Json
+          prep_priorities?: Json
+          question_plan?: Json
+          search_id: string
+          stage_roadmap?: Json
+          summary: Json
+        }
+        Update: {
+          assessment_signals?: Json
+          candidate_positioning?: Json
+          created_at?: string
+          id?: string
+          internal_evidence_log?: Json
+          practice_sequence?: Json
+          prep_priorities?: Json
+          question_plan?: Json
+          search_id?: string
+          stage_roadmap?: Json
+          summary?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prep_plans_search_id_fkey"
+            columns: ["search_id"]
+            isOneToOne: true
+            referencedRelation: "searches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profile_imports: {
         Row: {
@@ -376,6 +416,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          level: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          level?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          level?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       resumes: {
         Row: {
@@ -433,195 +500,68 @@ export type Database = {
           },
         ]
       }
-      scraped_urls: {
-        Row: {
-          ai_summary: string | null
-          company_name: string
-          content_quality_score: number | null
-          created_at: string
-          domain: string | null
-          first_scraped_at: string | null
-          full_content: string | null
-          id: string
-          last_reused_at: string | null
-          role_title: string | null
-          times_reused: number | null
-          title: string | null
-          url: string
-          url_hash: string
-        }
-        Insert: {
-          ai_summary?: string | null
-          company_name: string
-          content_quality_score?: number | null
-          created_at?: string
-          domain?: string | null
-          first_scraped_at?: string | null
-          full_content?: string | null
-          id?: string
-          last_reused_at?: string | null
-          role_title?: string | null
-          times_reused?: number | null
-          title?: string | null
-          url: string
-          url_hash: string
-        }
-        Update: {
-          ai_summary?: string | null
-          company_name?: string
-          content_quality_score?: number | null
-          created_at?: string
-          domain?: string | null
-          first_scraped_at?: string | null
-          full_content?: string | null
-          id?: string
-          last_reused_at?: string | null
-          role_title?: string | null
-          times_reused?: number | null
-          title?: string | null
-          url?: string
-          url_hash?: string
-        }
-        Relationships: []
-      }
-      search_artifacts: {
-        Row: {
-          comparison_analysis: Json | null
-          created_at: string
-          id: string
-          preparation_guidance: Json | null
-          raw_research: Json | null
-          search_id: string
-          user_id: string
-        }
-        Insert: {
-          comparison_analysis?: Json | null
-          created_at?: string
-          id?: string
-          preparation_guidance?: Json | null
-          raw_research?: Json | null
-          search_id: string
-          user_id: string
-        }
-        Update: {
-          comparison_analysis?: Json | null
-          created_at?: string
-          id?: string
-          preparation_guidance?: Json | null
-          raw_research?: Json | null
-          search_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "search_artifacts_search_id_fkey"
-            columns: ["search_id"]
-            isOneToOne: true
-            referencedRelation: "searches"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       searches: {
         Row: {
+          banner_dismissed: boolean | null
           company: string
           completed_at: string | null
           country: string | null
           created_at: string
           error_message: string | null
           id: string
+          job_description: string | null
+          level: string | null
           progress_pct: number | null
           progress_step: string | null
           role: string | null
-          role_links: string | null
+          role_links: string[] | null
           started_at: string | null
           status: string
-          target_seniority: string | null
           updated_at: string
           user_id: string
+          user_note: string | null
         }
         Insert: {
+          banner_dismissed?: boolean | null
           company: string
           completed_at?: string | null
           country?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
+          job_description?: string | null
+          level?: string | null
           progress_pct?: number | null
           progress_step?: string | null
           role?: string | null
-          role_links?: string | null
+          role_links?: string[] | null
           started_at?: string | null
           status?: string
-          target_seniority?: string | null
           updated_at?: string
           user_id: string
+          user_note?: string | null
         }
         Update: {
+          banner_dismissed?: boolean | null
           company?: string
           completed_at?: string | null
           country?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
+          job_description?: string | null
+          level?: string | null
           progress_pct?: number | null
           progress_step?: string | null
           role?: string | null
-          role_links?: string | null
+          role_links?: string[] | null
           started_at?: string | null
           status?: string
-          target_seniority?: string | null
           updated_at?: string
           user_id?: string
+          user_note?: string | null
         }
         Relationships: []
-      }
-      tavily_searches: {
-        Row: {
-          api_type: string
-          created_at: string
-          credits_used: number | null
-          error_message: string | null
-          id: string
-          query_text: string
-          request_duration_ms: number | null
-          response_status: number
-          results_count: number | null
-          search_id: string | null
-        }
-        Insert: {
-          api_type: string
-          created_at?: string
-          credits_used?: number | null
-          error_message?: string | null
-          id?: string
-          query_text: string
-          request_duration_ms?: number | null
-          response_status: number
-          results_count?: number | null
-          search_id?: string | null
-        }
-        Update: {
-          api_type?: string
-          created_at?: string
-          credits_used?: number | null
-          error_message?: string | null
-          id?: string
-          query_text?: string
-          request_duration_ms?: number | null
-          response_status?: number
-          results_count?: number | null
-          search_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tavily_searches_search_id_fkey"
-            columns: ["search_id"]
-            isOneToOne: false
-            referencedRelation: "searches"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       user_question_flags: {
         Row: {
@@ -801,9 +741,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

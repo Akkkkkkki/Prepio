@@ -7,7 +7,9 @@ export const researchService = {
     country,
     roleLinks,
     cv,
-    targetSeniority,
+    level,
+    userNote,
+    jobDescription,
   }: CreateSearchParams) {
     try {
       const {
@@ -26,8 +28,10 @@ export const researchService = {
           company,
           role,
           country,
-          role_links: roleLinks,
-          target_seniority: targetSeniority,
+          role_links: roleLinks?.map((link) => link.trim()).filter(Boolean) ?? [],
+          level: level ?? null,
+          user_note: userNote ?? null,
+          job_description: jobDescription ?? null,
           status: "pending",
         } as never)
         .select()
@@ -44,7 +48,7 @@ export const researchService = {
 
   async startProcessing(
     searchId: string,
-    { company, role, country, roleLinks, cv, targetSeniority }: CreateSearchParams,
+    { company, role, country, roleLinks, cv, level, userNote, jobDescription }: CreateSearchParams,
   ) {
     try {
       const {
@@ -63,9 +67,11 @@ export const researchService = {
             company,
             role,
             country,
-            roleLinks: roleLinks ? roleLinks.split("\n").filter((link) => link.trim()) : [],
+            roleLinks: roleLinks?.map((link) => link.trim()).filter(Boolean) ?? [],
             cv,
-            targetSeniority,
+            level,
+            userNote,
+            jobDescription,
             userId: user.id,
             searchId,
           },
@@ -156,32 +162,26 @@ export const researchService = {
         }),
       );
 
-      const { data: artifact, error: artifactError } = await supabase
-        .from("search_artifacts")
-        .select("comparison_analysis, preparation_guidance")
-        .eq("search_id", searchId)
-        .maybeSingle();
+      let prepPlan = null;
 
-      if (artifactError && artifactError.code !== "PGRST116") {
-        console.warn("Search artifacts query error:", artifactError.message || artifactError);
-      }
+      if (search.status === "completed" || search.status === "failed") {
+        const { data: prepPlanData, error: prepPlanError } = await supabase
+          .from("prep_plans")
+          .select("*")
+          .eq("search_id", searchId)
+          .maybeSingle();
 
-      const { data: prepPlan, error: prepPlanError } = await supabase
-        .from("prep_plans")
-        .select("*")
-        .eq("search_id", searchId)
-        .maybeSingle();
-
-      if (prepPlanError && prepPlanError.code !== "PGRST116") {
-        console.warn("Prep plan query error:", prepPlanError.message || prepPlanError);
+        if (prepPlanError) {
+          console.warn("Prep plan query error:", prepPlanError.message || prepPlanError);
+        } else {
+          prepPlan = prepPlanData;
+        }
       }
 
       return {
         search,
         stages: stagesWithQuestions,
-        cvJobComparison: artifact?.comparison_analysis || null,
-        preparationGuidance: artifact?.preparation_guidance || null,
-        prepPlan: prepPlan || null,
+        prepPlan,
         success: true,
       };
     } catch (error) {

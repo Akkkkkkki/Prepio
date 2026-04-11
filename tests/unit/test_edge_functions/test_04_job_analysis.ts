@@ -131,6 +131,7 @@ Deno.test({
       // Step 4: Cross-verify database - Check tavily_searches table
       console.log("  🔍 Cross-verifying Tavily Extract calls in database...");
       const { data: tavilySearches, error: tavilyError } = await supabase
+        .schema("ops")
         .from("tavily_searches")
         .select("*")
         .eq("search_id", searchId)
