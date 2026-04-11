@@ -137,7 +137,7 @@ describe("Dashboard mobile layout", () => {
     expect(screen.getByText("Stage roadmap")).toBeInTheDocument();
     expect(screen.getByText("3 questions across 2 stages")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Remove Initial Screening" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Remove Initial Screening" }));
 
     await waitFor(() => {
       expect(screen.getByText("2 questions across 1 stage")).toBeInTheDocument();

@@ -206,7 +206,8 @@ describe("Home flow", () => {
     expect(screen.getByLabelText("Company *")).toBeInTheDocument();
     expect(screen.getByLabelText("Role (optional)")).toBeInTheDocument();
     expect(screen.getByLabelText("Country (optional)")).toBeInTheDocument();
-    expect(screen.getByLabelText("Job Link or Description (optional)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Role Description Links (optional)")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Or paste the full job description here...")).toBeInTheDocument();
     expect(screen.queryByText("How it works")).not.toBeInTheDocument();
   });
 
