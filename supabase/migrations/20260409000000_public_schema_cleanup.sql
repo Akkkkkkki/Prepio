@@ -62,6 +62,14 @@ BEGIN
   END IF;
 END $$;
 
+UPDATE public.profiles
+SET level = CASE
+  WHEN level = 'senior' THEN 'senior_ic'
+  WHEN level IN ('junior', 'mid', 'senior_ic', 'people_manager') THEN level
+  ELSE NULL
+END
+WHERE level IS NOT NULL;
+
 ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_seniority_check;
 ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_level_check;
 ALTER TABLE public.profiles
