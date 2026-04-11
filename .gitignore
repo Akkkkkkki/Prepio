@@ -57,3 +57,4 @@ coverage
 *.temp
 .cache
 .vercel
+.gstack/
