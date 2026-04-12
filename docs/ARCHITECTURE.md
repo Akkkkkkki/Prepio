@@ -117,6 +117,18 @@ tests/
 | `scraped_urls` | Backend URL cache for research pipeline. |
 | `tavily_searches` | Tavily API call log (type, query, status, timing, credits). |
 
+### Planned near-term additions
+
+These are not shipped yet. They are the recommended data additions for the current roadmap.
+
+| Table / area | Purpose |
+|--------------|---------|
+| `answer_feedback` | Structured AI feedback per `practice_answer`, including summary scores, coaching bullets, model metadata, and visibility tier (`teaser` vs `full`) |
+| `billing_customers` | Stripe customer linkage per user |
+| `billing_entitlements` | Current access state for free vs Sprint and any future plan variants |
+| `usage_events` | Research/practice usage metering for enforcement and reporting |
+| `notification_jobs` | Outbound email or push jobs keyed to product events |
+
 ### Key relationships
 
 ```
@@ -186,6 +198,93 @@ Central configuration for the pipeline:
 - **Content**: Snippet lengths, URL filters, quality patterns.
 - **Performance**: Timeouts, retries, concurrency caps.
 
+## Near-Term Architecture Workstreams
+
+These sections describe how the next planned features should be built.
+
+### AI answer feedback
+
+This is the next product-critical backend flow.
+
+Recommended shape:
+
+1. User saves a `practice_answers` row as they do today.
+2. Frontend requests feedback generation explicitly, or the answer-save path enqueues it.
+3. A new edge function loads:
+   - the answer text or transcript
+   - the source `interview_questions` row
+   - the parent `searches` context
+   - candidate profile / resume context
+4. The function writes a normalized `answer_feedback` row linked to `practice_answer_id`.
+5. UI reads either:
+   - teaser fields for free access
+   - full coaching fields for paid access
+
+Recommended reasons for a separate table instead of stuffing JSON onto `practice_answers`:
+
+- feedback may be regenerated
+- billing visibility differs from answer ownership
+- model metadata and versioning matter
+- summary vs detailed payloads should be easy to query
+
+### Billing and entitlements
+
+Pricing should be enforced with app-side hints and server-side checks.
+
+Recommended pieces:
+
+- Stripe Checkout for purchase start
+- webhook handler to sync paid state into `billing_customers` and `billing_entitlements`
+- a single entitlement resolver used by:
+  - research creation
+  - practice session start
+  - feedback detail access
+  - future feature gates such as voice transcription
+
+Do not spread plan checks across random components. Centralize them in one service layer and mirror them in edge functions where paid operations incur cost.
+
+### Landing page and public experience
+
+Short term, keep the app architecture simple:
+
+- `/` can remain the public entry point
+- authenticated research can still start from the same route
+- sample output and marketing sections should be static UI inside the SPA
+
+Do not force an app-route split yet just for aesthetics.
+
+### Email and notification lifecycle
+
+The first notification system should be event-driven, not campaign-heavy.
+
+Recommended event sources:
+
+- research completed
+- first practice session completed
+- inactivity windows during an active interview sprint
+
+Recommended flow:
+
+1. Product event inserts a `notification_jobs` row
+2. Worker or scheduled edge function renders message payloads
+3. Delivery provider sends email or push
+4. Delivery state is recorded for retry and suppression
+
+### SEO and crawlable content
+
+Public SEO pages are valuable, but they are an architecture decision, not just a route file.
+
+Recommended constraint:
+
+- do not build indexed company pages until we choose a rendering model that produces crawlable HTML
+
+Likely future options:
+
+- move public marketing/content pages to SSR or SSG
+- keep the authenticated product app as the existing SPA
+
+That split is reasonable later. It is not needed to ship feedback, pricing, or landing-page framing.
+
 ## Data Flows
 
 ### Research flow
@@ -217,6 +316,7 @@ User selects stages/filters → sessionSampler generates question set
   → practice_sessions row created
   → User answers questions (text notes, local voice)
   → practice_answers saved per question
+  → answer feedback generated and stored (planned)
   → user_question_flags updated (favorites, skipped)
   → Session completed → summary shown → history updated
 ```
@@ -227,4 +327,25 @@ User selects stages/filters → sessionSampler generates question set
 Sign up → Supabase Auth creates user → handle_new_user trigger creates profile
 Sign in → Session stored in localStorage → ProtectedRoute checks session
 Password reset → Email flow via Supabase Auth
+```
+
+### Billing flow (planned)
+
+```
+User hits paid boundary or pricing CTA
+  → Checkout session created
+  → Stripe confirms purchase
+  → Webhook updates billing_entitlements
+  → Frontend refreshes access state
+  → Paid features unlock without manual support work
+```
+
+### Notification flow (planned)
+
+```
+Research or practice event occurs
+  → notification_jobs row inserted
+  → worker picks up pending jobs
+  → provider sends email or push
+  → delivery result stored for retries and audit
 ```

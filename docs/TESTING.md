@@ -71,7 +71,8 @@ change. Right now any percentage would be guesswork.
 | Focus | Key files |
 |-------|-----------|
 | Research startup handshake | `src/services/searchService.ts`, `src/pages/Home.tsx`, `supabase/functions/interview-research/index.ts` |
-| Search artifact persistence and CV-job comparison | `supabase/functions/interview-research/index.ts`, `supabase/functions/_shared/progress-tracker.ts`, `src/services/searchService.ts` |
+| Answer feedback generation and display | `src/pages/Practice.tsx`, `src/components/practice/*`, `supabase/functions/*feedback*`, `src/services/searchService.ts` |
+| Billing entitlement enforcement | `src/pages/Home.tsx`, `src/pages/Practice.tsx`, pricing UI, Stripe webhook handlers, entitlement service layer |
 | Progress and stall detection UI | `src/components/ProgressDialog.tsx`, `src/hooks/useSearchProgress.ts` |
 
 ### P1
@@ -79,10 +80,64 @@ change. Right now any percentage would be guesswork.
 | Focus | Key files |
 |-------|-----------|
 | Practice session pipeline | `src/pages/Practice.tsx`, `src/services/sessionSampler.ts`, `src/services/searchService.ts` |
+| Landing page framing and guest conversion path | `src/pages/Home.tsx`, public header/navigation, marketing sections |
 | Full dashboard and history regressions | `src/pages/Dashboard.tsx`, `src/pages/History.tsx` |
+| Lifecycle notification triggers | event producers, worker/scheduler function, delivery adapter |
+
+## What Must Be True For Upcoming Work
+
+The next wave of product work changes revenue and trust surfaces. The test bar needs to rise with it.
+
+### AI answer feedback
+
+Cover at least these cases:
+
+- feedback request includes the right question, search, and candidate context
+- empty or partial answers do not crash the pipeline
+- free users only receive teaser fields
+- paid users receive full feedback details
+- regenerated feedback does not orphan old records or duplicate summary UI
+
+### Billing and pricing
+
+Cover at least these cases:
+
+- free user can finish the intended free path
+- second paid-boundary action shows the right upgrade state
+- webhook updates actually unlock features
+- stale client state cannot bypass server-side entitlements
+- expired Sprint access downgrades cleanly without corrupting history
+
+### Landing page
+
+This is not just visual QA. Verify the conversion path:
+
+- primary CTA is visible and functional on mobile and desktop
+- sample/demo states load without auth
+- authenticated users still get into research quickly
+- route guards do not create loops between public marketing and protected flows
+
+### Notifications
+
+Cover at least these cases:
+
+- one product event creates one outbound job
+- retries do not double-send
+- unsubscribed or suppressed users are skipped cleanly
+- delivery failures surface in logs and admin-visible state
 
 ## Tooling
 
 - Frontend: Vitest with jsdom and Testing Library. Setup file: `vitest.setup.ts`.
 - Backend: legacy Deno tests under `tests/`, currently requiring cleanup before they can be used as a release gate.
 - Mocking: prefer focused Supabase client mocks for browser-side logic. Use hosted Supabase only for explicit end-to-end checks.
+
+## Recommended Test Sequence For The Roadmap
+
+When shipping the current priorities, test in this order:
+
+1. Research flow still starts and completes
+2. Practice answers still save
+3. Feedback appears with the correct gated level
+4. Billing state changes unlock and relock the right surfaces
+5. Public landing page still routes cold and signed-in users correctly

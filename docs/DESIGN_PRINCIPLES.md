@@ -24,6 +24,8 @@ Label features for what they do today. Voice recording is "local preview." Disab
 
 Job seekers are already anxious. Copy, colors, and completion states should frame progress positively. Session summaries celebrate work done, not grade performance.
 
+When AI feedback ships, keep the tone coaching-oriented. Point out what to improve, but always explain how to improve it.
+
 ### 6. Explicit controls over gestures
 
 Gestures (swipe to skip, swipe to favorite) exist for power users, but every gesture-driven action also has an explicit button. Users should never feel trapped by an interaction model.
@@ -31,6 +33,26 @@ Gestures (swipe to skip, swipe to favorite) exist for power users, but every ges
 ### 7. Depth over density
 
 Show less with more meaning. 30 tailored questions beat 150 generic ones. A clean stage card with a clear CTA beats a dense information grid.
+
+### 8. Sell the outcome before asking for effort
+
+The public home page should explain the payoff within seconds:
+
+- what Prepio does that generic prep tools do not
+- what the research output looks like
+- why this helps for a real interview soon
+
+Cold visitors should understand the product before we ask them to fill in a multi-step form.
+
+### 9. Monetization belongs at moments of earned value
+
+Upgrade prompts should appear where the product has already demonstrated value:
+
+- after a useful research result
+- when a user wants detailed answer feedback
+- when a plan limit is reached
+
+Do not spray generic paywalls across the flow.
 
 ## Design Tokens
 
@@ -124,6 +146,7 @@ Desktop uses a wider grid layout with the insights panel visible as a side panel
 - **Mobile home form**: Multi-step wizard with staged disclosure (Company → Role Details → Personalize)
 - **Desktop home form**: All fields visible at once (compact enough to not need a wizard)
 - **Practice setup**: Quick Start (default) and Custom Session paths. Quick Start skips configuration entirely.
+- **Public home framing**: Marketing copy and sample output should sit around the research entry, not replace it.
 
 ### Destructive actions
 
@@ -134,6 +157,17 @@ All destructive actions (resume deletion, session exit) use `AlertDialog` — ne
 - Sign-in and sign-up are separate tab states with independent field storage
 - Redirect context is shown when users are bounced ("Sign in to continue to Practice")
 - Password recovery, forgot-password, and resend-verification are distinct flows
+
+### Feedback UI
+
+When answer feedback is introduced:
+
+- show the top takeaway first
+- group issues by "what worked" and "what to strengthen"
+- keep scoring secondary to explanation
+- show gated detail states without making the free experience feel broken
+
+Users should leave with one obvious improvement to try on the next answer.
 
 ## Component Conventions
 
@@ -169,3 +203,5 @@ These have been evaluated and explicitly rejected:
 | Standardize all card border radii | Different radii serve different contexts intentionally |
 | Add value-context sidebar to auth page | Clutters a clean auth flow |
 | Migrate from PostgreSQL to session-only storage | Persistence is a competitive advantage |
+| Hide the research wizard behind extra routing too early | Adds friction before the landing page framing problem is actually solved |
+| Lead with abstract scores before useful feedback exists | Feels fake and weakens trust |
