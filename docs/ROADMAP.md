@@ -53,37 +53,61 @@ What's shipped, what's next, and what's on the horizon.
 
 ## Near-Term
 
-These are well-understood improvements that can be picked up when capacity allows.
+These are ordered by current product strategy, not by implementation convenience.
 
-### Guest experience
-- Value-first landing page with social proof or sample output
-- Lightweight public navigation
+### Now
 
-### Practice polish
-- Timer opt-in for practice sessions
-- Draft persistence indicator ("Draft saved")
-- Quick-resume practice CTA from History page
+#### 1. AI answer feedback
+- Evaluate submitted practice answers with question, role, company, and candidate context
+- Return structured coaching: answer quality, missing specifics, STAR guidance, next-step suggestions
+- Show a lightweight free teaser and reserve detailed feedback for paid access
+- Persist feedback so users can revisit it in history and session summaries
 
-### Profile improvements
-- Profile completeness indicator with motivational copy
-- Section navigation for long profile page
+#### 2. Pricing and monetization
+- Ship a visible pricing surface
+- Start with **Free + Interview Sprint**, not a full pricing matrix on day one
+- Add entitlement checks and natural upgrade prompts around high-value moments
+- Meter research and practice usage based on plan rules
 
-### Dashboard
-- Research completion celebration
-- Replace placeholder overview stats with real data
-- Helper copy for desktop "Active Research" selector
+#### 3. Landing-page framing
+- Rework `/` into a real marketing page while keeping research entry prominent
+- Add outcome-focused hero copy, trust framing, and sample output/demo states
+- Keep route churn minimal. Do not move the core workflow to `/new` unless a later IA change clearly justifies it.
 
-### Legal and compliance
-- Functional legal links on auth page (requires actual legal content)
+### Next
+
+#### 4. Readiness and progress reporting
+- Build readiness scoring only after answer feedback exists
+- Add category-level strengths/weaknesses based on actual feedback data
+- Improve history and dashboard views with meaningful progress, not vanity stats
+
+#### 5. Lifecycle messaging
+- Research complete notifications
+- Post-practice follow-up with clear next step
+- Re-engagement messages during active interview windows
+
+#### 6. Landing-page and public-surface polish
+- Public navigation
+- Social proof once available
+- Legal pages and functional public footer
+
+### Later
+
+#### 7. SEO and content engine
+- Public company interview pages
+- Blog / editorial content
+- Sitemap, robots, and crawlable rendering
+
+This is intentionally later because it requires content operations plus a rendering strategy, not just UI work.
 
 ## Future Ideas
 
 These require dedicated initiative, more user data, or significant architecture work. They are not committed.
 
-### AI feedback and coaching
-- Evaluate practice answers with AI (clarity, relevance, structure scores)
+### Practice and coaching expansion
 - Gap analysis between CV and job requirements with match scoring
 - Practice modes: Deep Dive (fewer questions, immediate feedback) vs Mock Interview (full set, holistic evaluation)
+- Speech-pattern feedback once transcription quality and cost are proven
 
 ### Live AI interview
 - Real-time conversational practice with bidirectional audio
@@ -104,3 +128,31 @@ These require dedicated initiative, more user data, or significant architecture 
 - Migrate core data fetching to TanStack Query hooks for caching and dedup
 - Normalize `search_artifacts` JSON blobs into relational tables
 - Schema normalization for progress tracking
+
+## Decision Log
+
+These are current calls the team should treat as default unless new user evidence changes them.
+
+### Keep the research-first wedge
+- The product moat is the research pipeline. New features should reinforce that, not dilute it.
+
+### Feedback before scoring
+- Do not ship a headline readiness score before answer feedback exists.
+- Otherwise the score is just activity math and users will notice.
+
+### Sprint before subscription
+- Package the first paid offer around short, intense prep windows.
+- Revisit monthly plans after we have evidence that users return between interview cycles.
+
+### Frame the wizard, do not hide it
+- The current home page under-explains the product.
+- The fix is better framing and demo states, not necessarily moving the core flow away from `/`.
+
+## Deferred on Purpose
+
+These are valid ideas, just not current priorities:
+
+- Conversational AI mock interviews
+- Browser extension / ATS import
+- Referrals and social sharing
+- Team / enterprise packaging
