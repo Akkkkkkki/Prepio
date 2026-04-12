@@ -158,7 +158,7 @@ Deno.test({
             "https://www.google.com/about/careers/applications/jobs/results/89308786006598342-software-engineer-early-career-2025-start"
           ],
           cv: generateSampleCV(),
-          targetSeniority: "mid"
+          level: "mid"
         })
       });
 
@@ -170,23 +170,24 @@ Deno.test({
       const completedSearch = await waitForSearchCompletion(supabase, searchId, 120000);
       console.log("  ✅ Search completed successfully");
 
-      // Step 4: Verify cv_job_comparisons data
-      console.log("  🔍 Step 4: Verifying CV-Job comparison data...");
-      const { data: comparison, error: compError } = await supabase
-        .from("cv_job_comparisons")
+      // Step 4: Verify prep_plans data
+      console.log("  🔍 Step 4: Verifying prep plan data...");
+      const { data: prepPlan, error: prepPlanError } = await supabase
+        .from("prep_plans")
         .select("*")
         .eq("search_id", searchId)
         .single();
 
-      if (compError) {
-        console.warn(`  ⚠️  CV-Job comparison not found: ${compError.message}`);
+      if (prepPlanError) {
+        console.warn(`  ⚠️  Prep plan not found: ${prepPlanError.message}`);
       } else {
-        assertExists(comparison, "Should have CV-Job comparison");
-        assertExists(comparison.cv_job_comparison, "Should have comparison data");
+        assertExists(prepPlan, "Should have a prep plan");
+        assertExists(prepPlan.candidate_positioning, "Should have candidate positioning data");
 
-        console.log("  📊 CV-Job Comparison:", JSON.stringify({
-          overall_fit_score: comparison.overall_fit_score,
-          has_comparison_data: !!comparison.cv_job_comparison
+        console.log("  📊 Prep plan:", JSON.stringify({
+          has_summary: !!prepPlan.summary,
+          has_positioning: !!prepPlan.candidate_positioning,
+          prep_priorities: Array.isArray(prepPlan.prep_priorities) ? prepPlan.prep_priorities.length : 0
         }, null, 2));
       }
 
@@ -274,7 +275,7 @@ Deno.test({
           country: "United Kingdom",
           roleLinks: ["https://jobs.pwc.co.uk/uk/en/job/PUDPUNUK579983WDEXTERNALENUK/Audit-Senior-Associate"],
           cv: generateSampleCV(),
-          targetSeniority: "senior"
+          level: "senior_ic"
         })
       });
 
@@ -295,8 +296,8 @@ Deno.test({
         .select("id")
         .eq("search_id", searchId);
 
-      const { data: comparison } = await supabase
-        .from("cv_job_comparisons")
+      const { data: prepPlan } = await supabase
+        .from("prep_plans")
         .select("id")
         .eq("search_id", searchId)
         .single();
@@ -304,7 +305,7 @@ Deno.test({
       console.log("  📊 Database consistency check:", JSON.stringify({
         questions_count: questions?.length || 0,
         stages_count: stages?.length || 0,
-        has_comparison: !!comparison
+        has_prep_plan: !!prepPlan
       }, null, 2));
 
       // All data should be linked to the same search_id

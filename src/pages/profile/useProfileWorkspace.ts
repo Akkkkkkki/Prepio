@@ -24,7 +24,7 @@ import {
   type ResumeVersion,
 } from "./profileUtils";
 
-export type SeniorityLevel = "junior" | "mid" | "senior";
+export type ProfileLevel = "junior" | "mid" | "senior_ic" | "people_manager";
 
 export interface ProfileWorkspaceState {
   activeImport: ProfileImportRecord | null;
@@ -38,13 +38,13 @@ export interface ProfileWorkspaceState {
   isLoading: boolean;
   isPendingTransition: boolean;
   isSaving: boolean;
-  isSavingSeniority: boolean;
+  isSavingLevel: boolean;
   isUploadingResume: boolean;
   mergeDecisions: Record<string, ProfileMergeDecisionAction>;
   profile: CandidateProfile;
   resumeText: string;
   resumeVersions: ResumeVersion[];
-  seniority: SeniorityLevel | undefined;
+  level: ProfileLevel | undefined;
   showDeleteConfirm: boolean;
   success: string | null;
   confirmDeleteResume: () => void;
@@ -52,7 +52,7 @@ export interface ProfileWorkspaceState {
   handleDeleteResume: () => Promise<void>;
   handleFileUpload: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleImportPastedText: () => Promise<void>;
-  handleSaveSeniority: (value: SeniorityLevel) => Promise<void>;
+  handleSaveLevel: (value: ProfileLevel) => Promise<void>;
   saveProfile: () => Promise<void>;
   setMergeDecision: (suggestionId: string, action: ProfileMergeDecisionAction) => void;
   setResumeText: (value: string) => void;
@@ -76,10 +76,10 @@ export const useProfileWorkspace = (): ProfileWorkspaceState => {
   const [isApplyingImport, setIsApplyingImport] = useState(false);
   const [isDeletingResume, setIsDeletingResume] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isSavingSeniority, setIsSavingSeniority] = useState(false);
+  const [isSavingLevel, setIsSavingLevel] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [seniority, setSeniority] = useState<SeniorityLevel | undefined>(undefined);
+  const [level, setLevel] = useState<ProfileLevel | undefined>(undefined);
   const [bootstrappedFromLegacy, setBootstrappedFromLegacy] = useState(false);
   const [isPendingTransition, startTransition] = useTransition();
 
@@ -129,7 +129,7 @@ export const useProfileWorkspace = (): ProfileWorkspaceState => {
           ]);
 
         if (profileResult.success && profileResult.profile) {
-          setSeniority(profileResult.profile.seniority as SeniorityLevel | undefined);
+          setLevel(profileResult.profile.level as ProfileLevel | undefined);
         }
 
         const versions = versionsResult.success && versionsResult.resumes ? versionsResult.resumes : [];
@@ -396,19 +396,19 @@ export const useProfileWorkspace = (): ProfileWorkspaceState => {
     setIsDeletingResume(false);
   };
 
-  const handleSaveSeniority = async (value: SeniorityLevel) => {
-    setIsSavingSeniority(true);
+  const handleSaveLevel = async (value: ProfileLevel) => {
+    setIsSavingLevel(true);
     setError(null);
 
-    const result = await searchService.updateProfile({ seniority: value });
+    const result = await searchService.updateProfile({ level: value });
     if (result.success) {
-      setSeniority(value);
+      setLevel(value);
       pushSuccess("Experience level updated.");
     } else {
       setError(result.error instanceof Error ? result.error.message : "Failed to update experience level.");
     }
 
-    setIsSavingSeniority(false);
+    setIsSavingLevel(false);
   };
 
   return {
@@ -422,21 +422,21 @@ export const useProfileWorkspace = (): ProfileWorkspaceState => {
     handleDeleteResume,
     handleFileUpload,
     handleImportPastedText,
-    handleSaveSeniority,
+    handleSaveLevel,
     isApplyingImport,
     isDeletingResume,
     isImportingText,
     isLoading,
     isPendingTransition,
     isSaving,
-    isSavingSeniority,
+    isSavingLevel,
     isUploadingResume,
     mergeDecisions,
     profile,
     resumeText,
     resumeVersions,
     saveProfile,
-    seniority,
+    level,
     setMergeDecision: (suggestionId, action) =>
       setMergeDecisions((current) => ({ ...current, [suggestionId]: action })),
     setResumeText: setResumeTextState,

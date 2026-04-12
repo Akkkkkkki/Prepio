@@ -27,8 +27,6 @@ interface InterviewResearchRequest {
   level?: Level;
   userNote?: string;
   jobDescription?: string;
-  // Legacy field — mapped to level internally
-  targetSeniority?: 'junior' | 'mid' | 'senior';
   userId: string;
   searchId: string;
 }
@@ -107,10 +105,7 @@ interface QuestionItem {
 // ── Helpers ──────────────────────────────────────────────────
 
 function resolveLevel(req: InterviewResearchRequest): Level {
-  if (req.level) return req.level;
-  if (req.targetSeniority === 'senior') return 'senior_ic';
-  if (req.targetSeniority) return req.targetSeniority as Level;
-  return 'unknown';
+  return req.level ?? 'unknown';
 }
 
 async function withDbTimeout<T>(
@@ -653,21 +648,7 @@ async function savePrepPlanToDatabase(
   try {
     console.log("💾 Saving PrepPlan to database...");
 
-    // 1. Save raw research to search_artifacts (backward compat)
-    console.log("  → Saving raw research to search_artifacts...");
-    await withDbTimeout(async () => {
-      await supabase
-        .from('search_artifacts')
-        .upsert({
-          search_id: searchId,
-          user_id: userId,
-          raw_research: rawData,
-          comparison_analysis: plan.candidatePositioning || {},
-          preparation_guidance: plan.prepPriorities || [],
-        }, { onConflict: 'search_id' });
-    }, 'Save raw data to search_artifacts', 20000);
-
-    // 2. Save PrepPlan to prep_plans table
+    // 1. Save PrepPlan to prep_plans table
     console.log("  → Saving PrepPlan...");
     await withDbTimeout(async () => {
       const { error } = await supabase
@@ -687,7 +668,7 @@ async function savePrepPlanToDatabase(
     }, 'Save prep_plans', 30000);
     console.log("  ✅ PrepPlan saved");
 
-    // 3. Insert interview_stages (normalized for practice FK references)
+    // 2. Insert interview_stages (normalized for practice FK references)
     console.log("  → Saving interview stages...");
     const stageRecords = await withDbTimeout(async () => {
       const stagesToInsert = (plan.stageRoadmap || []).map((stage, index) => ({
@@ -722,7 +703,7 @@ async function savePrepPlanToDatabase(
     });
     console.log(`  ✅ ${(stageRecords || []).length} stages saved`);
 
-    // 4. Insert interview_questions (normalized for practice references)
+    // 3. Insert interview_questions (normalized for practice references)
     console.log("  → Saving interview questions...");
     const normalizeDifficulty = (tier: string): string => {
       if (tier === 'core_must_practice') return 'Hard';
@@ -774,7 +755,7 @@ async function savePrepPlanToDatabase(
 
     console.log(`  ✅ ${totalQuestionsInserted} questions saved`);
 
-    // 5. Update search status to completed
+    // 4. Update search status to completed
     console.log("  → Updating search status...");
     await withDbTimeout(async () => {
       const { error } = await supabase

@@ -64,6 +64,7 @@ export class UrlDeduplicationService {
   ): Promise<string | null> {
     try {
       const { data, error } = await this.supabase
+        .schema('ops')
         .from('scraped_urls')
         .insert({
           url,
@@ -120,6 +121,7 @@ export class UrlDeduplicationService {
   ): Promise<boolean> {
     try {
       const { error } = await this.supabase
+        .schema('ops')
         .from('scraped_urls')
         .update({
           full_content: content.full_content,
@@ -161,7 +163,7 @@ export class UrlDeduplicationService {
         setTimeout(() => reject(new Error('Query timeout')), 5000)
       );
 
-      const urlsPromise = this.supabase.rpc('find_reusable_urls_simple', {
+      const urlsPromise = this.supabase.schema('ops').rpc('find_reusable_urls_simple', {
         p_company_name: company,
         p_role_title: role,
         p_max_age_days: maxAgeDays,
@@ -220,6 +222,7 @@ export class UrlDeduplicationService {
       const limitedUrls = urls.slice(0, 20);
       
       const { data, error } = await this.supabase
+        .schema('ops')
         .from('scraped_urls')
         .select('url, title, full_content, ai_summary')
         .in('url', limitedUrls)
@@ -427,7 +430,7 @@ export class UrlDeduplicationService {
   async incrementUrlReuse(urlId: string): Promise<void> {
     try {
       // Use RPC function for atomic increment
-      await this.supabase.rpc('increment_url_reuse_count', {
+      await this.supabase.schema('ops').rpc('increment_url_reuse_count', {
         url_id: urlId
       });
     } catch (error) {
@@ -439,6 +442,7 @@ export class UrlDeduplicationService {
   async cleanupOldUrls(maxAgeDays: number = 90, minQualityScore: number = 0.1): Promise<number> {
     try {
       const { data, error } = await this.supabase
+        .schema('ops')
         .from('scraped_urls')
         .delete()
         .lt('content_quality_score', minQualityScore)

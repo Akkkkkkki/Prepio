@@ -1,4 +1,3 @@
-export type SeniorityLevel = "junior" | "mid" | "senior";
 export type Level = "junior" | "mid" | "senior_ic" | "people_manager";
 
 export type ResearchStep = "company" | "details" | "tailoring";
@@ -12,8 +11,6 @@ export type ResearchDraft = {
   level?: Level;
   userNote: string;
   jobDescription: string;
-  /** @deprecated use level */
-  targetSeniority?: SeniorityLevel;
   cv: string;
   roleLinks: string;
   step: ResearchStep;
@@ -37,16 +34,12 @@ export const AUTH_RESUME_LABELS: Record<AuthIntent, string> = {
 };
 
 const RESEARCH_STEPS: ResearchStep[] = ["company", "details", "tailoring"];
-const SENIORITY_LEVELS: SeniorityLevel[] = ["junior", "mid", "senior"];
 const LEVELS: Level[] = ["junior", "mid", "senior_ic", "people_manager"];
 
 const isBrowser = () => typeof window !== "undefined";
 
 const isResearchStep = (value: unknown): value is ResearchStep =>
   typeof value === "string" && RESEARCH_STEPS.includes(value as ResearchStep);
-
-const isSeniorityLevel = (value: unknown): value is SeniorityLevel =>
-  typeof value === "string" && SENIORITY_LEVELS.includes(value as SeniorityLevel);
 
 const isLevel = (value: unknown): value is Level =>
   typeof value === "string" && LEVELS.includes(value as Level);
@@ -124,9 +117,6 @@ export const normalizeResearchDraft = (value: unknown): ResearchDraft | null => 
     level: isLevel((draft as any).level) ? (draft as any).level : undefined,
     userNote: normalizeString((draft as any).userNote),
     jobDescription: normalizeString((draft as any).jobDescription),
-    targetSeniority: isSeniorityLevel(draft.targetSeniority)
-      ? draft.targetSeniority
-      : undefined,
     cv: normalizeString(draft.cv),
     roleLinks: normalizeString(draft.roleLinks),
     step: draft.step,

@@ -8,9 +8,11 @@ export interface CreateSearchParams {
   company: string;
   role?: string;
   country?: string;
-  roleLinks?: string;
+  roleLinks?: string[];
   cv?: string;
-  targetSeniority?: "junior" | "mid" | "senior";
+  level?: "junior" | "mid" | "senior_ic" | "people_manager" | "unknown";
+  userNote?: string;
+  jobDescription?: string;
 }
 
 export interface ResumeFileInput {

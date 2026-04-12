@@ -577,17 +577,12 @@ const Dashboard = () => {
 
       if (result.success && result.search && result.stages) {
         setSearchData(result.search);
+        setPrepPlan(result.prepPlan ?? null);
 
         const transformedStages = result.stages
           .sort((a: any, b: any) => a.order_index - b.order_index)
           .map((stage: any) => ({ ...stage, selected: true }));
         setStages(transformedStages);
-
-        // Load prep plan
-        const planResult = await searchService.getPrepPlan(searchId);
-        if (planResult.success && planResult.prepPlan) {
-          setPrepPlan(planResult.prepPlan);
-        }
 
         if (result.search.status === 'completed') {
           setIsLoading(false);

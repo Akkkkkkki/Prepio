@@ -177,7 +177,11 @@ export const profileService = {
     }
   },
 
-  async updateProfile({ seniority }: { seniority?: "junior" | "mid" | "senior" }) {
+  async updateProfile({
+    level,
+  }: {
+    level?: "junior" | "mid" | "senior_ic" | "people_manager";
+  }) {
     try {
       const {
         data: { user },
@@ -190,7 +194,7 @@ export const profileService = {
 
       const { data, error } = await supabase
         .from("profiles")
-        .update({ seniority } as never)
+        .update({ level } as never)
         .eq("id", user.id)
         .select()
         .single();

@@ -289,9 +289,9 @@ describe("practice history answer dedupe helpers", () => {
       company: "OpenAI",
       role: "Research Engineer",
       country: "United Kingdom",
-      roleLinks: "https://example.com/job-1\nhttps://example.com/job-2",
+      roleLinks: ["https://example.com/job-1", "https://example.com/job-2"],
       cv: "Resume text",
-      targetSeniority: "senior",
+      level: "senior_ic",
     });
 
     expect(result).toEqual({ success: true });
@@ -305,7 +305,6 @@ describe("practice history answer dedupe helpers", () => {
         level: "senior_ic",
         userNote: undefined,
         jobDescription: undefined,
-        targetSeniority: "senior",
         userId: "user-1",
         searchId: "search-1",
       },
@@ -337,7 +336,7 @@ describe("practice history answer dedupe helpers", () => {
     });
   });
 
-  it("skips artifact lookups while research is still pending", async () => {
+  it("skips prep plan lookups while research is still pending", async () => {
     mockSupabase.from
       .mockReturnValueOnce(
         createSelectChain({
@@ -360,7 +359,7 @@ describe("practice history answer dedupe helpers", () => {
     expect(result.success).toBe(true);
     expect(
       mockSupabase.from.mock.calls.map(([table]: [string]) => table),
-    ).not.toContain("search_artifacts");
+    ).not.toContain("prep_plans");
   });
 
   it("sends new V2 fields (level, userNote, jobDescription) to the research function", async () => {
@@ -376,7 +375,7 @@ describe("practice history answer dedupe helpers", () => {
       level: "senior_ic",
       userNote: "Focus on safety research",
       jobDescription: "Design alignment techniques",
-      roleLinks: "https://anthropic.com/jobs/1",
+      roleLinks: ["https://anthropic.com/jobs/1"],
       cv: "PhD in ML",
     });
 
@@ -386,25 +385,6 @@ describe("practice history answer dedupe helpers", () => {
         userNote: "Focus on safety research",
         jobDescription: "Design alignment techniques",
         searchId: "search-v2",
-      }),
-    });
-  });
-
-  it("resolves level from legacy targetSeniority when level is not set", async () => {
-    mockSupabase.functions.invoke.mockResolvedValue({
-      data: { status: "accepted" },
-      error: null,
-    });
-
-    await searchService.startProcessing("search-legacy", {
-      company: "Stripe",
-      targetSeniority: "senior",
-    });
-
-    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("interview-research", {
-      body: expect.objectContaining({
-        level: "senior_ic",
-        targetSeniority: "senior",
       }),
     });
   });
@@ -432,6 +412,7 @@ describe("practice history answer dedupe helpers", () => {
     expect(insertedRows[0]).toMatchObject({
       company: "Google",
       role: "SRE",
+      role_links: [],
       level: "people_manager",
       user_note: "Transitioning from IC",
       job_description: "Lead SRE team of 8",

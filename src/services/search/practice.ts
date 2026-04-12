@@ -66,7 +66,7 @@ export const practiceService = {
           .from("practice_answers")
           .update({
             text_answer: textAnswer,
-            audio_url: audioUrl,
+            audio_path: audioUrl,
             transcript_text: transcriptText,
             answer_time_seconds: answerTime,
           } as never)
@@ -85,7 +85,7 @@ export const practiceService = {
           session_id: sessionId,
           question_id: questionId,
           text_answer: textAnswer,
-          audio_url: audioUrl,
+          audio_path: audioUrl,
           transcript_text: transcriptText,
           answer_time_seconds: answerTime,
         } as never)

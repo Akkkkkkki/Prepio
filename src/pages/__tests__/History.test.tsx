@@ -149,7 +149,7 @@ describe("History page states", () => {
               id: "answer-1",
               question_id: "question-1",
               answer_text: "Talked through model evaluations.",
-              answer_audio_url: null,
+              audio_path: null,
               answer_notes: null,
               answer_time_seconds: 120,
               created_at: "2026-03-31T00:01:00.000Z",

@@ -72,7 +72,7 @@ describe("Profile page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseAuth.mockReturnValue({ user: { id: "user-1", email: "test@example.com" } });
-    mockGetProfile.mockResolvedValue({ success: true, profile: { seniority: null } });
+    mockGetProfile.mockResolvedValue({ success: true, profile: { level: null } });
     mockGetResume.mockResolvedValue({ success: true, resume: null });
     mockListResumeVersions.mockResolvedValue({ success: true, resumes: [] });
     mockGetCandidateProfile.mockResolvedValue({ success: true, profile: null });
@@ -82,7 +82,7 @@ describe("Profile page", () => {
       profile: createEmptyCandidateProfile("user-1"),
     });
     mockDeleteResume.mockResolvedValue({ success: true });
-    mockUpdateProfile.mockResolvedValue({ success: true, profile: { seniority: "mid" } });
+    mockUpdateProfile.mockResolvedValue({ success: true, profile: { level: "mid" } });
   });
 
   it("shows loading state then renders the main profile view without import controls", async () => {

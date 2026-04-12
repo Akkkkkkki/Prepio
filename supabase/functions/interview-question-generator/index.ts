@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.2";
 import { getOpenAIModel } from "../_shared/config.ts";
+import {
+  resolveExperienceLevel,
+  type CanonicalLevel,
+} from "./experience-level.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,7 +19,7 @@ interface QuestionGenerationRequest {
   cvAnalysis: any;
   interviewStage: string;
   stageDetails: any;
-  targetSeniority?: 'junior' | 'mid' | 'senior';
+  level?: CanonicalLevel;
 }
 
 interface GeneratedQuestion {
@@ -149,7 +153,7 @@ async function generateInterviewQuestions(
   cvAnalysis: any,
   interviewStage: string,
   stageDetails: any,
-  targetSeniority: 'junior' | 'mid' | 'senior' | undefined,
+  level: CanonicalLevel | undefined,
   openaiApiKey: string
 ): Promise<QuestionBank> {
   
@@ -197,25 +201,21 @@ async function generateInterviewQuestions(
   }
   
   // Determine experience level with fallback logic:
-  // 1. Use targetSeniority if provided (user's explicit choice)
+  // 1. Use canonical level if provided (user's explicit choice)
   // 2. Fall back to CV-inferred level
   // 3. Default to 'mid' if neither exists
-  let experienceLevel = 'mid'; // Default
-  let experienceYears = 0;
-  
-  if (targetSeniority) {
-    // User explicitly set target seniority - use it
-    experienceLevel = targetSeniority;
-    console.log(`Using user-specified target seniority: ${experienceLevel}`);
-  } else if (cvAnalysis) {
-    // Infer from CV experience
-    experienceYears = cvAnalysis.experience_years || 0;
-    if (experienceYears >= 8) experienceLevel = 'senior';
-    else if (experienceYears >= 3) experienceLevel = 'mid';
-    else experienceLevel = 'junior';
+  const {
+    experienceLevel,
+    experienceYears,
+    source: experienceLevelSource,
+  } = resolveExperienceLevel(level, cvAnalysis);
+
+  if (experienceLevelSource === "explicit") {
+    console.log(`Using user-specified level: ${experienceLevel}`);
+  } else if (experienceLevelSource === "cv") {
     console.log(`Inferred seniority from CV: ${experienceLevel} (${experienceYears} years)`);
   } else {
-    console.log('No seniority information available, defaulting to mid-level');
+    console.log("No seniority information available, defaulting to mid-level");
   }
   
   // Build candidate context
@@ -480,7 +480,7 @@ serve(async (req) => {
   }
 
   try {
-    const { searchId, userId, companyInsights, jobRequirements, cvAnalysis, interviewStage, stageDetails, targetSeniority } = await req.json() as QuestionGenerationRequest;
+    const { searchId, userId, companyInsights, jobRequirements, cvAnalysis, interviewStage, stageDetails, level } = await req.json() as QuestionGenerationRequest;
 
     if (!searchId || !userId) {
       throw new Error("Missing required parameters: searchId and userId");
@@ -490,7 +490,7 @@ serve(async (req) => {
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
     const useFallback = !openaiApiKey;
 
-    console.log("Starting interview question generation for search:", searchId, "stage:", interviewStage, "targetSeniority:", targetSeniority);
+    console.log("Starting interview question generation for search:", searchId, "stage:", interviewStage, "level:", level);
 
     // Generate comprehensive question bank (fallback when offline/CI)
     let questionBank: QuestionBank;
@@ -505,7 +505,7 @@ serve(async (req) => {
           cvAnalysis,
           interviewStage,
           stageDetails,
-          targetSeniority,
+          level,
           openaiApiKey!
         );
       } catch (generationError) {

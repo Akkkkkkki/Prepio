@@ -14,13 +14,11 @@ interface CreateSearchParams {
   company: string;
   role?: string;
   country?: string;
-  roleLinks?: string;
+  roleLinks?: string[];
   cv?: string;
   level?: 'junior' | 'mid' | 'senior_ic' | 'people_manager' | 'unknown';
   userNote?: string;
   jobDescription?: string;
-  // Legacy — mapped to level in the edge function
-  targetSeniority?: 'junior' | 'mid' | 'senior';
 }
 
 const RESEARCH_START_TIMEOUT_MS = 15000;
@@ -105,6 +103,9 @@ const EMPTY_PRACTICE_OVERVIEW_STATS: PracticeHistoryOverviewStats = {
   totalTimeSeconds: 0,
   needsWorkCount: 0,
 };
+
+const normalizeRoleLinks = (roleLinks?: string[]) =>
+  roleLinks?.map((link) => link.trim()).filter(Boolean) ?? [];
 
 const getTimestamp = (value: string) => new Date(value).getTime();
 
@@ -273,16 +274,14 @@ const toCandidateProfileRow = (profile: CandidateProfile) => ({
 
 export const searchService = {
   // Step 1: Create search record only (fast, synchronous)
-  async createSearchRecord({ company, role, country, roleLinks, cv, level, userNote, jobDescription, targetSeniority }: CreateSearchParams) {
+  async createSearchRecord({ company, role, country, roleLinks, cv, level, userNote, jobDescription }: CreateSearchParams) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
 
       if (userError || !user) {
         throw new Error("No authenticated user");
       }
-
-      // Resolve level from new field or legacy targetSeniority
-      const resolvedLevel = level || (targetSeniority === 'senior' ? 'senior_ic' : targetSeniority) || null;
+      const normalizedRoleLinks = normalizeRoleLinks(roleLinks);
 
       const { data: searchData, error: searchError } = await supabase
         .from("searches")
@@ -291,8 +290,8 @@ export const searchService = {
           company,
           role,
           country,
-          role_links: roleLinks,
-          level: resolvedLevel,
+          role_links: normalizedRoleLinks,
+          level: level || null,
           user_note: userNote || null,
           job_description: jobDescription || null,
           status: "pending",
@@ -310,12 +309,13 @@ export const searchService = {
   },
 
   // Step 2: Start processing asynchronously (can take minutes)
-  async startProcessing(searchId: string, { company, role, country, roleLinks, cv, level, userNote, jobDescription, targetSeniority }: CreateSearchParams) {
+  async startProcessing(searchId: string, { company, role, country, roleLinks, cv, level, userNote, jobDescription }: CreateSearchParams) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) {
         throw new Error("No authenticated user");
       }
+      const normalizedRoleLinks = normalizeRoleLinks(roleLinks);
 
       const response = await Promise.race([
         supabase.functions.invoke("interview-research", {
@@ -323,12 +323,11 @@ export const searchService = {
             company,
             role,
             country,
-            roleLinks: roleLinks ? roleLinks.split("\n").filter(link => link.trim()) : [],
+            roleLinks: normalizedRoleLinks,
             cv,
-            level: level || (targetSeniority === 'senior' ? 'senior_ic' : targetSeniority) || undefined,
+            level,
             userNote,
             jobDescription,
-            targetSeniority,
             userId: user.id,
             searchId,
           }
@@ -389,7 +388,6 @@ export const searchService = {
 
   async getSearchResults(searchId: string) {
     try {
-      // Get the search record with enhanced data
       const { data: search, error: searchError } = await supabase
         .from("searches")
         .select("*")
@@ -431,31 +429,26 @@ export const searchService = {
         })
       );
 
-      let artifact: { comparison_analysis: Json | null; preparation_guidance: Json | null } | null = null;
+      let prepPlan: Tables<"prep_plans"> | null = null;
 
       if (search.status === "completed" || search.status === "failed") {
-        const { data: artifactData, error: artifactError } = await supabase
-          .from("search_artifacts")
-          .select("comparison_analysis, preparation_guidance")
+        const { data: prepPlanData, error: prepPlanError } = await supabase
+          .from("prep_plans")
+          .select("*")
           .eq("search_id", searchId)
           .maybeSingle();
 
-        if (artifactError) {
-          console.warn("Search artifacts query error:", artifactError.message || artifactError);
+        if (prepPlanError) {
+          console.warn("Prep plan query error:", prepPlanError.message || prepPlanError);
         } else {
-          artifact = artifactData;
+          prepPlan = prepPlanData;
         }
       }
-
-      // Extract comparison analysis and preparation guidance from artifact
-      const cvJobComparison = artifact?.comparison_analysis || null;
-      const preparationGuidance = artifact?.preparation_guidance || null;
 
       return {
         search,
         stages: stagesWithQuestions,
-        cvJobComparison,
-        preparationGuidance,
+        prepPlan,
         success: true
       };
     } catch (error) {
@@ -808,7 +801,7 @@ export const searchService = {
           .from("practice_answers")
           .update({
             text_answer: textAnswer,
-            audio_url: audioUrl,
+            audio_path: audioUrl,
             transcript_text: transcriptText,
             answer_time_seconds: answerTime,
           })
@@ -827,7 +820,7 @@ export const searchService = {
           session_id: sessionId,
           question_id: questionId,
           text_answer: textAnswer,
-          audio_url: audioUrl,
+          audio_path: audioUrl,
           transcript_text: transcriptText,
           answer_time_seconds: answerTime,
         })
@@ -1184,7 +1177,7 @@ export const searchService = {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, full_name, level, created_at, updated_at")
         .eq("id", userId)
         .single();
 
@@ -1394,7 +1387,7 @@ export const searchService = {
     }
   },
 
-  async updateProfile({ seniority }: { seniority?: 'junior' | 'mid' | 'senior' }) {
+  async updateProfile({ level }: { level?: 'junior' | 'mid' | 'senior_ic' | 'people_manager' }) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
@@ -1404,7 +1397,7 @@ export const searchService = {
       
       const { data, error } = await supabase
         .from("profiles")
-        .update({ seniority })
+        .update({ level })
         .eq("id", user.id)
         .select()
         .single();

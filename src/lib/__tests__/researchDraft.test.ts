@@ -79,16 +79,6 @@ describe("normalizeResearchDraft", () => {
     expect(result?.savedAt).toBeTruthy();
     expect(() => new Date(result!.savedAt)).not.toThrow();
   });
-
-  it("preserves legacy targetSeniority when valid", () => {
-    const result = normalizeResearchDraft({ ...validDraft, targetSeniority: "senior" });
-    expect(result?.targetSeniority).toBe("senior");
-  });
-
-  it("drops invalid targetSeniority", () => {
-    const result = normalizeResearchDraft({ ...validDraft, targetSeniority: "director" });
-    expect(result?.targetSeniority).toBeUndefined();
-  });
 });
 
 describe("getAuthIntentFromPath", () => {

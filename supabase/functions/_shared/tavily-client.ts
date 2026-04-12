@@ -94,6 +94,7 @@ export async function searchTavilyWithDeduplication(
     if (supabase && searchId && userId) {
       try {
         await supabase
+          .schema("ops")
           .from("tavily_searches")
           .insert({
             search_id: searchId,
@@ -170,6 +171,7 @@ export async function searchTavilyWithDeduplication(
     if (supabase && searchId && userId) {
       try {
         await supabase
+          .schema("ops")
           .from("tavily_searches")
           .insert({
             search_id: searchId,
@@ -226,6 +228,7 @@ export async function extractTavily(
     if (supabase && searchId && userId) {
       try {
         await supabase
+          .schema("ops")
           .from("tavily_searches")
           .insert({
             search_id: searchId,
@@ -255,6 +258,7 @@ export async function extractTavily(
     if (supabase && searchId && userId) {
       try {
         await supabase
+          .schema("ops")
           .from("tavily_searches")
           .insert({
             search_id: searchId,

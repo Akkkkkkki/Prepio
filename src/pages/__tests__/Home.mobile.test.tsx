@@ -207,6 +207,7 @@ describe("Home flow", () => {
     expect(screen.getByLabelText("Role (optional)")).toBeInTheDocument();
     expect(screen.getByLabelText("Country (optional)")).toBeInTheDocument();
     expect(screen.getByLabelText("Role Description Links (optional)")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Or paste the full job description here...")).toBeInTheDocument();
     expect(screen.queryByText("How it works")).not.toBeInTheDocument();
   });
 
@@ -239,9 +240,11 @@ describe("Home flow", () => {
         company: "OpenAI",
         role: undefined,
         country: undefined,
-        roleLinks: undefined,
+        roleLinks: [],
         cv: undefined,
-        targetSeniority: undefined,
+        level: undefined,
+        userNote: undefined,
+        jobDescription: undefined,
       });
     });
 
