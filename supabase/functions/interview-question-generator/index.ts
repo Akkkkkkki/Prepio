@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.2";
 import { getOpenAIModel } from "../_shared/config.ts";
+import {
+  resolveExperienceLevel,
+  type CanonicalLevel,
+} from "./experience-level.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,7 +19,7 @@ interface QuestionGenerationRequest {
   cvAnalysis: any;
   interviewStage: string;
   stageDetails: any;
-  level?: 'junior' | 'mid' | 'senior_ic' | 'people_manager' | 'unknown';
+  level?: CanonicalLevel;
 }
 
 interface GeneratedQuestion {
@@ -149,7 +153,7 @@ async function generateInterviewQuestions(
   cvAnalysis: any,
   interviewStage: string,
   stageDetails: any,
-  level: 'junior' | 'mid' | 'senior_ic' | 'people_manager' | 'unknown' | undefined,
+  level: CanonicalLevel | undefined,
   openaiApiKey: string
 ): Promise<QuestionBank> {
   
@@ -200,21 +204,18 @@ async function generateInterviewQuestions(
   // 1. Use canonical level if provided (user's explicit choice)
   // 2. Fall back to CV-inferred level
   // 3. Default to 'mid' if neither exists
-  let experienceLevel = 'mid'; // Default
-  let experienceYears = 0;
+  const {
+    experienceLevel,
+    experienceYears,
+    source: experienceLevelSource,
+  } = resolveExperienceLevel(level, cvAnalysis);
 
-  if (level) {
-    experienceLevel = level === 'senior_ic' || level === 'people_manager' ? 'senior' : level;
+  if (experienceLevelSource === "explicit") {
     console.log(`Using user-specified level: ${experienceLevel}`);
-  } else if (cvAnalysis) {
-    // Infer from CV experience
-    experienceYears = cvAnalysis.experience_years || 0;
-    if (experienceYears >= 8) experienceLevel = 'senior';
-    else if (experienceYears >= 3) experienceLevel = 'mid';
-    else experienceLevel = 'junior';
+  } else if (experienceLevelSource === "cv") {
     console.log(`Inferred seniority from CV: ${experienceLevel} (${experienceYears} years)`);
   } else {
-    console.log('No seniority information available, defaulting to mid-level');
+    console.log("No seniority information available, defaulting to mid-level");
   }
   
   // Build candidate context
