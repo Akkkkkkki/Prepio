@@ -365,41 +365,131 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
   );
 }
 
-function ReadinessSummaryStrip({
-  stageCount,
+function PrepSummaryHero({
+  company,
   selectedStageCount,
   selectedQuestionCount,
   topFocus,
+  estimatedMinutes,
+  onStartPractice,
+  isOffline,
 }: {
-  stageCount: number;
+  company: string;
   selectedStageCount: number;
   selectedQuestionCount: number;
   topFocus: string | null;
+  estimatedMinutes: number;
+  onStartPractice: () => void;
+  isOffline: boolean;
 }) {
-  const cells = [
-    {
-      title: `${stageCount} stage${stageCount === 1 ? "" : "s"} identified`,
-      subtitle: `${selectedStageCount} selected`,
-    },
-    {
-      title: `${selectedQuestionCount} practice question${selectedQuestionCount === 1 ? "" : "s"}`,
-      subtitle: "Ready across selected stages",
-    },
-    {
-      title: "Top focus area",
-      subtitle: topFocus || "No high-priority focus yet",
-    },
-  ];
+  const headline = selectedQuestionCount > 0
+    ? `You're set up with ${selectedQuestionCount} question${selectedQuestionCount === 1 ? "" : "s"} across ${selectedStageCount} stage${selectedStageCount === 1 ? "" : "s"}.`
+    : "Select at least one stage to unlock practice.";
+  const focusLine = topFocus
+    ? `Top focus: ${topFocus}.`
+    : selectedQuestionCount > 0
+      ? "Mix it up however you like — start with the stage that feels hardest."
+      : null;
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-      {cells.map((cell) => (
-        <div key={cell.title} className="rounded-2xl border bg-muted/30 px-4 py-3">
-          <p className="text-sm font-medium text-foreground">{cell.title}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{cell.subtitle}</p>
+    <Card className="motion-surface border-primary/20 bg-primary/5">
+      <CardContent className="flex flex-col gap-4 py-5 md:flex-row md:items-center md:justify-between md:py-6">
+        <div className="min-w-0 space-y-1.5 border-l-4 border-primary/70 pl-4">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
+            {company ? `${company} · prep summary` : "Prep summary"}
+          </p>
+          <p className="text-base font-semibold leading-6 text-foreground md:text-lg">
+            {headline}
+          </p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            {focusLine}
+            {focusLine ? " " : ""}
+            {selectedQuestionCount > 0 && `~${estimatedMinutes} min end-to-end.`}
+          </p>
         </div>
-      ))}
-    </div>
+        <Button
+          onClick={onStartPractice}
+          disabled={selectedQuestionCount === 0 || isOffline}
+          size="lg"
+          className="motion-cta shrink-0 md:min-w-[220px]"
+        >
+          <PlayCircle className="mr-2 h-5 w-5" />
+          Start practice{selectedQuestionCount > 0 ? ` · ${selectedQuestionCount}` : ""}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DeepDiveSection({
+  assessmentSignals,
+  prepPriorities,
+  candidatePositioning,
+  isMobile,
+}: {
+  assessmentSignals: AssessmentSignal[];
+  prepPriorities: PrepPriority[];
+  candidatePositioning: CandidatePositioning | null;
+  isMobile: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const hasPositioning = Boolean(
+    candidatePositioning && (
+      candidatePositioning.strengthsToLeanOn?.length ||
+      candidatePositioning.weakSpotsToAddress?.length ||
+      candidatePositioning.storyCoverageGaps?.length ||
+      candidatePositioning.mismatchRisks?.length
+    )
+  );
+  const hasAnything = assessmentSignals.length > 0 || prepPriorities.length > 0 || hasPositioning;
+  if (!hasAnything) return null;
+
+  const itemLabels = [
+    assessmentSignals.length > 0 ? "Assessment signals" : null,
+    prepPriorities.length > 0 ? "Prep priorities" : null,
+    hasPositioning ? "Your positioning" : null,
+  ].filter(Boolean).join(" · ");
+
+  return (
+    <section className="motion-fade-in space-y-4">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="flex w-full items-center justify-between gap-3 rounded-2xl border bg-card px-4 py-4 text-left transition-colors hover:bg-muted/40"
+      >
+        <div>
+          <p className="text-sm font-semibold">
+            {expanded ? "Hide deep dive" : "Deep dive — why this plan"}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{itemLabels}</p>
+        </div>
+        {expanded ? (
+          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        )}
+      </button>
+      {expanded && (
+        <div className="space-y-4 motion-fade-in">
+          {candidatePositioning && (
+            <CandidatePositioningCard positioning={candidatePositioning} />
+          )}
+          {isMobile ? (
+            <div className="space-y-4">
+              <PrepPrioritiesCard priorities={prepPriorities} />
+              <AssessmentSignalsCard signals={assessmentSignals} />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-6">
+              <AssessmentSignalsCard signals={assessmentSignals} />
+              <PrepPrioritiesCard priorities={prepPriorities} />
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -773,6 +863,9 @@ const Dashboard = () => {
     );
   }
 
+  // Rough estimate: ~3.5 min per question
+  const estimatedMinutes = Math.max(5, Math.round(selectedQuestionCount * 3.5));
+
   // ── Main dashboard content ──
   const content = (
     <>
@@ -785,49 +878,34 @@ const Dashboard = () => {
             <span className="text-foreground">{searchData?.company || 'Company'} Prep Plan</span>
           </nav>
         )}
-        <div className={isMobile ? "" : "flex items-center justify-between"}>
-          <div className="space-y-1">
-            {isMobile && (
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
-                Prep plan
-              </p>
-            )}
-            <h1 className={`min-w-0 break-words font-bold leading-tight ${isMobile ? "text-3xl" : "text-3xl"}`}>
-              {searchData?.company || 'Company'}
-            </h1>
-            <p className="min-w-0 break-words text-sm leading-6 text-muted-foreground">
-              {searchSubtitle}
+        <div className="space-y-1">
+          {isMobile && (
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
+              Prep plan
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-              {searchStatusLabel && <Badge variant="secondary">{searchStatusLabel}</Badge>}
-              {summary?.overallConfidence && (
-                <Badge className={confidenceColor(summary.overallConfidence)}>
-                  {summary.overallConfidence} confidence
-                </Badge>
-              )}
-              {summary?.industryFocus && summary.industryFocus !== 'unknown' && (
-                <Badge variant="outline">{summary.industryFocus}</Badge>
-              )}
-              {summary?.level && summary.level !== 'unknown' && (
-                <Badge variant="outline">{summary.level.replace('_', ' ')}</Badge>
-              )}
-            </div>
-          </div>
-          {!isMobile && (
-            <Button onClick={startPractice} disabled={selectedQuestionCount === 0 || isOffline}>
-              <PlayCircle className="h-4 w-4 mr-2" />
-              Start Practice ({selectedQuestionCount})
-            </Button>
           )}
+          <h1 className="min-w-0 break-words text-3xl font-bold leading-tight">
+            {searchData?.company || 'Company'}
+          </h1>
+          <p className="min-w-0 break-words text-sm leading-6 text-muted-foreground">
+            {searchSubtitle}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {searchStatusLabel && <Badge variant="secondary">{searchStatusLabel}</Badge>}
+            {summary?.overallConfidence && (
+              <Badge className={confidenceColor(summary.overallConfidence)}>
+                {summary.overallConfidence} confidence
+              </Badge>
+            )}
+            {summary?.industryFocus && summary.industryFocus !== 'unknown' && (
+              <Badge variant="outline">{summary.industryFocus}</Badge>
+            )}
+            {summary?.level && summary.level !== 'unknown' && (
+              <Badge variant="outline">{summary.level.replace('_', ' ')}</Badge>
+            )}
+          </div>
         </div>
       </header>
-
-      <ReadinessSummaryStrip
-        stageCount={stages.length}
-        selectedStageCount={selectedStageCount}
-        selectedQuestionCount={selectedQuestionCount}
-        topFocus={topFocus}
-      />
 
       {/* Completion banner */}
       {showBanner && searchData?.company && (
@@ -843,24 +921,29 @@ const Dashboard = () => {
         </p>
       )}
 
-      {/* Assessment signals + Prep priorities */}
-      {isMobile ? (
-        <div className="space-y-4">
-          <PrepPrioritiesCard priorities={prepPriorities} />
-          <AssessmentSignalsCard signals={assessmentSignals} />
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-6">
-          <AssessmentSignalsCard signals={assessmentSignals} />
-          <PrepPrioritiesCard priorities={prepPriorities} />
-        </div>
+      {/* Primary action zone — prep summary + Start Practice */}
+      {!isMobile && (
+        <PrepSummaryHero
+          company={searchData?.company || ""}
+          selectedStageCount={selectedStageCount}
+          selectedQuestionCount={selectedQuestionCount}
+          topFocus={topFocus}
+          estimatedMinutes={estimatedMinutes}
+          onStartPractice={startPractice}
+          isOffline={isOffline}
+        />
       )}
 
-      {/* Candidate positioning */}
-      <CandidatePositioningCard positioning={candidatePositioning} />
-
-      {/* Stage roadmap */}
+      {/* Stage roadmap — the practice plan */}
       <StageRoadmapCard stages={stages} onToggle={handleStageToggle} isMobile={isMobile} />
+
+      {/* Deep dive — secondary info collapsed by default */}
+      <DeepDiveSection
+        assessmentSignals={assessmentSignals}
+        prepPriorities={prepPriorities}
+        candidatePositioning={candidatePositioning}
+        isMobile={isMobile}
+      />
     </>
   );
 

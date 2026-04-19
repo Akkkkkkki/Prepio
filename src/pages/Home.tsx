@@ -16,6 +16,7 @@ import ProgressDialog from "@/components/ProgressDialog";
 import PublicHeader from "@/components/PublicHeader";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -132,26 +133,36 @@ const GUEST_HOME_STEPS = [
   },
 ] as const;
 
-const GUEST_SAMPLE_STAGES = [
+const GUEST_SAMPLE_COMPANY = "Stripe";
+const GUEST_SAMPLE_ROLE = "Senior Product Manager";
+
+const GUEST_SAMPLE_QUESTIONS = [
   {
-    title: "Recruiter screen",
-    detail: "Motivation, timeline, and high-level fit.",
+    stage: "Hiring manager",
+    difficulty: "Medium",
+    question:
+      "Tell me about a time you shipped a payments product with an ambiguous success metric. How did you define success?",
+    rationale:
+      "Stripe hiring managers probe for how you turn fuzzy goals into measurable outcomes — they cite this in public interview guides.",
   },
   {
-    title: "Hiring manager",
-    detail: "Execution stories, tradeoffs, and role scope.",
+    stage: "Product deep dive",
+    difficulty: "Hard",
+    question:
+      "Stripe is entering a new market with heavy local regulation. How would you sequence the first 12 months?",
+    rationale:
+      "A variant of this question appears in 3 Glassdoor reviews from the last 18 months. Tests market-entry judgment.",
   },
   {
-    title: "Panel loop",
-    detail: "Technical depth, collaboration, and decision quality.",
+    stage: "Panel / leadership",
+    difficulty: "Medium",
+    question:
+      "Walk me through a decision where you overruled engineering to protect a long-term bet.",
+    rationale:
+      "Leadership rounds look for conviction without arrogance. Ties back to Stripe's 'rigorously prioritize' value.",
   },
 ] as const;
 
-const GUEST_SAMPLE_SIGNALS = [
-  "Expected stage order and likely question themes",
-  "Company-specific prep notes to focus your practice",
-  "A short list of follow-up drills after each session",
-] as const;
 
 const Home = () => {
   const navigate = useNavigate();
@@ -890,12 +901,12 @@ const Home = () => {
   const renderDesktopForm = () => (
     <Card className="max-w-2xl mx-auto shadow-lg">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-2xl tracking-tight">
           <Search className="h-5 w-5 text-primary" />
-          Start Your Interview Research
+          Start a new research run
         </CardTitle>
         <CardDescription>
-          Enter company details to get personalized interview insights and preparation guidance.
+          All you need is the company. Add role, CV, or job description below to sharpen the questions.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -924,18 +935,18 @@ const Home = () => {
           )}
 
         <form onSubmit={handleFormSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="company">Company *</Label>
-            <Input
-              id="company"
-              placeholder="e.g., Google, Microsoft, Stripe..."
-              value={formData.company}
-              onChange={(e) => setFormData((prev) => ({ ...prev, company: e.target.value }))}
-              required
-            />
-          </div>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="company">Company *</Label>
+              <Input
+                id="company"
+                placeholder="e.g., Google, Microsoft, Stripe..."
+                value={formData.company}
+                onChange={(e) => setFormData((prev) => ({ ...prev, company: e.target.value }))}
+                required
+              />
+            </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="role">Role (optional)</Label>
               <Input
@@ -944,126 +955,173 @@ const Home = () => {
                 value={formData.role}
                 onChange={(e) => setFormData((prev) => ({ ...prev, role: e.target.value }))}
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="country">Country (optional)</Label>
-              <Input
-                id="country"
-                placeholder="e.g., United States"
-                value={formData.country}
-                onChange={(e) => setFormData((prev) => ({ ...prev, country: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="level">Level (optional)</Label>
-              <Select
-                value={formData.level}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    level: value === "auto" ? "auto" : (value as Level),
-                  }))
-                }
-              >
-                <SelectTrigger id="level">
-                  <SelectValue placeholder="Auto-detect from CV" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Auto-detect from CV</SelectItem>
-                  <SelectItem value="junior">Junior (0-2 years)</SelectItem>
-                  <SelectItem value="mid">Mid-level (3-7 years)</SelectItem>
-                  <SelectItem value="senior_ic">Senior IC (8+ years)</SelectItem>
-                  <SelectItem value="people_manager">People Manager</SelectItem>
-                </SelectContent>
-              </Select>
+              <p className="text-xs text-muted-foreground">
+                Helps us focus on the right stage types and seniority expectations.
+              </p>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <Label>CV / Resume</Label>
-            {renderProfileResumeNote()}
-
-            <div className="rounded-lg border-2 border-dashed border-border p-6">
-              <div className="flex flex-col items-center justify-center space-y-4">
-                <Upload className="h-8 w-8 text-muted-foreground" />
-                <div className="text-center">
-                  <p className="mb-2 text-sm text-muted-foreground">
-                    Upload a PDF or DOCX, or paste your CV text below. Signed-in uploads create a resume version and a profile merge draft.
-                  </p>
-                  <input
-                    type="file"
-                    accept={ACCEPTED_RESUME_TYPES}
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    id={HOME_CV_UPLOAD_ID}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => document.getElementById(HOME_CV_UPLOAD_ID)?.click()}
-                    disabled={isUploadingResume}
-                  >
-                    {isUploadingResume ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <FileText className="mr-2 h-4 w-4" />
-                    )}
-                    {isUploadingResume ? "Processing..." : "Upload PDF / DOCX"}
-                  </Button>
+          <Accordion
+            type="multiple"
+            defaultValue={formData.cv.trim().length === 0 ? ["resume"] : []}
+            className="space-y-3"
+          >
+            <AccordionItem value="resume" className="rounded-xl border bg-muted/20 px-4">
+              <AccordionTrigger className="py-4 text-left text-sm hover:no-underline">
+                <div className="flex flex-1 items-center justify-between gap-3 pr-3">
+                  <div>
+                    <p className="font-medium text-foreground">Add your CV</p>
+                    <p className="mt-1 text-xs font-normal text-muted-foreground">
+                      {formData.cv.trim().length > 0
+                        ? `CV added (${formData.cv.trim().length.toLocaleString()} chars). Personalizes every question.`
+                        : "Optional. Personalizes questions to your background."}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="text-[10px] font-medium">
+                    Improves relevance
+                  </Badge>
                 </div>
-              </div>
-            </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4 pb-4">
+                {renderProfileResumeNote()}
 
-            <Textarea
-              placeholder="Or paste your CV text here..."
-              value={formData.cv}
-              onChange={(e) => setFormData((prev) => ({ ...prev, cv: e.target.value }))}
-              rows={6}
-              className="resize-none"
-            />
-          </div>
+                <div className="rounded-lg border-2 border-dashed border-border p-6">
+                  <div className="flex flex-col items-center justify-center space-y-4">
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                    <div className="text-center">
+                      <p className="mb-2 text-sm text-muted-foreground">
+                        Upload a PDF or DOCX, or paste your CV text below.
+                      </p>
+                      <input
+                        type="file"
+                        accept={ACCEPTED_RESUME_TYPES}
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        id={HOME_CV_UPLOAD_ID}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => document.getElementById(HOME_CV_UPLOAD_ID)?.click()}
+                        disabled={isUploadingResume}
+                      >
+                        {isUploadingResume ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <FileText className="mr-2 h-4 w-4" />
+                        )}
+                        {isUploadingResume ? "Processing..." : "Upload PDF / DOCX"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="role-links">Role Description Links (optional)</Label>
-            <Textarea
-              id="role-links"
-              placeholder="Paste job description links here (one per line)..."
-              value={formData.roleLinks}
-              onChange={(e) => setFormData((prev) => ({ ...prev, roleLinks: e.target.value }))}
-              rows={2}
-              className="resize-none"
-            />
-            <Textarea
-              id="job-description"
-              placeholder="Or paste the full job description here..."
-              value={formData.jobDescription}
-              onChange={(e) => setFormData((prev) => ({ ...prev, jobDescription: e.target.value }))}
-              rows={4}
-              className="resize-none"
-            />
-          </div>
+                <Textarea
+                  placeholder="Or paste your CV text here..."
+                  value={formData.cv}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, cv: e.target.value }))}
+                  rows={6}
+                  className="resize-none"
+                />
+              </AccordionContent>
+            </AccordionItem>
 
-          <div className="space-y-2">
-            <Label htmlFor="user-note">Notes (optional)</Label>
-            <Textarea
-              id="user-note"
-              placeholder={"Known stages, interviewers, format, deadline, or where you want more focus..."}
-              value={formData.userNote}
-              onChange={(e) => setFormData((prev) => ({ ...prev, userNote: e.target.value }))}
-              rows={3}
-              className="resize-none"
-            />
-            <p className="text-xs text-muted-foreground">
-              Share anything from recruiter calls, known interview stages, or areas you want to focus on.
-            </p>
-          </div>
+            <AccordionItem value="role-detail" className="rounded-xl border bg-muted/20 px-4">
+              <AccordionTrigger className="py-4 text-left text-sm hover:no-underline">
+                <div className="flex flex-1 items-center justify-between gap-3 pr-3">
+                  <div>
+                    <p className="font-medium text-foreground">Role details &amp; job description</p>
+                    <p className="mt-1 text-xs font-normal text-muted-foreground">
+                      Country, seniority level, and the job post — sharpens questions to this specific opening.
+                    </p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4 pb-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="country">Country</Label>
+                    <Input
+                      id="country"
+                      placeholder="e.g., United States"
+                      value={formData.country}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, country: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="level">Level</Label>
+                    <Select
+                      value={formData.level}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          level: value === "auto" ? "auto" : (value as Level),
+                        }))
+                      }
+                    >
+                      <SelectTrigger id="level">
+                        <SelectValue placeholder="Auto-detect from CV" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">Auto-detect from CV</SelectItem>
+                        <SelectItem value="junior">Junior (0-2 years)</SelectItem>
+                        <SelectItem value="mid">Mid-level (3-7 years)</SelectItem>
+                        <SelectItem value="senior_ic">Senior IC (8+ years)</SelectItem>
+                        <SelectItem value="people_manager">People Manager</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="job-description">Job description or role links</Label>
+                  <Textarea
+                    id="role-links"
+                    placeholder="Paste job description links here (one per line)..."
+                    value={formData.roleLinks}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, roleLinks: e.target.value }))}
+                    rows={2}
+                    className="resize-none"
+                  />
+                  <Textarea
+                    id="job-description"
+                    placeholder="Or paste the full job description text here..."
+                    value={formData.jobDescription}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, jobDescription: e.target.value }))}
+                    rows={4}
+                    className="resize-none"
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="notes" className="rounded-xl border bg-muted/20 px-4">
+              <AccordionTrigger className="py-4 text-left text-sm hover:no-underline">
+                <div>
+                  <p className="font-medium text-foreground">Notes for the research</p>
+                  <p className="mt-1 text-xs font-normal text-muted-foreground">
+                    Known stages, interviewers, format, deadline — anything a recruiter told you.
+                  </p>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pb-4">
+                <Textarea
+                  id="user-note"
+                  placeholder={"e.g. I spoke with the recruiter — they mentioned a system design round and a bar raiser.\nInterview is next Thursday.\nI'd like more focus on behavioral questions."}
+                  value={formData.userNote}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, userNote: e.target.value }))}
+                  rows={4}
+                  className="resize-none"
+                />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
 
           <Button
             type={user ? "submit" : "button"}
-            className="w-full"
+            className="w-full motion-cta"
             size="lg"
             disabled={!formData.company.trim() || isLoading || isUploadingResume || isOffline}
             onClick={user ? undefined : () => navigateToAuth("tailoring")}
@@ -1071,7 +1129,9 @@ const Home = () => {
             {isLoading
               ? "Researching..."
               : user
-                ? "Start Research"
+                ? formData.company.trim()
+                  ? `Research ${formData.company.trim()} →`
+                  : "Start Research"
                 : "Sign In to Start Research"}
           </Button>
         </form>
@@ -1079,25 +1139,29 @@ const Home = () => {
     </Card>
   );
 
+  const guestCtaLabel = formData.company.trim()
+    ? `Research ${formData.company.trim()} →`
+    : "Get my prep plan →";
+
   const renderGuestHome = () => (
     <div className="mx-auto max-w-6xl space-y-8 md:space-y-10">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
         <Card className="border shadow-sm">
           <CardHeader className="space-y-4">
             <div className="w-fit rounded-full border px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              Research preview
+              Research-first interview prep
             </div>
             <div className="space-y-3">
-              <CardTitle className="text-3xl leading-tight tracking-tight">
-                See the interview brief before you create an account.
+              <CardTitle className="text-[32px] leading-[1.15] tracking-tight md:text-4xl">
+                Walk into your next interview knowing exactly what to expect.
               </CardTitle>
               <CardDescription className="text-base leading-7">
-                Enter the company and role, then finish auth. We keep the draft and reopen the
-                full research flow with your context intact.
+                Tell us the company. We research the stages, the likely questions, and how your
+                background maps to them — so you practice the right things, not a generic question bank.
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-5">
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -1130,20 +1194,17 @@ const Home = () => {
 
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full motion-cta"
                 size="lg"
                 disabled={!formData.company.trim()}
               >
-                Continue to sign in
+                {guestCtaLabel}
               </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                Takes about 60 seconds. We&apos;ll keep your draft while you sign in.
+              </p>
             </form>
 
-            <Alert className="border-primary/20 bg-primary/5">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                We save this draft before auth and reopen the full research form when you return.
-              </AlertDescription>
-            </Alert>
             {canInstall && (
               <Button type="button" variant="outline" className="w-full" onClick={() => void promptInstall()}>
                 Install app
@@ -1154,41 +1215,54 @@ const Home = () => {
 
         <Card className="border bg-muted/20 shadow-sm">
           <CardHeader className="space-y-3">
-            <div className="w-fit rounded-full border bg-background px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              Sample output
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="w-fit rounded-full border bg-background px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                Example output
+              </div>
+              <Badge variant="outline" className="bg-background text-[10px] font-medium">
+                {GUEST_SAMPLE_COMPANY} · {GUEST_SAMPLE_ROLE}
+              </Badge>
             </div>
-            <CardTitle className="text-2xl tracking-tight">What the first brief looks like</CardTitle>
+            <CardTitle className="text-2xl tracking-tight">
+              Real questions, sourced from real interviews.
+            </CardTitle>
             <CardDescription className="text-sm leading-6">
-              A preview of the research package you unlock after sign-in.
+              Each question comes with the stage, difficulty, and why it matters for this company.
+              Here&apos;s a sample of what Prepio generates from Glassdoor, LinkedIn, and company signals.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-3 md:grid-cols-3">
-              {GUEST_SAMPLE_STAGES.map((stage) => (
-                <div key={stage.title} className="rounded-2xl border bg-background p-4">
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Stage
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              {GUEST_SAMPLE_QUESTIONS.map((q) => (
+                <div key={q.question} className="rounded-2xl border bg-background p-4 shadow-sm motion-surface">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary" className="text-[10px] font-medium">
+                      {q.stage}
+                    </Badge>
+                    <Badge
+                      className={cn(
+                        "text-[10px] font-medium",
+                        q.difficulty === "Hard"
+                          ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                          : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+                      )}
+                    >
+                      {q.difficulty}
+                    </Badge>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold leading-6 text-foreground">
+                    {q.question}
                   </p>
-                  <p className="mt-2 text-base font-semibold">{stage.title}</p>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{stage.detail}</p>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    <span className="font-medium text-foreground/70">Why it matters — </span>
+                    {q.rationale}
+                  </p>
                 </div>
               ))}
             </div>
-
-            <div className="rounded-[28px] border bg-background p-5">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Search className="h-4 w-4 text-primary" />
-                Sample prep highlights
-              </div>
-              <div className="mt-4 space-y-3">
-                {GUEST_SAMPLE_SIGNALS.map((signal) => (
-                  <div key={signal} className="flex items-start gap-3">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-primary" />
-                    <p className="text-sm leading-6 text-muted-foreground">{signal}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Generated from public signals · Glassdoor, LinkedIn, engineering blogs, and company values.
+            </p>
           </CardContent>
         </Card>
       </div>

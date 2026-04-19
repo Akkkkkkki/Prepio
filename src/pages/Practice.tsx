@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -2010,175 +2011,22 @@ const getInterviewerFocus = (
     );
   }
 
-  // Session Setup State - Show filters and configuration
+  // Session Setup State - Single-screen layout with Quick Start default + Customize
   if (sessionState === 'setup') {
-    const renderSetupStepContent = () => {
-      switch (setupStep) {
-        case 0:
-          return (
-            <div className="space-y-6">
-              <div className="grid gap-3 md:grid-cols-2">
-                {Object.entries(practicePresets).map(([key, preset]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => handlePresetSelect(key as keyof typeof practicePresets)}
-                    className={`rounded-xl border p-4 text-left transition hover:border-primary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${
-                      selectedPreset === key ? 'border-primary bg-primary/5' : 'border-border'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{preset.label}</span>
-                      {selectedPreset === key && (
-                        <Badge variant="secondary" className="text-xs">
-                          Selected
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="mt-2 text-sm text-muted-foreground">{preset.description}</p>
-                  </button>
-                ))}
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Number of Questions</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={sampleSize}
-                  onChange={(e) => setSampleSize(sessionSampler.validateSampleSize(parseInt(e.target.value) || 10))}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                <p className="text-xs text-muted-foreground">Pick 1–100 questions for this session. Presets adjust this automatically.</p>
-              </div>
-            </div>
-          );
-        case 1:
-          return (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Choose at least one stage to include in this practice run.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {allStages.map((stage, index) => {
-                  const totalQuestions = stage.questions?.length || 0;
-                  return (
-                    <div key={stage.id} className="flex items-center space-x-3 rounded-lg border p-3">
-                      <Checkbox
-                        checked={stage.selected}
-                        onCheckedChange={() => handleStageToggle(stage.id)}
-                        aria-label={`Toggle ${stage.name}`}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="outline" className="text-xs">
-                            Stage {index + 1}
-                          </Badge>
-                          <span className="font-medium text-sm truncate">{stage.name}</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">{totalQuestions} question{totalQuestions !== 1 ? 's' : ''} available</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {selectedStagesCount === 0 && (
-                <p className="text-xs text-amber-600">Select at least one stage to continue.</p>
-              )}
-            </div>
-          );
-        case 2:
-          return (
-            <div className="space-y-5">
-              <div className="space-y-3">
-                <label className="text-xs font-medium text-muted-foreground">Categories</label>
-                <p className="text-xs text-muted-foreground">Leave unselected to include all categories.</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {questionCategories.filter(cat => cat.value !== 'all').map(cat => (
-                    <div key={cat.value} className="flex items-center space-x-2 rounded-md border bg-background px-2 py-1">
-                      <Checkbox
-                        id={`cat-${cat.value}`}
-                        checked={tempCategories.includes(cat.value)}
-                        onCheckedChange={() => toggleCategory(cat.value)}
-                      />
-                      <label htmlFor={`cat-${cat.value}`} className="text-xs cursor-pointer">{cat.label}</label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-3">
-                <label className="text-xs font-medium text-muted-foreground">Difficulty</label>
-                <div className="flex flex-wrap gap-2">
-                  {difficultyLevels.filter(level => level.value !== 'all').map(level => (
-                    <div key={level.value} className="flex items-center space-x-2 rounded-md border bg-background px-3 py-2">
-                      <Checkbox
-                        id={`diff-${level.value}`}
-                        checked={tempDifficulties.includes(level.value)}
-                        onCheckedChange={() => toggleDifficulty(level.value)}
-                      />
-                      <label htmlFor={`diff-${level.value}`} className="text-xs cursor-pointer">{level.label}</label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Order & Favorites</label>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="flex items-center space-x-2 rounded-md border bg-background px-3 py-2">
-                    <Checkbox
-                      id="shuffle"
-                      checked={tempShuffle}
-                      onCheckedChange={(checked) => setTempShuffle(!!checked)}
-                    />
-                    <label htmlFor="shuffle" className="text-xs cursor-pointer">Shuffle questions randomly</label>
-                  </div>
-                  <div className="flex items-center space-x-2 rounded-md border bg-background px-3 py-2">
-                    <Checkbox
-                      id="favorites-only"
-                      checked={tempShowFavoritesOnly}
-                      onCheckedChange={(checked) => setTempShowFavoritesOnly(!!checked)}
-                    />
-                    <label htmlFor="favorites-only" className="text-xs cursor-pointer flex items-center gap-1">
-                      <Star className="h-3 w-3 text-amber-500" />
-                      Favorites only
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        default:
-          return (
-            <div className="space-y-4">
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <h4 className="text-sm font-medium mb-2">Session Summary</h4>
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  <li>• {sampleSize} question{sampleSize !== 1 ? 's' : ''} selected</li>
-                  <li>• {selectedStagesCount} stage{selectedStagesCount !== 1 ? 's' : ''} included</li>
-                  <li>• Categories: {tempCategories.length ? tempCategories.map(c => questionCategories.find(cat => cat.value === c)?.label).join(", ") : "All"}</li>
-                  <li>• Difficulty: {tempDifficulties.length ? tempDifficulties.join(", ") : "All levels"}</li>
-                  <li>• Order: {tempShuffle ? "Shuffled" : "Stage order"}</li>
-                  <li>• Favorites: {tempShowFavoritesOnly ? "Only favorited questions" : "All questions"}</li>
-                </ul>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="remember-defaults"
-                  checked={rememberDefaults}
-                  onCheckedChange={(checked) => setRememberDefaults(!!checked)}
-                />
-                <label htmlFor="remember-defaults" className="text-sm text-muted-foreground">
-                  Remember these defaults for next time
-                </label>
-              </div>
-            </div>
-          );
-      }
-    };
+    const selectedStageQuestionCount = allStages
+      .filter((s) => s.selected)
+      .reduce((acc, s) => acc + (s.questions?.length || 0), 0);
+    const quickStartCount = Math.min(
+      practicePresets.quick.config.sampleSize,
+      selectedStageQuestionCount || practicePresets.quick.config.sampleSize,
+    );
+    const desktopQuestionCount = mobileSetupMode === 'quick' ? quickStartCount : sampleSize;
 
     return (
       <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          <div className="flex items-center justify-between mb-6">
+        <div className="container mx-auto max-w-3xl px-4 py-8">
+          <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}>
                 <ChevronLeft className="h-4 w-4 mr-2" />
@@ -2194,66 +2042,198 @@ const getInterviewerFocus = (
             </div>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5 text-primary" />
-                Configure Your Practice Session
-              </CardTitle>
+          <Card className="motion-surface">
+            <CardHeader className="space-y-2">
+              <CardTitle className="text-2xl tracking-tight">Ready to practice?</CardTitle>
               <CardDescription>
-                Step {setupStep + 1} of {SETUP_STEPS.length}: {SETUP_STEPS[setupStep].label}
+                Jump in with a Quick Start, or expand Customize to tune stages, difficulty, and filters.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex flex-wrap items-center gap-3">
-                {SETUP_STEPS.map((step, index) => (
-                  <div key={step.key} className="flex items-center gap-2">
-                    <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
-                        index <= setupStep ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {index + 1}
+            <CardContent className="space-y-5">
+              <button
+                type="button"
+                onClick={handleBeginQuickStart}
+                disabled={isOffline}
+                className="motion-surface w-full rounded-2xl border border-primary bg-primary/5 p-5 text-left transition hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Play className="h-5 w-5 text-primary" />
+                      <span className="text-base font-semibold text-foreground">Quick Start</span>
+                      <Badge variant="secondary" className="text-[10px]">Recommended</Badge>
                     </div>
-                    <span className={`text-sm ${index === setupStep ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                      {step.label}
-                    </span>
-                    {index < SETUP_STEPS.length - 1 && <div className="h-px w-6 bg-border" />}
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      {quickStartCount} shuffled questions across your selected stages. {estimateDurationRange(desktopQuestionCount)}.
+                    </p>
                   </div>
-                ))}
-              </div>
+                  <div className="shrink-0 text-2xl text-primary">→</div>
+                </div>
+              </button>
 
-              {renderSetupStepContent()}
+              <Accordion type="single" collapsible>
+                <AccordionItem value="customize" className="rounded-2xl border bg-muted/20 px-4">
+                  <AccordionTrigger className="py-4 text-left text-sm hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      <span className="font-medium">Customize — stages, difficulty, filters</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-6 pb-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium">Question count</label>
+                        <span className="text-sm text-muted-foreground">{sampleSize}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="5"
+                        max="50"
+                        step="1"
+                        value={sampleSize}
+                        onChange={(e) => setSampleSize(sessionSampler.validateSampleSize(parseInt(e.target.value, 10) || 10))}
+                        className="w-full accent-primary"
+                        aria-label="Question count"
+                      />
+                      <p className="text-xs text-muted-foreground">{estimateDurationRange(sampleSize)}</p>
+                    </div>
 
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t">
-                <Button
-                  variant="ghost"
-                  onClick={goToPreviousSetupStep}
-                  disabled={setupStep === 0}
-                  className="w-full sm:w-auto"
-                >
-                  <ChevronLeft className="h-4 w-4 mr-2" />
-                  Previous
-                </Button>
-                {setupStep < SETUP_STEPS.length - 1 ? (
-                  <Button
-                    onClick={goToNextSetupStep}
-                    disabled={!canProceedFromSetupStep()}
-                    className="w-full sm:w-auto"
-                  >
-                    Next • {SETUP_STEPS[setupStep + 1].label}
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={handleBeginSession}
-                    disabled={isOffline || !canProceedFromSetupStep() || selectedStagesCount === 0}
-                    className="w-full sm:w-auto"
-                  >
-                    <Play className="h-4 w-4 mr-2" />
-                    Start Practice
-                  </Button>
-                )}
-              </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium">Stages</label>
+                        <span className="text-xs text-muted-foreground">{selectedStagesCount} selected</span>
+                      </div>
+                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                        {allStages.map((stage, index) => {
+                          const totalQuestions = stage.questions?.length || 0;
+                          return (
+                            <button
+                              key={stage.id}
+                              type="button"
+                              onClick={() => handleStageToggle(stage.id)}
+                              className={cn(
+                                "flex items-center justify-between rounded-xl border p-3 text-left transition",
+                                stage.selected ? "border-primary bg-primary/5" : "border-border bg-background",
+                              )}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-[10px]">Stage {index + 1}</Badge>
+                                  <span className="truncate text-sm font-medium">{stage.name}</span>
+                                </div>
+                                <div className="mt-1 text-xs text-muted-foreground">{totalQuestions} question{totalQuestions !== 1 ? 's' : ''}</div>
+                              </div>
+                              <Checkbox
+                                checked={stage.selected}
+                                onCheckedChange={() => handleStageToggle(stage.id)}
+                                aria-label={`Toggle ${stage.name}`}
+                              />
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {selectedStagesCount === 0 && (
+                        <p className="text-xs text-destructive">Select at least one stage.</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium">Difficulty</label>
+                      <div className="flex flex-wrap gap-2">
+                        {difficultyLevels.filter(level => level.value !== 'all').map(level => (
+                          <button
+                            key={level.value}
+                            type="button"
+                            onClick={() => toggleDifficulty(level.value)}
+                            className={cn(
+                              "rounded-full border px-3 py-1.5 text-sm transition",
+                              tempDifficulties.includes(level.value)
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border bg-background text-foreground",
+                            )}
+                          >
+                            {level.label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">Leave empty to include every level.</p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium">Categories</label>
+                      <div className="flex flex-wrap gap-2">
+                        {questionCategories.filter(cat => cat.value !== 'all').map(cat => (
+                          <button
+                            key={cat.value}
+                            type="button"
+                            onClick={() => toggleCategory(cat.value)}
+                            className={cn(
+                              "rounded-full border px-3 py-1.5 text-sm transition",
+                              tempCategories.includes(cat.value)
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border bg-background text-foreground",
+                            )}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Options</label>
+                      <div className="grid gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setTempShuffle(prev => !prev)}
+                          className={cn(
+                            "flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition",
+                            tempShuffle ? "border-primary bg-primary/5" : "border-border bg-background",
+                          )}
+                        >
+                          <span>Shuffle questions</span>
+                          <span className="text-muted-foreground">{tempShuffle ? "On" : "Off"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTempShowFavoritesOnly(prev => !prev)}
+                          className={cn(
+                            "flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition",
+                            tempShowFavoritesOnly ? "border-primary bg-primary/5" : "border-border bg-background",
+                          )}
+                        >
+                          <span className="flex items-center gap-2">
+                            <Star className="h-3.5 w-3.5 text-amber-500" />
+                            Favorites only
+                          </span>
+                          <span className="text-muted-foreground">{tempShowFavoritesOnly ? "On" : "Off"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRememberDefaults(prev => !prev)}
+                          className={cn(
+                            "flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition",
+                            rememberDefaults ? "border-primary bg-primary/5" : "border-border bg-background",
+                          )}
+                        >
+                          <span>Remember these defaults</span>
+                          <span className="text-muted-foreground">{rememberDefaults ? "On" : "Off"}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <Button
+                      onClick={handleBeginSession}
+                      disabled={isOffline || selectedStagesCount === 0}
+                      className="motion-cta h-11 w-full"
+                    >
+                      <Play className="mr-2 h-4 w-4" />
+                      Start custom session
+                    </Button>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+
               {isOffline && (
                 <p className="text-sm text-amber-700">{OFFLINE_PRACTICE_MESSAGE}</p>
               )}
@@ -2315,6 +2295,16 @@ const getInterviewerFocus = (
       }
     };
 
+    const needsWorkQuestionIds = new Set(
+      Object.entries(questionFlags)
+        .filter(([, flag]) => flag.flag_type === 'needs_work')
+        .map(([qid]) => qid),
+    );
+
+    const handleToggleNeedsWork = async (questionId: string) => {
+      await handleToggleFlag(questionId, 'needs_work');
+    };
+
     return (
       <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
@@ -2336,6 +2326,8 @@ const getInterviewerFocus = (
             savedAnswers={savedAnswerRecords}
             onRateAnswer={handleRateAnswer}
             isSavingRating={isSavingRating}
+            needsWorkQuestionIds={needsWorkQuestionIds}
+            onToggleNeedsWork={isOffline ? undefined : handleToggleNeedsWork}
           />
         </div>
       </div>

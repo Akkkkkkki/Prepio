@@ -156,7 +156,7 @@ describe("Home flow", () => {
     fireEvent.change(screen.getByLabelText("Role (optional)"), {
       target: { value: "Platform Engineer" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Continue to sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Research Stripe →" }));
 
     const savedDraft = JSON.parse(
       window.sessionStorage.getItem(RESEARCH_DRAFT_STORAGE_KEY) || "{}",
@@ -186,9 +186,9 @@ describe("Home flow", () => {
 
     renderHome();
 
-    expect(screen.getByText("See the interview brief before you create an account.")).toBeInTheDocument();
+    expect(screen.getByText("Walk into your next interview knowing exactly what to expect.")).toBeInTheDocument();
     expect(screen.getByText("How it works")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Country (optional)")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Country")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Role Description Links (optional)")).not.toBeInTheDocument();
     expect(screen.queryByText("Step 1 of 3")).not.toBeInTheDocument();
   });
@@ -205,9 +205,9 @@ describe("Home flow", () => {
 
     expect(screen.getByLabelText("Company *")).toBeInTheDocument();
     expect(screen.getByLabelText("Role (optional)")).toBeInTheDocument();
-    expect(screen.getByLabelText("Country (optional)")).toBeInTheDocument();
-    expect(screen.getByLabelText("Role Description Links (optional)")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Or paste the full job description here...")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Add your CV/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Role details & job description/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Notes for the research/ })).toBeInTheDocument();
     expect(screen.queryByText("How it works")).not.toBeInTheDocument();
   });
 

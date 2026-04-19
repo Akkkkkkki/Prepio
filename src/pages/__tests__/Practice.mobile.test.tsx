@@ -346,10 +346,10 @@ describe("Practice mobile layout", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
 
-    expect(await screen.findByText("Practice complete")).toBeInTheDocument();
+    expect(await screen.findByText("Reflection checkpoint")).toBeInTheDocument();
 
     fireEvent.change(
-      screen.getByPlaceholderText("Add a short reflection for your next round..."),
+      screen.getByPlaceholderText(/My scoping for the sys-design question/),
       { target: { value: "Needs tighter metrics" } }
     );
     fireEvent.click(screen.getByRole("button", { name: "Save reflection" }));
