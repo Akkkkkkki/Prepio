@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prepio — UX/UI Design Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: hsl(158, 40%, 40%);
+    --primary-light: hsl(158, 40%, 95%);
+    --primary-mid: hsl(158, 35%, 70%);
+    --bg: hsl(40, 20%, 99%);
+    --fg: hsl(30, 10%, 16%);
+    --muted-bg: hsl(35, 12%, 95%);
+    --muted-fg: hsl(30, 8%, 46%);
+    --border: hsl(30, 10%, 90%);
+    --card: #fff;
+    --accent: hsl(158, 35%, 26%);
+    --red: hsl(0, 72%, 51%);
+    --red-bg: hsl(0, 72%, 97%);
+    --amber: hsl(38, 80%, 45%);
+    --amber-bg: hsl(38, 80%, 96%);
+    --blue: hsl(210, 80%, 50%);
+    --blue-bg: hsl(210, 80%, 97%);
+    --radius: 12px;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  #root { display: flex; min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ── Data ─────────────────────────────────────────────────────
+const SECTIONS = [
+  { id: 'summary', label: 'Executive Summary', icon: '◎' },
+  { id: 'home-guest', label: 'Home — Guest', icon: '①' },
+  { id: 'home-auth', label: 'Home — Signed In', icon: '②' },
+  { id: 'dashboard', label: 'Dashboard', icon: '③' },
+  { id: 'practice-setup', label: 'Practice Setup', icon: '④' },
+  { id: 'practice-session', label: 'Practice Session', icon: '⑤' },
+  { id: 'profile', label: 'Profile', icon: '⑥' },
+  { id: 'global', label: 'Global & Navigation', icon: '⑦' },
+  { id: 'roadmap', label: 'Priority Roadmap', icon: '⊞' },
+];
+
+const SEVERITY_CONFIG = {
+  critical: { label: 'Critical', color: 'var(--red)', bg: 'var(--red-bg)' },
+  high:     { label: 'High',     color: 'hsl(25,80%,45%)', bg: 'hsl(25,80%,96%)' },
+  medium:   { label: 'Medium',   color: 'var(--amber)', bg: 'var(--amber-bg)' },
+  low:      { label: 'Low',      color: 'var(--muted-fg)', bg: 'var(--muted-bg)' },
+};
+
+const CAT_CONFIG = {
+  'UX Flow':      { bg: 'hsl(210,70%,95%)', color: 'hsl(210,70%,38%)' },
+  'Info Hierarchy': { bg: 'hsl(280,40%,95%)', color: 'hsl(280,40%,40%)' },
+  'Copy & Framing': { bg: 'hsl(158,40%,93%)', color: 'hsl(158,40%,30%)' },
+  'Visual Design':  { bg: 'hsl(38,70%,94%)', color: 'hsl(38,70%,35%)' },
+  'Missing Feature':{ bg: 'hsl(0,60%,95%)',  color: 'hsl(0,60%,40%)' },
+  'Discoverability':{ bg: 'hsl(180,40%,93%)', color: 'hsl(180,40%,30%)' },
+};
+
+const FINDINGS = {
+  'home-guest': [
+    {
+      id: 'hg1',
+      severity: 'critical',
+      category: 'Copy & Framing',
+      title: 'Value proposition doesn\'t land before the form',
+      problem: 'The guest headline reads "See the interview brief before you create an account" — which describes a product feature, not a user outcome. Cold visitors need to feel the payoff within 3 seconds. The current framing requires reading the card body to understand what Prepio actually does.',
+      rootCause: 'The page leads with what the product allows you to do (see a brief) rather than why that matters (walk into your interview knowing exactly what to expect).',
+      recs: [
+        'Lead with an outcome headline: e.g. "Walk into your next interview knowing exactly what to expect." Sub-headline explains the research-first mechanic.',
+        'Move the company/role form above the fold with a single prominent CTA — the form IS the value proposition.',
+        'Show a concrete teaser: a real-looking example question card with company name, stage tag, and a snippet of the rationale. Not abstract bullet points.',
+        'Replace "Research preview" pill with social proof copy once available (e.g. "1,200 interviews prepared").',
+      ],
+      sketch: 'hero',
+    },
+    {
+      id: 'hg2',
+      severity: 'high',
+      category: 'UX Flow',
+      title: 'Sample output panel shows abstract descriptions, not real output',
+      problem: 'The "Sample output" card shows 3 empty stage boxes (Recruiter screen, Hiring manager, Panel loop) and bullet points describing what Prepio delivers. This is explanatory text masquerading as a product preview. It doesn\'t build trust because it looks like marketing copy.',
+      rootCause: 'Sample data is fictionally minimalist — titles only, no real question text, no company-specific framing that would demonstrate the product\'s core differentiation.',
+      recs: [
+        'Show a fabricated-but-realistic research output: a real company name (e.g. "Stripe"), a behavioral stage with 2–3 sample question cards, each with a question, difficulty chip, and one-line rationale.',
+        'Add a subtle "Generated from real Glassdoor + LinkedIn data" attribution line to reinforce the research-first story.',
+        'Consider an animated "typewriter" effect building the sample questions to make the AI generation feel live.',
+      ],
+      sketch: 'sample',
+    },
+    {
+      id: 'hg3',
+      severity: 'medium',
+      category: 'UX Flow',
+      title: '"Continue to sign in" CTA loses momentum',
+      problem: 'After a user types their company and role, the primary button says "Continue to sign in". This shifts focus from the outcome (getting my prep plan) to a procedural task (signing in). It creates a mental speed bump right at the moment of highest intent.',
+      rootCause: 'The CTA labels the next route rather than the destination the user cares about.',
+      recs: [
+        'Reframe: "Get my prep plan →" or "Research [Company] →". Make the destination clear.',
+        'Add inline reassurance: "Takes 60 seconds. We\'ll keep your draft." to reduce sign-up anxiety.',
+        'After sign-in, show a micro-animation confirming the draft was restored before the research form loads.',
+      ],
+    },
+  ],
+  'home-auth': [
+    {
+      id: 'ha1',
+      severity: 'high',
+      category: 'Info Hierarchy',
+      title: 'Desktop form is a wall — cognitive overload before any value is delivered',
+      problem: 'The authenticated desktop form shows all fields at once: Company, Role, Country, Level, a giant CV upload zone, a CV paste textarea (6 rows), Role Links textarea, Job Description textarea (4 rows), and a Notes textarea. That\'s 9+ input areas visible simultaneously. Users freeze in front of a wall of options.',
+      rootCause: 'The desktop layout assumes all fields are equally important and equally urgent. In practice, only "Company" is required — everything else is optional enhancement.',
+      recs: [
+        'Adopt progressive disclosure on desktop too: show Company + Role + "Add more detail ↓" collapsed accordion. The accordion approach used on mobile is actually the right pattern for both.',
+        'Visually separate required from optional with whitespace and section headers — not just (optional) labels inline.',
+        'The CV upload zone taking up 1/3 of the form above the fold is disproportionate. Consider deferring it to an accordion with a strong CTA: "Add your CV to personalize questions".',
+        'Consolidate "Role Description Links" and "Job Description" textarea into a single section — users don\'t know the distinction.',
+      ],
+      sketch: 'form',
+    },
+    {
+      id: 'ha2',
+      severity: 'medium',
+      category: 'Copy & Framing',
+      title: 'No context for why each optional field matters',
+      problem: '"Role (optional)" and "Country (optional)" labels give users no reason to fill them in. Without understanding the payoff, users skip optional fields that would meaningfully improve question quality.',
+      rootCause: 'Labels describe what to enter, not why it matters.',
+      recs: [
+        'Inline micro-copy beneath each optional field explaining the value: "Role — helps focus on the right stage types and seniority expectations."',
+        'Consider a "impact indicator" — a small tag showing "Improves question relevance" next to CV upload to signal worth.',
+        'The "Notes for the research" section has excellent placeholder copy already — extend this pattern to all fields.',
+      ],
+    },
+    {
+      id: 'ha3',
+      severity: 'medium',
+      category: 'UX Flow',
+      title: 'Signed-in users get no context — they land directly on the form',
+      problem: 'A returning user who finished their last interview and is starting fresh sees just the research form. There\'s no continuity: no acknowledgment of their history, no suggested next step, no "your last research was for Stripe — start a new one for Amazon?"',
+      rootCause: 'The home page for authenticated users is purely a creation surface, not a return surface.',
+      recs: [
+        'For returning users with prior searches, show a subtle "Welcome back" strip with the most recent research run and a quick "Continue" link before the new research form.',
+        'If a draft exists (already handled), surface it visually as a highlighted banner, not just silently restored.',
+      ],
+    },
+  ],
+  'dashboard': [
+    {
+      id: 'db1',
+      severity: 'critical',
+      category: 'Info Hierarchy',
+      title: 'Four heavy sections at equal visual weight — no clear "next action"',
+      problem: 'The dashboard presents Assessment Signals, Prep Priorities, Candidate Positioning, and Stage Roadmap in sequence with no clear hierarchy. Each is a full Card component with CardHeader + CardContent. The "Start Practice" button sits in the top-right corner of the header — small, quiet, and easily missed. The user\'s most important action is buried.',
+      rootCause: 'The dashboard was designed as a report (information delivery), not a launchpad (action facilitation). These are two different interaction models.',
+      recs: [
+        'Introduce a clear "Primary Action Zone": a full-width sticky CTA at the bottom on mobile (already exists) AND a prominent above-the-fold "Start Practice" card on desktop — not just a button in the header.',
+        'Create visual hierarchy: make "Stage Roadmap" + "Start Practice" the dominant elements. Demote Assessment Signals and Positioning to a collapsible "Deep Dive" section below.',
+        'Add a "Prep Summary" sentence at the top: "You have 37 tailored questions across 4 stages. Top focus: System Design." This is scannable and action-oriented.',
+        'Consider a "Recommended starting point" highlight — auto-select the highest-priority stage and make that the default practice path.',
+      ],
+      sketch: 'dashboard',
+    },
+    {
+      id: 'db2',
+      severity: 'high',
+      category: 'Info Hierarchy',
+      title: 'Badge proliferation creates visual noise',
+      problem: 'Stage cards show: Stage number badge, name, confidence badge (high/medium/low), prep priority badge (high/medium/low), question count. That\'s 5 pieces of metadata per stage row before the user even opens the accordion. When multiplied across 4–6 stages, the badge density makes scanning impossible.',
+      rootCause: 'All metadata is surfaced at equal visual weight. "Confidence" and "priority" try to communicate importance but paradoxically make everything feel equally important.',
+      recs: [
+        'Collapse to 2 visible data points per stage in the list view: stage name + question count. Confidence and priority move inside the expanded accordion.',
+        'Replace badge-based priority with a more spatial treatment: reorder stages by priority (high-priority stages first), and use a subtle left-border color accent instead of text badges.',
+        'Reserve red/amber/green color-coding for 1–2 critical signals only. When every badge is colored, none of them land.',
+      ],
+    },
+    {
+      id: 'db3',
+      severity: 'high',
+      category: 'UX Flow',
+      title: 'Stage selection UX feels like configuration, not prep',
+      problem: 'Checkboxes on stages reinforce a configuration mental model — the user is setting up a tool. But what they\'re actually doing is choosing which parts of their interview to prepare for. The Candidate Positioning card ("Lean on / Address / Story gaps") delivers deeply personal, high-value content but appears below two heavy information cards.',
+      rootCause: 'Information architecture reflects technical data structure (stages → questions) rather than user mental model (what do I focus on first?).',
+      recs: [
+        'Reframe stage selection as "Your practice plan": show the stages as a sequential timeline/roadmap visual with checkmarks, not a list of checkbox-accordion items.',
+        'Elevate Candidate Positioning to the top — "Here\'s how your background maps to this role" is the most personal and motivating piece of content on the page.',
+        'Add a "Practice everything" quick button that bypasses stage selection entirely for users who don\'t want to configure.',
+      ],
+    },
+    {
+      id: 'db4',
+      severity: 'medium',
+      category: 'Copy & Framing',
+      title: '"Readiness Summary Strip" stats feel like metadata, not motivation',
+      problem: 'The 3-cell strip shows "N stages identified / N selected", "N practice questions / Ready across selected stages", and "Top focus area". These are activity stats, not progress signals. They\'re correct but they don\'t make the user feel ready or help them prioritize.',
+      rootCause: 'Stats describe the data, not what to do with it.',
+      recs: [
+        'Reframe: "You\'re set up with 37 questions for 4 stages — top priority is System Design" in a single declarative sentence is more effective than 3 stat tiles.',
+        'Add estimated practice time: "~45 min end-to-end" helps users plan and commit.',
+        'After a practice session exists, show "Last practiced 2 days ago — 12/37 questions answered" to create return momentum.',
+      ],
+    },
+  ],
+  'practice-setup': [
+    {
+      id: 'ps1',
+      severity: 'critical',
+      category: 'UX Flow',
+      title: '4-step setup wizard creates friction before a single question is answered',
+      problem: 'The practice setup has 4 steps: Goal → Stages → Filters → Review. A user who just reviewed their dashboard and hit "Start Practice" now faces a setup wizard asking them to re-confirm stages they already selected, choose categories, choose difficulty, and review a summary. This is 4 screens of configuration before any value is delivered.',
+      rootCause: 'The setup wizard attempts to surface all customization options upfront. The intent is good (give control) but the execution front-loads friction at the worst moment — when the user\'s motivation is highest.',
+      recs: [
+        'Default to "Quick Start" — 10 shuffled questions from selected stages — with zero configuration. Single button: "Start practice". The current Quick Start preset already exists but is buried inside the wizard.',
+        'Surface customization AFTER the first session or as an optional "Configure" path — not as a gate before every session.',
+        'Remove the Filters and Review steps from the default flow entirely. Shuffle, sample size, and category filters can live in a session settings drawer accessible mid-session.',
+        'On mobile, replace the multi-step modal with a single-screen bottom sheet: two large tap targets ("Quick Start" vs "Custom Setup"), then straight to questions.',
+      ],
+      sketch: 'setup',
+    },
+    {
+      id: 'ps2',
+      severity: 'medium',
+      category: 'Copy & Framing',
+      title: 'The "breathing break" is a surprise gate, not a feature',
+      problem: 'After setup, users hit a "Breathing Break" screen they didn\'t ask for. While well-intentioned (reducing anxiety), an unexpected pause between intent and action creates confusion: "Did something break?" The opt-out ("I\'m ready") is not prominently placed.',
+      rootCause: 'The breathing break is inserted into the critical success path without user consent or expectation-setting.',
+      recs: [
+        'Make the breathing break opt-in: show a subtle "Take a breath before you start?" toggle on the setup screen rather than a full blocking screen.',
+        'If kept, make the skip action the most visually prominent element — large button: "Skip — start now" with the breathing exercise as the secondary path.',
+        'Once dismissed (which already persists via localStorage), never show again unless the user re-enables it.',
+      ],
+    },
+  ],
+  'practice-session': [
+    {
+      id: 'pss1',
+      severity: 'critical',
+      category: 'Missing Feature',
+      title: 'Practice has no feedback loop — it feels like shouting into the void',
+      problem: 'After typing an answer and hitting "Save & Continue", the user gets a checkmark animation and moves to the next question. At session end, they see stats: questions answered, time spent. There is no qualitative signal about whether their answers were good, what they\'re missing, or what to work on. The product\'s own strategy document acknowledges this as the #1 missing feature.',
+      rootCause: 'AI answer feedback hasn\'t shipped yet. But the current session summary and mid-session UI don\'t even acknowledge this gap — which makes the product feel complete but hollow.',
+      recs: [
+        'Add placeholder feedback UI that sets the right expectation: a "Your feedback is coming" slot after each answer save — even a simple "Feedback available on [plan] — see what you\'re missing" hooks the missing feature without pretending it exists.',
+        'In the session summary, replace "Questions answered: 8" with a qualitative frame: "You worked through 8 questions. See the coaching breakdown →" even if that link is gated or coming soon.',
+        'Ship a bare-minimum AI feedback for free users: 1 piece of feedback per session (e.g. "Your answer to Q3 would benefit from a concrete example"). This instantly makes practice feel coached rather than solo.',
+        'Add self-rating to each question card (1–5 stars, "How confident was your answer?") — zero AI required, builds the data model for future feedback, and gives users a reflection mechanic immediately.',
+      ],
+    },
+    {
+      id: 'pss2',
+      severity: 'high',
+      category: 'Info Hierarchy',
+      title: 'Question is not the hero — competing UI zones fight for attention',
+      problem: 'The practice screen has: a sticky header (back, Q3/10, timer, overflow menu), stage/difficulty chips, the question text, recording controls, notes toggle, and a sticky footer (Skip, Save & Continue). The question itself — which should dominate — shares visual weight with 7+ other UI elements.',
+      rootCause: 'Feature accumulation over time. Each feature (timer, recording, notes, coaching, flags) was added individually without a layout audit of the cumulative effect.',
+      recs: [
+        'Run a content-priority exercise: the question text should be 2x the visual size of anything else on screen. Consider a 28–32px question text size on mobile (currently likely 16–18px within a card).',
+        'Collapse secondary controls behind a single "⋯" menu or a bottom drawer: stage tag, difficulty, timer, recording controls. The default state should be: question + notes textarea + two buttons.',
+        'The coaching/insights panel is genuinely valuable — but it should be surfaced with a clear "Coach" button that reveals it, not mixed into the default layout.',
+        'Remove the swipe hint banner once dismissed — it adds a 3rd persistent strip to an already crowded screen.',
+      ],
+      sketch: 'practice',
+    },
+    {
+      id: 'pss3',
+      severity: 'high',
+      category: 'UX Flow',
+      title: '"Local preview" recording has no value without transcription',
+      problem: 'Voice recording is labeled "local preview" which is honest, but from the user\'s perspective: they recorded their answer, the audio disappears when they close the session, and they get no transcript or feedback. The feature exists but delivers no persistent value. Users may feel tricked.',
+      rootCause: 'The feature was shipped before the backend (transcription + storage) was ready.',
+      recs: [
+        'Be more explicit about the limitation at the point of use: "Recording stays on this device only. Transcription and saved audio coming soon." — not buried in docs.',
+        'Temporarily de-emphasize the recording button (make it secondary/outline) while keeping it available for users who want to speak-to-think.',
+        'Add a "transcribe this recording" local option using the Web Speech API for on-device transcription that populates the notes field — zero backend cost, immediately useful.',
+      ],
+    },
+    {
+      id: 'pss4',
+      severity: 'medium',
+      category: 'UX Flow',
+      title: '"Save & Continue" label is ambiguous about what "save" means',
+      problem: 'Users see "Save & Continue" and may not know: save to where? Their device? The server? Their profile? After tapping it, a checkmark appears and they advance. But if they\'re offline, the button is disabled — which implies server-side saving. The mental model of "what happens to my answer" is unclear.',
+      rootCause: 'The CTA conflates two distinct actions (persisting the answer + advancing) under a single label.',
+      recs: [
+        'When online: "Submit answer →" or "Next question →" — forward momentum is the primary message.',
+        'When offline: instead of just disabling the button, show: "Offline — type notes, submit when reconnected." Allow local note-taking with a clear indicator it will sync.',
+        'Add a subtle autosave status line (already exists: "Saved locally") but make it more prominent and reassuring: a small chip in the notes area, not micro-text.',
+      ],
+    },
+    {
+      id: 'pss5',
+      severity: 'medium',
+      category: 'Visual Design',
+      title: 'Session summary celebrates quantity over quality',
+      problem: 'The session completion screen shows: questions answered, total time, stages covered. These are activity metrics, not prep metrics. Finishing 8 questions in 14 minutes feels like completing a to-do list, not improving at interviewing.',
+      rootCause: 'Without AI feedback, the only data available is quantitative. But the framing doesn\'t acknowledge what\'s missing.',
+      recs: [
+        'Frame completion as progress, not output: "You\'ve built answers for 8 questions. Practice makes these sticky — come back tomorrow for another set."',
+        'Show the "needs work" and "favorites" flags as a mini review list at session end — "You marked 2 questions as needs work. Start there next time."',
+        'Add a "Review your answers" section in the summary that shows each question + the note the user typed — currently this seems absent from the summary view.',
+      ],
+    },
+  ],
+  'profile': [
+    {
+      id: 'pr1',
+      severity: 'high',
+      category: 'Discoverability',
+      title: 'Profile is functionally important but experientially invisible',
+      problem: 'The candidate profile (structured experience, education, skills, projects) is a major differentiator — it\'s what makes questions personal. But users don\'t know their profile is powering the questions they practice. There\'s no "your profile contributed to these questions" signal anywhere in the research or dashboard flow.',
+      rootCause: 'Profile is built as a settings page rather than as a living part of the interview prep experience.',
+      recs: [
+        'On the Dashboard, show a small "Based on your profile" badge next to the Candidate Positioning card — linking directly to the relevant profile section.',
+        'In the research form, show "Your interview profile is active" with a summary (e.g., "5 years experience, 3 projects loaded") rather than just restoring the CV text silently.',
+        'Add a profile completeness indicator that motivates filling in more: "Your profile is 60% complete — add education to improve question relevance."',
+        'After a research run, prompt: "Update your profile with insights from this job description?" to create a virtuous loop.',
+      ],
+    },
+    {
+      id: 'pr2',
+      severity: 'medium',
+      category: 'Copy & Framing',
+      title: '"Interview profile" vs "resume" terminology confusion',
+      problem: 'The app uses "CV", "resume", "interview profile", "candidate profile", and "profile" somewhat interchangeably across screens. Users uploading their CV don\'t understand why there\'s a separate "structured profile" — the merge draft concept is especially confusing.',
+      rootCause: 'The two-artifact system (raw CV text + structured profile) was added iteratively and the mental model for users was never resolved.',
+      recs: [
+        'Establish and stick to two clear terms: "Your CV" (raw document) and "Your interview profile" (structured prep profile). Never mix them in the same screen.',
+        'Explain the merge once, clearly: "We extracted your experience into an interview profile — review and edit it so your questions are sharper." Then never show the "merge draft" concept to users again; make it automatic.',
+        'Simplify the Profile page sections: "Experience", "Education", "Skills" — not "ProfileMainView" sections with separate import views. Make it feel like a LinkedIn-lite profile.',
+      ],
+    },
+  ],
+  'global': [
+    {
+      id: 'gl1',
+      severity: 'critical',
+      category: 'UX Flow',
+      title: 'No persistent "interview context" — the app forgets why you\'re here',
+      problem: 'Every session starts fresh. There\'s no "I have an interview at Google in 5 days" persistent context that follows the user through Home → Dashboard → Practice → History. The app knows which company was researched, but this context doesn\'t create urgency or continuity.',
+      rootCause: 'The product was built screen-by-screen rather than around a persistent interview preparation campaign.',
+      recs: [
+        'Add an optional "Interview date" field to the research form. Show a countdown in the navigation header: "Google interview — 5 days."',
+        'Create a persistent "current interview" concept: one active research run that is the default context for dashboard, practice, and history views.',
+        'Use the interview date for nudge logic: "3 days before — make sure to practice your weakest stage" even if just as a dashboard callout.',
+      ],
+      sketch: 'context',
+    },
+    {
+      id: 'gl2',
+      severity: 'high',
+      category: 'UX Flow',
+      title: 'Navigation doesn\'t reflect the user\'s prep journey',
+      problem: 'The navigation shows: History picker, research selector, profile link. It doesn\'t show: "where I am in my prep", "how much I\'ve practiced for this interview", or a clear path from research → practice → review. The research selector dropdown is good, but it\'s a data structure nav, not a journey nav.',
+      rootCause: 'The navigation was designed around data entities (searches, sessions) rather than the user\'s mental model of "preparing for an interview".',
+      recs: [
+        'Restructure the primary nav around the user journey: Research → Plan → Practice → Review. These map to Home, Dashboard, Practice, and History.',
+        'Show progress indicators in nav items: "Practice (12/37 answered)" makes the current state immediately legible.',
+        'Highlight the active research in the nav with the company name: "Prepping for: Google →" rather than a generic search selector.',
+      ],
+    },
+    {
+      id: 'gl3',
+      severity: 'high',
+      category: 'Visual Design',
+      title: 'Motion utilities defined but inconsistently applied',
+      problem: 'The CSS defines excellent motion tokens (motion-surface, motion-cta, motion-fade-in, motion-slide-up) but they appear to be inconsistently applied across components. Some cards get the lift effect, others don\'t. The result is an app that feels partially polished.',
+      rootCause: 'Motion classes were added to the design system but application was left to individual component authors without a clear rule.',
+      recs: [
+        'Apply motion-surface to all clickable Card components and motion-cta to all primary Button elements consistently.',
+        'Add page-level transition animations: when navigating between Dashboard and Practice, a slide-left transition reinforces the forward journey.',
+        'Use motion-fade-in on content sections as they scroll into view — particularly the heavy Dashboard sections — to reduce the "wall of content" feeling on load.',
+      ],
+    },
+    {
+      id: 'gl4',
+      severity: 'medium',
+      category: 'Visual Design',
+      title: 'Empty states are functional but not motivating',
+      problem: 'The Dashboard empty state ("No Active Search" + Brain icon + Start New Search button) and History empty state are structurally correct but feel generic. For an anxious job seeker, an empty state is a moment to provide direction and reduce friction — not just a placeholder.',
+      rootCause: 'Empty states were implemented as error/null states rather than onboarding moments.',
+      recs: [
+        'Dashboard empty state: "Start your first research run — add a company and we\'ll build your entire prep plan in under 2 minutes." + a preview of what the dashboard will look like.',
+        'History empty state: "No sessions yet. Your first practice session will appear here with your questions, notes, and stats." Add an illustration or sample card in muted colors.',
+        'First-time user: consider a single-step onboarding overlay after sign-up that shows the 3-step journey (Research → Review → Practice) before dropping them at the home form.',
+      ],
+    },
+    {
+      id: 'gl5',
+      severity: 'low',
+      category: 'Visual Design',
+      title: 'Border radius is inconsistent across component types',
+      problem: 'Cards use rounded-3xl (24px) in some contexts and rounded-xl (12px) in others. Buttons use rounded-full, rounded-2xl, and rounded-lg across different contexts. The design system defines --radius: 0.75rem but many components override it ad-hoc.',
+      rootCause: 'Tailwind\'s arbitrary value syntax ([24px], [28px], [32px]) was used directly in components without a semantic radius scale.',
+      recs: [
+        'Define 3 radius levels: sm (8px for chips/badges), md (12px for inputs/buttons), lg (20px for cards). Use semantic class names, not arbitrary px values.',
+        'Audit all rounded-[Xpx] usages and map them to the closest semantic level.',
+        'The mobile-specific "rounded-[32px]" cards vs "rounded-xl" desktop cards creates a visible inconsistency when testing both viewports.',
+      ],
+    },
+  ],
+};
+
+const ROADMAP_ITEMS = [
+  { priority: 1, effort: 'Medium', impact: 'Critical', title: 'Collapse practice setup to a single tap', ids: ['ps1'], screen: 'Practice Setup' },
+  { priority: 2, effort: 'Low', impact: 'Critical', title: 'Rewrite guest homepage hero — outcome-first headline + real sample output', ids: ['hg1','hg2'], screen: 'Home' },
+  { priority: 3, effort: 'Medium', impact: 'Critical', title: 'Dashboard hierarchy — surface Start Practice, demote info cards', ids: ['db1','db2'], screen: 'Dashboard' },
+  { priority: 4, effort: 'Low', impact: 'High', title: 'Add self-rating + "needs work" flags as immediate feedback proxy', ids: ['pss1'], screen: 'Practice' },
+  { priority: 5, effort: 'Medium', impact: 'High', title: 'Add interview date field + persistent prep context in nav', ids: ['gl1','gl2'], screen: 'Global' },
+  { priority: 6, effort: 'Low', impact: 'High', title: 'Reframe practice session summary — qualitative, not just stats', ids: ['pss5','pss1'], screen: 'Practice' },
+  { priority: 7, effort: 'Low', impact: 'High', title: 'Progressive disclosure for desktop research form', ids: ['ha1'], screen: 'Home' },
+  { priority: 8, effort: 'Low', impact: 'Medium', title: 'Ship AI answer feedback (even a 1-signal free tier)', ids: ['pss1'], screen: 'Practice' },
+  { priority: 9, effort: 'Low', impact: 'Medium', title: 'Profile completeness indicator + "based on your profile" signals', ids: ['pr1'], screen: 'Profile' },
+  { priority: 10, effort: 'Low', impact: 'Medium', title: 'Apply motion-surface + motion-cta consistently across all interactive elements', ids: ['gl3'], screen: 'Global' },
+];
+
+// ── Sketch Components ─────────────────────────────────────────
+function HeroSketch() {
+  return (
+    <div style={{background:'hsl(158,40%,97%)',borderRadius:12,padding:'16px',border:'1px solid hsl(158,40%,85%)',fontSize:12}}>
+      <div style={{color:'var(--muted-fg)',marginBottom:8,fontSize:11,textTransform:'uppercase',letterSpacing:'0.1em'}}>Suggested → Before vs After</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+        <div style={{background:'#fff',borderRadius:8,padding:12,border:'1px solid var(--border)'}}>
+          <div style={{color:'var(--muted-fg)',fontSize:10,marginBottom:8}}>BEFORE</div>
+          <div style={{background:'var(--muted-bg)',borderRadius:6,padding:8,marginBottom:8,fontSize:11,color:'var(--muted-fg)'}}>
+            "See the interview brief before you create an account."
+          </div>
+          <div style={{background:'var(--muted-bg)',borderRadius:6,height:24,marginBottom:6}}/>
+          <div style={{background:'var(--muted-bg)',borderRadius:6,height:24,marginBottom:6}}/>
+          <div style={{background:'var(--primary)',borderRadius:6,height:32,opacity:0.7}}/>
+        </div>
+        <div style={{background:'#fff',borderRadius:8,padding:12,border:'1px solid var(--border)'}}>
+          <div style={{color:'var(--muted-fg)',fontSize:10,marginBottom:8}}>AFTER</div>
+          <div style={{background:'hsl(158,40%,94%)',borderRadius:6,padding:8,marginBottom:8,fontSize:11,color:'var(--accent)',fontWeight:600}}>
+            "Walk into your interview knowing exactly what to expect."
+          </div>
+          <div style={{background:'var(--muted-bg)',borderRadius:6,height:24,marginBottom:6}}/>
+          <div style={{background:'var(--primary)',borderRadius:6,height:32,opacity:0.9,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:11,fontWeight:600}}>Research Google →</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardSketch() {
+  return (
+    <div style={{background:'hsl(158,40%,97%)',borderRadius:12,padding:'16px',border:'1px solid hsl(158,40%,85%)',fontSize:12}}>
+      <div style={{color:'var(--muted-fg)',marginBottom:8,fontSize:11,textTransform:'uppercase',letterSpacing:'0.1em'}}>Suggested dashboard hierarchy</div>
+      <div style={{background:'#fff',borderRadius:8,padding:12,border:'1px solid var(--border)'}}>
+        <div style={{background:'hsl(158,40%,94%)',borderRadius:6,padding:'10px 12px',marginBottom:8,borderLeft:'3px solid var(--primary)'}}>
+          <div style={{fontWeight:600,fontSize:11,color:'var(--accent)'}}>Google · Software Engineer</div>
+          <div style={{fontSize:10,color:'var(--muted-fg)',marginTop:2}}>37 questions across 4 stages · ~45 min · Top focus: System Design</div>
+        </div>
+        <div style={{background:'var(--primary)',borderRadius:6,height:36,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:11,fontWeight:600,marginBottom:8}}>▶ Start Practice — System Design first</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:8}}>
+          {['Recruiter\n2 Q','Hiring Mgr\n8 Q','System Design\n12 Q'].map((s,i)=>(
+            <div key={i} style={{background:i===2?'hsl(158,40%,94%)':'var(--muted-bg)',borderRadius:6,padding:'6px 8px',textAlign:'center',fontSize:10,borderLeft:i===2?'2px solid var(--primary)':'2px solid transparent',color:i===2?'var(--accent)':'var(--muted-fg)',whiteSpace:'pre-line',fontWeight:i===2?600:400}}>{s}</div>
+          ))}
+        </div>
+        <div style={{display:'flex',gap:6}}>
+          <div style={{background:'var(--muted-bg)',borderRadius:6,padding:'6px 10px',fontSize:10,color:'var(--muted-fg)',flex:1,textAlign:'center'}}>Assessment Signals ↓</div>
+          <div style={{background:'var(--muted-bg)',borderRadius:6,padding:'6px 10px',fontSize:10,color:'var(--muted-fg)',flex:1,textAlign:'center'}}>Your Positioning ↓</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SetupSketch() {
+  return (
+    <div style={{background:'hsl(158,40%,97%)',borderRadius:12,padding:'16px',border:'1px solid hsl(158,40%,85%)',fontSize:12}}>
+      <div style={{color:'var(--muted-fg)',marginBottom:8,fontSize:11,textTransform:'uppercase',letterSpacing:'0.1em'}}>Simplified setup → single bottom sheet</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+        <div>
+          <div style={{color:'var(--muted-fg)',fontSize:10,marginBottom:6}}>BEFORE (4 steps)</div>
+          {['① Goal','② Stages','③ Filters','④ Review'].map((s,i)=>(
+            <div key={i} style={{background:i===0?'var(--primary)':'var(--muted-bg)',borderRadius:6,padding:'6px 10px',marginBottom:4,color:i===0?'#fff':'var(--muted-fg)',fontSize:11}}>{s}</div>
+          ))}
+        </div>
+        <div>
+          <div style={{color:'var(--muted-fg)',fontSize:10,marginBottom:6}}>AFTER (1 step)</div>
+          <div style={{background:'#fff',borderRadius:8,border:'1px solid var(--border)',padding:10}}>
+            <div style={{fontWeight:600,fontSize:11,marginBottom:8}}>Ready to practice?</div>
+            <div style={{background:'var(--primary)',borderRadius:6,padding:'8px 12px',marginBottom:6,color:'#fff',fontSize:11,fontWeight:600}}>▶ Quick Start — 10 questions</div>
+            <div style={{background:'var(--muted-bg)',borderRadius:6,padding:'8px 12px',fontSize:11,color:'var(--muted-fg)'}}>⚙ Custom setup…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PracticeSketch() {
+  return (
+    <div style={{background:'hsl(158,40%,97%)',borderRadius:12,padding:'16px',border:'1px solid hsl(158,40%,85%)',fontSize:12}}>
+      <div style={{color:'var(--muted-fg)',marginBottom:8,fontSize:11,textTransform:'uppercase',letterSpacing:'0.1em'}}>Question as the hero — before vs after</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+        <div style={{background:'#fff',borderRadius:8,padding:10,border:'1px solid var(--border)'}}>
+          <div style={{color:'var(--muted-fg)',fontSize:10,marginBottom:6}}>BEFORE — competing zones</div>
+          <div style={{background:'var(--muted-bg)',borderRadius:4,height:16,marginBottom:4,width:'70%'}}/>
+          <div style={{background:'hsl(0,0%,90%)',borderRadius:4,height:10,marginBottom:6,width:'40%'}}/>
+          <div style={{background:'hsl(0,0%,92%)',borderRadius:4,height:40,marginBottom:4}}/>
+          <div style={{display:'flex',gap:4,marginBottom:4}}>
+            {[20,30,25].map((w,i)=><div key={i} style={{background:'var(--muted-bg)',borderRadius:10,height:14,width:`${w}%`}}/>)}
+          </div>
+          <div style={{background:'hsl(0,0%,92%)',borderRadius:4,height:32,marginBottom:4}}/>
+          <div style={{display:'flex',gap:4}}>
+            <div style={{background:'var(--muted-bg)',borderRadius:4,height:22,flex:1}}/>
+            <div style={{background:'var(--primary)',borderRadius:4,height:22,flex:2,opacity:0.7}}/>
+          </div>
+        </div>
+        <div style={{background:'#fff',borderRadius:8,padding:10,border:'1px solid var(--border)'}}>
+          <div style={{color:'var(--muted-fg)',fontSize:10,marginBottom:6}}>AFTER — question dominates</div>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+            <div style={{background:'var(--muted-bg)',borderRadius:10,height:14,width:'25%'}}/>
+            <div style={{background:'var(--muted-bg)',borderRadius:10,height:14,width:'15%'}}/>
+          </div>
+          <div style={{background:'hsl(158,40%,95%)',borderRadius:6,padding:10,marginBottom:10,minHeight:60}}>
+            <div style={{fontSize:11,fontWeight:600,color:'var(--accent)',lineHeight:1.5}}>Tell me about a time you navigated a significant technical tradeoff…</div>
+          </div>
+          <div style={{background:'var(--muted-bg)',borderRadius:6,height:48,marginBottom:8}}/>
+          <div style={{display:'flex',gap:6}}>
+            <div style={{background:'var(--muted-bg)',borderRadius:6,height:32,flex:1,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:'var(--muted-fg)'}}>Skip</div>
+            <div style={{background:'var(--primary)',borderRadius:6,height:32,flex:2,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:'#fff',fontWeight:600}}>Next question →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ContextSketch() {
+  return (
+    <div style={{background:'hsl(158,40%,97%)',borderRadius:12,padding:'16px',border:'1px solid hsl(158,40%,85%)',fontSize:12}}>
+      <div style={{color:'var(--muted-fg)',marginBottom:8,fontSize:11,textTransform:'uppercase',letterSpacing:'0.1em'}}>Persistent interview context in nav</div>
+      <div style={{background:'#fff',borderRadius:8,padding:'10px 14px',border:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{fontWeight:700,fontSize:12,color:'var(--primary)'}}>Prepio</div>
+        <div style={{background:'hsl(158,40%,94%)',borderRadius:20,padding:'4px 10px',border:'1px solid hsl(158,40%,80%)',display:'flex',alignItems:'center',gap:6}}>
+          <div style={{width:6,height:6,borderRadius:'50%',background:'var(--primary)'}}/>
+          <span style={{fontSize:10,fontWeight:600,color:'var(--accent)'}}>Google · 5 days</span>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <div style={{background:'var(--muted-bg)',borderRadius:6,padding:'4px 8px',fontSize:10,color:'var(--muted-fg)'}}>Research</div>
+          <div style={{background:'var(--muted-bg)',borderRadius:6,padding:'4px 8px',fontSize:10,color:'var(--muted-fg)'}}>Practice</div>
+          <div style={{background:'var(--muted-bg)',borderRadius:6,padding:'4px 8px',fontSize:10,color:'var(--muted-fg)'}}>Review</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const SKETCHES = { hero: HeroSketch, dashboard: DashboardSketch, setup: SetupSketch, practice: PracticeSketch, context: ContextSketch };
+
+// ── UI Components ─────────────────────────────────────────────
+function Pill({ label, color, bg }) {
+  return (
+    <span style={{display:'inline-flex',alignItems:'center',padding:'2px 8px',borderRadius:20,background:bg,color,fontSize:11,fontWeight:600,letterSpacing:'0.03em'}}>
+      {label}
+    </span>
+  );
+}
+
+function FindingCard({ finding }) {
+  const [open, setOpen] = useState(false);
+  const sev = SEVERITY_CONFIG[finding.severity];
+  const cat = CAT_CONFIG[finding.category] || {};
+  const Sketch = finding.sketch ? SKETCHES[finding.sketch] : null;
+
+  return (
+    <div style={{background:'var(--card)',borderRadius:12,border:'1px solid var(--border)',overflow:'hidden',transition:'box-shadow 0.15s'}}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{width:'100%',display:'flex',alignItems:'flex-start',gap:12,padding:'16px',cursor:'pointer',background:'none',border:'none',textAlign:'left'}}
+      >
+        <div style={{display:'flex',flexDirection:'column',gap:6,flex:1,minWidth:0}}>
+          <div style={{display:'flex',flexWrap:'wrap',gap:6,alignItems:'center'}}>
+            <Pill label={sev.label} color={sev.color} bg={sev.bg} />
+            <Pill label={finding.category} color={cat.color} bg={cat.bg} />
+          </div>
+          <div style={{fontWeight:600,fontSize:14,lineHeight:1.4,color:'var(--fg)'}}>{finding.title}</div>
+        </div>
+        <div style={{fontSize:16,color:'var(--muted-fg)',flexShrink:0,marginTop:2,transform:open?'rotate(180deg)':'none',transition:'transform 0.2s'}}>↓</div>
+      </button>
+
+      {open && (
+        <div style={{padding:'0 16px 16px',borderTop:'1px solid var(--border)'}}>
+          <div style={{paddingTop:14,display:'flex',flexDirection:'column',gap:12}}>
+            <div>
+              <div style={{fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:'var(--muted-fg)',marginBottom:6}}>The Problem</div>
+              <p style={{fontSize:14,lineHeight:1.7,color:'var(--fg)'}}>{finding.problem}</p>
+            </div>
+            <div>
+              <div style={{fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:'var(--muted-fg)',marginBottom:6}}>Root Cause</div>
+              <p style={{fontSize:14,lineHeight:1.7,color:'var(--fg)',fontStyle:'italic'}}>{finding.rootCause}</p>
+            </div>
+            <div>
+              <div style={{fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.1em',color:'var(--muted-fg)',marginBottom:8}}>Recommendations</div>
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {finding.recs.map((rec,i) => (
+                  <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start'}}>
+                    <div style={{width:20,height:20,borderRadius:'50%',background:'var(--primary-light)',color:'var(--primary)',fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:2}}>{i+1}</div>
+                    <p style={{fontSize:13,lineHeight:1.7,color:'var(--fg)',flex:1}}>{rec}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {Sketch && <div style={{marginTop:4}}><Sketch /></div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SectionFindings({ sectionId }) {
+  const findings = FINDINGS[sectionId] || [];
+  if (!findings.length) return null;
+  const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+  findings.forEach(f => counts[f.severity]++);
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:10}}>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:4}}>
+        {Object.entries(counts).filter(([,v])=>v>0).map(([k,v])=>{
+          const sev = SEVERITY_CONFIG[k];
+          return <Pill key={k} label={`${v} ${sev.label}`} color={sev.color} bg={sev.bg} />;
+        })}
+      </div>
+      {findings.map(f => <FindingCard key={f.id} finding={f} />)}
+    </div>
+  );
+}
+
+function Summary() {
+  const allFindings = Object.values(FINDINGS).flat();
+  const criticalCount = allFindings.filter(f=>f.severity==='critical').length;
+  const highCount = allFindings.filter(f=>f.severity==='high').length;
+  const totalCount = allFindings.length;
+
+  const top3 = [
+    { emoji: '🔴', title: 'Practice setup has too much friction', detail: 'Users motivated to practice hit a 4-step wizard. Compress to a single-tap Quick Start.' },
+    { emoji: '🟠', title: 'Dashboard is a report, not a launchpad', detail: 'Four heavy info sections bury the "Start Practice" CTA. Invert: CTA first, information secondary.' },
+    { emoji: '🟠', title: 'Practice delivers no feedback', detail: 'Session ends with quantity stats. Without qualitative signal, practice feels like busywork. Ship self-rating + teaser AI feedback immediately.' },
+  ];
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:20}}>
+      <div style={{background:'hsl(158,40%,97%)',borderRadius:16,padding:24,border:'1px solid hsl(158,40%,82%)'}}>
+        <div style={{fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--primary)',marginBottom:12}}>Audit Summary</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}}>
+          {[
+            {label:'Total findings',value:totalCount,color:'var(--fg)'},
+            {label:'Critical / High',value:`${criticalCount} / ${highCount}`,color:'var(--red)'},
+            {label:'Screens audited',value:'7',color:'var(--fg)'},
+          ].map((s,i)=>(
+            <div key={i} style={{background:'#fff',borderRadius:10,padding:'12px 16px',border:'1px solid var(--border)'}}>
+              <div style={{fontSize:24,fontWeight:700,color:s.color}}>{s.value}</div>
+              <div style={{fontSize:11,color:'var(--muted-fg)',marginTop:2}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+        <p style={{fontSize:14,lineHeight:1.75,color:'var(--fg)'}}>
+          Prepio's core product thesis is solid: research-first, personalized prep, structured practice. The engineering is thoughtful and the design system is well-defined. The clunkiness users feel is largely a <strong>product sequencing and information hierarchy problem</strong> — too much configuration before value, too many data points at equal weight, and a practice loop that has no closing feedback signal. None of these require a redesign — they require <strong>prioritization and restraint</strong>.
+        </p>
+      </div>
+
+      <div>
+        <div style={{fontSize:13,fontWeight:600,color:'var(--muted-fg)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Top 3 priorities</div>
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {top3.map((item,i)=>(
+            <div key={i} style={{background:'var(--card)',borderRadius:12,padding:'14px 16px',border:'1px solid var(--border)',display:'flex',gap:14,alignItems:'flex-start'}}>
+              <div style={{fontSize:22,lineHeight:1,flexShrink:0}}>{item.emoji}</div>
+              <div>
+                <div style={{fontWeight:600,fontSize:14,marginBottom:4}}>{item.title}</div>
+                <div style={{fontSize:13,color:'var(--muted-fg)',lineHeight:1.6}}>{item.detail}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{background:'var(--card)',borderRadius:12,padding:'16px 20px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:13,fontWeight:600,color:'var(--muted-fg)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>What to preserve</div>
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {[
+            'The sage/warm color palette — calming and professional. Don\'t change it.',
+            'The mobile-first practice navigation (swipe + explicit buttons) — this is well thought out.',
+            'Progressive disclosure in the mobile research form (step wizard) — the pattern is right, apply it to desktop too.',
+            'The research pipeline itself — company-specific, CV-aware questions are the core moat.',
+            'The AlertDialog pattern for destructive actions — accessibility-correct.',
+          ].map((item,i)=>(
+            <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start'}}>
+              <span style={{color:'var(--primary)',flexShrink:0,marginTop:2}}>✓</span>
+              <span style={{fontSize:13,lineHeight:1.6,color:'var(--fg)'}}>{item}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RoadmapView() {
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:12}}>
+      <p style={{fontSize:14,color:'var(--muted-fg)',lineHeight:1.7}}>
+        Ordered by user impact × implementation effort. Items 1–6 are largely UI/UX changes with no backend work required. Items 7–10 depend on features or deeper refactoring.
+      </p>
+
+      <div style={{display:'flex',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+        {[['Low effort','hsl(158,40%,93%)','hsl(158,40%,32%)'],['Medium effort','hsl(38,70%,94%)','hsl(38,70%,35%)']].map(([label,bg,color])=>(
+          <div key={label} style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}>
+            <div style={{width:12,height:12,borderRadius:3,background:bg,border:`1px solid ${color}`}}/>
+            <span style={{color:'var(--muted-fg)'}}>{label}</span>
+          </div>
+        ))}
+      </div>
+
+      {ROADMAP_ITEMS.map((item) => {
+        const effortBg = item.effort === 'Low' ? 'hsl(158,40%,93%)' : 'hsl(38,70%,94%)';
+        const effortColor = item.effort === 'Low' ? 'hsl(158,40%,32%)' : 'hsl(38,70%,35%)';
+        const impactSev = { 'Critical': SEVERITY_CONFIG.critical, 'High': SEVERITY_CONFIG.high, 'Medium': SEVERITY_CONFIG.medium }[item.impact];
+        return (
+          <div key={item.priority} style={{background:'var(--card)',borderRadius:12,padding:'14px 16px',border:'1px solid var(--border)',display:'flex',gap:14,alignItems:'flex-start'}}>
+            <div style={{width:28,height:28,borderRadius:'50%',background:'var(--muted-bg)',color:'var(--muted-fg)',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+              {item.priority}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:600,fontSize:14,marginBottom:6}}>{item.title}</div>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                <Pill label={`Impact: ${item.impact}`} color={impactSev.color} bg={impactSev.bg} />
+                <Pill label={`Effort: ${item.effort}`} color={effortColor} bg={effortBg} />
+                <Pill label={item.screen} color='var(--muted-fg)' bg='var(--muted-bg)' />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const SECTION_DESCRIPTIONS = {
+  'home-guest': 'The public-facing homepage that cold visitors see before creating an account. First impressions and conversion.',
+  'home-auth': 'The research entry form for signed-in users. The starting point for every prep run.',
+  'dashboard': 'The results page after a research run. Shows stages, signals, and launches practice.',
+  'practice-setup': 'The configuration wizard between Dashboard and the first question.',
+  'practice-session': 'The core practice experience: questions, notes, recording, navigation.',
+  'profile': 'The candidate profile page: CV management, experience, preferences.',
+  'global': 'Cross-cutting concerns: navigation, motion, empty states, flow continuity.',
+};
+
+function App() {
+  const [active, setActive] = useState('summary');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const contentRef = useRef(null);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
+  const section = SECTIONS.find(s => s.id === active);
+
+  const renderContent = () => {
+    if (active === 'summary') return <Summary />;
+    if (active === 'roadmap') return <RoadmapView />;
+    return (
+      <div>
+        {SECTION_DESCRIPTIONS[active] && (
+          <p style={{fontSize:14,color:'var(--muted-fg)',lineHeight:1.7,marginBottom:20,paddingBottom:20,borderBottom:'1px solid var(--border)'}}>
+            {SECTION_DESCRIPTIONS[active]}
+          </p>
+        )}
+        <SectionFindings sectionId={active} />
+      </div>
+    );
+  };
+
+  return (
+    <div style={{display:'flex',width:'100%',minHeight:'100vh'}}>
+      {/* Sidebar */}
+      <aside style={{
+        width:240,
+        flexShrink:0,
+        background:'hsl(40,15%,97%)',
+        borderRight:'1px solid var(--border)',
+        display:'flex',
+        flexDirection:'column',
+        position:'sticky',
+        top:0,
+        height:'100vh',
+        overflowY:'auto',
+      }}>
+        <div style={{padding:'20px 16px 12px'}}>
+          <div style={{fontWeight:700,fontSize:16,color:'var(--primary)',letterSpacing:'-0.02em'}}>Prepio</div>
+          <div style={{fontSize:11,color:'var(--muted-fg)',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.1em',marginTop:2}}>UX/UI Design Audit</div>
+        </div>
+        <div style={{padding:'4px 8px',flex:1}}>
+          {SECTIONS.map(s => (
+            <button
+              key={s.id}
+              onClick={() => { setActive(s.id); if(contentRef.current) contentRef.current.scrollTop = 0; }}
+              style={{
+                width:'100%',
+                display:'flex',
+                alignItems:'center',
+                gap:10,
+                padding:'8px 10px',
+                borderRadius:8,
+                border:'none',
+                cursor:'pointer',
+                background: active === s.id ? 'var(--primary-light)' : 'none',
+                color: active === s.id ? 'var(--accent)' : 'var(--muted-fg)',
+                fontWeight: active === s.id ? 600 : 400,
+                fontSize:13,
+                textAlign:'left',
+                transition:'background 0.12s, color 0.12s',
+                marginBottom:2,
+              }}
+            >
+              <span style={{fontSize:14,flexShrink:0}}>{s.icon}</span>
+              <span>{s.label}</span>
+              {FINDINGS[s.id] && (
+                <span style={{marginLeft:'auto',background:active===s.id?'var(--primary)':'var(--muted-bg)',color:active===s.id?'#fff':'var(--muted-fg)',fontSize:10,fontWeight:600,borderRadius:10,padding:'1px 6px',flexShrink:0}}>
+                  {FINDINGS[s.id].length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <div style={{padding:'12px 16px',borderTop:'1px solid var(--border)',fontSize:11,color:'var(--muted-fg)',lineHeight:1.5}}>
+          Audited April 2026<br/>Based on source code review
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main ref={contentRef} style={{flex:1,overflowY:'auto',padding:'32px 40px',maxWidth:'100%'}}>
+        <div style={{maxWidth:760,margin:'0 auto'}}>
+          <div style={{marginBottom:28}}>
+            <div style={{fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.12em',color:'var(--primary)',marginBottom:6}}>
+              {section?.icon} {section?.id === 'summary' ? 'Overview' : section?.id === 'roadmap' ? 'Action Plan' : 'Screen Analysis'}
+            </div>
+            <h1 style={{fontSize:26,fontWeight:700,letterSpacing:'-0.02em',lineHeight:1.2,marginBottom:8}}>
+              {section?.label}
+            </h1>
+          </div>
+
+          {renderContent()}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
