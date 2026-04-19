@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle, Star, SkipForward, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle, Star, SkipForward, Loader2, AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { SavedPracticeAnswerRecord } from "@/hooks/usePracticeSession";
 
 interface SessionSummaryProps {
@@ -23,6 +25,8 @@ interface SessionSummaryProps {
   savedAnswers?: SavedPracticeAnswerRecord[];
   onRateAnswer?: (answerId: string, rating: number) => Promise<void>;
   isSavingRating?: boolean;
+  needsWorkQuestionIds?: Set<string>;
+  onToggleNeedsWork?: (questionId: string) => Promise<void> | void;
 }
 
 export const SessionSummary = ({
@@ -42,6 +46,8 @@ export const SessionSummary = ({
   savedAnswers = [],
   onRateAnswer,
   isSavingRating = false,
+  needsWorkQuestionIds,
+  onToggleNeedsWork,
 }: SessionSummaryProps) => {
   const [sessionNotes, setSessionNotes] = useState("");
   const [notesSaved, setNotesSaved] = useState(false);
@@ -54,7 +60,7 @@ export const SessionSummary = ({
 
   const handleSaveNotes = async () => {
     if (notesSaved || disableSaveNotes) return;
-    
+
     try {
       const didSave = await onSaveNotes(sessionNotes);
       if (didSave) {
@@ -65,68 +71,39 @@ export const SessionSummary = ({
     }
   };
 
-  const completionHeadline = answeredCount >= totalQuestions
-    ? `Great depth — you worked through all ${totalQuestions} questions`
-    : answeredCount > totalQuestions * 0.5
-      ? `Solid session — you covered ${answeredCount} of ${totalQuestions} questions`
-      : `Good start — ${answeredCount} question${answeredCount !== 1 ? 's' : ''} down, ${totalQuestions - answeredCount} to go`;
+  const flaggedCount = needsWorkQuestionIds?.size ?? 0;
+  const progressCopy = answeredCount >= totalQuestions
+    ? `You built answers for all ${totalQuestions} questions. Practice makes these sticky — come back tomorrow for another round.`
+    : answeredCount > 0
+      ? `You built answers for ${answeredCount} of ${totalQuestions} questions. Repetition is where it clicks — pick up where you left off tomorrow.`
+      : `You made it through the session. Next time, try writing even a short outline for each question — small reps beat perfect ones.`;
 
   return (
-    <Card className="overflow-hidden text-center motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300">
-      <CardHeader>
-        <div className="flex justify-center mb-4">
+    <Card className="motion-surface overflow-hidden motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300">
+      <CardHeader className="text-center">
+        <div className="mb-4 flex justify-center">
           <div className="rounded-full bg-success/10 p-4 motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:duration-500">
             <CheckCircle className="h-12 w-12 text-success" />
           </div>
         </div>
-        <CardTitle className="text-2xl">Practice complete</CardTitle>
-        <CardDescription className="text-base">
-          {completionHeadline}
+        <CardTitle className="text-2xl tracking-tight">Reflection checkpoint</CardTitle>
+        <CardDescription className="mx-auto max-w-md text-base leading-6">
+          {progressCopy}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid grid-cols-2 gap-3 text-left sm:grid-cols-4">
-          <div className="rounded-2xl bg-muted/40 p-4">
-            <div className="text-3xl font-bold text-primary">{answeredCount}</div>
-            <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Answered</div>
+        {/* Reflection first — this is the highest-value action */}
+        <div className="space-y-2">
+          <div>
+            <label className="text-sm font-semibold">What's one thing to improve next round?</label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Anything that felt weak, unclear, or where you wanted a concrete example.
+            </p>
           </div>
-          <div className="rounded-2xl bg-muted/40 p-4">
-            <div className="text-3xl font-bold text-muted-foreground">{skippedCount}</div>
-            <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Skipped</div>
-          </div>
-          <div className="rounded-2xl bg-muted/40 p-4">
-            <div className="text-3xl font-bold text-primary">{formatTime(totalTime)}</div>
-            <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Total time</div>
-          </div>
-          <div className="rounded-2xl bg-muted/40 p-4">
-            <div className="text-3xl font-bold text-primary">{favoritedCount}</div>
-            <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Favorited</div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border bg-background p-4 text-left">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Average per answer</span>
-            <span className="font-medium">{formatTime(avgTime)}</span>
-          </div>
-          <div className="mt-2 flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Completion</span>
-            <span className="font-medium">{answeredCount}/{totalQuestions}</span>
-          </div>
-          {favoritedCount > 0 && (
-            <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-              <Star className="h-4 w-4 text-amber-500 fill-current" />
-              <span>{favoritedCount} question{favoritedCount !== 1 ? 's' : ''} worth revisiting</span>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-2 text-left">
-          <label className="text-sm font-medium">What felt weak today?</label>
           <Textarea
             value={sessionNotes}
             onChange={(e) => setSessionNotes(e.target.value)}
-            placeholder="Add a short reflection for your next round..."
+            placeholder="e.g. 'My scoping for the sys-design question was vague — I need a go-to framework.'"
             className="min-h-[100px] resize-none rounded-2xl"
             disabled={notesSaved}
           />
@@ -140,7 +117,7 @@ export const SessionSummary = ({
             >
               {isSaving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Saving reflection...
                 </>
               ) : (
@@ -152,74 +129,133 @@ export const SessionSummary = ({
             <p className="text-sm text-amber-700">{saveNotesHelper}</p>
           )}
           {notesSaved && (
-            <div className="flex items-center justify-center gap-2 text-sm text-success">
+            <div className="flex items-center gap-2 text-sm text-success">
               <CheckCircle className="h-4 w-4" />
-              Notes saved
+              Reflection saved to your history.
             </div>
           )}
         </div>
 
+        {/* Review your answers — rate + flag needs-work */}
         {savedAnswers.length > 0 && onRateAnswer && (
-          <div className="space-y-3 text-left">
+          <div className="space-y-3">
             <div>
-              <label className="text-sm font-medium">Self-rate each answer</label>
-              <p className="text-sm text-muted-foreground">
-                Use 1 to 5 stars so the answers that need another pass stand out in history.
+              <label className="text-sm font-semibold">Review your answers</label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Rate how strong each answer felt. Flag the ones you want to return to — they&apos;ll
+                be top of the next session.
               </p>
             </div>
             <div className="space-y-3">
-              {savedAnswers.map((answer) => (
-                <div key={answer.id} className="rounded-2xl border bg-background p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {answer.stageName}
-                    </span>
-                    {answer.audioUrl && (
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-                        Voice saved
-                      </span>
+              {savedAnswers.map((answer) => {
+                const needsWork = needsWorkQuestionIds?.has(answer.questionId) ?? false;
+                return (
+                  <div
+                    key={answer.id}
+                    className={cn(
+                      "rounded-2xl border bg-background p-4 transition-colors",
+                      needsWork && "border-amber-300 bg-amber-50/60 dark:bg-amber-950/30",
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="text-[10px]">
+                        {answer.stageName}
+                      </Badge>
+                      {answer.audioUrl && (
+                        <Badge variant="secondary" className="text-[10px]">Voice saved</Badge>
+                      )}
+                      {needsWork && (
+                        <Badge className="bg-amber-100 text-[10px] text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                          Needs work
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-2 text-sm font-medium leading-6">{answer.question}</p>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((rating) => (
+                          <button
+                            key={`${answer.id}-${rating}`}
+                            type="button"
+                            className="rounded-full border p-2 transition hover:border-primary disabled:opacity-60"
+                            aria-label={`Rate ${rating} stars — how confident was this answer?`}
+                            disabled={isSavingRating}
+                            onClick={() => void onRateAnswer(answer.id, rating)}
+                          >
+                            <Star
+                              className={cn(
+                                "h-4 w-4",
+                                (answer.selfRating ?? 0) >= rating
+                                  ? "fill-current text-amber-500"
+                                  : "text-muted-foreground",
+                              )}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                      {onToggleNeedsWork && (
+                        <button
+                          type="button"
+                          onClick={() => void onToggleNeedsWork(answer.questionId)}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition",
+                            needsWork
+                              ? "border-amber-400 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                              : "border-border bg-background text-muted-foreground hover:border-amber-400 hover:text-amber-700",
+                          )}
+                          aria-pressed={needsWork}
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          {needsWork ? "Flagged for review" : "Mark as needs work"}
+                        </button>
+                      )}
+                    </div>
+                    {(answer.textAnswer || answer.transcriptText) && (
+                      <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">
+                        {answer.textAnswer || answer.transcriptText}
+                      </p>
                     )}
                   </div>
-                  <p className="mt-2 text-sm font-medium">{answer.question}</p>
-                  <div className="mt-3 flex gap-1">
-                    {[1, 2, 3, 4, 5].map((rating) => (
-                      <button
-                        key={`${answer.id}-${rating}`}
-                        type="button"
-                        className="rounded-full border p-2 transition hover:border-primary disabled:opacity-60"
-                        aria-label={`Rate ${answer.question} ${rating} stars`}
-                        disabled={isSavingRating}
-                        onClick={() => void onRateAnswer(answer.id, rating)}
-                      >
-                        <Star
-                          className={`h-4 w-4 ${
-                            (answer.selfRating ?? 0) >= rating
-                              ? "fill-current text-amber-500"
-                              : "text-muted-foreground"
-                          }`}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                  {(answer.textAnswer || answer.transcriptText) && (
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      {answer.textAnswer || answer.transcriptText}
-                    </p>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
 
-        <div className="space-y-3 pt-2">
+        {/* Session stats — demoted to a muted row, not a hero */}
+        <div className="rounded-2xl border bg-muted/30 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span><span className="font-medium text-foreground">{answeredCount}</span> answered</span>
+            {skippedCount > 0 && (
+              <span><span className="font-medium text-foreground">{skippedCount}</span> skipped</span>
+            )}
+            <span><span className="font-medium text-foreground">{formatTime(totalTime)}</span> total</span>
+            <span><span className="font-medium text-foreground">{formatTime(avgTime)}</span> avg</span>
+            {favoritedCount > 0 && (
+              <span className="inline-flex items-center gap-1">
+                <Star className="h-3 w-3 fill-current text-amber-500" />
+                {favoritedCount} favorited
+              </span>
+            )}
+            {flaggedCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-amber-700">
+                <AlertTriangle className="h-3 w-3" />
+                {flaggedCount} flagged
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-3 pt-1">
           <Button
             onClick={onStartNewSession}
             size="lg"
-            className="w-full"
+            className="motion-cta w-full"
           >
-            <SkipForward className="h-4 w-4 mr-2" />
-            Start another round
+            <SkipForward className="mr-2 h-4 w-4" />
+            {flaggedCount > 0
+              ? `Start another round — start with flagged (${flaggedCount})`
+              : "Start another round"}
           </Button>
           <Button
             variant="outline"
@@ -230,9 +266,9 @@ export const SessionSummary = ({
           </Button>
           <Link
             to={historyHref}
-            className="block text-sm text-muted-foreground transition-colors hover:text-primary"
+            className="block text-center text-sm text-muted-foreground transition-colors hover:text-primary"
           >
-            View practice history -&gt;
+            View practice history →
           </Link>
         </div>
       </CardContent>

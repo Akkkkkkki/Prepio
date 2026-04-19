@@ -155,11 +155,14 @@ describe("Dashboard mobile layout", () => {
       </MemoryRouter>
     );
 
+    expect(await screen.findByText("Stage roadmap")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Start practice.*3/ })).toBeInTheDocument();
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Deep dive — why this plan/ }));
+
     expect(await screen.findByText("Key assessment signals")).toBeInTheDocument();
     expect(screen.getByText("Prep priorities")).toBeInTheDocument();
-    expect(screen.getByText("Stage roadmap")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start Practice (3)" })).toBeInTheDocument();
-    expect(screen.getByText("Ready")).toBeInTheDocument();
   });
 
   it("preserves the real failure message when offline", async () => {
