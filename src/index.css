@@ -252,16 +252,6 @@ All colors MUST be HSL.
   to { transform: scale(2.5); opacity: 0; }
 }
 
-@keyframes breathe-expand {
-  from { transform: scale(1); }
-  to { transform: scale(1.5); }
-}
-
-@keyframes breathe-contract {
-  from { transform: scale(1.5); }
-  to { transform: scale(1); }
-}
-
 @keyframes dot-pulse {
   0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4); }
   50% { box-shadow: 0 0 0 4px hsl(var(--primary) / 0); }
