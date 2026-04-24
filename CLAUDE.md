@@ -120,3 +120,5 @@ Protected-route behavior: [`src/App.tsx`](./src/App.tsx).
 | [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Shipped work, near-term, future ideas |
 | [`docs/DESIGN_PRINCIPLES.md`](./docs/DESIGN_PRINCIPLES.md) | UX principles, design tokens, patterns |
 | [`docs/TESTING.md`](./docs/TESTING.md) | Test coverage, priorities, how to run |
+| [`docs/BILLING.md`](./docs/BILLING.md) | Stripe subscription contract (cadences, tables, webhook events, entitlement resolver) |
+| [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) | Observability stack and common-incident recovery steps |

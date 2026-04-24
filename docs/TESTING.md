@@ -64,25 +64,20 @@ that gap.
 If you need an actual coverage number, add a coverage provider and generate a report as a separate
 change. Right now any percentage would be guesswork.
 
-## Priorities
+## Test Targets
 
-### P0
+Ordered to match [ROADMAP.md](./ROADMAP.md) §Near-Term. Focus areas and the files where each lives:
 
-| Focus | Key files |
-|-------|-----------|
-| Research startup handshake | `src/services/searchService.ts`, `src/pages/Home.tsx`, `supabase/functions/interview-research/index.ts` |
-| Answer feedback generation and display | `src/pages/Practice.tsx`, `src/components/practice/*`, `supabase/functions/*feedback*`, `src/services/searchService.ts` |
-| Billing entitlement enforcement | `src/pages/Home.tsx`, `src/pages/Practice.tsx`, pricing UI, Stripe webhook handlers, entitlement service layer |
-| Progress and stall detection UI | `src/components/ProgressDialog.tsx`, `src/hooks/useSearchProgress.ts` |
-
-### P1
-
-| Focus | Key files |
-|-------|-----------|
-| Practice session pipeline | `src/pages/Practice.tsx`, `src/services/sessionSampler.ts`, `src/services/searchService.ts` |
-| Landing page framing and guest conversion path | `src/pages/Home.tsx`, public header/navigation, marketing sections |
-| Full dashboard and history regressions | `src/pages/Dashboard.tsx`, `src/pages/History.tsx` |
-| Lifecycle notification triggers | event producers, worker/scheduler function, delivery adapter |
+| Priority | Focus | Key files |
+|----------|-------|-----------|
+| P0 | Research startup handshake | `src/services/searchService.ts`, `src/pages/Home.tsx`, `supabase/functions/interview-research/index.ts` |
+| P0 | Answer feedback generation and display | `src/pages/Practice.tsx`, `src/components/practice/*`, `supabase/functions/*feedback*`, `src/services/searchService.ts` |
+| P0 | Billing entitlement enforcement | `src/pages/Home.tsx`, `src/pages/Practice.tsx`, pricing UI, Stripe webhook handlers, entitlement service layer |
+| P0 | Progress and stall detection UI | `src/components/ProgressDialog.tsx`, `src/hooks/useSearchProgress.ts` |
+| P1 | Practice session pipeline | `src/pages/Practice.tsx`, `src/services/sessionSampler.ts`, `src/services/searchService.ts` |
+| P1 | Landing page framing and guest conversion path | `src/pages/Home.tsx`, public header/navigation, marketing sections |
+| P1 | Full dashboard and history regressions | `src/pages/Dashboard.tsx`, `src/pages/History.tsx` |
+| P1 | Lifecycle notification triggers | event producers, worker/scheduler function, delivery adapter |
 
 ## What Must Be True For Upcoming Work
 
@@ -92,21 +87,22 @@ The next wave of product work changes revenue and trust surfaces. The test bar n
 
 Cover at least these cases:
 
+- free users never trigger the feedback edge function — entitlement check short-circuits before any OpenAI call
+- paid users receive full feedback for valid answers
 - feedback request includes the right question, search, and candidate context
 - empty or partial answers do not crash the pipeline
-- free users only receive teaser fields
-- paid users receive full feedback details
-- regenerated feedback does not orphan old records or duplicate summary UI
+- regenerated feedback writes a new row with `superseded_by` set on the prior one; UI shows only the active row by default
 
 ### Billing and pricing
 
 Cover at least these cases:
 
-- free user can finish the intended free path
-- second paid-boundary action shows the right upgrade state
-- webhook updates actually unlock features
-- stale client state cannot bypass server-side entitlements
-- expired Sprint access downgrades cleanly without corrupting history
+- free user can finish the intended free path (research, stages, questions, practice, save answers)
+- checkout links for all three cadences (monthly, quarterly, annual) resolve with the right Stripe Price
+- webhook updates unlock paid features within one refresh; duplicate webhooks (same `stripe_event_id`) are no-ops
+- stale client state cannot bypass server-side entitlement checks in the feedback function
+- subscription cancellation downgrades cleanly at `current_period_end` without corrupting history
+- `invoice.payment_failed` surfaces to the user and blocks new feedback once the grace period ends
 
 ### Landing page
 

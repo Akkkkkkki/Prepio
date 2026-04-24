@@ -57,17 +57,19 @@ These are ordered by current product strategy, not by implementation convenience
 
 ### Now
 
-#### 1. AI answer feedback
+#### 1. AI answer feedback (paid-only)
 - Evaluate submitted practice answers with question, role, company, and candidate context
-- Return structured coaching: answer quality, missing specifics, STAR guidance, next-step suggestions
-- Show a lightweight free teaser and reserve detailed feedback for paid access
-- Persist feedback so users can revisit it in history and session summaries
+- Return structured coaching: strengths, improvements, STAR evaluation, one top "next action"
+- **Free users receive no AI feedback** — generation is gated before the model call, not after
+- Paid subscribers receive full feedback using the best-class available model; no "lite" variant
+- Persist feedback so users can revisit it in history and session summaries; regenerations link via `superseded_by`
 
 #### 2. Pricing and monetization
-- Ship a visible pricing surface
-- Start with **Free + Interview Sprint**, not a full pricing matrix on day one
-- Add entitlement checks and natural upgrade prompts around high-value moments
-- Meter research and practice usage based on plan rules
+- Ship a visible pricing surface with three subscription cadences (monthly, quarterly, annual) and steep annual discount (~70% vs rolling monthly)
+- Use **Stripe Billing**: Stripe Checkout for new subscriptions, Stripe Customer Portal for upgrades/downgrades/cancel/payment methods
+- Webhook handler syncs subscription state into `billing_customers` and `billing_subscriptions`; idempotent via `stripe_event_id`
+- Single `getEntitlement(userId)` resolver used by every paid gate (feedback access first)
+- Full contract in [BILLING.md](./BILLING.md)
 
 #### 3. Landing-page framing
 - Rework `/` into a real marketing page while keeping research entry prominent
@@ -140,9 +142,15 @@ These are current calls the team should treat as default unless new user evidenc
 - Do not ship a headline readiness score before answer feedback exists.
 - Otherwise the score is just activity math and users will notice.
 
-### Sprint before subscription
-- Package the first paid offer around short, intense prep windows.
-- Revisit monthly plans after we have evidence that users return between interview cycles.
+### Subscription with three cadences
+- Monthly / quarterly / annual subscription, with steep discounts for longer commitments (quarterly ~50% off, annual ~70% off vs rolling monthly).
+- Predictable recurring revenue and rewards committed users; free tier keeps the research wedge accessible.
+- Credit packs for free users are a future direction, not v1.
+
+### Paid-only AI feedback, no free teaser
+- Free users see no AI feedback at all — generation is not triggered for unpaid accounts.
+- Paid users get full feedback from best-class models only; no cheap "lite" variant is offered.
+- Keeps the premium hook unambiguous and zeros generation cost on the free tier.
 
 ### Frame the wizard, do not hide it
 - The current home page under-explains the product.
