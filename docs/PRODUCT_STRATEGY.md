@@ -97,70 +97,16 @@ That moat should stay at the center of positioning:
 
 ## What Users Should Pay For
 
-The first premium feature should not be more research. It should be better outcomes from practice.
+The first premium feature is not more research — it is better outcomes from practice. Prepio becomes meaningfully more valuable once it can evaluate an answer in context: did the candidate answer what was asked, use a strong example from their background, structure it clearly, and what should they tighten before the real interview?
 
-Prepio becomes meaningfully more valuable once it can evaluate an answer in context:
+**AI answer feedback** is the anchor paid feature.
 
-- Did the candidate answer the question that was actually asked?
-- Did they use a strong example from their own background?
-- Did they structure it clearly, especially for behavioral questions?
-- What should they tighten before the real interview?
+- **Free tier:** full access to research, stages, questions, and practice. Answers are saved. **No AI feedback is generated.**
+- **Paid subscription:** unlimited AI feedback on every practice answer, using the best-class models available.
 
-That means **AI answer feedback** is the anchor paid feature. Everything else in monetization should be built around it.
+Pricing is a recurring subscription with three cadences — monthly, quarterly (~50% off vs rolling monthly), annual (~70% off vs rolling monthly) — to reward longer commitments while keeping the low-barrier entry point. A future credit-pack option for free users is on the horizon but not part of v1.
 
-## Strategic Priority Order
-
-### 1. AI answer feedback
-
-Ship this first. It turns practice from "I answered some questions" into "I know what to improve before the interview."
-
-Why it goes first:
-
-- It is the most obvious premium value.
-- The app already stores answers and has the right context available.
-- It makes later features like readiness scoring actually credible.
-
-### 2. Monetization and packaging
-
-Once feedback exists, package the product in a way that matches real interview behavior.
-
-Current recommendation:
-
-- **Free** — Enough to understand the product and complete a first research + limited practice.
-- **Interview Sprint** — One-time, short-duration access for candidates preparing intensely for a real interview.
-
-We are intentionally not treating a monthly subscription as the first pricing bet. Interview prep is bursty. A sprint product matches that behavior better. A recurring plan can come later if retention features prove out.
-
-### 3. Landing-page framing
-
-The home page needs to sell the outcome faster, but the research wizard should remain prominent. Do not move the core workflow away from the home page yet just to create route separation.
-
-The right short-term move:
-
-- Keep `/` as a marketing page with clear value prop and trust framing.
-- Preserve a visible path into research above the fold.
-- Show sample output or demo states so cold visitors understand the payoff before signing in.
-
-### 4. Retention features after feedback
-
-These become higher leverage once feedback exists:
-
-- Readiness score and trend tracking
-- Lifecycle email or push reminders
-- Richer progress reporting
-
-### 5. Acquisition engine later
-
-SEO and content are important, but they require a rendering and content strategy decision. They should not delay feedback, pricing, or landing-page framing.
-
-## Explicit Defers
-
-These ideas stay on the roadmap, but they are not immediate priorities:
-
-- **Conversational mock interviews** — Large build, different latency model, Phase 3.
-- **Browser extension / ATS integrations** — Useful, but narrower and heavier than current P0/P1 work.
-- **Enterprise / team tier** — Premature before individual monetization is working.
-- **Gamified readiness as a headline feature** — Only after answer feedback gives the score real signal.
+For implementation contract see [BILLING.md](./BILLING.md). For the ordered priority list, deferred ideas, and decision log, see [ROADMAP.md](./ROADMAP.md).
 
 ## Current Limitations
 

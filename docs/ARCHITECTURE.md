@@ -123,11 +123,12 @@ These are not shipped yet. They are the recommended data additions for the curre
 
 | Table / area | Purpose |
 |--------------|---------|
-| `answer_feedback` | Structured AI feedback per `practice_answer`, including summary scores, coaching bullets, model metadata, and visibility tier (`teaser` vs `full`) |
-| `billing_customers` | Stripe customer linkage per user |
-| `billing_entitlements` | Current access state for free vs Sprint and any future plan variants |
-| `usage_events` | Research/practice usage metering for enforcement and reporting |
-| `notification_jobs` | Outbound email or push jobs keyed to product events |
+| `answer_feedback` | Structured AI feedback per `practice_answer`. Paid-only — rows only exist for subscribers. Columns: `model`, `model_version`, `summary`, `next_action`, `strengths` (text[]), `improvements` (text[]), `star_evaluation` (jsonb nullable), `created_at`, `superseded_by` (self-fk for regen). |
+| `billing_customers` | 1:1 with users. Stripe customer linkage (`stripe_customer_id`). |
+| `billing_subscriptions` | 1:1 with users at v1. Columns: `stripe_subscription_id`, `status`, `cadence` (`monthly`/`quarterly`/`annual`), `current_period_end`, `cancel_at_period_end`. Entitlement is *derived* from this row — there is no separate entitlements table. |
+| `billing_events` | Webhook audit log. Columns: `stripe_event_id` (unique), `event_type`, `payload`, `processed_at`. Powers idempotency. |
+| `usage_events` | Per-action usage log (research started, feedback generated, etc.) for monitoring and future credit-pack metering. |
+| `notification_jobs` | Outbound email or push jobs keyed to product events. |
 
 ### Key relationships
 
@@ -198,92 +199,51 @@ Central configuration for the pipeline:
 - **Content**: Snippet lengths, URL filters, quality patterns.
 - **Performance**: Timeouts, retries, concurrency caps.
 
-## Near-Term Architecture Workstreams
+## Near-Term Architecture Sketches
 
-These sections describe how the next planned features should be built.
+Implementation shape for planned features. Product priority and rationale live in [ROADMAP.md](./ROADMAP.md) and [PRODUCT_STRATEGY.md](./PRODUCT_STRATEGY.md).
 
-### AI answer feedback
+### AI answer feedback (paid-only)
 
-This is the next product-critical backend flow.
+A new `answer-feedback` edge function, modelled on `interview-question-generator`:
 
-Recommended shape:
+1. Entitlement check via `getEntitlement(userId)`. Free users short-circuit here — **no OpenAI call is made**.
+2. Load the `practice_answer`, source `interview_questions` row, parent `searches` context, and candidate profile.
+3. Call OpenAI with a structured prompt (best-class model from `_shared/config.ts`, no small-model fallback).
+4. Parse with Zod, write one `answer_feedback` row linked to `practice_answer_id`, return to the UI.
 
-1. User saves a `practice_answers` row as they do today.
-2. Frontend requests feedback generation explicitly, or the answer-save path enqueues it.
-3. A new edge function loads:
-   - the answer text or transcript
-   - the source `interview_questions` row
-   - the parent `searches` context
-   - candidate profile / resume context
-4. The function writes a normalized `answer_feedback` row linked to `practice_answer_id`.
-5. UI reads either:
-   - teaser fields for free access
-   - full coaching fields for paid access
+Use a separate table (not JSON on `practice_answers`) because feedback may be regenerated (via `superseded_by`), model metadata/versioning matters, and the paid-only row makes the tier boundary query-explicit.
 
-Recommended reasons for a separate table instead of stuffing JSON onto `practice_answers`:
+### Billing
 
-- feedback may be regenerated
-- billing visibility differs from answer ownership
-- model metadata and versioning matter
-- summary vs detailed payloads should be easy to query
+v1 uses **Stripe Billing** with Stripe-hosted UI where possible:
 
-### Billing and entitlements
+- **3 Prices on one Product**, one per cadence (`monthly`, `quarterly`, `annual`).
+- **New subscriptions** via Stripe Checkout (hosted).
+- **Management** (upgrade, downgrade, cancel, payment method) via Stripe Customer Portal (hosted). No custom UI at v1.
+- **Webhook** handles `customer.subscription.created|updated|deleted` and `invoice.payment_failed`. Idempotent via `stripe_event_id` on `billing_events`.
+- **Entitlement** is derived in one place: `getEntitlement(userId)` reads `billing_subscriptions`, returns `{ tier: 'free' | 'paid', cadence, currentPeriodEnd }`. Every paid gate calls this; do not scatter plan checks across components.
 
-Pricing should be enforced with app-side hints and server-side checks.
+Full contract (events, columns, UI flow, tax) in [BILLING.md](./BILLING.md).
 
-Recommended pieces:
+### Observability
 
-- Stripe Checkout for purchase start
-- webhook handler to sync paid state into `billing_customers` and `billing_entitlements`
-- a single entitlement resolver used by:
-  - research creation
-  - practice session start
-  - feedback detail access
-  - future feature gates such as voice transcription
+Deliberately minimal at v1, chosen to be easy to swap later:
 
-Do not spread plan checks across random components. Centralize them in one service layer and mirror them in edge functions where paid operations incur cost.
+- **Error tracking:** Sentry (free tier) in both the Vite/React client and edge functions. Default SDK config; no custom transports or integrations. Removable in minutes.
+- **Structured logs:** Supabase native function logs — no external log pipeline. Edge functions emit single-line JSON (`{ level, fn, event, ... }`) via a small `_shared/log.ts` helper so logs are greppable in the Supabase dashboard.
+- **Product analytics:** deferred. Not needed until the free→paid funnel exists.
+- **Runbook:** see [RUNBOOK.md](./RUNBOOK.md) for stalled-search recovery, Tavily credit checks, edge-function rollback, and missing-feedback diagnostics.
 
-### Landing page and public experience
+Decision rationale: we expect to revisit observability once billing lands and there are paying users to protect. Picking low-lock-in tools now keeps the migration cost near zero.
 
-Short term, keep the app architecture simple:
+### Notification lifecycle
 
-- `/` can remain the public entry point
-- authenticated research can still start from the same route
-- sample output and marketing sections should be static UI inside the SPA
-
-Do not force an app-route split yet just for aesthetics.
-
-### Email and notification lifecycle
-
-The first notification system should be event-driven, not campaign-heavy.
-
-Recommended event sources:
-
-- research completed
-- first practice session completed
-- inactivity windows during an active interview sprint
-
-Recommended flow:
-
-1. Product event inserts a `notification_jobs` row
-2. Worker or scheduled edge function renders message payloads
-3. Delivery provider sends email or push
-4. Delivery state is recorded for retry and suppression
+Event-driven, not campaign-heavy. Product events (research completed, first practice completed, inactivity windows) insert a `notification_jobs` row; a worker or scheduled edge function renders payloads, the provider sends, and delivery state is recorded for retry/suppression.
 
 ### SEO and crawlable content
 
-Public SEO pages are valuable, but they are an architecture decision, not just a route file.
-
-Recommended constraint:
-
-- do not build indexed company pages until we choose a rendering model that produces crawlable HTML
-
-Likely future options:
-
-- move public marketing/content pages to SSR or SSG
-- keep the authenticated product app as the existing SPA
-
-That split is reasonable later. It is not needed to ship feedback, pricing, or landing-page framing.
+Architectural constraint: do not build indexed company pages until we choose a rendering model that produces crawlable HTML (likely SSR/SSG for public pages while the authenticated app stays SPA). Not required for feedback, pricing, or landing-page framing.
 
 ## Data Flows
 
@@ -332,12 +292,17 @@ Password reset → Email flow via Supabase Auth
 ### Billing flow (planned)
 
 ```
-User hits paid boundary or pricing CTA
-  → Checkout session created
-  → Stripe confirms purchase
-  → Webhook updates billing_entitlements
-  → Frontend refreshes access state
-  → Paid features unlock without manual support work
+User hits paid gate or pricing CTA
+  → Checkout Session created (cadence: monthly | quarterly | annual)
+  → Stripe confirms purchase, fires customer.subscription.created
+  → Webhook upserts billing_customers + billing_subscriptions (idempotent via stripe_event_id)
+  → Frontend refetches entitlement; paid features unlock
+
+Later lifecycle:
+  customer.subscription.updated  → refresh cadence / period end
+  customer.subscription.deleted  → downgrade to free at period end
+  invoice.payment_failed         → flag status; notify user
+  Customer Portal                → user self-serves upgrade/downgrade/cancel
 ```
 
 ### Notification flow (planned)
