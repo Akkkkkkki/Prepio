@@ -110,6 +110,38 @@ Protected-route behavior: [`src/App.tsx`](./src/App.tsx).
 - **Model config is env-driven.** Falls back to `gpt-4o` / `gpt-4o-mini` if `OPENAI_MODEL` is not set.
 - **Edge functions use service role.** All substantive DB writes from edge functions bypass RLS via `SUPABASE_SERVICE_ROLE_KEY`.
 
+## Working with Linear
+
+Project tracking lives in the **Prepio** Linear team (issue prefix `PREPIO-`). Treat Linear as the source of truth for what's actively being worked on; treat [`docs/ROADMAP.md`](./docs/ROADMAP.md) as the source of truth for *why*.
+
+### Project structure
+
+Four projects mirror the Roadmap "Now" + an ongoing bucket:
+
+- **AI Answer Feedback (Paid)** — paid-only structured coaching on practice answers.
+- **Pricing & Monetization** — Stripe Billing, three cadences, `getEntitlement` resolver.
+- **Landing Page Framing** — reframe `/` without moving the core flow.
+- **Quality & Maintenance** — bugs, polish, infra, DX. No end date.
+
+Don't open new projects for "Next" or "Later" Roadmap items until "Now" is shipping.
+
+### Labels
+
+Two dimensions, no nesting:
+
+- **Type**: `Bug`, `Feature`, `Improvement`, `Chore`, `Docs`.
+- **Area**: `area:research-pipeline`, `area:practice`, `area:profile`, `area:auth`, `area:billing`, `area:landing`, `area:infra`.
+
+Every issue should have one Type and at least one Area. Resist adding more dimensions.
+
+### Workflow
+
+- Issue threshold: anything that takes >30 min or you'd lose track of overnight. Don't log every commit-sized task.
+- Branches: include `PREPIO-NN` in the branch name (e.g. `claude/prepio-12-stripe-webhook-handler`) so the GitHub integration auto-links the PR.
+- PR open auto-moves the issue to **In Review**; PR merge auto-moves to **Done**. Don't move issues by hand if a PR exists.
+- Status types in this team: `Backlog` → `Todo` → `In Progress` → `In Review` → `Done`. Use `Canceled` for dropped work, `Duplicate` for merged-into-other-issue.
+- Cycles drive cadence. Plan weekly; keep "In Progress" small.
+
 ## Docs Map
 
 | Document | Purpose |
