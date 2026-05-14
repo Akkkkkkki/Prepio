@@ -24,7 +24,7 @@ CREATE TABLE billing_subscriptions (
   user_id                UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   stripe_subscription_id TEXT NOT NULL UNIQUE,
   status                 TEXT NOT NULL
-                         CHECK (status IN ('active','trialing','past_due','canceled',
+                         CHECK (status IN ('active','trialing','past_due','paused','canceled',
                                            'incomplete','incomplete_expired','unpaid')),
   cadence                TEXT NOT NULL
                          CHECK (cadence IN ('monthly','quarterly','annual')),

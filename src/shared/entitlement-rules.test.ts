@@ -80,12 +80,20 @@ describe("resolveEntitlement", () => {
     expect(ent.status).toBe("none");
   });
 
+  it("treats paused as free with status 'none'", () => {
+    const ent = resolveEntitlement(row({ status: "paused" }), NOW);
+    expect(ent.tier).toBe("free");
+    expect(ent.status).toBe("none");
+    expect(ent.cadence).toBeNull();
+  });
+
   it("never surfaces cadence when free", () => {
     const past = new Date(NOW.getTime() - MS_PER_DAY).toISOString();
     const cases: SubscriptionRow[] = [
       row({ status: "active", current_period_end: past }),
       row({ status: "canceled" }),
       row({ status: "incomplete" }),
+      row({ status: "paused" }),
       row({ status: "unpaid" }),
     ];
     for (const r of cases) {
