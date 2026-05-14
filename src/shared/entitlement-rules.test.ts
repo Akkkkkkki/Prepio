@@ -29,6 +29,15 @@ describe("resolveEntitlement", () => {
     expect(ent.status).toBe("active");
   });
 
+  it("remains paid when cancel_at_period_end is true but period_end is in the future", () => {
+    const ent = resolveEntitlement(
+      row({ status: "active", cancel_at_period_end: true }),
+      NOW,
+    );
+    expect(ent.tier).toBe("paid");
+    expect(ent.status).toBe("active");
+  });
+
   it("downgrades active to free once period_end has passed", () => {
     const past = new Date(NOW.getTime() - MS_PER_DAY).toISOString();
     const ent = resolveEntitlement(row({ status: "active", current_period_end: past }), NOW);

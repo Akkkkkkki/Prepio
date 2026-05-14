@@ -68,3 +68,17 @@ CREATE POLICY subscriptions_service ON billing_subscriptions FOR ALL
 ALTER TABLE billing_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY events_service ON billing_events FOR ALL
   TO service_role USING (true) WITH CHECK (true);
+
+-- ============================================================================
+-- GRANTS
+-- Explicit so this migration is robust against projects that revoke the
+-- default public-schema grants. RLS still enforces row-level isolation.
+-- billing_events is intentionally never readable by anon/authenticated.
+-- ============================================================================
+
+GRANT SELECT ON billing_customers     TO authenticated;
+GRANT SELECT ON billing_subscriptions TO authenticated;
+
+GRANT ALL ON billing_customers     TO service_role;
+GRANT ALL ON billing_subscriptions TO service_role;
+GRANT ALL ON billing_events        TO service_role;
