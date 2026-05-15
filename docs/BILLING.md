@@ -49,10 +49,11 @@ RLS: users can read their own rows on `billing_customers` and `billing_subscript
 Every paid gate calls one function:
 
 ```ts
-// src/services/entitlements.ts (frontend read-through)
-// supabase/functions/_shared/entitlement.ts (edge functions)
+// Frontend:   src/services/entitlements.ts            → getEntitlement(userId)
+// Edge:       supabase/functions/_shared/entitlement.ts → getEntitlement(supabase, userId)
+// Pure rules: src/shared/entitlement-rules.ts (mirror at supabase/functions/_shared/entitlement-rules.ts)
 
-getEntitlement(userId): {
+getEntitlement(...): {
   tier: 'free' | 'paid',
   cadence: 'monthly' | 'quarterly' | 'annual' | null,
   currentPeriodEnd: string | null,
@@ -60,13 +61,14 @@ getEntitlement(userId): {
 }
 ```
 
-Rules:
+Rules (encoded in `resolveEntitlement` — the canonical implementation):
 
 - `tier = 'paid'` iff `status in ('active', 'trialing', 'past_due')` **and** `current_period_end > now()`.
-- `past_due` is paid for a grace window (default 7 days after `current_period_end`); after that, `tier = 'free'`.
+- `past_due` is paid for a grace window (`PAST_DUE_GRACE_DAYS = 7` after `current_period_end`); after that, `tier = 'free'`.
 - No subscription row ⇒ `tier = 'free'`.
+- Both readers **fail closed** to `FREE_ENTITLEMENT` on a query error — paid access is never granted on a DB blip.
 
-**Do not inline these rules anywhere else.** If a component needs to check access, it calls `getEntitlement`.
+**Do not inline these rules anywhere else.** If a component needs to check access, it calls `getEntitlement`. The frontend and edge `entitlement-rules.ts` files must stay in lock-step; tests in `src/shared/entitlement-rules.test.ts` exercise the full matrix.
 
 ## Webhook
 
