@@ -85,6 +85,8 @@ Events handled at v1:
 
 Idempotency: on every event, insert `(stripe_event_id, event_type, payload, now())` into `billing_events`. If the insert fails on unique constraint, the event has already been processed — return 200 without re-applying. No other events are handled; unknown event types log and return 200.
 
+User resolution: subscription events carry a Stripe customer ID, not our `user_id`. The webhook looks up `billing_customers.stripe_customer_id` first, then falls back to fetching the Stripe Customer and reading `metadata.user_id`. **The Checkout edge function must therefore set `metadata.user_id` when creating a Stripe Customer** — without it the fallback fails and the subscription update is skipped (logged as `stripe_user_unresolved`).
+
 ## Frontend flows
 
 ### Upgrade
