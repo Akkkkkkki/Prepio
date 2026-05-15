@@ -83,9 +83,12 @@ BEGIN
 END;
 $$;
 
+-- Revoke from each grantee explicitly: REVOKE FROM PUBLIC does not undo
+-- direct role grants (Supabase default privileges grant EXECUTE on new
+-- public functions to anon/authenticated/service_role).
 REVOKE ALL ON FUNCTION public.save_resume_version(
   TEXT, JSONB, TEXT, TEXT, INTEGER, TEXT, TEXT
-) FROM PUBLIC;
+) FROM PUBLIC, anon, authenticated, service_role;
 
 GRANT EXECUTE ON FUNCTION public.save_resume_version(
   TEXT, JSONB, TEXT, TEXT, INTEGER, TEXT, TEXT
@@ -216,17 +219,20 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.update_search_progress(UUID, TEXT, TEXT, SMALLINT, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.update_search_progress(UUID, TEXT, TEXT, SMALLINT, TEXT)
+  FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.update_search_progress(UUID, TEXT, TEXT, SMALLINT, TEXT) TO service_role;
 
 -- ============================================================================
 -- Harden handle_new_user
 -- Trigger-only function (fires from on_auth_user_created on auth.users).
--- Triggers don't require EXECUTE on the function, so revoking PUBLIC execute
--- is safe and silences the linter. Already has SET search_path = ''.
+-- Triggers don't require EXECUTE on the function, so revoking from client
+-- roles is safe. Schema dump grants EXECUTE directly to anon/authenticated,
+-- so revoking from PUBLIC alone wouldn't clear the linter — revoke each.
+-- Already has SET search_path = ''.
 -- ============================================================================
 
-REVOKE ALL ON FUNCTION public.handle_new_user() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
 
 -- ============================================================================
 -- Harden update_updated_at
@@ -243,3 +249,5 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.update_updated_at() FROM PUBLIC, anon, authenticated;
