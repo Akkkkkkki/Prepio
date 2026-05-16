@@ -102,11 +102,19 @@ serve(async (req) => {
   // Fetch the user's email so Stripe Checkout can pre-fill it. Failure here is
   // non-fatal — we proceed without an email rather than blocking checkout.
   let userEmail: string | null = null;
-  const { data: userLookup, error: userLookupError } = await supabase.auth.admin.getUserById(userId);
-  if (userLookupError) {
-    log("user_email_lookup_failed", { userId, message: userLookupError.message });
-  } else {
-    userEmail = userLookup.user?.email ?? null;
+  try {
+    const { data: userLookup, error: userLookupError } =
+      await supabase.auth.admin.getUserById(userId);
+    if (userLookupError) {
+      log("user_email_lookup_failed", { userId, message: userLookupError.message });
+    } else {
+      userEmail = userLookup.user?.email ?? null;
+    }
+  } catch (err) {
+    log("user_email_lookup_failed", {
+      userId,
+      message: err instanceof Error ? err.message : String(err),
+    });
   }
 
   const stripe = new Stripe(stripeSecret, { httpClient: Stripe.createFetchHttpClient() });

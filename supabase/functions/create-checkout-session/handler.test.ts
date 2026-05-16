@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { type CadenceLookup } from "../_shared/cadence.ts";
+import { type SubscriptionRow } from "../_shared/entitlement-rules.ts";
 import {
   createCheckoutSession,
   type Deps,
@@ -17,16 +18,22 @@ const LOOKUP: CadenceLookup = {
 const APP_BASE_URL = "https://prepio.test";
 const USER_ID = "user_xyz";
 const USER_EMAIL = "user@example.com";
+const NOW = new Date("2026-05-16T00:00:00.000Z");
+const FUTURE_ISO = "2026-12-31T00:00:00.000Z";
+const PAST_ISO = "2026-01-01T00:00:00.000Z";
 
 interface FakeSupabaseOptions {
   existingCustomerId?: string;
-  selectError?: SupabaseError;
+  customerSelectError?: SupabaseError;
   upsertError?: SupabaseError;
+  subscriptionRow?: SubscriptionRow | null;
+  subscriptionSelectError?: SupabaseError;
 }
 
 interface FakeSupabaseRecorder {
   supabase: SupabaseLike;
-  selectCalls: Array<{ col: string; val: string }>;
+  customerSelectCalls: Array<{ col: string; val: string }>;
+  subscriptionSelectCalls: Array<{ col: string; val: string }>;
   upsertCalls: Array<{
     row: { user_id: string; stripe_customer_id: string };
     onConflict: string;
@@ -34,23 +41,50 @@ interface FakeSupabaseRecorder {
 }
 
 function buildFakeSupabase(opts: FakeSupabaseOptions = {}): FakeSupabaseRecorder {
-  const selectCalls: FakeSupabaseRecorder["selectCalls"] = [];
+  const customerSelectCalls: FakeSupabaseRecorder["customerSelectCalls"] = [];
+  const subscriptionSelectCalls: FakeSupabaseRecorder["subscriptionSelectCalls"] = [];
   const upsertCalls: FakeSupabaseRecorder["upsertCalls"] = [];
 
-  const supabase: SupabaseLike = {
-    from(_table) {
+  const supabase = {
+    from(table: "billing_customers" | "billing_subscriptions") {
+      if (table === "billing_subscriptions") {
+        return {
+          select(_columns: string) {
+            let eqCol = "";
+            let eqVal = "";
+            return {
+              eq(col: string, val: string) {
+                eqCol = col;
+                eqVal = val;
+                return {
+                  async maybeSingle() {
+                    subscriptionSelectCalls.push({ col: eqCol, val: eqVal });
+                    if (opts.subscriptionSelectError) {
+                      return { data: null, error: opts.subscriptionSelectError };
+                    }
+                    return { data: opts.subscriptionRow ?? null, error: null };
+                  },
+                };
+              },
+            };
+          },
+        };
+      }
+      // billing_customers
       return {
         select(_columns: string) {
           let eqCol = "";
           let eqVal = "";
-          const builder = {
+          return {
             eq(col: string, val: string) {
               eqCol = col;
               eqVal = val;
               return {
                 async maybeSingle() {
-                  selectCalls.push({ col: eqCol, val: eqVal });
-                  if (opts.selectError) return { data: null, error: opts.selectError };
+                  customerSelectCalls.push({ col: eqCol, val: eqVal });
+                  if (opts.customerSelectError) {
+                    return { data: null, error: opts.customerSelectError };
+                  }
                   if (opts.existingCustomerId) {
                     return {
                       data: { stripe_customer_id: opts.existingCustomerId },
@@ -62,9 +96,11 @@ function buildFakeSupabase(opts: FakeSupabaseOptions = {}): FakeSupabaseRecorder
               };
             },
           };
-          return builder;
         },
-        async upsert(row, options) {
+        async upsert(
+          row: { user_id: string; stripe_customer_id: string },
+          options: { onConflict: string },
+        ) {
           upsertCalls.push({ row, onConflict: options.onConflict });
           return { error: opts.upsertError ?? null };
         },
@@ -72,7 +108,12 @@ function buildFakeSupabase(opts: FakeSupabaseOptions = {}): FakeSupabaseRecorder
     },
   };
 
-  return { supabase, selectCalls, upsertCalls };
+  return {
+    supabase: supabase as unknown as SupabaseLike,
+    customerSelectCalls,
+    subscriptionSelectCalls,
+    upsertCalls,
+  };
 }
 
 interface FakeStripeOptions {
@@ -134,6 +175,7 @@ function buildDeps(
       cadenceLookup: LOOKUP,
       appBaseUrl: APP_BASE_URL,
       log: (event, fields) => logs.push({ event, fields }),
+      now: () => NOW,
     },
     supabaseRec,
     stripeRec,
@@ -264,7 +306,7 @@ describe("createCheckoutSession", () => {
 
   it("returns 500 when reading billing_customers fails", async () => {
     const { deps, stripeRec } = buildDeps({
-      supabase: { selectError: { message: "db down" } },
+      supabase: { customerSelectError: { message: "db down" } },
     });
     const result = await createCheckoutSession(deps, {
       userId: USER_ID,
@@ -322,5 +364,136 @@ describe("createCheckoutSession", () => {
     });
     expect(result).toEqual({ ok: false, status: 502, error: "stripe_error" });
     expect(logs.map((l) => l.event)).toContain("stripe_checkout_no_url");
+  });
+
+  describe("already-subscribed gate", () => {
+    it("blocks Checkout with 409 when the user has an active subscription", async () => {
+      const { deps, stripeRec, logs } = buildDeps({
+        supabase: {
+          subscriptionRow: {
+            status: "active",
+            cadence: "monthly",
+            current_period_end: FUTURE_ISO,
+            cancel_at_period_end: false,
+          },
+        },
+      });
+      const result = await createCheckoutSession(deps, {
+        userId: USER_ID,
+        userEmail: USER_EMAIL,
+        cadence: "annual",
+      });
+      expect(result).toEqual({ ok: false, status: 409, error: "already_subscribed" });
+      expect(stripeRec.customerCreate).not.toHaveBeenCalled();
+      expect(stripeRec.sessionCreate).not.toHaveBeenCalled();
+      expect(logs.map((l) => l.event)).toContain("checkout_blocked_already_subscribed");
+    });
+
+    it("blocks Checkout when the user is trialing", async () => {
+      const { deps, stripeRec } = buildDeps({
+        supabase: {
+          subscriptionRow: {
+            status: "trialing",
+            cadence: "monthly",
+            current_period_end: FUTURE_ISO,
+            cancel_at_period_end: false,
+          },
+        },
+      });
+      const result = await createCheckoutSession(deps, {
+        userId: USER_ID,
+        userEmail: USER_EMAIL,
+        cadence: "monthly",
+      });
+      expect(result).toEqual({ ok: false, status: 409, error: "already_subscribed" });
+      expect(stripeRec.sessionCreate).not.toHaveBeenCalled();
+    });
+
+    it("blocks Checkout when past_due and still inside the grace window", async () => {
+      // current_period_end one day before NOW; grace = 7 days, so still paid.
+      const { deps, stripeRec } = buildDeps({
+        supabase: {
+          subscriptionRow: {
+            status: "past_due",
+            cadence: "monthly",
+            current_period_end: "2026-05-15T00:00:00.000Z",
+            cancel_at_period_end: false,
+          },
+        },
+      });
+      const result = await createCheckoutSession(deps, {
+        userId: USER_ID,
+        userEmail: USER_EMAIL,
+        cadence: "monthly",
+      });
+      expect(result).toEqual({ ok: false, status: 409, error: "already_subscribed" });
+      expect(stripeRec.sessionCreate).not.toHaveBeenCalled();
+    });
+
+    it("blocks Checkout when active but pending cancel at period end (still paid)", async () => {
+      const { deps, stripeRec } = buildDeps({
+        supabase: {
+          subscriptionRow: {
+            status: "active",
+            cadence: "monthly",
+            current_period_end: FUTURE_ISO,
+            cancel_at_period_end: true,
+          },
+        },
+      });
+      const result = await createCheckoutSession(deps, {
+        userId: USER_ID,
+        userEmail: USER_EMAIL,
+        cadence: "annual",
+      });
+      expect(result).toEqual({ ok: false, status: 409, error: "already_subscribed" });
+      expect(stripeRec.sessionCreate).not.toHaveBeenCalled();
+    });
+
+    it("allows Checkout when prior subscription is canceled and lapsed", async () => {
+      const { deps, stripeRec } = buildDeps({
+        supabase: {
+          existingCustomerId: "cus_existing_999",
+          subscriptionRow: {
+            status: "canceled",
+            cadence: "monthly",
+            current_period_end: PAST_ISO,
+            cancel_at_period_end: false,
+          },
+        },
+      });
+      const result = await createCheckoutSession(deps, {
+        userId: USER_ID,
+        userEmail: USER_EMAIL,
+        cadence: "monthly",
+      });
+      expect(result.ok).toBe(true);
+      expect(stripeRec.sessionCreate).toHaveBeenCalled();
+    });
+
+    it("allows Checkout when the user has never had a subscription", async () => {
+      const { deps, stripeRec } = buildDeps();
+      const result = await createCheckoutSession(deps, {
+        userId: USER_ID,
+        userEmail: USER_EMAIL,
+        cadence: "monthly",
+      });
+      expect(result.ok).toBe(true);
+      expect(stripeRec.sessionCreate).toHaveBeenCalled();
+    });
+
+    it("fails closed with 500 when billing_subscriptions read errors", async () => {
+      const { deps, stripeRec } = buildDeps({
+        supabase: { subscriptionSelectError: { message: "db down" } },
+      });
+      const result = await createCheckoutSession(deps, {
+        userId: USER_ID,
+        userEmail: USER_EMAIL,
+        cadence: "monthly",
+      });
+      expect(result).toEqual({ ok: false, status: 500, error: "internal_error" });
+      expect(stripeRec.customerCreate).not.toHaveBeenCalled();
+      expect(stripeRec.sessionCreate).not.toHaveBeenCalled();
+    });
   });
 });

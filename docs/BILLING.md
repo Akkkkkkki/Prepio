@@ -104,6 +104,8 @@ User resolution: subscription events carry a Stripe customer ID, not our `user_i
 4. Client redirects to the URL. On success, user returns to `/billing/return?session_id=…`.
 5. Return page polls `getEntitlement` until the webhook has landed (usually <2s).
 
+If the caller already has an active paid subscription, `create-checkout-session` refuses with `409 { error: "already_subscribed" }`. The frontend should route those users into the Customer Portal flow instead — cadence changes belong to the portal, not a fresh Checkout. Other error codes: `400 invalid_cadence | invalid_json`, `401 missing/invalid bearer | user_token_required`, `500 internal_error | misconfigured`, `502 stripe_error`.
+
 ### Manage subscription
 
 1. User clicks "Manage subscription" in Profile.
