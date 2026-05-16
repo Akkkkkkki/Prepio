@@ -1,6 +1,7 @@
 // Pure event handlers for the Stripe webhook. No Stripe SDK imports, no Deno
 // globals — the Deno entrypoint in index.ts wires up real dependencies. This
-// shape lets Vitest exercise the dispatch and idempotency paths directly.
+// shape lets Vitest exercise the dispatch, idempotency, and ordering paths
+// directly.
 //
 // Contract: docs/BILLING.md → "Webhook".
 
@@ -16,15 +17,25 @@ export interface SubscriptionPayload {
   items: { data: Array<{ price: { id: string } }> };
 }
 
+// Subscription invoices on Stripe API 2025-03-31.basil and newer no longer
+// expose the subscription at the top level. The id moved to
+// invoice.parent.subscription_details.subscription. We accept both shapes so
+// the handler works against accounts on either API version.
+// https://docs.stripe.com/changelog/basil/2025-03-31/adds-new-parent-field-to-invoicing-objects
 export interface InvoicePayload {
   id: string;
   customer: string;
-  subscription: string | null;
+  subscription?: string | null;
+  parent?: {
+    type?: string;
+    subscription_details?: { subscription?: string | null } | null;
+  } | null;
 }
 
 export interface WebhookEvent {
   id: string;
   type: string;
+  created: number; // Unix seconds; used to reject stale out-of-order events.
   data: { object: unknown };
 }
 
@@ -33,23 +44,30 @@ export interface SupabaseError {
   message?: string;
 }
 
-// Thenable builder for `.update().eq().eq()` chains, mirroring supabase-js.
+// Thenable builders for chained PostgREST filters, mirroring supabase-js.
 export interface UpdateBuilder extends PromiseLike<{ error: SupabaseError | null }> {
   eq: (col: string, val: string) => UpdateBuilder;
+  lt: (col: string, val: string) => UpdateBuilder;
+}
+
+export interface SelectBuilder<T> {
+  eq: (col: string, val: string) => SelectBuilder<T>;
+  maybeSingle: () => Promise<{ data: T | null; error: SupabaseError | null }>;
+}
+
+interface TableQuery {
+  select: <T = Record<string, unknown>>(columns: string) => SelectBuilder<T>;
+  insert: (row: Record<string, unknown>) => Promise<{ error: SupabaseError | null }>;
+  update: (row: Record<string, unknown>) => UpdateBuilder;
 }
 
 // The subset of the Supabase client surface this module touches.
 export interface SupabaseLike {
   from: (table: string) => TableQuery;
-}
-
-interface TableQuery {
-  insert: (row: Record<string, unknown>) => Promise<{ error: SupabaseError | null }>;
-  upsert: (
-    row: Record<string, unknown>,
-    opts?: { onConflict?: string },
-  ) => Promise<{ error: SupabaseError | null }>;
-  update: (row: Record<string, unknown>) => UpdateBuilder;
+  rpc: (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: SupabaseError | null }>;
 }
 
 export interface Deps {
@@ -74,67 +92,90 @@ const POSTGRES_UNIQUE_VIOLATION = "23505";
 
 const nowIso = (deps: Deps) => (deps.now?.() ?? new Date()).toISOString();
 
-// Run the dispatch first; only mark the event processed (insert into
-// billing_events) once the mutation has succeeded. If we logged the event
-// first and a transient DB error then aborted the mutation, Stripe's retry
-// would hit our unique constraint and silently return duplicate — losing the
-// state change forever. The mutations are row-level idempotent (upsert by
-// user_id PK; update by id), so a retry safely re-applies.
+export function getSubscriptionIdFromInvoice(invoice: InvoicePayload): string | null {
+  return (
+    invoice.parent?.subscription_details?.subscription ??
+    invoice.subscription ??
+    null
+  );
+}
+
+// Pre-check billing_events before mutating: gives us an explicit "duplicate"
+// outcome for re-delivered events, and keeps the mutation idempotent for the
+// case where it ran successfully but the log insert hasn't happened yet (a
+// Stripe retry will re-run the mutation safely thanks to the RPC's ordering
+// guard, then log).
 export async function processEvent(deps: Deps, event: WebhookEvent): Promise<ProcessResult> {
   const { supabase, log } = deps;
+
+  const { data: existingLog, error: checkError } = await supabase
+    .from("billing_events")
+    .select<{ stripe_event_id: string }>("stripe_event_id")
+    .eq("stripe_event_id", event.id)
+    .maybeSingle();
+  if (checkError) {
+    log("billing_events_read_failed", {
+      id: event.id,
+      type: event.type,
+      message: checkError.message,
+    });
+    throw new Error(`billing_events read failed: ${checkError.message ?? "unknown"}`);
+  }
+  if (existingLog) {
+    log("stripe_event_duplicate", { id: event.id, type: event.type });
+    return { outcome: "duplicate" };
+  }
 
   const result = await dispatch(deps, event);
 
   if (result.outcome !== "applied") {
-    // Skipped/ignored events aren't recorded so they can be resent from the
-    // Stripe dashboard after a config fix (e.g. once an unknown price id is
-    // mapped, or once billing_customers is backfilled).
+    // Skipped/ignored events aren't logged so a config fix + dashboard resend
+    // can still apply them. Stale (out-of-order) events likewise are not
+    // logged — the row already reflects the newer event.
     return result;
   }
 
-  const { error } = await supabase.from("billing_events").insert({
+  const { error: insertError } = await supabase.from("billing_events").insert({
     stripe_event_id: event.id,
     event_type: event.type,
     payload: event,
     processed_at: nowIso(deps),
   });
-
-  if (!error) {
-    return result;
+  if (insertError && insertError.code !== POSTGRES_UNIQUE_VIOLATION) {
+    log("stripe_event_log_insert_failed", {
+      id: event.id,
+      type: event.type,
+      message: insertError.message,
+    });
+    throw new Error(`billing_events insert failed: ${insertError.message ?? "unknown"}`);
   }
-
-  if (error.code === POSTGRES_UNIQUE_VIOLATION) {
-    // A prior successful delivery already logged this event. Our mutation
-    // just re-applied the same payload, which is idempotent at the row level.
-    log("stripe_event_duplicate", { id: event.id, type: event.type });
-    return { outcome: "duplicate" };
-  }
-
-  log("stripe_event_log_insert_failed", {
-    id: event.id,
-    type: event.type,
-    message: error.message,
-  });
-  throw new Error(`billing_events insert failed: ${error.message ?? "unknown"}`);
+  // Unique violation here means a concurrent delivery just logged the same
+  // event id between our pre-check and insert. The RPC's ordering guard means
+  // both deliveries' mutations converge on the same row state — harmless.
+  return result;
 }
 
 async function dispatch(deps: Deps, event: WebhookEvent): Promise<ProcessResult> {
   switch (event.type) {
     case "customer.subscription.created":
     case "customer.subscription.updated":
-      return upsertSubscription(deps, event.data.object as SubscriptionPayload);
+      return upsertSubscription(deps, event, event.data.object as SubscriptionPayload);
     case "customer.subscription.deleted":
-      return cancelSubscription(deps, event.data.object as SubscriptionPayload);
+      return cancelSubscription(deps, event, event.data.object as SubscriptionPayload);
     case "invoice.payment_failed":
-      return markPaymentFailed(deps, event.data.object as InvoicePayload);
+      return markPaymentFailed(deps, event, event.data.object as InvoicePayload);
     default:
       deps.log("stripe_event_ignored", { id: event.id, type: event.type });
       return { outcome: "ignored" };
   }
 }
 
+const eventCreatedIso = (event: WebhookEvent) =>
+  new Date(event.created * 1000).toISOString();
+
 async function upsertSubscription(
   deps: Deps,
+  event: WebhookEvent,
   sub: SubscriptionPayload,
 ): Promise<ProcessResult> {
   const { supabase, cadenceLookup, resolveUserId, log } = deps;
@@ -152,22 +193,33 @@ async function upsertSubscription(
     return { outcome: "skipped", reason: "unknown_price" };
   }
 
-  const { error } = await supabase.from("billing_subscriptions").upsert(
-    {
-      user_id: userId,
-      stripe_subscription_id: sub.id,
-      status: sub.status,
-      cadence,
-      current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-      cancel_at_period_end: sub.cancel_at_period_end,
-      updated_at: nowIso(deps),
-    },
-    { onConflict: "user_id" },
-  );
+  // RPC because PostgREST upsert can't express a conditional ON CONFLICT
+  // DO UPDATE WHERE clause. The RPC returns true when the row was inserted or
+  // updated, false when this event was older than the row's last_event_created
+  // and therefore skipped.
+  const { data, error } = await supabase.rpc("apply_subscription_event", {
+    p_user_id: userId,
+    p_stripe_subscription_id: sub.id,
+    p_status: sub.status,
+    p_cadence: cadence,
+    p_current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+    p_cancel_at_period_end: sub.cancel_at_period_end,
+    p_event_created: eventCreatedIso(event),
+  });
   if (error) {
-    log("stripe_subscription_upsert_failed", { subscriptionId: sub.id, message: error.message });
-    throw new Error(`billing_subscriptions upsert failed: ${error.message ?? "unknown"}`);
+    log("stripe_subscription_apply_failed", { subscriptionId: sub.id, message: error.message });
+    throw new Error(`apply_subscription_event failed: ${error.message ?? "unknown"}`);
   }
+
+  if (data !== true) {
+    log("stripe_event_stale", {
+      action: "subscription_upsert",
+      eventId: event.id,
+      subscriptionId: sub.id,
+    });
+    return { outcome: "skipped", reason: "stale_event" };
+  }
+
   log("stripe_event_applied", {
     action: "subscription_upserted",
     userId,
@@ -178,11 +230,9 @@ async function upsertSubscription(
   return { outcome: "applied" };
 }
 
-// Match on stripe_subscription_id as well as user_id so a late-delivered
-// delete for an old, already-replaced subscription doesn't cancel the user's
-// current active row. If no row matches, the update is a silent no-op.
 async function cancelSubscription(
   deps: Deps,
+  event: WebhookEvent,
   sub: SubscriptionPayload,
 ): Promise<ProcessResult> {
   const { supabase, resolveUserId, log } = deps;
@@ -192,11 +242,20 @@ async function cancelSubscription(
     return { outcome: "skipped", reason: "user_unresolved" };
   }
 
+  // Filter by stripe_subscription_id so a late-delivered delete for an
+  // already-replaced sub is a no-op, and by last_event_created so a stale
+  // delete can't overwrite a newer event's state.
+  const eventCreated = eventCreatedIso(event);
   const { error } = await supabase
     .from("billing_subscriptions")
-    .update({ status: "canceled", updated_at: nowIso(deps) })
+    .update({
+      status: "canceled",
+      last_event_created: eventCreated,
+      updated_at: nowIso(deps),
+    })
     .eq("user_id", userId)
-    .eq("stripe_subscription_id", sub.id);
+    .eq("stripe_subscription_id", sub.id)
+    .lt("last_event_created", eventCreated);
   if (error) {
     log("stripe_subscription_update_failed", { subscriptionId: sub.id, message: error.message });
     throw new Error(`billing_subscriptions update failed: ${error.message ?? "unknown"}`);
@@ -207,12 +266,14 @@ async function cancelSubscription(
 
 async function markPaymentFailed(
   deps: Deps,
+  event: WebhookEvent,
   invoice: InvoicePayload,
 ): Promise<ProcessResult> {
   const { supabase, resolveUserId, log } = deps;
 
-  // Non-subscription invoices (one-off charges) are out of scope.
-  if (!invoice.subscription) {
+  const subscriptionId = getSubscriptionIdFromInvoice(invoice);
+  if (!subscriptionId) {
+    // Genuine one-off invoice (no associated subscription).
     return { outcome: "ignored" };
   }
 
@@ -222,18 +283,23 @@ async function markPaymentFailed(
     return { outcome: "skipped", reason: "user_unresolved" };
   }
 
-  // Guard against a stale invoice for an already-replaced subscription.
+  const eventCreated = eventCreatedIso(event);
   const { error } = await supabase
     .from("billing_subscriptions")
-    .update({ status: "past_due", updated_at: nowIso(deps) })
+    .update({
+      status: "past_due",
+      last_event_created: eventCreated,
+      updated_at: nowIso(deps),
+    })
     .eq("user_id", userId)
-    .eq("stripe_subscription_id", invoice.subscription);
+    .eq("stripe_subscription_id", subscriptionId)
+    .lt("last_event_created", eventCreated);
   if (error) {
     log("stripe_subscription_update_failed", { invoiceId: invoice.id, message: error.message });
     throw new Error(`billing_subscriptions update failed: ${error.message ?? "unknown"}`);
   }
   log("stripe_event_applied", { action: "subscription_past_due", userId, invoiceId: invoice.id });
-  // Notification enqueue intentionally deferred — notification_jobs table not in v1 schema.
+  // notification_jobs not in v1 schema — see PREPIO-12 follow-up.
   log("payment_failed_notification_deferred", { userId, invoiceId: invoice.id });
   return { outcome: "applied" };
 }

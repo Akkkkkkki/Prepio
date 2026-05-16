@@ -33,6 +33,7 @@ billing_subscriptions
   cadence                 text   -- monthly | quarterly | annual
   current_period_end      timestamptz not null
   cancel_at_period_end    boolean not null default false
+  last_event_created      timestamptz not null  -- Stripe event.created of the last applied mutation; ordering guard
   updated_at              timestamptz
 
 billing_events
@@ -83,7 +84,13 @@ Events handled at v1:
 | `customer.subscription.deleted` | Set `status = 'canceled'`; row kept for history. |
 | `invoice.payment_failed` | Set `status = 'past_due'`; enqueue `notification_jobs` row. |
 
-Idempotency: each event runs its mutation **first** (row-level idempotent — upserts and updates keyed on `user_id` and `stripe_subscription_id`), then inserts `(stripe_event_id, event_type, payload, now())` into `billing_events`. If that insert fails on the unique constraint, the event has already been processed by a prior successful delivery and we return 200 `duplicate` (the re-applied mutation was a harmless no-op on the same row). If the mutation fails, no `billing_events` row is written — Stripe retries can still apply the change. Unknown / skipped / ignored events do not write to `billing_events`, so a config fix followed by a manual resend from the Stripe dashboard can still apply them. `subscription.deleted` and `invoice.payment_failed` updates are scoped by `stripe_subscription_id` as well as `user_id`, so a late delivery for an already-replaced subscription is a silent no-op rather than clobbering the user's current row.
+Idempotency: each event is first pre-checked against `billing_events.stripe_event_id`. A hit returns 200 `duplicate` without touching subscription state. On a miss, dispatch runs the mutation; only a successful applied mutation then logs the event. If the mutation fails, no `billing_events` row is written — Stripe retries can still apply the change. Unknown / skipped / stale / ignored events do not write to `billing_events`, so a config fix followed by a manual resend from the Stripe dashboard can still apply them.
+
+Ordering: Stripe does not guarantee webhook delivery order, so each mutation is also gated on the originating event's `created` timestamp via `billing_subscriptions.last_event_created`. The `created`/`updated` path goes through the `apply_subscription_event` RPC, whose `ON CONFLICT DO UPDATE WHERE last_event_created < EXCLUDED.last_event_created` is the only way to make the "ignore stale" check atomic against concurrent deliveries. `deleted` and `invoice.payment_failed` mutations use a `.lt("last_event_created", event_created)` filter. A late-arriving stale snapshot therefore cannot resurrect a canceled or past-due row.
+
+Scope: `subscription.deleted` and `invoice.payment_failed` also filter by `stripe_subscription_id` so a late delete for an already-replaced subscription is a silent no-op rather than clobbering the user's current row.
+
+Invoice subscription field: `invoice.payment_failed` reads `invoice.parent.subscription_details.subscription` first (Stripe API 2025-03-31.basil and newer), falling back to legacy `invoice.subscription`.
 
 User resolution: subscription events carry a Stripe customer ID, not our `user_id`. The webhook looks up `billing_customers.stripe_customer_id` first, then falls back to fetching the Stripe Customer and reading `metadata.user_id`. **The Checkout edge function must therefore set `metadata.user_id` when creating a Stripe Customer** — without it the fallback fails and the subscription update is skipped (logged as `stripe_user_unresolved`).
 
