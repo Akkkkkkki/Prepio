@@ -133,7 +133,7 @@ serve(async (req) => {
     });
   }
 
-  log("stripe_event_received", { id: event.id, type: event.type });
+  log("stripe_event_received", { id: event.id, type: event.type, created: event.created });
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
