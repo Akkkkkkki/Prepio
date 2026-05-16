@@ -6,6 +6,7 @@ import {
   type SubscriptionPayload,
   type SupabaseError,
   type SupabaseLike,
+  type UpdateBuilder,
   type WebhookEvent,
 } from "./handlers.ts";
 
@@ -20,6 +21,7 @@ const FUTURE_UNIX = Math.floor(new Date("2026-12-31T00:00:00Z").getTime() / 1000
 function buildSubscriptionEvent(
   type: "created" | "updated" | "deleted",
   overrides: Partial<SubscriptionPayload> = {},
+  eventOverrides: { id?: string } = {},
 ): WebhookEvent {
   const sub: SubscriptionPayload = {
     id: "sub_test_123",
@@ -31,7 +33,7 @@ function buildSubscriptionEvent(
     ...overrides,
   };
   return {
-    id: `evt_${type}_1`,
+    id: eventOverrides.id ?? `evt_${type}_1`,
     type: `customer.subscription.${type}`,
     data: { object: sub },
   };
@@ -56,7 +58,7 @@ interface Recorded {
   table: string;
   op: "insert" | "upsert" | "update";
   payload: Record<string, unknown>;
-  filter?: { col: string; val: string };
+  filters?: Array<{ col: string; val: string }>;
 }
 
 interface FakeOptions {
@@ -91,13 +93,22 @@ function buildFakeSupabase(opts: FakeOptions = {}) {
           return { error: forced ?? null };
         },
         update(row) {
-          return {
-            async eq(col, val) {
-              calls.push({ table, op: "update", payload: row, filter: { col, val } });
-              const forced = opts.errors?.[`${table}:update`];
-              return { error: forced ?? null };
+          const filters: Array<{ col: string; val: string }> = [];
+          const exec = async () => {
+            calls.push({ table, op: "update", payload: row, filters });
+            const forced = opts.errors?.[`${table}:update`];
+            return { error: forced ?? null };
+          };
+          const builder: UpdateBuilder = {
+            eq(col, val) {
+              filters.push({ col, val });
+              return builder;
+            },
+            then(onFulfilled, onRejected) {
+              return exec().then(onFulfilled, onRejected);
             },
           };
+          return builder;
         },
       };
     },
@@ -111,7 +122,7 @@ function buildDeps(
 ): { deps: Deps; calls: Recorded[]; logs: Array<{ event: string; fields?: Record<string, unknown> }> } {
   const fake = overrides.supabase
     ? { supabase: overrides.supabase, calls: overrides.calls ?? [] }
-    : buildFakeSupabase();
+    : buildFakeSupabase({ uniqueInsert: { table: "billing_events", dedupeKey: "stripe_event_id" } });
   const logs: Array<{ event: string; fields?: Record<string, unknown> }> = [];
   const deps: Deps = {
     supabase: fake.supabase,
@@ -140,19 +151,20 @@ describe("cadenceFromPriceId", () => {
 describe("processEvent — idempotency", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("processes a fresh event and applies the subscription upsert", async () => {
+  it("processes a fresh event, applies the mutation, then records billing_events", async () => {
     const fake = buildFakeSupabase({ uniqueInsert: { table: "billing_events", dedupeKey: "stripe_event_id" } });
     const { deps, logs } = buildDeps({ supabase: fake.supabase, calls: fake.calls });
 
     const result = await processEvent(deps, buildSubscriptionEvent("created"));
 
     expect(result).toEqual({ outcome: "applied" });
-    expect(fake.calls.filter((c) => c.table === "billing_events" && c.op === "insert")).toHaveLength(1);
-    expect(fake.calls.filter((c) => c.table === "billing_subscriptions" && c.op === "upsert")).toHaveLength(1);
+    // Mutation runs before the event log insert.
+    const ops = fake.calls.map((c) => `${c.table}:${c.op}`);
+    expect(ops).toEqual(["billing_subscriptions:upsert", "billing_events:insert"]);
     expect(logs.find((l) => l.event === "stripe_event_applied")).toBeDefined();
   });
 
-  it("returns duplicate without re-applying on second delivery of the same event id", async () => {
+  it("returns duplicate when the same event id is re-delivered", async () => {
     const fake = buildFakeSupabase({ uniqueInsert: { table: "billing_events", dedupeKey: "stripe_event_id" } });
     const { deps, logs } = buildDeps({ supabase: fake.supabase, calls: fake.calls });
     const event = buildSubscriptionEvent("updated");
@@ -162,27 +174,81 @@ describe("processEvent — idempotency", () => {
 
     expect(first.outcome).toBe("applied");
     expect(second.outcome).toBe("duplicate");
-    expect(fake.calls.filter((c) => c.table === "billing_subscriptions").length).toBe(1);
     expect(logs.some((l) => l.event === "stripe_event_duplicate")).toBe(true);
   });
 
-  it("throws on a non-unique billing_events insert error so Stripe retries", async () => {
+  it("does NOT mark the event processed if the mutation fails — Stripe must be able to retry", async () => {
+    // This is the regression the P1 review caught: with insert-first
+    // idempotency, a transient mutation failure would log the event and then
+    // a retry would be silently skipped as duplicate.
     const fake = buildFakeSupabase({
-      errors: { "billing_events:insert": { code: "08006", message: "connection lost" } },
+      uniqueInsert: { table: "billing_events", dedupeKey: "stripe_event_id" },
+      errors: { "billing_subscriptions:upsert": { code: "08006", message: "connection lost" } },
     });
     const { deps } = buildDeps({ supabase: fake.supabase, calls: fake.calls });
 
     await expect(processEvent(deps, buildSubscriptionEvent("created"))).rejects.toThrow(
-      /billing_events insert failed/,
+      /billing_subscriptions upsert failed/,
     );
-    expect(fake.calls.some((c) => c.table === "billing_subscriptions")).toBe(false);
+
+    // billing_events insert must NOT have run, so a retry will re-apply.
+    expect(fake.calls.some((c) => c.table === "billing_events")).toBe(false);
+  });
+
+  it("retry after a transient mutation failure re-applies and then logs", async () => {
+    let firstAttempt = true;
+    const fake: ReturnType<typeof buildFakeSupabase> = {
+      calls: [],
+      supabase: {
+        from(table) {
+          return {
+            async insert(row) {
+              fake.calls.push({ table, op: "insert", payload: row });
+              return { error: null };
+            },
+            async upsert(row) {
+              fake.calls.push({ table, op: "upsert", payload: row });
+              if (firstAttempt) {
+                firstAttempt = false;
+                return { error: { code: "08006", message: "connection lost" } };
+              }
+              return { error: null };
+            },
+            update() {
+              throw new Error("not used");
+            },
+          };
+        },
+      },
+    };
+    const { deps } = buildDeps({ supabase: fake.supabase, calls: fake.calls });
+    const event = buildSubscriptionEvent("created");
+
+    await expect(processEvent(deps, event)).rejects.toThrow(/upsert failed/);
+    const retry = await processEvent(deps, event);
+
+    expect(retry.outcome).toBe("applied");
+    expect(fake.calls.filter((c) => c.table === "billing_subscriptions").length).toBe(2);
+    expect(fake.calls.filter((c) => c.table === "billing_events" && c.op === "insert").length).toBe(1);
+  });
+
+  it("does not log billing_events for skipped events so a config fix + resend can apply them", async () => {
+    const fake = buildFakeSupabase({ uniqueInsert: { table: "billing_events", dedupeKey: "stripe_event_id" } });
+    const { deps } = buildDeps({
+      supabase: fake.supabase,
+      calls: fake.calls,
+      resolveUserId: async () => null,
+    });
+
+    await processEvent(deps, buildSubscriptionEvent("created"));
+
+    expect(fake.calls.some((c) => c.table === "billing_events")).toBe(false);
   });
 });
 
 describe("processEvent — subscription dispatch", () => {
   it("subscription.updated upserts with the resolved cadence and ISO timestamps", async () => {
-    const fake = buildFakeSupabase({ uniqueInsert: { table: "billing_events", dedupeKey: "stripe_event_id" } });
-    const { deps } = buildDeps({ supabase: fake.supabase, calls: fake.calls });
+    const { deps, calls } = buildDeps();
     const event = buildSubscriptionEvent("updated", {
       items: { data: [{ price: { id: LOOKUP.quarterly } }] },
       status: "active",
@@ -191,7 +257,7 @@ describe("processEvent — subscription dispatch", () => {
 
     await processEvent(deps, event);
 
-    const upsert = fake.calls.find((c) => c.table === "billing_subscriptions" && c.op === "upsert");
+    const upsert = calls.find((c) => c.table === "billing_subscriptions" && c.op === "upsert");
     expect(upsert?.payload).toMatchObject({
       user_id: "user_xyz",
       stripe_subscription_id: "sub_test_123",
@@ -202,20 +268,21 @@ describe("processEvent — subscription dispatch", () => {
     expect(upsert?.payload.current_period_end).toBe(new Date(FUTURE_UNIX * 1000).toISOString());
   });
 
-  it("subscription.deleted flips status to canceled and keeps the row", async () => {
-    const fake = buildFakeSupabase({ uniqueInsert: { table: "billing_events", dedupeKey: "stripe_event_id" } });
-    const { deps } = buildDeps({ supabase: fake.supabase, calls: fake.calls });
+  it("subscription.deleted filters by user_id AND stripe_subscription_id", async () => {
+    const { deps, calls } = buildDeps();
 
     await processEvent(deps, buildSubscriptionEvent("deleted"));
 
-    const update = fake.calls.find((c) => c.table === "billing_subscriptions" && c.op === "update");
+    const update = calls.find((c) => c.table === "billing_subscriptions" && c.op === "update");
     expect(update?.payload.status).toBe("canceled");
-    expect(update?.filter).toEqual({ col: "user_id", val: "user_xyz" });
+    expect(update?.filters).toEqual([
+      { col: "user_id", val: "user_xyz" },
+      { col: "stripe_subscription_id", val: "sub_test_123" },
+    ]);
   });
 
   it("skips with reason=unknown_price when the Stripe price id is not configured", async () => {
-    const fake = buildFakeSupabase({ uniqueInsert: { table: "billing_events", dedupeKey: "stripe_event_id" } });
-    const { deps, logs } = buildDeps({ supabase: fake.supabase, calls: fake.calls });
+    const { deps, calls, logs } = buildDeps();
     const event = buildSubscriptionEvent("created", {
       items: { data: [{ price: { id: "price_legacy" } }] },
     });
@@ -223,54 +290,50 @@ describe("processEvent — subscription dispatch", () => {
     const result = await processEvent(deps, event);
 
     expect(result).toEqual({ outcome: "skipped", reason: "unknown_price" });
-    expect(fake.calls.some((c) => c.table === "billing_subscriptions")).toBe(false);
+    expect(calls.some((c) => c.table === "billing_subscriptions")).toBe(false);
     expect(logs.some((l) => l.event === "stripe_unknown_price")).toBe(true);
   });
 
   it("skips with reason=user_unresolved when the Stripe customer is unknown", async () => {
-    const fake = buildFakeSupabase({ uniqueInsert: { table: "billing_events", dedupeKey: "stripe_event_id" } });
-    const { deps, logs } = buildDeps({
-      supabase: fake.supabase,
-      calls: fake.calls,
-      resolveUserId: async () => null,
-    });
+    const { deps, calls, logs } = buildDeps({ resolveUserId: async () => null });
 
     const result = await processEvent(deps, buildSubscriptionEvent("created"));
 
     expect(result).toEqual({ outcome: "skipped", reason: "user_unresolved" });
-    expect(fake.calls.some((c) => c.table === "billing_subscriptions")).toBe(false);
+    expect(calls.some((c) => c.table === "billing_subscriptions")).toBe(false);
     expect(logs.some((l) => l.event === "stripe_user_unresolved")).toBe(true);
   });
 });
 
 describe("processEvent — invoice.payment_failed", () => {
-  it("flips status to past_due and logs the deferred notification", async () => {
-    const fake = buildFakeSupabase({ uniqueInsert: { table: "billing_events", dedupeKey: "stripe_event_id" } });
-    const { deps, logs } = buildDeps({ supabase: fake.supabase, calls: fake.calls });
+  it("flips status to past_due, filtered by user_id AND stripe_subscription_id", async () => {
+    const { deps, calls, logs } = buildDeps();
 
     const result = await processEvent(deps, buildInvoiceEvent());
 
     expect(result.outcome).toBe("applied");
-    const update = fake.calls.find((c) => c.table === "billing_subscriptions" && c.op === "update");
+    const update = calls.find((c) => c.table === "billing_subscriptions" && c.op === "update");
     expect(update?.payload.status).toBe("past_due");
+    expect(update?.filters).toEqual([
+      { col: "user_id", val: "user_xyz" },
+      { col: "stripe_subscription_id", val: "sub_test_123" },
+    ]);
     expect(logs.some((l) => l.event === "payment_failed_notification_deferred")).toBe(true);
   });
 
   it("ignores one-off invoices without a subscription", async () => {
-    const fake = buildFakeSupabase({ uniqueInsert: { table: "billing_events", dedupeKey: "stripe_event_id" } });
-    const { deps } = buildDeps({ supabase: fake.supabase, calls: fake.calls });
+    const { deps, calls } = buildDeps();
 
     const result = await processEvent(deps, buildInvoiceEvent({ subscription: null }));
 
     expect(result.outcome).toBe("ignored");
-    expect(fake.calls.some((c) => c.table === "billing_subscriptions")).toBe(false);
+    expect(calls.some((c) => c.table === "billing_subscriptions")).toBe(false);
   });
 });
 
 describe("processEvent — unknown event types", () => {
   it("logs and returns ignored for event types we do not handle", async () => {
-    const fake = buildFakeSupabase({ uniqueInsert: { table: "billing_events", dedupeKey: "stripe_event_id" } });
-    const { deps, logs } = buildDeps({ supabase: fake.supabase, calls: fake.calls });
+    const { deps, calls, logs } = buildDeps();
     const event: WebhookEvent = {
       id: "evt_unknown_1",
       type: "customer.created",
@@ -280,7 +343,8 @@ describe("processEvent — unknown event types", () => {
     const result = await processEvent(deps, event);
 
     expect(result.outcome).toBe("ignored");
-    expect(fake.calls.some((c) => c.table === "billing_subscriptions")).toBe(false);
+    expect(calls.some((c) => c.table === "billing_subscriptions")).toBe(false);
+    expect(calls.some((c) => c.table === "billing_events")).toBe(false);
     expect(logs.some((l) => l.event === "stripe_event_ignored")).toBe(true);
   });
 });
