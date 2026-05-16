@@ -133,6 +133,7 @@ STRIPE_WEBHOOK_SECRET       # verify webhook signatures
 STRIPE_PRICE_MONTHLY
 STRIPE_PRICE_QUARTERLY
 STRIPE_PRICE_ANNUAL
+APP_BASE_URL                # checkout success/cancel redirect base, e.g. https://prepio.app
 ```
 
 Never ship the secret key to the client; never hard-code Price IDs.
