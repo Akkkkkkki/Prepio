@@ -459,6 +459,63 @@ describe("Profile page", () => {
     expect(screen.getByRole("button", { name: "Delete CV data" })).toBeInTheDocument();
   });
 
+  it("keeps legacy pending imports with unapplied new suggestions reviewable", async () => {
+    const importedProfile = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff Engineer",
+      lastResumeId: "resume-1",
+    });
+    const profileImport = {
+      id: "import-legacy",
+      userId: "user-1",
+      resumeId: "resume-1",
+      source: "manual",
+      draftProfile: importedProfile,
+      mergeSuggestions: [
+        {
+          id: "suggestion-headline",
+          kind: "new",
+          section: "headline",
+          title: "Headline",
+          message: "Import headline from the latest resume draft.",
+          field: "headline",
+        },
+      ],
+      importSummary: {
+        newCount: 1,
+        duplicateCount: 0,
+        conflictingCount: 0,
+        missingCount: 0,
+      },
+      status: "pending",
+      createdAt: "2026-04-04T10:10:00.000Z",
+      appliedAt: null,
+    };
+
+    mockGetLatestProfileImport.mockResolvedValue({ success: true, profileImport });
+    mockApplyProfileImport.mockResolvedValue({
+      success: true,
+      profile: normalizeCandidateProfile({ userId: "user-1", headline: "Staff Engineer" }),
+    });
+
+    renderProfile("/profile/import");
+
+    await waitFor(() => {
+      expect(screen.getByText("Headline")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("No CV details need review.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply selected changes" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply selected changes" }));
+
+    await waitFor(() => {
+      expect(mockApplyProfileImport).toHaveBeenCalledWith("import-legacy", [
+        { suggestionId: "suggestion-headline", action: "add_incoming" },
+      ]);
+    });
+  });
+
   it("shows an error when CV import analysis fails after saving the CV", async () => {
     mockSaveResume.mockResolvedValue({ success: true, resume: { id: "resume-1" } });
     mockCreateProfileImport.mockResolvedValue({

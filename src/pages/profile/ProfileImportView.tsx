@@ -117,9 +117,17 @@ const ProfileImportView = ({ workspace }: ProfileImportViewProps) => {
   const conflictSuggestions = activeImport?.mergeSuggestions.filter(
     (suggestion) => suggestion.kind === "conflicts_existing",
   ) ?? [];
-  const reviewKeepsCurrent = conflictSuggestions.every(
+  const hasLegacyUnappliedSuggestions =
+    activeImport?.mergeSuggestions.some((suggestion) => suggestion.kind !== "conflicts_existing") ?? false;
+  const reviewSuggestions = hasLegacyUnappliedSuggestions
+    ? activeImport?.mergeSuggestions ?? []
+    : conflictSuggestions;
+  const reviewKeepsCurrent = reviewSuggestions.every(
     (suggestion) => (mergeDecisions[suggestion.id] ?? "keep_existing") === "keep_existing",
   );
+  const reviewDescription = hasLegacyUnappliedSuggestions
+    ? "This pending CV review was created before automatic profile updates. Finish it here before importing another CV."
+    : "Only conflicts need decisions. New details are already on the Profile page.";
 
   return (
     <div className="space-y-6">
@@ -178,17 +186,17 @@ const ProfileImportView = ({ workspace }: ProfileImportViewProps) => {
 
       <ProfileSectionCard
         title="Review CV details"
-        description="Only conflicts need decisions. New details are already on the Profile page."
+        description={reviewDescription}
         icon={<Sparkles className="h-5 w-5 text-primary" />}
       >
-        {activeImport && conflictSuggestions.length > 0 ? (
+        {activeImport && reviewSuggestions.length > 0 ? (
           <div className="space-y-5">
             <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">{conflictSuggestions.length} need review</Badge>
+              <Badge variant="secondary">{reviewSuggestions.length} need review</Badge>
             </div>
 
             <div className="space-y-3">
-              {conflictSuggestions.map((suggestion) => {
+              {reviewSuggestions.map((suggestion) => {
                 const currentAction = mergeDecisions[suggestion.id] ?? "keep_existing";
 
                 return (
@@ -200,7 +208,9 @@ const ProfileImportView = ({ workspace }: ProfileImportViewProps) => {
                           {profileImportSectionLabel[suggestion.section]} · {suggestion.message}
                         </p>
                       </div>
-                      <Badge variant="outline">Conflict</Badge>
+                      <Badge variant="outline">
+                        {suggestion.kind === "conflicts_existing" ? "Conflict" : suggestion.kind.replace(/_/g, " ")}
+                      </Badge>
                     </div>
 
                     <div className="grid gap-3 md:grid-cols-2">
