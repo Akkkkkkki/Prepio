@@ -4,6 +4,13 @@ export type ResearchStep = "company" | "details" | "tailoring";
 
 export type AuthIntent = "research" | "practice" | "dashboard" | "profile";
 
+export type ResearchPreviewDraft = {
+  previewId: string;
+  confidence?: "high" | "medium" | "low";
+  sourceSummary?: string;
+  expiresAt?: string;
+};
+
 export type ResearchDraft = {
   company: string;
   role: string;
@@ -14,6 +21,7 @@ export type ResearchDraft = {
   cv: string;
   roleLinks: string;
   step: ResearchStep;
+  preview?: ResearchPreviewDraft;
   savedAt: string;
 };
 
@@ -45,6 +53,22 @@ const isLevel = (value: unknown): value is Level =>
   typeof value === "string" && LEVELS.includes(value as Level);
 
 const normalizeString = (value: unknown) => (typeof value === "string" ? value : "");
+
+const normalizePreviewDraft = (value: unknown): ResearchPreviewDraft | undefined => {
+  if (!value || typeof value !== "object") return undefined;
+  const preview = value as Partial<ResearchPreviewDraft>;
+  if (!preview.previewId || typeof preview.previewId !== "string") return undefined;
+
+  return {
+    previewId: preview.previewId,
+    confidence:
+      preview.confidence === "high" || preview.confidence === "medium" || preview.confidence === "low"
+        ? preview.confidence
+        : undefined,
+    sourceSummary: normalizeString(preview.sourceSummary) || undefined,
+    expiresAt: normalizeString(preview.expiresAt) || undefined,
+  };
+};
 
 export const getAuthIntentFromPath = (pathname: string): AuthIntent | undefined => {
   if (pathname === "/profile" || pathname.startsWith("/profile/")) {
@@ -109,17 +133,22 @@ export const normalizeResearchDraft = (value: unknown): ResearchDraft | null => 
 
   const draft = value as Partial<ResearchDraft>;
   if (!isResearchStep(draft.step)) return null;
+  const levelValue = (value as { level?: unknown }).level;
+  const userNoteValue = (value as { userNote?: unknown }).userNote;
+  const jobDescriptionValue = (value as { jobDescription?: unknown }).jobDescription;
+  const previewValue = (value as { preview?: unknown }).preview;
 
   return {
     company: normalizeString(draft.company),
     role: normalizeString(draft.role),
     country: normalizeString(draft.country),
-    level: isLevel((draft as any).level) ? (draft as any).level : undefined,
-    userNote: normalizeString((draft as any).userNote),
-    jobDescription: normalizeString((draft as any).jobDescription),
+    level: isLevel(levelValue) ? levelValue : undefined,
+    userNote: normalizeString(userNoteValue),
+    jobDescription: normalizeString(jobDescriptionValue),
     cv: normalizeString(draft.cv),
     roleLinks: normalizeString(draft.roleLinks),
     step: draft.step,
+    preview: normalizePreviewDraft(previewValue),
     savedAt: normalizeString(draft.savedAt) || new Date().toISOString(),
   };
 };

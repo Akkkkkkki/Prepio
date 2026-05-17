@@ -14,6 +14,10 @@ import {
 import Navigation from "@/components/Navigation";
 import ProgressDialog from "@/components/ProgressDialog";
 import PublicHeader from "@/components/PublicHeader";
+import { ConversionPanel } from "@/components/preview/ConversionPanel";
+import { InterviewBriefPreview } from "@/components/preview/InterviewBriefPreview";
+import { PrepAskPanel } from "@/components/preview/PrepAskPanel";
+import { PreviewForm } from "@/components/preview/PreviewForm";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +45,7 @@ import { ACCEPTED_RESUME_TYPES, ResumeUploadError, buildResumeStoragePath, extra
 import { cn } from "@/lib/utils";
 import { searchService } from "@/services/searchService";
 import { useToast } from "@/hooks/use-toast";
+import type { ResearchPreview } from "@/types/researchPreview";
 
 type FormLevel = Level | "auto" | undefined;
 
@@ -183,6 +188,9 @@ const Home = () => {
   const [isLoadingProfileResume, setIsLoadingProfileResume] = useState(false);
   const [isUsingProfileResume, setIsUsingProfileResume] = useState(false);
   const [isUploadingResume, setIsUploadingResume] = useState(false);
+  const [preview, setPreview] = useState<ResearchPreview | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   useEffect(() => {
     const draft = loadResearchDraft();
@@ -198,6 +206,9 @@ const Home = () => {
       jobDescription: draft.jobDescription || "",
       level: draft.level ?? "auto",
     });
+    if (draft.preview) {
+      setPreviewError("Preview saved. Sign in to generate the full plan from this draft.");
+    }
     setMobileStep(draft.step);
   }, []);
 
@@ -270,6 +281,14 @@ const Home = () => {
       cv: formData.cv,
       roleLinks: formData.roleLinks,
       step,
+      preview: preview
+        ? {
+            previewId: preview.previewId,
+            confidence: preview.confidence,
+            sourceSummary: preview.sourceSummary,
+            expiresAt: preview.expiresAt,
+          }
+        : undefined,
       savedAt: new Date().toISOString(),
     };
 
@@ -286,6 +305,32 @@ const Home = () => {
         source: "research_home",
       }),
     });
+  };
+
+  const handleCreatePreview = async () => {
+    if (!formData.company.trim()) return;
+
+    if (!isOnline) {
+      setPreviewError("Reconnect to preview this prep. You can keep editing the company and role while offline.");
+      return;
+    }
+
+    setPreviewError(null);
+    setIsPreviewLoading(true);
+
+    const result = await searchService.createResearchPreview({
+      company: formData.company,
+      role: formData.role || undefined,
+    });
+
+    setIsPreviewLoading(false);
+
+    if (result.success && result.preview) {
+      setPreview(result.preview);
+      return;
+    }
+
+    setPreviewError("We couldn't build the preview. Try again, or sign in to run the full research workflow.");
   };
 
   const startStatusPolling = (searchId: string) => {
@@ -1139,10 +1184,6 @@ const Home = () => {
     </Card>
   );
 
-  const guestCtaLabel = formData.company.trim()
-    ? `Research ${formData.company.trim()} →`
-    : "Get my prep plan →";
-
   const renderGuestHome = () => (
     <div className="mx-auto max-w-6xl space-y-8 md:space-y-10">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
@@ -1162,48 +1203,21 @@ const Home = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                navigateToAuth(GUEST_RESEARCH_RESUME_STEP);
-              }}
-              className="space-y-4"
-            >
-              <div className="space-y-2">
-                <Label htmlFor="guest-company">Company *</Label>
-                <Input
-                  id="guest-company"
-                  placeholder="e.g. Stripe, OpenAI, Ramp"
-                  value={formData.company}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, company: e.target.value }))}
-                  autoComplete="organization"
-                  required
-                />
-              </div>
+            <PreviewForm
+              company={formData.company}
+              role={formData.role}
+              isLoading={isPreviewLoading}
+              onCompanyChange={(company) => setFormData((prev) => ({ ...prev, company }))}
+              onRoleChange={(role) => setFormData((prev) => ({ ...prev, role }))}
+              onSubmit={handleCreatePreview}
+            />
 
-              <div className="space-y-2">
-                <Label htmlFor="guest-role">Role (optional)</Label>
-                <Input
-                  id="guest-role"
-                  placeholder="e.g. Product Manager"
-                  value={formData.role}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, role: e.target.value }))}
-                  autoComplete="organization-title"
-                />
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full motion-cta"
-                size="lg"
-                disabled={!formData.company.trim()}
-              >
-                {guestCtaLabel}
-              </Button>
-              <p className="text-center text-xs text-muted-foreground">
-                Takes about 60 seconds. We&apos;ll keep your draft while you sign in.
-              </p>
-            </form>
+            {previewError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{previewError}</AlertDescription>
+              </Alert>
+            )}
 
             {canInstall && (
               <Button type="button" variant="outline" className="w-full" onClick={() => void promptInstall()}>
@@ -1213,58 +1227,69 @@ const Home = () => {
           </CardContent>
         </Card>
 
-        <Card className="border bg-muted/20 shadow-sm">
-          <CardHeader className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="w-fit rounded-full border bg-background px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                Example output
-              </div>
-              <Badge variant="outline" className="bg-background text-[10px] font-medium">
-                {GUEST_SAMPLE_COMPANY} · {GUEST_SAMPLE_ROLE}
-              </Badge>
-            </div>
-            <CardTitle className="text-2xl tracking-tight">
-              Real questions, sourced from real interviews.
-            </CardTitle>
-            <CardDescription className="text-sm leading-6">
-              Each question comes with the stage, difficulty, and why it matters for this company.
-              Here&apos;s a sample of what Prepio generates from Glassdoor, LinkedIn, and company signals.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              {GUEST_SAMPLE_QUESTIONS.map((q) => (
-                <div key={q.question} className="rounded-2xl border bg-background p-4 shadow-sm motion-surface">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary" className="text-[10px] font-medium">
-                      {q.stage}
-                    </Badge>
-                    <Badge
-                      className={cn(
-                        "text-[10px] font-medium",
-                        q.difficulty === "Hard"
-                          ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                          : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-                      )}
-                    >
-                      {q.difficulty}
-                    </Badge>
-                  </div>
-                  <p className="mt-3 text-sm font-semibold leading-6 text-foreground">
-                    {q.question}
-                  </p>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    <span className="font-medium text-foreground/70">Why it matters — </span>
-                    {q.rationale}
-                  </p>
+        {preview ? (
+          <div className="space-y-4">
+            <InterviewBriefPreview preview={preview} />
+            <PrepAskPanel preview={preview} />
+            <ConversionPanel
+              onSavePlan={() => navigateToAuth(GUEST_RESEARCH_RESUME_STEP)}
+              onGenerateFullPlan={() => navigateToAuth(GUEST_RESEARCH_RESUME_STEP)}
+            />
+          </div>
+        ) : (
+          <Card className="border bg-muted/20 shadow-sm">
+            <CardHeader className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="w-fit rounded-full border bg-background px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  Example output
                 </div>
-              ))}
-            </div>
-            <p className="text-xs leading-5 text-muted-foreground">
-              Generated from public signals · Glassdoor, LinkedIn, engineering blogs, and company values.
-            </p>
-          </CardContent>
-        </Card>
+                <Badge variant="outline" className="bg-background text-[10px] font-medium">
+                  {GUEST_SAMPLE_COMPANY} · {GUEST_SAMPLE_ROLE}
+                </Badge>
+              </div>
+              <CardTitle className="text-2xl tracking-tight">
+                Real questions, sourced from real interviews.
+              </CardTitle>
+              <CardDescription className="text-sm leading-6">
+                Each question comes with the stage, difficulty, and why it matters for this company.
+                Here&apos;s a sample of what Prepio generates from Glassdoor, LinkedIn, and company signals.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                {GUEST_SAMPLE_QUESTIONS.map((q) => (
+                  <div key={q.question} className="rounded-2xl border bg-background p-4 shadow-sm motion-surface">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className="text-[10px] font-medium">
+                        {q.stage}
+                      </Badge>
+                      <Badge
+                        className={cn(
+                          "text-[10px] font-medium",
+                          q.difficulty === "Hard"
+                            ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                            : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+                        )}
+                      >
+                        {q.difficulty}
+                      </Badge>
+                    </div>
+                    <p className="mt-3 text-sm font-semibold leading-6 text-foreground">
+                      {q.question}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      <span className="font-medium text-foreground/70">Why it matters — </span>
+                      {q.rationale}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs leading-5 text-muted-foreground">
+                Generated from public signals · Glassdoor, LinkedIn, engineering blogs, and company values.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <section className="rounded-[32px] border bg-card p-6 shadow-sm">
