@@ -72,6 +72,7 @@ export interface StripeLike {
     sessions: {
       create: (
         params: StripeCheckoutSessionCreateParams,
+        options?: { idempotencyKey?: string },
       ) => Promise<{ id: string; url: string | null }>;
     };
   };
@@ -187,15 +188,24 @@ export async function createCheckoutSession(
 
   let session: { id: string; url: string | null };
   try {
-    session = await deps.stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: stripeCustomerId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${deps.appBaseUrl}/billing/return?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${deps.appBaseUrl}/`,
-      client_reference_id: req.userId,
-      allow_promotion_codes: false,
-    });
+    // idempotencyKey scoped to (user, cadence) dedupes parallel POSTs and
+    // client retries within Stripe's 24h key window: both branches converge on
+    // the same Session URL, so the user can never complete two Checkouts and
+    // generate two subscriptions on the same customer. A different cadence
+    // produces a different key so legitimate cadence-change requests still get
+    // a fresh Session.
+    session = await deps.stripe.checkout.sessions.create(
+      {
+        mode: "subscription",
+        customer: stripeCustomerId,
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: `${deps.appBaseUrl}/profile?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${deps.appBaseUrl}/?checkout=canceled`,
+        client_reference_id: req.userId,
+        allow_promotion_codes: false,
+      },
+      { idempotencyKey: `checkout:${req.userId}:${cadence}` },
+    );
   } catch (err) {
     deps.log("stripe_checkout_create_failed", {
       userId: req.userId,

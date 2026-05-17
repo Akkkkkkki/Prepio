@@ -131,11 +131,11 @@ interface FakeStripeRecorder {
 }
 
 function buildFakeStripe(opts: FakeStripeOptions = {}): FakeStripeRecorder {
-  const customerCreate = vi.fn(async () => {
+  const customerCreate = vi.fn(async (_params: unknown, _options?: unknown) => {
     if (opts.customerCreateError) throw opts.customerCreateError;
     return { id: opts.customerId ?? "cus_new_123" };
   });
-  const sessionCreate = vi.fn(async () => {
+  const sessionCreate = vi.fn(async (_params: unknown, _options?: unknown) => {
     if (opts.sessionCreateError) throw opts.sessionCreateError;
     return {
       id: opts.sessionId ?? "cs_test_123",
@@ -255,6 +255,7 @@ describe("createCheckoutSession", () => {
     expect(supabaseRec.upsertCalls).toEqual([]);
     expect(stripeRec.sessionCreate).toHaveBeenCalledWith(
       expect.objectContaining({ customer: "cus_existing_999" }),
+      expect.any(Object),
     );
   });
 
@@ -267,6 +268,7 @@ describe("createCheckoutSession", () => {
           mode: "subscription",
           line_items: [{ price: LOOKUP[cadence], quantity: 1 }],
         }),
+        expect.any(Object),
       );
     }
   });
@@ -280,11 +282,23 @@ describe("createCheckoutSession", () => {
     });
     expect(stripeRec.sessionCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        success_url: `${APP_BASE_URL}/billing/return?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${APP_BASE_URL}/`,
+        success_url: `${APP_BASE_URL}/profile?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${APP_BASE_URL}/?checkout=canceled`,
         client_reference_id: USER_ID,
       }),
+      expect.any(Object),
     );
+  });
+
+  it("passes a stable idempotency key scoped to (user, cadence) on checkout creation", async () => {
+    for (const cadence of ["monthly", "quarterly", "annual"] as const) {
+      const { deps, stripeRec } = buildDeps();
+      await createCheckoutSession(deps, { userId: USER_ID, userEmail: USER_EMAIL, cadence });
+      expect(stripeRec.sessionCreate).toHaveBeenCalledWith(
+        expect.any(Object),
+        { idempotencyKey: `checkout:${USER_ID}:${cadence}` },
+      );
+    }
   });
 
   it("returns the session URL and id on success", async () => {

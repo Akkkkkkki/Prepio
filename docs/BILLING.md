@@ -100,9 +100,9 @@ User resolution: subscription events carry a Stripe customer ID, not our `user_i
 
 1. User hits a paid gate or clicks a pricing CTA.
 2. Frontend calls an edge function `create-checkout-session` with `{ cadence }`.
-3. Edge function creates a Stripe Checkout Session and returns its URL. (Creates a Stripe Customer lazily if one doesn't exist yet.)
-4. Client redirects to the URL. On success, user returns to `/billing/return?session_id=…`.
-5. Return page polls `getEntitlement` until the webhook has landed (usually <2s).
+3. Edge function creates a Stripe Checkout Session and returns its URL. (Creates a Stripe Customer lazily if one doesn't exist yet.) The session is created with `idempotencyKey = checkout:<user_id>:<cadence>` so parallel POSTs and client retries within Stripe's 24h key window converge on the same Session URL and cannot mint two subscriptions on the same customer.
+4. Client redirects to the URL. On success, user returns to `/profile?checkout=success&session_id=…`; on cancel, to `/?checkout=canceled`. A dedicated `/billing/return` page that polls `getEntitlement` until the webhook lands is a separate follow-up; until then the Profile page is the landing spot.
+5. The webhook usually lands within ~2s of completion; until the polling return page exists, paid features become available on the next entitlement refetch.
 
 If the caller already has an active paid subscription, `create-checkout-session` refuses with `409 { error: "already_subscribed" }`. The frontend should route those users into the Customer Portal flow instead — cadence changes belong to the portal, not a fresh Checkout. Other error codes: `400 invalid_cadence | invalid_json`, `401 missing/invalid bearer | user_token_required`, `500 internal_error | misconfigured`, `502 stripe_error`.
 
