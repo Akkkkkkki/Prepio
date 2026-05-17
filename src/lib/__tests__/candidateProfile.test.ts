@@ -9,6 +9,7 @@ import {
   createEmptyProject,
   createEmptySkillGroup,
   getDefaultMergeAction,
+  prepareProfileImportAutoApply,
   mergeImportedProfile,
   normalizeCandidateProfile,
 } from "../candidateProfile";
@@ -174,5 +175,125 @@ describe("candidateProfile helpers", () => {
 
     expect(computeCandidateProfileCompletion(empty)).toBe(0);
     expect(computeCandidateProfileCompletion(complete)).toBe(100);
+  });
+
+  it("auto-applies new imported content into an empty profile", () => {
+    const current = createEmptyCandidateProfile("user-1");
+    const draft = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff Engineer",
+      summary: "Built platform systems.",
+      experiences: [createEmptyExperience({ id: "exp-1", company: "Acme", title: "Staff Engineer" })],
+      skills: [createEmptySkillGroup({ id: "skills-1", name: "Core", skills: ["React", "TypeScript"] })],
+      lastResumeId: "resume-1",
+    });
+    const review = buildProfileImportReview(current, draft);
+
+    const result = prepareProfileImportAutoApply(current, {
+      id: "import-1",
+      userId: "user-1",
+      resumeId: "resume-1",
+      source: "manual",
+      draftProfile: draft,
+      mergeSuggestions: review.mergeSuggestions,
+      importSummary: review.importSummary,
+      status: "pending",
+      createdAt: "2026-04-04T10:10:00.000Z",
+      appliedAt: null,
+    });
+
+    expect(result.nextProfile.headline).toBe("Staff Engineer");
+    expect(result.nextProfile.summary).toBe("Built platform systems.");
+    expect(result.nextProfile.experiences).toHaveLength(1);
+    expect(result.nextProfile.skills[0].skills).toEqual(["React", "TypeScript"]);
+    expect(result.appliedCount).toBe(4);
+    expect(result.conflictCount).toBe(0);
+    expect(result.unresolvedSuggestions).toEqual([]);
+    expect(result.importSummary).toEqual({
+      newCount: 0,
+      duplicateCount: 0,
+      conflictingCount: 0,
+      missingCount: 0,
+    });
+  });
+
+  it("auto-applies a new role while leaving conflicting summary unresolved", () => {
+    const current = normalizeCandidateProfile({
+      userId: "user-1",
+      summary: "Existing interview profile summary.",
+      experiences: [
+        createEmptyExperience({ id: "exp-current", company: "Acme", title: "Engineering Manager" }),
+      ],
+    });
+    const draft = normalizeCandidateProfile({
+      userId: "user-1",
+      summary: "CV summary.",
+      experiences: [
+        createEmptyExperience({ id: "exp-new", company: "Beta", title: "Staff Engineer" }),
+      ],
+      lastResumeId: "resume-1",
+    });
+    const review = buildProfileImportReview(current, draft);
+
+    const result = prepareProfileImportAutoApply(current, {
+      id: "import-1",
+      userId: "user-1",
+      resumeId: "resume-1",
+      source: "manual",
+      draftProfile: draft,
+      mergeSuggestions: review.mergeSuggestions,
+      importSummary: review.importSummary,
+      status: "pending",
+      createdAt: "2026-04-04T10:10:00.000Z",
+      appliedAt: null,
+    });
+
+    expect(result.nextProfile.summary).toBe("Existing interview profile summary.");
+    expect(result.nextProfile.experiences.map((item) => item.company)).toEqual(["Acme", "Beta"]);
+    expect(result.unresolvedSuggestions).toHaveLength(1);
+    expect(result.unresolvedSuggestions[0]).toMatchObject({
+      kind: "conflicts_existing",
+      section: "summary",
+    });
+    expect(result.appliedCount).toBe(1);
+    expect(result.conflictCount).toBe(1);
+    expect(result.importSummary.conflictingCount).toBe(1);
+  });
+
+  it("does not surface duplicate or missing import suggestions after auto-apply", () => {
+    const current = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff Engineer",
+      experiences: [
+        createEmptyExperience({ id: "exp-current", company: "Acme", title: "Staff Engineer" }),
+        createEmptyExperience({ id: "exp-missing", company: "OldCo", title: "Engineer" }),
+      ],
+    });
+    const draft = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff Engineer",
+      experiences: [createEmptyExperience({ id: "exp-draft", company: "Acme", title: "Staff Engineer" })],
+      lastResumeId: "resume-1",
+    });
+    const review = buildProfileImportReview(current, draft);
+
+    const result = prepareProfileImportAutoApply(current, {
+      id: "import-1",
+      userId: "user-1",
+      resumeId: "resume-1",
+      source: "manual",
+      draftProfile: draft,
+      mergeSuggestions: review.mergeSuggestions,
+      importSummary: review.importSummary,
+      status: "pending",
+      createdAt: "2026-04-04T10:10:00.000Z",
+      appliedAt: null,
+    });
+
+    expect(review.mergeSuggestions.some((item) => item.kind === "possible_duplicate")).toBe(true);
+    expect(review.mergeSuggestions.some((item) => item.kind === "missing_from_import")).toBe(true);
+    expect(result.unresolvedSuggestions).toEqual([]);
+    expect(result.importSummary.duplicateCount).toBe(0);
+    expect(result.importSummary.missingCount).toBe(0);
   });
 });

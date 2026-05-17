@@ -426,7 +426,7 @@ const ProfileMainView = ({ workspace }: ProfileMainViewProps) => {
         actions={
           <>
             <Button asChild variant="outline">
-              <Link to="/profile/import">Import profile</Link>
+              <Link to="/profile/import">Import CV</Link>
             </Button>
             <Button type="button" onClick={() => void saveProfile()} disabled={isSaving || isPendingTransition}>
               {isSaving ? "Saving..." : "Save"}

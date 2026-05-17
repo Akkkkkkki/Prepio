@@ -61,7 +61,7 @@ export const buildMergeDecisionState = (profileImport: ProfileImportRecord | nul
   return Object.fromEntries(
     profileImport.mergeSuggestions.map((suggestion) => [
       suggestion.id,
-      getDefaultMergeAction(suggestion),
+      suggestion.kind === "conflicts_existing" ? "keep_existing" : getDefaultMergeAction(suggestion),
     ]),
   ) as Record<string, ProfileMergeDecisionAction>;
 };
@@ -89,28 +89,28 @@ export const getMergeActionOptions = (
 
   if (suggestion.kind === "possible_duplicate") {
     const options: Array<{ label: string; value: ProfileMergeDecisionAction }> = [
-      { label: "Keep existing", value: "keep_existing" },
+      { label: "Keep current", value: "keep_existing" },
     ];
 
     if (!["headline", "summary", "location"].includes(suggestion.section)) {
-      options.push({ label: "Append incoming", value: "append_incoming" });
+      options.push({ label: "Merge details", value: "append_incoming" });
     }
 
-    options.push({ label: "Replace existing", value: "replace_existing" });
+    options.push({ label: "Replace with CV", value: "replace_existing" });
     return options;
   }
 
   if (["headline", "summary", "location"].includes(suggestion.section)) {
     return [
-      { label: "Keep existing", value: "keep_existing" },
-      { label: "Replace existing", value: "replace_existing" },
+      { label: "Keep current", value: "keep_existing" },
+      { label: "Use CV", value: "replace_existing" },
     ];
   }
 
   return [
-    { label: "Keep existing", value: "keep_existing" },
-    { label: "Append incoming", value: "append_incoming" },
-    { label: "Replace existing", value: "replace_existing" },
+    { label: "Keep current", value: "keep_existing" },
+    { label: "Merge details", value: "append_incoming" },
+    { label: "Replace with CV", value: "replace_existing" },
   ];
 };
 

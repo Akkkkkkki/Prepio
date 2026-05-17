@@ -1,4 +1,5 @@
 import { useEffect, useState, useTransition, type ChangeEvent } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { useAuthContext } from "@/components/AuthProvider";
 import type {
@@ -10,6 +11,7 @@ import {
   candidateProfileFromLegacyParsedData,
   createEmptyCandidateProfile,
   normalizeCandidateProfile,
+  prepareProfileImportAutoApply,
 } from "@/lib/candidateProfile";
 import {
   buildResumeStoragePath,
@@ -47,6 +49,7 @@ export interface ProfileWorkspaceState {
   level: ProfileLevel | undefined;
   showDeleteConfirm: boolean;
   success: string | null;
+  successReviewCount: number;
   confirmDeleteResume: () => void;
   handleApplyImport: () => Promise<void>;
   handleDeleteResume: () => Promise<void>;
@@ -62,6 +65,7 @@ export interface ProfileWorkspaceState {
 
 export const useProfileWorkspace = (): ProfileWorkspaceState => {
   const { user } = useAuthContext();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<CandidateProfile>(() => createEmptyCandidateProfile(""));
   const [resumeText, setResumeTextState] = useState("");
   const [resumeVersions, setResumeVersions] = useState<ResumeVersion[]>([]);
@@ -79,6 +83,7 @@ export const useProfileWorkspace = (): ProfileWorkspaceState => {
   const [isSavingLevel, setIsSavingLevel] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [successReviewCount, setSuccessReviewCount] = useState(0);
   const [level, setLevel] = useState<ProfileLevel | undefined>(undefined);
   const [bootstrappedFromLegacy, setBootstrappedFromLegacy] = useState(false);
   const [isPendingTransition, startTransition] = useTransition();
@@ -86,9 +91,15 @@ export const useProfileWorkspace = (): ProfileWorkspaceState => {
   const activeResume = resumeVersions.find((resume) => resume.is_active) ?? resumeVersions[0] ?? null;
   const groupedSuggestions = groupSuggestions(activeImport?.mergeSuggestions ?? []);
 
-  const pushSuccess = (message: string) => {
+  const pushSuccess = (message: string, reviewCount = 0) => {
     setSuccess(message);
+    setSuccessReviewCount(reviewCount);
     window.setTimeout(() => setSuccess(null), 4000);
+  };
+
+  const clearSuccess = () => {
+    setSuccess(null);
+    setSuccessReviewCount(0);
   };
 
   const hydrateProfileState = (nextProfile: CandidateProfile) => {
@@ -283,13 +294,66 @@ export const useProfileWorkspace = (): ProfileWorkspaceState => {
       if (importResult.success && importResult.profileImport) {
         setActiveImport(importResult.profileImport);
         setMergeDecisions(buildMergeDecisionState(importResult.profileImport));
-        pushSuccess(file ? "Resume uploaded. Review the import before applying it." : "Import draft ready for review.");
-      } else {
-        pushSuccess(
-          file
-            ? "Resume uploaded and versioned. Import suggestions are temporarily unavailable."
-            : "Resume text saved as a version. Import suggestions are temporarily unavailable.",
+        const autoApply = prepareProfileImportAutoApply(profile, importResult.profileImport);
+        const saveProfileResult = await searchService.saveCandidateProfile(autoApply.nextProfile);
+
+        if (!saveProfileResult.success || !saveProfileResult.profile) {
+          throw new Error(
+            saveProfileResult.error instanceof Error
+              ? saveProfileResult.error.message
+              : "Failed to update profile from that CV",
+          );
+        }
+
+        const finalizeResult = await searchService.finalizeProfileImportAutoApply(
+          importResult.profileImport.id,
+          {
+            importSummary: autoApply.importSummary,
+            unresolvedSuggestions: autoApply.unresolvedSuggestions,
+          },
         );
+
+        if (!finalizeResult.success) {
+          hydrateProfileState(saveProfileResult.profile);
+          setError("Profile updated, but import cleanup failed. Refresh before importing another CV.");
+          return;
+        }
+
+        hydrateProfileState(saveProfileResult.profile);
+        setActiveImport(
+          autoApply.unresolvedSuggestions.length > 0
+            ? {
+                ...importResult.profileImport,
+                mergeSuggestions: autoApply.unresolvedSuggestions,
+                importSummary: autoApply.importSummary,
+              }
+            : null,
+        );
+        setMergeDecisions(
+          buildMergeDecisionState(
+            autoApply.unresolvedSuggestions.length > 0
+              ? {
+                  ...importResult.profileImport,
+                  mergeSuggestions: autoApply.unresolvedSuggestions,
+                  importSummary: autoApply.importSummary,
+                }
+              : null,
+          ),
+        );
+        setBootstrappedFromLegacy(false);
+        const itemLabel = autoApply.appliedCount === 1 ? "item" : "items";
+        const reviewLabel = autoApply.conflictCount === 1 ? "detail" : "details";
+        pushSuccess(
+          `Profile updated from CV. ${autoApply.appliedCount} ${itemLabel} added.${
+            autoApply.conflictCount > 0
+              ? ` ${autoApply.conflictCount} ${reviewLabel} need${autoApply.conflictCount === 1 ? "s" : ""} review.`
+              : ""
+          }`,
+          autoApply.conflictCount,
+        );
+        navigate("/profile");
+      } else {
+        throw new Error("CV saved, but the profile update failed. Please try again.");
       }
     } catch (importError) {
       if (uploadedPath && !resumeSaved) {
@@ -314,7 +378,7 @@ export const useProfileWorkspace = (): ProfileWorkspaceState => {
 
     setIsUploadingResume(true);
     setError(null);
-    setSuccess(null);
+    clearSuccess();
 
     try {
       const { text } = await extractResumeText(file);
@@ -332,7 +396,7 @@ export const useProfileWorkspace = (): ProfileWorkspaceState => {
 
     setIsImportingText(true);
     setError(null);
-    setSuccess(null);
+    clearSuccess();
 
     try {
       await syncImportedResume({ content: resumeText.trim() });
@@ -377,7 +441,7 @@ export const useProfileWorkspace = (): ProfileWorkspaceState => {
     setShowDeleteConfirm(false);
     setIsDeletingResume(true);
     setError(null);
-    setSuccess(null);
+    clearSuccess();
 
     const result = await searchService.deleteResume();
 
@@ -388,9 +452,9 @@ export const useProfileWorkspace = (): ProfileWorkspaceState => {
       setActiveImport(null);
       setMergeDecisions({});
       setBootstrappedFromLegacy(false);
-      pushSuccess("Resume versions and import drafts deleted. Your profile is unchanged.");
+      pushSuccess("CV data and import reviews deleted. Your profile is unchanged.");
     } else {
-      setError(result.error instanceof Error ? result.error.message : "Failed to delete resume versions.");
+      setError(result.error instanceof Error ? result.error.message : "Failed to delete CV data.");
     }
 
     setIsDeletingResume(false);
@@ -443,6 +507,7 @@ export const useProfileWorkspace = (): ProfileWorkspaceState => {
     setShowDeleteConfirm,
     showDeleteConfirm,
     success,
+    successReviewCount,
     updateProfile,
   };
 };
