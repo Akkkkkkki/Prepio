@@ -158,7 +158,9 @@ const ProfileSummaryCard = ({
           <p className="font-medium">Current source</p>
           <p className="text-muted-foreground">{formatResumeLabel(activeResume)}</p>
           <p className="text-xs text-muted-foreground">
-            {activeImportCreatedAt ? `Pending import from ${new Date(activeImportCreatedAt).toLocaleDateString()}` : "No pending import"}
+            {activeImportCreatedAt
+              ? `Needs review from ${new Date(activeImportCreatedAt).toLocaleDateString()}`
+              : "No CV details waiting for review"}
           </p>
         </div>
 
@@ -167,7 +169,7 @@ const ProfileSummaryCard = ({
             <Link to="/profile/import">
               <span className="inline-flex items-center gap-2">
                 <Sparkles className="h-4 w-4" />
-                Review pending import
+                Review CV details
               </span>
               <Upload className="h-4 w-4" />
             </Link>

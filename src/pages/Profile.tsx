@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { AlertCircle, CheckCircle, Loader2, Sparkles } from "lucide-react";
 
 import Navigation from "@/components/Navigation";
@@ -37,7 +37,7 @@ const profileNavItems: Array<{
 }> = [
   { href: "/profile", key: "main", label: "Profile" },
   { href: "/profile/preferences", key: "preferences", label: "Preferences" },
-  { href: "/profile/import", key: "import", label: "Import" },
+  { href: "/profile/import", key: "import", label: "Import CV" },
 ];
 
 const getProfileSurface = (pathname: string): ProfileSurface => {
@@ -91,7 +91,21 @@ const Profile = () => {
           {workspace.success ? (
             <Alert className="border-emerald-200 bg-emerald-50">
               <CheckCircle className="h-4 w-4 text-emerald-700" />
-              <AlertDescription className="text-emerald-900">{workspace.success}</AlertDescription>
+              <AlertDescription className="flex flex-wrap items-center gap-3 text-emerald-900">
+                <span>{workspace.success}</span>
+                {workspace.successReviewCount > 0 ? (
+                  <Link
+                    to="/profile/import"
+                    className={cn(
+                      buttonVariants({ variant: "outline", size: "sm" }),
+                      "h-8 border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-100",
+                    )}
+                  >
+                    Review {workspace.successReviewCount}{" "}
+                    {workspace.successReviewCount === 1 ? "detail" : "details"}
+                  </Link>
+                ) : null}
+              </AlertDescription>
             </Alert>
           ) : null}
 
@@ -149,9 +163,9 @@ const Profile = () => {
       <AlertDialog open={workspace.showDeleteConfirm} onOpenChange={workspace.setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete resume versions</AlertDialogTitle>
+            <AlertDialogTitle>Delete CV data</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes uploaded files, pasted resume versions, and saved import drafts. Your canonical profile stays in place.
+              This removes uploaded files, pasted CV text, and saved import reviews. Your profile stays in place.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

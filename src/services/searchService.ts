@@ -1421,6 +1421,46 @@ export const searchService = {
     }
   },
 
+  async finalizeProfileImportAutoApply(
+    importId: string,
+    {
+      importSummary,
+      unresolvedSuggestions,
+    }: {
+      importSummary: ProfileImportRecord["importSummary"];
+      unresolvedSuggestions: ProfileImportSuggestion[];
+    },
+  ) {
+    try {
+      const user = await getCurrentUser();
+      const hasConflicts = unresolvedSuggestions.length > 0;
+
+      const { data, error } = await supabase
+        .from("profile_imports")
+        .update({
+          merge_suggestions: unresolvedSuggestions as Json,
+          import_summary: importSummary as Json,
+          status: hasConflicts ? "pending" : "applied",
+          applied_at: hasConflicts ? null : new Date().toISOString(),
+        })
+        .eq("id", importId)
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        profileImport: normalizeProfileImportRecord(data, user.id),
+        success: true,
+      };
+    } catch (error) {
+      console.error("Error finalizing profile import auto-apply:", error);
+      return { error, success: false };
+    }
+  },
+
   async updateProfile({ level }: { level?: 'junior' | 'mid' | 'senior_ic' | 'people_manager' }) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
