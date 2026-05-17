@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Star, SkipForward, Loader2, AlertTriangle } from "lucide-react";
+import { Brain, CheckCircle, Star, SkipForward, Loader2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SavedPracticeAnswerRecord } from "@/hooks/usePracticeSession";
 
@@ -51,6 +51,7 @@ export const SessionSummary = ({
 }: SessionSummaryProps) => {
   const [sessionNotes, setSessionNotes] = useState("");
   const [notesSaved, setNotesSaved] = useState(false);
+  const [coachingNotice, setCoachingNotice] = useState(false);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -215,6 +216,31 @@ export const SessionSummary = ({
                         {answer.textAnswer || answer.transcriptText}
                       </p>
                     )}
+                    <div className="mt-3 rounded-xl border bg-primary/5 p-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Get detailed coaching</p>
+                          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                            AI feedback reviews structure, missing proof, STAR quality, and one next action.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0"
+                          onClick={() => setCoachingNotice(true)}
+                        >
+                          <Brain className="mr-2 h-4 w-4" />
+                          Get detailed coaching
+                        </Button>
+                      </div>
+                      {coachingNotice && (
+                        <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                          Detailed coaching is the paid upgrade path. Free answers stay saved and rateable without generating AI feedback.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 );
               })}
