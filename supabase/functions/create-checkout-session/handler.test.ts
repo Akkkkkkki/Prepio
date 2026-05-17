@@ -290,15 +290,44 @@ describe("createCheckoutSession", () => {
     );
   });
 
-  it("passes a stable idempotency key scoped to (user, cadence) on checkout creation", async () => {
+  it("passes a stable idempotency key scoped to the user on checkout creation", async () => {
     for (const cadence of ["monthly", "quarterly", "annual"] as const) {
       const { deps, stripeRec } = buildDeps();
       await createCheckoutSession(deps, { userId: USER_ID, userEmail: USER_EMAIL, cadence });
       expect(stripeRec.sessionCreate).toHaveBeenCalledWith(
         expect.any(Object),
-        { idempotencyKey: `checkout:${USER_ID}:${cadence}` },
+        { idempotencyKey: `checkout:${USER_ID}` },
       );
     }
+  });
+
+  it("returns 409 pending_checkout when Stripe rejects the idempotency key as in-use", async () => {
+    const idempotencyError = Object.assign(new Error("key already used"), {
+      type: "StripeIdempotencyError",
+      code: "idempotency_key_in_use",
+    });
+    const { deps, logs } = buildDeps({ stripe: { sessionCreateError: idempotencyError } });
+    const result = await createCheckoutSession(deps, {
+      userId: USER_ID,
+      userEmail: USER_EMAIL,
+      cadence: "annual",
+    });
+    expect(result).toEqual({ ok: false, status: 409, error: "pending_checkout" });
+    expect(logs.map((l) => l.event)).toContain("stripe_checkout_pending_conflict");
+  });
+
+  it("still returns 502 stripe_error for non-idempotency Stripe failures", async () => {
+    const otherError = Object.assign(new Error("rate limited"), {
+      type: "StripeRateLimitError",
+    });
+    const { deps, logs } = buildDeps({ stripe: { sessionCreateError: otherError } });
+    const result = await createCheckoutSession(deps, {
+      userId: USER_ID,
+      userEmail: USER_EMAIL,
+      cadence: "monthly",
+    });
+    expect(result).toEqual({ ok: false, status: 502, error: "stripe_error" });
+    expect(logs.map((l) => l.event)).toContain("stripe_checkout_create_failed");
   });
 
   it("returns the session URL and id on success", async () => {

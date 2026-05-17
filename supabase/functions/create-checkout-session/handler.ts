@@ -97,6 +97,16 @@ export type CheckoutResult =
   | { ok: true; url: string; sessionId: string; cadence: Cadence }
   | { ok: false; status: number; error: string };
 
+function isStripeIdempotencyConflict(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const e = err as { type?: string; code?: string; rawType?: string };
+  return (
+    e.type === "StripeIdempotencyError" ||
+    e.rawType === "idempotency_error" ||
+    e.code === "idempotency_key_in_use"
+  );
+}
+
 export async function createCheckoutSession(
   deps: Deps,
   req: CheckoutRequest,
@@ -188,12 +198,11 @@ export async function createCheckoutSession(
 
   let session: { id: string; url: string | null };
   try {
-    // idempotencyKey scoped to (user, cadence) dedupes parallel POSTs and
-    // client retries within Stripe's 24h key window: both branches converge on
-    // the same Session URL, so the user can never complete two Checkouts and
-    // generate two subscriptions on the same customer. A different cadence
-    // produces a different key so legitimate cadence-change requests still get
-    // a fresh Session.
+    // idempotencyKey scoped to the user (not cadence) closes the pre-webhook
+    // double-billing window: a user with no billing_subscriptions row yet
+    // cannot mint two Checkout Sessions at different cadences in parallel.
+    // Cadence changes belong to the Customer Portal post-subscription, so the
+    // already-subscribed gate above covers the legitimate cadence-change path.
     session = await deps.stripe.checkout.sessions.create(
       {
         mode: "subscription",
@@ -204,9 +213,20 @@ export async function createCheckoutSession(
         client_reference_id: req.userId,
         allow_promotion_codes: false,
       },
-      { idempotencyKey: `checkout:${req.userId}:${cadence}` },
+      { idempotencyKey: `checkout:${req.userId}` },
     );
   } catch (err) {
+    if (isStripeIdempotencyConflict(err)) {
+      // Same user already used this key with a different body within Stripe's
+      // 24h window — typically a cadence switch before the first session was
+      // completed or expired. Surface a distinct 409 so the UI can prompt the
+      // user to finish or abandon the in-flight Checkout.
+      deps.log("stripe_checkout_pending_conflict", {
+        userId: req.userId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return { ok: false, status: 409, error: "pending_checkout" };
+    }
     deps.log("stripe_checkout_create_failed", {
       userId: req.userId,
       message: err instanceof Error ? err.message : String(err),

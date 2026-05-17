@@ -91,7 +91,14 @@ serve(async (req) => {
 
   let body: { cadence?: unknown };
   try {
-    body = await req.json();
+    const parsed: unknown = await req.json();
+    if (parsed === null || typeof parsed !== "object") {
+      return new Response(JSON.stringify({ error: "invalid_json" }), {
+        status: 400,
+        headers: jsonHeaders,
+      });
+    }
+    body = parsed as { cadence?: unknown };
   } catch {
     return new Response(JSON.stringify({ error: "invalid_json" }), {
       status: 400,
