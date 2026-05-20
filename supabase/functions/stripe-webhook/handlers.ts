@@ -235,32 +235,49 @@ async function cancelSubscription(
   event: WebhookEvent,
   sub: SubscriptionPayload,
 ): Promise<ProcessResult> {
-  const { supabase, resolveUserId, log } = deps;
+  const { supabase, cadenceLookup, resolveUserId, log } = deps;
   const userId = await resolveUserId(sub.customer);
   if (!userId) {
     log("stripe_user_unresolved", { customerId: sub.customer, subscriptionId: sub.id });
     return { outcome: "skipped", reason: "user_unresolved" };
   }
 
-  // Filter by stripe_subscription_id so a late-delivered delete for an
-  // already-replaced sub is a no-op, and by last_event_created so a stale
-  // delete can't overwrite a newer event's state.
-  const eventCreated = eventCreatedIso(event);
-  const { error } = await supabase
-    .from("billing_subscriptions")
-    .update({
-      status: "canceled",
-      last_event_created: eventCreated,
-      updated_at: nowIso(deps),
-    })
-    .eq("user_id", userId)
-    .eq("stripe_subscription_id", sub.id)
-    .lt("last_event_created", eventCreated);
-  if (error) {
-    log("stripe_subscription_update_failed", { subscriptionId: sub.id, message: error.message });
-    throw new Error(`billing_subscriptions update failed: ${error.message ?? "unknown"}`);
+  const priceId = sub.items.data[0]?.price.id ?? "";
+  const cadence: Cadence | null = cadenceFromPriceId(priceId, cadenceLookup);
+  if (!cadence) {
+    log("stripe_unknown_price", { priceId, subscriptionId: sub.id });
+    return { outcome: "skipped", reason: "unknown_price" };
   }
-  log("stripe_event_applied", { action: "subscription_canceled", userId, subscriptionId: sub.id });
+
+  const { data, error } = await supabase.rpc("apply_subscription_event", {
+    p_user_id: userId,
+    p_stripe_subscription_id: sub.id,
+    p_status: "canceled",
+    p_cadence: cadence,
+    p_current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+    p_cancel_at_period_end: sub.cancel_at_period_end,
+    p_event_created: eventCreatedIso(event),
+  });
+  if (error) {
+    log("stripe_subscription_apply_failed", { subscriptionId: sub.id, message: error.message });
+    throw new Error(`apply_subscription_event failed: ${error.message ?? "unknown"}`);
+  }
+
+  if (data !== true) {
+    log("stripe_event_stale", {
+      action: "subscription_cancel",
+      eventId: event.id,
+      subscriptionId: sub.id,
+    });
+    return { outcome: "skipped", reason: "stale_event" };
+  }
+
+  log("stripe_event_applied", {
+    action: "subscription_canceled",
+    userId,
+    subscriptionId: sub.id,
+    cadence,
+  });
   return { outcome: "applied" };
 }
 
