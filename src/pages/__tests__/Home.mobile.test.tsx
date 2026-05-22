@@ -6,6 +6,7 @@ import Home from "../Home";
 import { RESEARCH_DRAFT_STORAGE_KEY } from "@/lib/researchDraft";
 
 const mockCreateSearchRecord = vi.fn();
+const mockCreateResearchPreview = vi.fn();
 const mockDeleteResumeFiles = vi.fn();
 const mockGetCandidateProfile = vi.fn();
 const mockGetResume = vi.fn();
@@ -55,6 +56,7 @@ vi.mock("@/services/searchService", () => ({
   searchService: {
     analyzeCV: (...args: unknown[]) => mockAnalyzeCV(...args),
     createSearchRecord: (...args: unknown[]) => mockCreateSearchRecord(...args),
+    createResearchPreview: (...args: unknown[]) => mockCreateResearchPreview(...args),
     createProfileImport: (...args: unknown[]) => mockCreateProfileImport(...args),
     deleteResumeFiles: (...args: unknown[]) => mockDeleteResumeFiles(...args),
     getCandidateProfile: (...args: unknown[]) => mockGetCandidateProfile(...args),
@@ -105,6 +107,40 @@ describe("Home flow", () => {
       success: true,
       searchId: "search-1",
     });
+    mockCreateResearchPreview.mockResolvedValue({
+      success: true,
+      preview: {
+        previewId: "preview-1",
+        status: "completed",
+        company: "Stripe",
+        role: "Platform Engineer",
+        confidence: "medium",
+        sourceSummary: "4 public signals from interview reviews and company material.",
+        expiresAt: "2026-05-18T00:00:00.000Z",
+        stages: [
+          {
+            name: "Recruiter screen",
+            whyLikely: "Most Stripe candidates report an initial recruiter screen.",
+            confidence: "high",
+          },
+        ],
+        assessmentSignals: [
+          {
+            name: "Systems judgment",
+            importance: "high",
+            rationale: "Platform roles are screened for tradeoff quality.",
+          },
+        ],
+        questions: [
+          {
+            stage: "Technical panel",
+            difficulty: "Hard",
+            question: "How would you design a resilient payment event pipeline?",
+            rationale: "This tests platform reliability judgment.",
+          },
+        ],
+      },
+    });
     mockGetSearchStatus.mockResolvedValue({
       status: "completed",
     });
@@ -147,7 +183,7 @@ describe("Home flow", () => {
     expect(screen.getByDisplayValue("https://example.com/job")).toBeInTheDocument();
   });
 
-  it("saves the guest teaser draft and carries research auth state to /auth", async () => {
+  it("generates a guest preview without requiring auth", async () => {
     renderHome();
 
     fireEvent.change(screen.getByLabelText("Company *"), {
@@ -156,7 +192,34 @@ describe("Home flow", () => {
     fireEvent.change(screen.getByLabelText("Role (optional)"), {
       target: { value: "Platform Engineer" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Research Stripe →" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
+
+    await waitFor(() => {
+      expect(mockCreateResearchPreview).toHaveBeenCalledWith({
+        company: "Stripe",
+        role: "Platform Engineer",
+      });
+    });
+
+    expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
+    expect(screen.getByText("Systems judgment")).toBeInTheDocument();
+    expect(screen.getByText("How would you design a resilient payment event pipeline?")).toBeInTheDocument();
+    expect(screen.queryByTestId("auth-state")).not.toBeInTheDocument();
+  });
+
+  it("saves the guest preview draft and carries preview auth state to /auth", async () => {
+    renderHome();
+
+    fireEvent.change(screen.getByLabelText("Company *"), {
+      target: { value: "Stripe" },
+    });
+    fireEvent.change(screen.getByLabelText("Role (optional)"), {
+      target: { value: "Platform Engineer" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
+
+    expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Generate full practice set" }));
 
     const savedDraft = JSON.parse(
       window.sessionStorage.getItem(RESEARCH_DRAFT_STORAGE_KEY) || "{}",
@@ -166,6 +229,10 @@ describe("Home flow", () => {
       company: "Stripe",
       role: "Platform Engineer",
       step: "details",
+      preview: {
+        previewId: "preview-1",
+        confidence: "medium",
+      },
     });
 
     const authState = JSON.parse(

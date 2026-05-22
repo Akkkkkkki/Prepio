@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { MobileStageCard } from "@/components/dashboard/MobileStageCard";
 import {
   PlayCircle,
@@ -24,6 +25,8 @@ import {
   TrendingUp,
   ChevronDown,
   ChevronUp,
+  MessageSquareText,
+  Send,
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -264,8 +267,8 @@ function PrepPrioritiesCard({ priorities }: { priorities: PrepPriority[] }) {
 }
 
 function CandidatePositioningCard({ positioning }: { positioning: CandidatePositioning | null }) {
-  if (!positioning) return null;
   const [expanded, setExpanded] = useState(true);
+  if (!positioning) return null;
   const hasContent = positioning.strengthsToLeanOn?.length > 0 ||
     positioning.weakSpotsToAddress?.length > 0 ||
     positioning.storyCoverageGaps?.length > 0 ||
@@ -416,6 +419,138 @@ function PrepSummaryHero({
           <PlayCircle className="mr-2 h-5 w-5" />
           Start practice{selectedQuestionCount > 0 ? ` · ${selectedQuestionCount}` : ""}
         </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PrepPriorityStrip({ priorities }: { priorities: PrepPriority[] }) {
+  const visible = priorities.slice(0, 3);
+  if (!visible.length) return null;
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-base font-semibold">Top prep priorities</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Start here before reviewing every question.</p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        {visible.map((priority) => (
+          <div key={priority.label} className="rounded-2xl border bg-card p-4">
+            <div className="flex items-center gap-2">
+              {priorityIcon(priority.priority)}
+              <Badge className={`text-[10px] ${priorityColor(priority.priority)}`}>
+                {priority.priority}
+              </Badge>
+            </div>
+            <p className="mt-3 text-sm font-semibold">{priority.label}</p>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{priority.whyItMatters}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HighLeverageQuestionsCard({ stages }: { stages: InterviewStage[] }) {
+  const questions = stages
+    .flatMap((stage) => (stage.questions || []).slice(0, 2).map((question) => ({
+      ...question,
+      stageName: stage.name,
+    })))
+    .slice(0, 5);
+
+  if (!questions.length) return null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Highest-leverage questions</CardTitle>
+        <CardDescription>Practice these first if you only have one short session.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {questions.map((question) => (
+          <div key={question.id} className="rounded-2xl border bg-muted/20 p-4">
+            <Badge variant="secondary" className="text-[10px]">{question.stageName}</Badge>
+            <p className="mt-2 text-sm font-medium leading-6">{question.question}</p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PrepAskPanel({
+  company,
+  role,
+  prepPriorities,
+  assessmentSignals,
+}: {
+  company?: string;
+  role?: string | null;
+  prepPriorities: PrepPriority[];
+  assessmentSignals: AssessmentSignal[];
+}) {
+  const prompts = [
+    "What should I practice first?",
+    "Which questions are most senior-level?",
+    "How should I position my background?",
+  ];
+  const [prompt, setPrompt] = useState(prompts[0]);
+  const [response, setResponse] = useState("");
+
+  const answer = (nextPrompt = prompt) => {
+    const topPriority = prepPriorities[0]?.label;
+    const topSignal = assessmentSignals[0]?.name;
+    const normalized = nextPrompt.toLowerCase();
+
+    setPrompt(nextPrompt);
+    if (normalized.includes("senior")) {
+      setResponse(`Lean into ${topSignal || "decision quality"}. Senior answers should show tradeoffs, constraints, and measurable impact for ${company || "this company"}.`);
+      return;
+    }
+    if (normalized.includes("position")) {
+      setResponse(`Position your background around ${topSignal || topPriority || "the highest-priority interview signal"}${role ? ` for the ${role} role` : ""}. Use one concrete story, then explain why your decision was right for the context.`);
+      return;
+    }
+    setResponse(`Practice ${topPriority || topSignal || "the first selected stage"} first. It is the clearest path from this research plan into a useful practice session.`);
+  };
+
+  useEffect(() => {
+    answer(prompts[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company, role, prepPriorities.length, assessmentSignals.length]);
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <MessageSquareText className="h-4 w-4 text-primary" />
+          Ask about this prep
+        </CardTitle>
+        <CardDescription>Grounded in this research plan, not a blank chatbot.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {prompts.map((item) => (
+            <Button key={item} type="button" variant="outline" size="sm" onClick={() => answer(item)}>
+              {item}
+            </Button>
+          ))}
+        </div>
+        <div className="flex flex-col gap-2 md:flex-row">
+          <Textarea
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            aria-label="Ask about this prep"
+            rows={2}
+          />
+          <Button type="button" onClick={() => answer()} disabled={!prompt.trim()} className="md:self-start">
+            <Send className="mr-2 h-4 w-4" />
+            Ask
+          </Button>
+        </div>
+        {response && <div className="rounded-xl bg-muted/40 p-3 text-sm leading-6">{response}</div>}
       </CardContent>
     </Card>
   );
@@ -669,9 +804,9 @@ const Dashboard = () => {
         setSearchData(result.search);
         setPrepPlan(result.prepPlan ?? null);
 
-        const transformedStages = result.stages
-          .sort((a: any, b: any) => a.order_index - b.order_index)
-          .map((stage: any) => ({ ...stage, selected: true }));
+        const transformedStages = (result.stages as InterviewStage[])
+          .sort((a, b) => a.order_index - b.order_index)
+          .map((stage) => ({ ...stage, selected: true }));
         setStages(transformedStages);
 
         if (result.search.status === 'completed') {
@@ -934,8 +1069,19 @@ const Dashboard = () => {
         />
       )}
 
+      <PrepPriorityStrip priorities={prepPriorities} />
+
+      <PrepAskPanel
+        company={searchData?.company}
+        role={searchData?.role}
+        prepPriorities={prepPriorities}
+        assessmentSignals={assessmentSignals}
+      />
+
       {/* Stage roadmap — the practice plan */}
       <StageRoadmapCard stages={stages} onToggle={handleStageToggle} isMobile={isMobile} />
+
+      <HighLeverageQuestionsCard stages={stages} />
 
       {/* Deep dive — secondary info collapsed by default */}
       <DeepDiveSection

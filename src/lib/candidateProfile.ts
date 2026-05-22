@@ -1280,6 +1280,45 @@ export const mergeImportedProfile = (
   return normalizeCandidateProfile(nextProfile, nextProfile.userId);
 };
 
+export interface ProfileImportAutoApplyResult {
+  nextProfile: CandidateProfile;
+  unresolvedSuggestions: ProfileImportSuggestion[];
+  appliedCount: number;
+  conflictCount: number;
+  importSummary: ProfileImportSummary;
+}
+
+export const prepareProfileImportAutoApply = (
+  currentProfile: CandidateProfile,
+  profileImport: ProfileImportRecord,
+): ProfileImportAutoApplyResult => {
+  const newSuggestions = profileImport.mergeSuggestions.filter(
+    (suggestion) => suggestion.kind === "new",
+  );
+  const unresolvedSuggestions = profileImport.mergeSuggestions.filter(
+    (suggestion) => suggestion.kind === "conflicts_existing",
+  );
+  const nextProfile = mergeImportedProfile(
+    currentProfile,
+    profileImport.draftProfile,
+    newSuggestions,
+    [],
+  );
+
+  return {
+    nextProfile,
+    unresolvedSuggestions,
+    appliedCount: newSuggestions.length,
+    conflictCount: unresolvedSuggestions.length,
+    importSummary: {
+      newCount: 0,
+      duplicateCount: 0,
+      conflictingCount: unresolvedSuggestions.length,
+      missingCount: 0,
+    },
+  };
+};
+
 export const summarizeImportSuggestions = (suggestions: ProfileImportSuggestion[]) => ({
   newCount: suggestions.filter((item) => item.kind === "new").length,
   duplicateCount: suggestions.filter((item) => item.kind === "possible_duplicate").length,

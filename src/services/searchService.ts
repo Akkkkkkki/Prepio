@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json, Tables } from "@/integrations/supabase/types";
+import type { ResearchPreview } from "@/types/researchPreview";
 import {
   type CandidateProfile,
   type ProfileImportRecord,
@@ -19,6 +20,12 @@ interface CreateSearchParams {
   level?: 'junior' | 'mid' | 'senior_ic' | 'people_manager' | 'unknown';
   userNote?: string;
   jobDescription?: string;
+}
+
+interface CreateResearchPreviewParams {
+  company: string;
+  role?: string;
+  country?: string;
 }
 
 const RESEARCH_START_TIMEOUT_MS = 15000;
@@ -273,6 +280,33 @@ const toCandidateProfileRow = (profile: CandidateProfile) => ({
 });
 
 export const searchService = {
+  async createResearchPreview({ company, role, country }: CreateResearchPreviewParams) {
+    try {
+      const normalizedCompany = company.trim();
+      if (!normalizedCompany) {
+        throw new Error("Company is required");
+      }
+
+      const response = await supabase.functions.invoke("research-preview", {
+        body: {
+          company: normalizedCompany,
+          role: role?.trim() || undefined,
+          country: country?.trim() || undefined,
+        },
+      });
+
+      if (response.error) throw response.error;
+
+      return {
+        preview: response.data?.preview as ResearchPreview | undefined,
+        success: Boolean(response.data?.success && response.data?.preview),
+      };
+    } catch (error) {
+      console.error("Error creating research preview:", error);
+      return { error, success: false };
+    }
+  },
+
   // Step 1: Create search record only (fast, synchronous)
   async createSearchRecord({ company, role, country, roleLinks, cv, level, userNote, jobDescription }: CreateSearchParams) {
     try {
@@ -1383,6 +1417,46 @@ export const searchService = {
       };
     } catch (error) {
       console.error("Error applying profile import:", error);
+      return { error, success: false };
+    }
+  },
+
+  async finalizeProfileImportAutoApply(
+    importId: string,
+    {
+      importSummary,
+      unresolvedSuggestions,
+    }: {
+      importSummary: ProfileImportRecord["importSummary"];
+      unresolvedSuggestions: ProfileImportSuggestion[];
+    },
+  ) {
+    try {
+      const user = await getCurrentUser();
+      const hasConflicts = unresolvedSuggestions.length > 0;
+
+      const { data, error } = await supabase
+        .from("profile_imports")
+        .update({
+          merge_suggestions: unresolvedSuggestions as Json,
+          import_summary: importSummary as Json,
+          status: hasConflicts ? "pending" : "applied",
+          applied_at: hasConflicts ? null : new Date().toISOString(),
+        })
+        .eq("id", importId)
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        profileImport: normalizeProfileImportRecord(data, user.id),
+        success: true,
+      };
+    } catch (error) {
+      console.error("Error finalizing profile import auto-apply:", error);
       return { error, success: false };
     }
   },

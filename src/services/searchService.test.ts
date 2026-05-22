@@ -175,6 +175,42 @@ describe("practice history answer dedupe helpers", () => {
     ]);
   });
 
+  it("creates a lightweight research preview without requiring a signed-in user", async () => {
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: {
+        success: true,
+        preview: {
+          previewId: "preview-1",
+          status: "completed",
+          company: "Stripe",
+          role: "Platform Engineer",
+          confidence: "medium",
+          sourceSummary: "4 public signals.",
+          stages: [],
+          assessmentSignals: [],
+          questions: [],
+          expiresAt: "2026-05-18T00:00:00.000Z",
+        },
+      },
+      error: null,
+    });
+
+    const result = await searchService.createResearchPreview({
+      company: " Stripe ",
+      role: " Platform Engineer ",
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockSupabase.auth.getUser).not.toHaveBeenCalled();
+    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("research-preview", {
+      body: {
+        company: "Stripe",
+        role: "Platform Engineer",
+        country: undefined,
+      },
+    });
+  });
+
   it("does not carry uploaded file metadata into a pasted resume version", async () => {
     const insertedRows: Array<Record<string, unknown>> = [];
 

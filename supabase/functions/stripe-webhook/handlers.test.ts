@@ -315,22 +315,22 @@ describe("processEvent — subscription dispatch + ordering guard", () => {
     expect(logs.some((l) => l.event === "stripe_event_stale")).toBe(true);
   });
 
-  it("subscription.deleted filters by user_id, stripe_subscription_id, AND last_event_created<event", async () => {
+  it("subscription.deleted applies a canceled snapshot through the ordering-aware RPC", async () => {
     const { deps, calls } = buildDeps();
     const event = buildSubscriptionEvent("deleted");
 
     await processEvent(deps, event);
 
-    const update = calls.find((c) => c.table === "billing_subscriptions" && c.op === "update");
-    expect(update?.payload.status).toBe("canceled");
-    expect(update?.payload.last_event_created).toBe(
-      new Date(DEFAULT_EVENT_CREATED * 1000).toISOString(),
-    );
-    expect(update?.filters).toEqual([
-      { col: "user_id", op: "eq", val: "user_xyz" },
-      { col: "stripe_subscription_id", op: "eq", val: "sub_test_123" },
-      { col: "last_event_created", op: "lt", val: new Date(DEFAULT_EVENT_CREATED * 1000).toISOString() },
-    ]);
+    const rpc = calls.find((c) => c.rpc === "apply_subscription_event");
+    expect(rpc?.payload).toMatchObject({
+      p_user_id: "user_xyz",
+      p_stripe_subscription_id: "sub_test_123",
+      p_status: "canceled",
+      p_cadence: "monthly",
+      p_cancel_at_period_end: false,
+    });
+    expect(rpc?.payload.p_current_period_end).toBe(new Date(FUTURE_UNIX * 1000).toISOString());
+    expect(rpc?.payload.p_event_created).toBe(new Date(DEFAULT_EVENT_CREATED * 1000).toISOString());
   });
 
   it("skips with reason=unknown_price when the Stripe price id is not configured", async () => {

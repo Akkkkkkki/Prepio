@@ -82,7 +82,7 @@ Events handled at v1:
 | `customer.subscription.created` | Upsert `billing_customers` + `billing_subscriptions`. |
 | `customer.subscription.updated` | Update `status`, `cadence` (from Price ID), `current_period_end`, `cancel_at_period_end`. |
 | `customer.subscription.deleted` | Set `status = 'canceled'`; row kept for history. |
-| `invoice.payment_failed` | Set `status = 'past_due'`; enqueue `notification_jobs` row. |
+| `invoice.payment_failed` | Set `status = 'past_due'`; log that payment-failure notification is deferred. |
 
 Idempotency: each event is first pre-checked against `billing_events.stripe_event_id`. A hit returns 200 `duplicate` without touching subscription state. On a miss, dispatch runs the mutation; only a successful applied mutation then logs the event. If the mutation fails, no `billing_events` row is written — Stripe retries can still apply the change. Unknown / skipped / stale / ignored events do not write to `billing_events`, so a config fix followed by a manual resend from the Stripe dashboard can still apply them.
 
@@ -95,6 +95,8 @@ Invoice subscription field: `invoice.payment_failed` reads `invoice.parent.subsc
 User resolution: subscription events carry a Stripe customer ID, not our `user_id`. The webhook looks up `billing_customers.stripe_customer_id` first, then falls back to fetching the Stripe Customer and reading `metadata.user_id`. **The Checkout edge function must therefore set `metadata.user_id` when creating a Stripe Customer** — without it the fallback fails and the subscription update is skipped (logged as `stripe_user_unresolved`).
 
 ## Frontend flows
+
+The webhook, tables, and entitlement readers are implemented. The user-facing purchase and management flows below are the remaining billing product work.
 
 ### Upgrade
 
@@ -109,7 +111,7 @@ If the caller already has an active paid subscription, `create-checkout-session`
 ### Manage subscription
 
 1. User clicks "Manage subscription" in Profile.
-2. Frontend calls `create-portal-session`; edge function returns the Customer Portal URL.
+2. Frontend calls a planned edge function `create-portal-session`; edge function returns the Customer Portal URL.
 3. User self-serves in the portal. Any change fires a webhook; the app picks it up on next refetch.
 
 ## Tax
