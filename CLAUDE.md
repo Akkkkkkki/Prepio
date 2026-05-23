@@ -18,7 +18,7 @@ These points override anything in older docs or code comments:
 
 - **Resume upload**: PDF and DOCX supported. Signed-in users upload from Home and Profile. Home can parse files locally before sign-in.
 - **Resume deletion**: Server-backed. Deleting a profile resume removes the saved row and stored files together.
-- **Voice recording**: Local preview only. No audio upload or transcription.
+- **Voice recording**: Recordings are uploaded to the `practice-audio` storage bucket and transcribed via the `practice-audio-transcribe` edge function; `audio_path` and `transcript_text` are saved on the answer row.
 - **Search history**: Available in authenticated navigation.
 - **Practice gestures**: Mobile swipe (60px threshold, 12px vertical suppression) plus explicit button controls.
 - **Auth**: Redirect context shown when bounced to sign-in. Sign-in and sign-up fields are stored separately.
