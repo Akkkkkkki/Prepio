@@ -301,7 +301,7 @@ describe("Profile page", () => {
       expect(screen.getByRole("heading", { name: "Profile" })).toBeInTheDocument();
     });
 
-    expect(screen.getByDisplayValue("Staff Engineer")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("Staff Engineer")).toBeInTheDocument();
     expect(screen.getByText("Profile updated from CV. 1 item added.")).toBeInTheDocument();
     expect(mockFinalizeProfileImportAutoApply).toHaveBeenCalledWith("import-1", {
       importSummary: {
