@@ -5,3 +5,4 @@ Point-in-time snapshots of UX, design, security, or architecture reviews. Audits
 | Audit | Date | Notes |
 |-------|------|-------|
 | [2026-04-19 Design audit](./2026-04-19-design-audit.html) | 2026-04-19 | UX/UI review across Home (guest + auth), Dashboard, Practice setup/session, Profile, global navigation. Self-contained React HTML; open in a browser. |
+| [2026-05-23 Recurring hygiene review](./2026-05-23-recurring-hygiene.md) | 2026-05-23 | First recurring codebase hygiene & security review. Findings on unauthenticated paid edge functions, dependency advisories, missing CI; added `typecheck` script and a baseline GitHub Actions workflow. |
