@@ -231,6 +231,33 @@ CREATE TABLE IF NOT EXISTS "public"."practice_answers" (
 ALTER TABLE "public"."practice_answers" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."answer_feedback" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "practice_session_id" "uuid" NOT NULL,
+    "question_id" "uuid" NOT NULL,
+    "practice_answer_id" "uuid",
+    "strengths" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
+    "improvements" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
+    "star_breakdown" "jsonb" NOT NULL,
+    "next_action" "jsonb" NOT NULL,
+    "model" "text",
+    "generation_metadata" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "superseded_by" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "answer_feedback_generation_metadata_object" CHECK (("jsonb_typeof"("generation_metadata") = 'object'::"text")),
+    CONSTRAINT "answer_feedback_improvements_array" CHECK (("jsonb_typeof"("improvements") = 'array'::"text")),
+    CONSTRAINT "answer_feedback_next_action_object" CHECK (("jsonb_typeof"("next_action") = 'object'::"text")),
+    CONSTRAINT "answer_feedback_not_self_superseded" CHECK ((("superseded_by" IS NULL) OR ("superseded_by" <> "id"))),
+    CONSTRAINT "answer_feedback_star_breakdown_object" CHECK (("jsonb_typeof"("star_breakdown") = 'object'::"text")),
+    CONSTRAINT "answer_feedback_strengths_array" CHECK (("jsonb_typeof"("strengths") = 'array'::"text"))
+);
+
+
+ALTER TABLE "public"."answer_feedback" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."practice_sessions" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid" NOT NULL,
@@ -379,6 +406,10 @@ ALTER TABLE ONLY "public"."candidate_profiles"
     ADD CONSTRAINT "candidate_profiles_pkey" PRIMARY KEY ("user_id");
 
 
+ALTER TABLE ONLY "public"."answer_feedback"
+    ADD CONSTRAINT "answer_feedback_pkey" PRIMARY KEY ("id");
+
+
 
 ALTER TABLE ONLY "public"."interview_questions"
     ADD CONSTRAINT "interview_questions_pkey" PRIMARY KEY ("id");
@@ -455,6 +486,21 @@ CREATE INDEX "candidate_profiles_last_resume_idx" ON "public"."candidate_profile
 CREATE INDEX "idx_answers_session" ON "public"."practice_answers" USING "btree" ("session_id");
 
 
+CREATE UNIQUE INDEX "idx_answer_feedback_current" ON "public"."answer_feedback" USING "btree" ("practice_answer_id") WHERE (("superseded_by" IS NULL) AND ("practice_answer_id" IS NOT NULL));
+
+
+
+CREATE INDEX "idx_answer_feedback_question" ON "public"."answer_feedback" USING "btree" ("question_id", "created_at" DESC);
+
+
+
+CREATE INDEX "idx_answer_feedback_session" ON "public"."answer_feedback" USING "btree" ("practice_session_id", "created_at" DESC);
+
+
+
+CREATE INDEX "idx_answer_feedback_user" ON "public"."answer_feedback" USING "btree" ("user_id", "created_at" DESC);
+
+
 
 CREATE INDEX "idx_prep_plans_search" ON "public"."prep_plans" USING "btree" ("search_id");
 
@@ -507,6 +553,9 @@ CREATE INDEX "resumes_user_profile_idx" ON "public"."resumes" USING "btree" ("us
 CREATE OR REPLACE TRIGGER "candidate_profiles_updated_at" BEFORE UPDATE ON "public"."candidate_profiles" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at"();
 
 
+CREATE OR REPLACE TRIGGER "answer_feedback_updated_at" BEFORE UPDATE ON "public"."answer_feedback" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at"();
+
+
 
 CREATE OR REPLACE TRIGGER "flags_updated_at" BEFORE UPDATE ON "public"."user_question_flags" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at"();
 
@@ -532,6 +581,30 @@ ALTER TABLE ONLY "public"."candidate_profiles"
 
 ALTER TABLE ONLY "public"."candidate_profiles"
     ADD CONSTRAINT "candidate_profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+ALTER TABLE ONLY "public"."answer_feedback"
+    ADD CONSTRAINT "answer_feedback_practice_answer_id_fkey" FOREIGN KEY ("practice_answer_id") REFERENCES "public"."practice_answers"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."answer_feedback"
+    ADD CONSTRAINT "answer_feedback_practice_session_id_fkey" FOREIGN KEY ("practice_session_id") REFERENCES "public"."practice_sessions"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."answer_feedback"
+    ADD CONSTRAINT "answer_feedback_question_id_fkey" FOREIGN KEY ("question_id") REFERENCES "public"."interview_questions"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."answer_feedback"
+    ADD CONSTRAINT "answer_feedback_superseded_by_fkey" FOREIGN KEY ("superseded_by") REFERENCES "public"."answer_feedback"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."answer_feedback"
+    ADD CONSTRAINT "answer_feedback_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -640,6 +713,16 @@ CREATE POLICY "answers_own" ON "public"."practice_answers" USING (("session_id" 
   WHERE ("practice_sessions"."user_id" = "auth"."uid"())))) WITH CHECK (("session_id" IN ( SELECT "practice_sessions"."id"
    FROM "public"."practice_sessions"
   WHERE ("practice_sessions"."user_id" = "auth"."uid"()))));
+
+
+ALTER TABLE "public"."answer_feedback" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "answer_feedback_own_read" ON "public"."answer_feedback" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "answer_feedback_service" ON "public"."answer_feedback" TO "service_role" USING (true) WITH CHECK (true);
 
 
 
@@ -796,6 +879,10 @@ GRANT ALL ON TABLE "public"."candidate_profiles" TO "authenticated";
 GRANT ALL ON TABLE "public"."candidate_profiles" TO "service_role";
 
 
+GRANT SELECT ON TABLE "public"."answer_feedback" TO "authenticated";
+GRANT ALL ON TABLE "public"."answer_feedback" TO "service_role";
+
+
 
 GRANT ALL ON TABLE "public"."interview_questions" TO "anon";
 GRANT ALL ON TABLE "public"."interview_questions" TO "authenticated";
@@ -881,10 +968,3 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
-
-
-
-
-
-
-
