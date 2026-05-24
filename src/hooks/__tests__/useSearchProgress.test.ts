@@ -13,6 +13,7 @@ import {
   formatProgressStep,
   getProgressColor,
   getProgressIcon,
+  type SearchProgress,
 } from "../useSearchProgress";
 
 describe("useSearchProgress utilities", () => {
@@ -52,7 +53,9 @@ describe("useSearchProgress utilities", () => {
     });
 
     it("returns gray for unknown status", () => {
-      expect(getProgressColor("unknown" as any)).toBe("text-gray-600");
+      expect(getProgressColor("unknown" as unknown as SearchProgress["status"])).toBe(
+        "text-gray-600",
+      );
     });
   });
 
