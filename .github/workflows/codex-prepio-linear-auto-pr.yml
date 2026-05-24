@@ -1,0 +1,424 @@
+name: Codex Scheduled Linear Auto-PR - Prepio
+
+on:
+  workflow_dispatch:
+  schedule:
+    # GitHub cron is UTC.
+    # 16:00 UTC = 17:00 London during British Summer Time.
+    # Change to "0 17 * * 0,2,5" during winter if exact 17:00 London matters.
+    - cron: "0 16 * * 0,2,5"
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: codex-prepio-linear-auto-pr
+  cancel-in-progress: false
+
+env:
+  DEFAULT_BASE_BRANCH: main
+  FALLBACK_LINEAR_TEAM_KEY: PREPIO
+  FALLBACK_LINEAR_ASSIGNEE_EMAIL: 0913.veronique@gmail.com
+
+jobs:
+  codex_auto_pr:
+    name: Select Linear issue and create draft PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "codex-auto-pr"
+          git config user.email "codex-auto-pr@users.noreply.github.com"
+
+      - name: Keep workflow runtime files out of commits
+        run: |
+          {
+            echo "/selected-linear-issue.json"
+            echo "/codex-output.md"
+            echo "/verification-output.md"
+            echo "/.github/codex/runtime/"
+          } >> .git/info/exclude
+
+      - name: Validate required secrets
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${OPENAI_API_KEY}" ]; then
+            echo "OPENAI_API_KEY repository secret is not set." >&2
+            exit 1
+          fi
+
+          if [ -z "${LINEAR_API_KEY}" ]; then
+            echo "LINEAR_API_KEY repository secret is not set." >&2
+            exit 1
+          fi
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install helper tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Fetch one eligible Linear issue
+        id: linear_issue
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          SECRET_LINEAR_TEAM_KEY: ${{ secrets.PREPIO_LINEAR_TEAM_KEY }}
+          SECRET_LINEAR_ASSIGNEE_EMAIL: ${{ secrets.PREPIO_LINEAR_ASSIGNEE_EMAIL }}
+        run: |
+          set -euo pipefail
+
+          LINEAR_TEAM_KEY="${SECRET_LINEAR_TEAM_KEY:-${FALLBACK_LINEAR_TEAM_KEY}}"
+          LINEAR_ASSIGNEE_EMAIL="${SECRET_LINEAR_ASSIGNEE_EMAIL:-${FALLBACK_LINEAR_ASSIGNEE_EMAIL}}"
+
+          jq -n \
+            --arg teamKey "$LINEAR_TEAM_KEY" \
+            '{
+              query: "query($teamKey: String!) { issues(first: 50, filter: { team: { key: { eq: $teamKey } }, state: { name: { in: [\"Todo\", \"Backlog\"] } } }) { nodes { id identifier title description priority url branchName createdAt updatedAt assignee { id name email } state { name } labels { nodes { name } } project { name } relations { nodes { type relatedIssue { identifier title state { name } url } } } attachments { nodes { title url } } comments(first: 20) { nodes { body createdAt user { name email } } } } } }",
+              variables: {
+                teamKey: $teamKey
+              }
+            }' > /tmp/linear-query.json
+
+          curl -sS \
+            -H "Authorization: ${LINEAR_API_KEY}" \
+            -H "Content-Type: application/json" \
+            --data @/tmp/linear-query.json \
+            https://api.linear.app/graphql > /tmp/linear-response.json
+
+          if jq -e '.errors' /tmp/linear-response.json >/dev/null; then
+            echo "Linear API returned errors:"
+            jq . /tmp/linear-response.json
+            exit 1
+          fi
+
+          # Select:
+          # - team-prefixed issues only
+          # - Todo or Backlog already enforced by query
+          # - assigned to Qiuyue email or unassigned
+          # - skip obvious active PR attachments/comments/descriptions
+          # - priority first, with Linear priority 1 as highest; 0/no priority goes last
+          jq --arg team_key "$LINEAR_TEAM_KEY" --arg assignee_email "$LINEAR_ASSIGNEE_EMAIL" '
+            .data.issues.nodes
+            | map(select(.identifier | startswith($team_key + "-")))
+            | map(select(.assignee == null or .assignee.email == $assignee_email))
+            | map(
+                .activePrEvidence =
+                  (
+                    ([.description] + [.attachments.nodes[]?.url] + [.comments.nodes[]?.body])
+                    | map(tostring)
+                    | map(test("github.com/.*/pull/[0-9]+|/pull/[0-9]+|draft PR|active PR"; "i"))
+                    | any
+                  )
+              )
+            | map(select(.activePrEvidence == false))
+            | sort_by(if (.priority // 0) == 0 then 999 else .priority end, .updatedAt)
+            | .[0]
+          ' /tmp/linear-response.json > selected-linear-issue.json
+
+          if [ "$(cat selected-linear-issue.json)" = "null" ]; then
+            echo "No eligible Linear issue found."
+            echo "selected=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          ISSUE_KEY="$(jq -r '.identifier' selected-linear-issue.json)"
+          ISSUE_TITLE="$(jq -r '.title' selected-linear-issue.json)"
+          ISSUE_URL="$(jq -r '.url' selected-linear-issue.json)"
+
+          echo "Selected issue: ${ISSUE_KEY} - ${ISSUE_TITLE}"
+          echo "Issue URL: ${ISSUE_URL}"
+
+          echo "selected=true" >> "$GITHUB_OUTPUT"
+          echo "issue_key=${ISSUE_KEY}" >> "$GITHUB_OUTPUT"
+          echo "issue_title=${ISSUE_TITLE}" >> "$GITHUB_OUTPUT"
+          echo "issue_url=${ISSUE_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Stop if no eligible issue exists
+        if: steps.linear_issue.outputs.selected != 'true'
+        run: |
+          echo "No eligible PREPIO issue in Todo or Backlog. Nothing to do."
+
+      - name: Generate safe branch name
+        if: steps.linear_issue.outputs.selected == 'true'
+        id: branch
+        env:
+          ISSUE_KEY: ${{ steps.linear_issue.outputs.issue_key }}
+          ISSUE_TITLE: ${{ steps.linear_issue.outputs.issue_title }}
+        run: |
+          set -euo pipefail
+
+          SLUG="$(echo "$ISSUE_TITLE" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed -E 's/[^a-z0-9]+/-/g' \
+            | sed -E 's/^-+|-+$//g' \
+            | cut -c1-50)"
+
+          if [ -z "$SLUG" ]; then
+            SLUG="linear-issue"
+          fi
+
+          BRANCH="codex/${ISSUE_KEY,,}-${SLUG}"
+
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "Branch: ${BRANCH}"
+
+      - name: Create working branch
+        if: steps.linear_issue.outputs.selected == 'true'
+        env:
+          BRANCH: ${{ steps.branch.outputs.branch }}
+        run: |
+          git checkout -B "$BRANCH"
+
+      - name: Build Codex task context
+        if: steps.linear_issue.outputs.selected == 'true'
+        env:
+          ISSUE_KEY: ${{ steps.linear_issue.outputs.issue_key }}
+          ISSUE_TITLE: ${{ steps.linear_issue.outputs.issue_title }}
+          ISSUE_URL: ${{ steps.linear_issue.outputs.issue_url }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+        run: |
+          mkdir -p .github/codex/runtime
+
+          {
+            echo "# Selected Linear issue"
+            echo
+            printf 'Issue key: %s\n\n' "$ISSUE_KEY"
+            printf 'Issue title: %s\n\n' "$ISSUE_TITLE"
+            printf 'Issue URL: %s\n\n' "$ISSUE_URL"
+            printf 'Branch: %s\n\n' "$BRANCH"
+            echo "Full issue JSON is available at:"
+            echo
+            echo '```text'
+            echo "selected-linear-issue.json"
+            echo '```'
+          } > .github/codex/runtime/selected-issue-summary.md
+
+      - name: Run Codex implementation
+        if: steps.linear_issue.outputs.selected == 'true'
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .github/codex/prompts/prepio-linear-auto-pr.md
+          output-file: codex-output.md
+          safety-strategy: drop-sudo
+          sandbox: workspace-write
+          codex-args: '["--json"]'
+
+      - name: Show Codex final output
+        if: steps.linear_issue.outputs.selected == 'true'
+        run: |
+          echo "Codex output:"
+          if [ -f codex-output.md ]; then
+            cat codex-output.md
+          else
+            echo "No codex-output.md found."
+          fi
+
+      - name: Check whether Codex changed files
+        if: steps.linear_issue.outputs.selected == 'true'
+        id: diff
+        run: |
+          set -euo pipefail
+
+          git status --short
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No repo changes detected."
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "Repo changes detected."
+          fi
+
+      - name: Run verification
+        if: steps.linear_issue.outputs.selected == 'true' && steps.diff.outputs.has_changes == 'true'
+        id: verification
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          echo "Running targeted/general verification..."
+
+          VERIFY_LOG="verification-output.md"
+          : > "$VERIFY_LOG"
+
+          {
+            echo "# Verification output"
+            echo
+            echo "## npm test"
+          } >> "$VERIFY_LOG"
+
+          if npm test 2>&1 | tee -a "$VERIFY_LOG"; then
+            echo "npm_test=passed" >> "$GITHUB_OUTPUT"
+          else
+            echo "npm_test=failed" >> "$GITHUB_OUTPUT"
+          fi
+
+          {
+            echo
+            echo "## npm run build"
+          } >> "$VERIFY_LOG"
+
+          if npm run build 2>&1 | tee -a "$VERIFY_LOG"; then
+            echo "npm_build=passed" >> "$GITHUB_OUTPUT"
+          else
+            echo "npm_build=failed" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit changes
+        if: steps.linear_issue.outputs.selected == 'true' && steps.diff.outputs.has_changes == 'true'
+        env:
+          ISSUE_KEY: ${{ steps.linear_issue.outputs.issue_key }}
+          ISSUE_TITLE: ${{ steps.linear_issue.outputs.issue_title }}
+        run: |
+          set -euo pipefail
+
+          git add -A
+          git commit -m "${ISSUE_KEY}: ${ISSUE_TITLE}"
+
+      - name: Push branch
+        if: steps.linear_issue.outputs.selected == 'true' && steps.diff.outputs.has_changes == 'true'
+        env:
+          BRANCH: ${{ steps.branch.outputs.branch }}
+        run: |
+          git push --force-with-lease origin "$BRANCH"
+
+      - name: Create draft PR
+        if: steps.linear_issue.outputs.selected == 'true' && steps.diff.outputs.has_changes == 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_KEY: ${{ steps.linear_issue.outputs.issue_key }}
+          ISSUE_TITLE: ${{ steps.linear_issue.outputs.issue_title }}
+          ISSUE_URL: ${{ steps.linear_issue.outputs.issue_url }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+        run: |
+          set -euo pipefail
+
+          PR_BODY_FILE="/tmp/pr-body.md"
+
+          cat > "$PR_BODY_FILE" <<EOF
+          ## Summary
+
+          Implements Linear issue ${ISSUE_KEY}: ${ISSUE_TITLE}
+
+          Linear issue: ${ISSUE_URL}
+
+          ## Codex notes
+
+          EOF
+
+          if [ -f codex-output.md ]; then
+            cat codex-output.md >> "$PR_BODY_FILE"
+          else
+            echo "No Codex output file was produced." >> "$PR_BODY_FILE"
+          fi
+
+          cat >> "$PR_BODY_FILE" <<EOF
+
+          ## Verification
+
+          EOF
+
+          if [ -f verification-output.md ]; then
+            cat verification-output.md >> "$PR_BODY_FILE"
+          else
+            echo "Verification did not run or produced no output." >> "$PR_BODY_FILE"
+          fi
+
+          PR_URL="$(gh pr create \
+            --draft \
+            --base "${DEFAULT_BASE_BRANCH}" \
+            --head "${BRANCH}" \
+            --title "${ISSUE_KEY}: ${ISSUE_TITLE}" \
+            --body-file "$PR_BODY_FILE")"
+
+          echo "PR_URL=${PR_URL}" >> "$GITHUB_ENV"
+          echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
+          echo "Created draft PR: ${PR_URL}"
+
+      - name: Comment on Linear issue
+        if: steps.linear_issue.outputs.selected == 'true'
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          PR_URL: ${{ steps.pr.outputs.pr_url }}
+          ISSUE_KEY: ${{ steps.linear_issue.outputs.issue_key }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          HAS_CHANGES: ${{ steps.diff.outputs.has_changes }}
+          NPM_TEST_RESULT: ${{ steps.verification.outputs.npm_test || 'not run' }}
+          NPM_BUILD_RESULT: ${{ steps.verification.outputs.npm_build || 'not run' }}
+        run: |
+          set -euo pipefail
+
+          ISSUE_ID="$(jq -r '.id' selected-linear-issue.json)"
+
+          if [ "$HAS_CHANGES" = "true" ]; then
+            BODY="Codex scheduled auto-PR run completed.
+
+          Draft PR: ${PR_URL}
+          Branch: ${BRANCH}
+
+          Verification:
+          - npm test: ${NPM_TEST_RESULT}
+          - npm run build: ${NPM_BUILD_RESULT}
+
+          Notes:
+          - See the PR body for the Codex implementation summary and verification log."
+          else
+            BODY="Codex scheduled auto-PR run selected ${ISSUE_KEY}, but no repository changes were produced.
+
+          No PR was opened.
+
+          Please review whether the issue needs clearer acceptance criteria or whether it is blocked by product/config decisions."
+          fi
+
+          jq -n \
+            --arg issueId "$ISSUE_ID" \
+            --arg body "$BODY" \
+            '{
+              query: "mutation($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success } }",
+              variables: {
+                issueId: $issueId,
+                body: $body
+              }
+            }' > /tmp/linear-comment.json
+
+          curl -sS \
+            -H "Authorization: ${LINEAR_API_KEY}" \
+            -H "Content-Type: application/json" \
+            --data @/tmp/linear-comment.json \
+            https://api.linear.app/graphql | jq .
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-prepio-auto-pr-run
+          path: |
+            selected-linear-issue.json
+            codex-output.md
+            verification-output.md
+          if-no-files-found: ignore
