@@ -114,6 +114,20 @@ where user_id = '<user_id>';
 
 Then compare against `src/shared/entitlement-rules.ts`. The frontend and Edge copies of entitlement rules must stay in lock-step.
 
+## Checkout: Stuck on "Pending Checkout" (409)
+
+When `create-checkout-session` returns `409 { error: "pending_checkout" }`, Stripe is rejecting the request because the same user already used the idempotency key `checkout:<user_id>` with different parameters within the last 24h. This happens when a user starts Checkout at one cadence, abandons it without completing or canceling, then retries at a different cadence.
+
+What the user sees: the pricing CTA returns an error instead of redirecting to Stripe.
+
+Resolution options (cheapest first):
+
+1. **Tell the user to complete or cancel the original Stripe Checkout in the original tab.** Once the session is paid, canceled, or expires (Stripe default 24h), the next attempt at any cadence succeeds.
+2. **Expire the open Checkout Session from the Stripe dashboard** (Payments → Checkout Sessions → find the open session for the customer → Expire). Subsequent attempts at any cadence will succeed immediately.
+3. **Wait 24h.** Stripe's idempotency key window expires automatically.
+
+Do **not** delete or modify the `billing_customers` row to work around this — the next Checkout would create a duplicate Stripe customer.
+
 ## Tests To Run Before Release
 
 ```bash
