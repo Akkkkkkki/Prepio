@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.52.0';
 import { Logger } from '../_shared/logging.ts';
 import { getOpenAIModel } from '../_shared/config.ts';
 import { authorizeRequest } from "../_shared/auth.ts";
