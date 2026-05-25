@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.create-checkout-session]
 verify_jwt = false
+
+[functions.answer-feedback]
+verify_jwt = false

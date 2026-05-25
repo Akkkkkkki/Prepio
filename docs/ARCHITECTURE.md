@@ -29,6 +29,7 @@ Supabase Edge Functions:
 - `interview-question-generator`: generates tailored questions and answer guidance.
 - `profile-import`: creates candidate-profile import drafts.
 - `practice-audio-transcribe`: transcribes uploaded practice recordings.
+- `answer-feedback`: paid-only structured coaching for saved practice answers.
 - `stripe-webhook`: syncs Stripe subscription state into Supabase billing tables.
 
 Shared function utilities live under `supabase/functions/_shared`.
@@ -53,11 +54,11 @@ Core tables:
 - `billing_customers`: user to Stripe customer mapping.
 - `billing_subscriptions`: Stripe subscription state and entitlement source.
 - `billing_events`: Stripe webhook idempotency/audit log.
+- `answer_feedback`: paid structured feedback rows for saved practice answers, with regeneration history.
 - `ops.scraped_urls` and `ops.tavily_searches`: research cache and operational logging.
 
 Not yet shipped:
 
-- `answer_feedback`
 - `usage_events`
 - `notification_jobs`
 
