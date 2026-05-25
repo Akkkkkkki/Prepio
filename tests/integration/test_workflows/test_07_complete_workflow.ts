@@ -12,7 +12,7 @@
  */
 
 import { assertEquals, assertExists } from "https://deno.land/std@0.192.0/testing/asserts.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
 import { load } from "jsr:@std/dotenv";
 await load({ envPath: ".env.local", export: true });
 

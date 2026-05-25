@@ -4,7 +4,7 @@
  * Provides real-time status updates for long-running research operations
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.52.0'
 
 export interface ProgressStep {
   step: string;

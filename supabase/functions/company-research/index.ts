@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
 import { searchTavily, extractTavily, extractInterviewReviewUrls, TavilySearchRequest } from "../_shared/tavily-client.ts";
 import { searchWithFallback } from "../_shared/duckduckgo-fallback.ts";
 import { callOpenAI, parseJsonResponse, OpenAIRequest } from "../_shared/openai-client.ts";
@@ -789,4 +789,4 @@ serve(async (req) => {
       }
     );
   }
-}); 
+});
