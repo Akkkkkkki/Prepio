@@ -6,7 +6,7 @@
 // Contract: docs/BILLING.md → "Webhook".
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
 import Stripe from "https://esm.sh/stripe@17.4.0?target=denonext";
 import { processEvent, type WebhookEvent } from "./handlers.ts";
 import type { CadenceLookup } from "./cadence.ts";
