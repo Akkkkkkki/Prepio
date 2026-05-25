@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams, useParams, Link } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
@@ -794,7 +794,7 @@ const Dashboard = () => {
   const [showBanner, setShowBanner] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadSearchData = async () => {
+  const loadSearchData = useCallback(async () => {
     if (!searchId) return;
     setIsLoading(true);
     try {
@@ -828,7 +828,7 @@ const Dashboard = () => {
       setError("An unexpected error occurred while loading data");
       setIsLoading(false);
     }
-  };
+  }, [searchId]);
 
   useEffect(() => {
     if (!searchId) {
@@ -849,7 +849,7 @@ const Dashboard = () => {
       }
     }, 3000);
     return () => clearInterval(poll);
-  }, [searchId]);
+  }, [searchId, loadSearchData]);
 
   useEffect(() => {
     if (searchData?.status === 'pending' || searchData?.status === 'processing') {
