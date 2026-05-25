@@ -12,9 +12,42 @@ Stripe billing contract for Prepio. Single source of truth for anyone touching p
 | Object | Shape |
 |--------|-------|
 | Product | One Product: "Prepio Subscription". |
-| Prices | Three recurring Prices on that Product: `price_monthly`, `price_quarterly`, `price_annual`. Quarterly ≈ 50% off rolling monthly; annual ≈ 70% off rolling monthly. Store the Price IDs in env vars, not in code. |
+| Prices | Three recurring Prices on that Product: `prepio_subscription_monthly`, `prepio_subscription_quarterly`, `prepio_subscription_annual`. Quarterly is about 50% off the rolling monthly equivalent; annual is about 70% off the rolling monthly equivalent. Store the Price IDs in env vars, not in code. |
 | Checkout | Stripe Checkout (hosted). Success URL returns to app with session ID; cancel URL returns to pricing page. |
 | Customer Portal | Stripe Customer Portal (hosted). Enabled features: update payment method, update plan (swap cadence), cancel subscription. |
+
+### Stripe product and price catalog
+
+Create the same Product and three recurring Prices in both Stripe test mode and live mode. Do not hard-code Product or Price IDs in this repository; the Edge Functions read environment-scoped Price IDs from Supabase secrets.
+
+Product:
+
+| Field | Value |
+|-------|-------|
+| Name | `Prepio Subscription` |
+| Statement descriptor | `PREPIO` |
+| Metadata | `app=prepio`, `billing_contract=billing_v1`, `tier=paid` |
+
+Prices:
+
+Let `M` be the approved monthly unit amount in the chosen minor currency, for example cents. Keep all three Prices in the same currency.
+
+| Cadence | Stripe lookup key | Billing interval | Unit amount rule | Env var consumed by code | Price metadata |
+|---------|-------------------|------------------|------------------|---------------------------|----------------|
+| Monthly | `prepio_subscription_monthly` | 1 month | `M` | `STRIPE_PRICE_MONTHLY` | `app=prepio`, `billing_contract=billing_v1`, `tier=paid`, `cadence=monthly` |
+| Quarterly | `prepio_subscription_quarterly` | 3 months | `round(M * 3 * 0.5)` | `STRIPE_PRICE_QUARTERLY` | `app=prepio`, `billing_contract=billing_v1`, `tier=paid`, `cadence=quarterly` |
+| Annual | `prepio_subscription_annual` | 1 year | `round(M * 12 * 0.3)` | `STRIPE_PRICE_ANNUAL` | `app=prepio`, `billing_contract=billing_v1`, `tier=paid`, `cadence=annual` |
+
+Use the same lookup keys in test and live mode. Stripe Price IDs are mode-specific, so each deployment environment must set its own `STRIPE_PRICE_*` values. The current repository does not contain the real Stripe IDs because this CI job cannot create or verify Stripe dashboard objects.
+
+Capture the IDs in the deployment environment this way:
+
+| Mode | `STRIPE_PRICE_MONTHLY` | `STRIPE_PRICE_QUARTERLY` | `STRIPE_PRICE_ANNUAL` |
+|------|------------------------|--------------------------|-----------------------|
+| Test | `price_...` from Stripe test mode | `price_...` from Stripe test mode | `price_...` from Stripe test mode |
+| Live | `price_...` from Stripe live mode | `price_...` from Stripe live mode | `price_...` from Stripe live mode |
+
+The Checkout function sends the selected Price ID as a `line_items[].price`; the webhook maps incoming subscription item Price IDs back to `monthly`, `quarterly`, or `annual` using those same env vars. A missing or mismatched Price ID causes the webhook to skip the subscription with `reason=unknown_price`, so update the env vars before resending affected Stripe events.
 
 ## Database
 
