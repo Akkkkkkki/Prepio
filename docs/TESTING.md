@@ -43,13 +43,15 @@ This still needs a real integration or browser-level test. Mocking the service l
 
 ### Paid answer feedback
 
-Before shipping feedback, cover:
+Local handler coverage now exists in `supabase/functions/answer-feedback/handler.test.ts` for the server-side paid gate and persistence contract:
 
 - free users never trigger paid feedback generation
 - paid users receive full feedback
 - feedback includes the right question, answer, search, role, company, and candidate context
 - empty or partial answers fail gracefully
 - regenerated feedback does not duplicate history/session UI
+
+Before shipping the hosted feature, run a Supabase Edge Function smoke check against a non-production project with a paid test user and a free test user. The local suite mocks Supabase and the model call; it cannot prove deployed environment variables, JWT auth wiring, or PostgREST behavior.
 
 ### Billing product surface
 

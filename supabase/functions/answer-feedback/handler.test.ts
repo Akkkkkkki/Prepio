@@ -1,0 +1,394 @@
+import { describe, expect, it, vi } from "vitest";
+import type { Entitlement } from "../_shared/entitlement-rules.ts";
+import {
+  generateAnswerFeedback,
+  type CandidateProfileRow,
+  type FeedbackModelInput,
+  type FeedbackModelResult,
+  type FeedbackRow,
+  type InterviewQuestionRow,
+  type PracticeAnswerRow,
+  type PracticeSessionRow,
+  type SearchRow,
+  type StructuredFeedback,
+  type SupabaseLike,
+} from "./handler.ts";
+
+const USER_ID = "user-123";
+const ANSWER_ID = "answer-123";
+const SESSION_ID = "session-123";
+const QUESTION_ID = "question-123";
+const SEARCH_ID = "search-123";
+
+const FREE: Entitlement = {
+  tier: "free",
+  cadence: null,
+  status: "none",
+  currentPeriodEnd: null,
+};
+
+const PAID: Entitlement = {
+  tier: "paid",
+  cadence: "monthly",
+  status: "active",
+  currentPeriodEnd: "2026-12-31T00:00:00.000Z",
+};
+
+const question: InterviewQuestionRow = {
+  id: QUESTION_ID,
+  search_id: SEARCH_ID,
+  question: "Tell me about a time you changed a technical direction after new evidence.",
+  category: "behavioral",
+  difficulty: "medium",
+  suggested_answer_approach: "Use a STAR story with explicit tradeoffs.",
+  good_answer_signals: ["names the evidence", "explains stakeholder alignment"],
+  weak_answer_signals: ["vague outcome"],
+  seniority_expectation: "Senior answers should show judgment under ambiguity.",
+  sample_answer_outline: "Situation, evidence, decision, result.",
+};
+
+const search: SearchRow = {
+  id: SEARCH_ID,
+  company: "Acme",
+  role: "Staff Product Engineer",
+  level: "senior_ic",
+  country: "US",
+  job_description: "Lead platform initiatives and mentor engineers.",
+  user_note: "Focus on architecture leadership.",
+};
+
+const profile: CandidateProfileRow = {
+  user_id: USER_ID,
+  headline: "Platform engineer",
+  summary: "Builds developer platforms and leads migrations.",
+  location: "Remote",
+  experiences: [{ company: "OldCo", title: "Senior Engineer" }],
+  education: [],
+  skills: ["TypeScript", "architecture"],
+  projects: [{ name: "Migration" }],
+  preferences: { targetRoles: ["Staff Engineer"] },
+  completion_score: 82,
+};
+
+const feedback: StructuredFeedback = {
+  strengths: [{ text: "Clear context", evidence: "Named the migration constraint." }],
+  improvements: [{ text: "Add a measurable result", evidence: "Outcome was qualitative." }],
+  starBreakdown: {
+    situation: "Good context.",
+    task: "Task could be sharper.",
+    action: "Actions were specific.",
+    result: "Result needs metrics.",
+  },
+  nextAction: {
+    text: "Rewrite the ending with one metric.",
+    practicePrompt: "Add before/after latency, cost, or team velocity.",
+  },
+};
+
+interface FakeDb {
+  practice_answers: PracticeAnswerRow[];
+  practice_sessions: PracticeSessionRow[];
+  interview_questions: InterviewQuestionRow[];
+  searches: SearchRow[];
+  candidate_profiles: CandidateProfileRow[];
+  answer_feedback: FeedbackRow[];
+}
+
+function buildDb(overrides: Partial<FakeDb> = {}): FakeDb {
+  return {
+    practice_answers: [
+      {
+        id: ANSWER_ID,
+        session_id: SESSION_ID,
+        question_id: QUESTION_ID,
+        text_answer:
+          "I changed the migration plan after production traces showed the batch approach would miss our reliability target.",
+        transcript_text: null,
+      },
+    ],
+    practice_sessions: [{ id: SESSION_ID, user_id: USER_ID, search_id: SEARCH_ID }],
+    interview_questions: [question],
+    searches: [search],
+    candidate_profiles: [profile],
+    answer_feedback: [],
+    ...overrides,
+  };
+}
+
+function buildFakeSupabase(db: FakeDb): SupabaseLike {
+  return {
+    from(table: string) {
+      return {
+        select<T>(_columns: string) {
+          const filters: Array<{ column: string; value: unknown; op: "eq" | "is" }> = [];
+          const builder = {
+            eq(column: string, value: unknown) {
+              filters.push({ column, value, op: "eq" });
+              return builder;
+            },
+            is(column: string, value: null) {
+              filters.push({ column, value, op: "is" });
+              return builder;
+            },
+            async maybeSingle() {
+              const rows = (db[table as keyof FakeDb] as unknown[]).filter((row) =>
+                filters.every((filter) => {
+                  const rowValue = (row as Record<string, unknown>)[filter.column];
+                  return filter.op === "is" ? rowValue === filter.value : rowValue === filter.value;
+                }),
+              );
+              return { data: (rows[0] as T) ?? null, error: null };
+            },
+            async single() {
+              return builder.maybeSingle();
+            },
+          };
+          return builder;
+        },
+        insert<T>(row: Record<string, unknown>) {
+          return {
+            select(_columns?: string) {
+              return {
+                async single() {
+                  (db[table as keyof FakeDb] as unknown[]).push(row);
+                  return { data: row as T, error: null };
+                },
+              };
+            },
+          };
+        },
+        update<T>(patch: Record<string, unknown>) {
+          return {
+            async eq(column: string, value: unknown) {
+              const rows = db[table as keyof FakeDb] as unknown[];
+              const row = rows.find((candidate) => {
+                return (candidate as Record<string, unknown>)[column] === value;
+              }) as Record<string, unknown> | undefined;
+              if (!row) {
+                return { data: null, error: { message: "row not found" } };
+              }
+              Object.assign(row, patch);
+              return { data: row as T, error: null };
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
+function buildModel(result: FeedbackModelResult = { feedback, model: "gpt-test" }) {
+  const generate = vi.fn(async (_input: FeedbackModelInput) => result);
+  return { generate };
+}
+
+describe("generateAnswerFeedback", () => {
+  it("returns 403 for free users before any model call or feedback insert", async () => {
+    const db = buildDb();
+    const model = buildModel();
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db),
+        getEntitlement: async () => FREE,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID },
+    );
+
+    expect(result).toEqual({ ok: false, status: 403, error: "paid_entitlement_required" });
+    expect(model.generate).not.toHaveBeenCalled();
+    expect(db.answer_feedback).toHaveLength(0);
+  });
+
+  it("passes question, answer, search, and candidate profile context to the model and persists feedback", async () => {
+    const db = buildDb();
+    const model = buildModel({ feedback, model: "gpt-feedback-test", metadata: { latencyMs: 321 } });
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db),
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(model.generate).toHaveBeenCalledOnce();
+    expect(model.generate.mock.calls[0][0]).toMatchObject({
+      userId: USER_ID,
+      practiceAnswerId: ANSWER_ID,
+      practiceSessionId: SESSION_ID,
+      question,
+      search,
+      candidateProfile: profile,
+      answer: {
+        textAnswer: db.practice_answers[0].text_answer,
+        transcriptText: null,
+        effectiveText: expect.stringContaining("production traces"),
+      },
+    });
+    expect(db.answer_feedback).toHaveLength(1);
+    expect(db.answer_feedback[0]).toMatchObject({
+      user_id: USER_ID,
+      practice_answer_id: ANSWER_ID,
+      practice_session_id: SESSION_ID,
+      question_id: QUESTION_ID,
+      strengths: feedback.strengths,
+      improvements: feedback.improvements,
+      star_breakdown: feedback.starBreakdown,
+      next_action: feedback.nextAction,
+      model: "gpt-feedback-test",
+      superseded_by: null,
+    });
+    expect(db.answer_feedback[0].generation_metadata).toMatchObject({
+      latencyMs: 321,
+      regenerated: false,
+      input_snapshot: {
+        search: { company: "Acme", role: "Staff Product Engineer" },
+        candidateProfile: { headline: "Platform engineer" },
+      },
+    });
+  });
+
+  it("uses transcript text when a saved answer has no typed answer", async () => {
+    const db = buildDb({
+      practice_answers: [
+        {
+          id: ANSWER_ID,
+          session_id: SESSION_ID,
+          question_id: QUESTION_ID,
+          text_answer: null,
+          transcript_text:
+            "The transcript explains how I aligned the team around a safer incremental launch plan.",
+        },
+      ],
+    });
+    const model = buildModel();
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db),
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(model.generate.mock.calls[0][0].answer).toMatchObject({
+      textAnswer: null,
+      transcriptText: expect.stringContaining("incremental launch"),
+      effectiveText: expect.stringContaining("incremental launch"),
+    });
+  });
+
+  it("rejects empty or partial answers without model calls or partial feedback rows", async () => {
+    const db = buildDb({
+      practice_answers: [
+        {
+          id: ANSWER_ID,
+          session_id: SESSION_ID,
+          question_id: QUESTION_ID,
+          text_answer: "too short",
+          transcript_text: null,
+        },
+      ],
+    });
+    const model = buildModel();
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db),
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID },
+    );
+
+    expect(result).toEqual({ ok: false, status: 422, error: "answer_too_short" });
+    expect(model.generate).not.toHaveBeenCalled();
+    expect(db.answer_feedback).toHaveLength(0);
+  });
+
+  it("regenerates feedback by preserving history and leaving one latest row", async () => {
+    const db = buildDb({
+      answer_feedback: [
+        {
+          id: "feedback-old",
+          user_id: USER_ID,
+          practice_answer_id: ANSWER_ID,
+          practice_session_id: SESSION_ID,
+          question_id: QUESTION_ID,
+          strengths: [{ text: "Old strength" }],
+          improvements: [],
+          star_breakdown: feedback.starBreakdown,
+          next_action: feedback.nextAction,
+          model: "gpt-old",
+          generation_metadata: {},
+          superseded_by: null,
+        },
+      ],
+    });
+    const model = buildModel();
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db),
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID, regenerate: true },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.supersededFeedbackId).toBe("feedback-old");
+    expect(db.answer_feedback).toHaveLength(2);
+    expect(db.answer_feedback.find((row) => row.id === "feedback-old")?.superseded_by).toBe(
+      result.feedbackId,
+    );
+    expect(db.answer_feedback.find((row) => row.id === result.feedbackId)?.superseded_by).toBeNull();
+    expect(
+      db.answer_feedback.filter(
+        (row) => row.practice_answer_id === ANSWER_ID && row.superseded_by === null,
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("refuses to create duplicate latest feedback without explicit regeneration", async () => {
+    const db = buildDb({
+      answer_feedback: [
+        {
+          id: "feedback-current",
+          user_id: USER_ID,
+          practice_answer_id: ANSWER_ID,
+          practice_session_id: SESSION_ID,
+          question_id: QUESTION_ID,
+          strengths: [{ text: "Existing feedback" }],
+          improvements: [],
+          star_breakdown: feedback.starBreakdown,
+          next_action: feedback.nextAction,
+          model: "gpt-existing",
+          generation_metadata: {},
+          superseded_by: null,
+        },
+      ],
+    });
+    const model = buildModel();
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db),
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID },
+    );
+
+    expect(result).toEqual({ ok: false, status: 409, error: "feedback_already_exists" });
+    expect(model.generate).not.toHaveBeenCalled();
+    expect(db.answer_feedback).toHaveLength(1);
+  });
+});
