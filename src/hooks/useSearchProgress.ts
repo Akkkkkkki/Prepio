@@ -5,7 +5,21 @@
 
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
+
+type SearchRow = Database['public']['Tables']['searches']['Row'];
+type SearchProgressColumns =
+  | 'id'
+  | 'status'
+  | 'progress_step'
+  | 'progress_pct'
+  | 'error_message'
+  | 'started_at'
+  | 'completed_at'
+  | 'created_at'
+  | 'updated_at';
 
 export interface SearchProgress {
   id: string;
@@ -17,6 +31,21 @@ export interface SearchProgress {
   completed_at?: string;
   created_at: string;
   updated_at: string;
+}
+
+// `searches.status` is `string` in the generated types; narrow at the boundary.
+function toSearchProgress(row: Pick<SearchRow, SearchProgressColumns>): SearchProgress {
+  return {
+    id: row.id,
+    status: (row.status || 'pending') as SearchProgress['status'],
+    progress_step: row.progress_step || '',
+    progress_pct: row.progress_pct || 0,
+    error_message: row.error_message || undefined,
+    started_at: row.started_at || undefined,
+    completed_at: row.completed_at || undefined,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
 }
 
 /**
@@ -49,18 +78,7 @@ async function fetchSearchProgress(searchId: string): Promise<SearchProgress | n
   }
 
   if (!data) return null;
-  // Map DB row to SearchProgress interface
-  return {
-    id: (data as any).id,
-    status: ((data as any).status || 'pending') as SearchProgress['status'],
-    progress_step: (data as any).progress_step || '',
-    progress_pct: (data as any).progress_pct || 0,
-    error_message: (data as any).error_message || undefined,
-    started_at: (data as any).started_at || undefined,
-    completed_at: (data as any).completed_at || undefined,
-    created_at: (data as any).created_at,
-    updated_at: (data as any).updated_at,
-  };
+  return toSearchProgress(data);
 }
 
 /**
@@ -155,24 +173,14 @@ export function useSearchProgress(
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'searches', filter: `id=eq.${searchId}` },
-          (payload) => {
+          (payload: RealtimePostgresChangesPayload<SearchRow>) => {
             try {
-              const row: any = (payload as any).new ?? (payload as any).record;
-              if (row) {
-                // Map DB row to SearchProgress interface
-                const progressData: SearchProgress = {
-                  id: row.id,
-                  status: (row.status || 'pending') as SearchProgress['status'],
-                  progress_step: row.progress_step || '',
-                  progress_pct: row.progress_pct || 0,
-                  error_message: row.error_message || undefined,
-                  started_at: row.started_at || undefined,
-                  completed_at: row.completed_at || undefined,
-                  created_at: row.created_at,
-                  updated_at: row.updated_at,
-                };
-                queryClient.setQueryData(['search-progress', searchId], progressData);
-              }
+              // INSERT/UPDATE carry the full row in `new`; DELETE has `{}`. Skip DELETE.
+              if (!('id' in payload.new) || !payload.new.id) return;
+              queryClient.setQueryData(
+                ['search-progress', searchId],
+                toSearchProgress(payload.new),
+              );
             } catch (error) {
               console.error('Error processing Realtime update:', error);
             }
