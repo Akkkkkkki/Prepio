@@ -310,7 +310,8 @@ jobs:
         if: steps.linear_issue.outputs.selected == 'true' && steps.diff.outputs.has_changes == 'true'
         id: pr
         env:
-          GH_TOKEN: ${{ github.token }}
+          # Prefer a bot/App token when repository policy blocks GITHUB_TOKEN from creating PRs.
+          GH_TOKEN: ${{ secrets.CODEX_AUTO_PR_GITHUB_TOKEN || github.token }}
           ISSUE_KEY: ${{ steps.linear_issue.outputs.issue_key }}
           ISSUE_TITLE: ${{ steps.linear_issue.outputs.issue_title }}
           ISSUE_URL: ${{ steps.linear_issue.outputs.issue_url }}

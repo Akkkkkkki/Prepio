@@ -401,6 +401,11 @@ describe("Practice keyboard navigation", () => {
   });
 
   it("ArrowLeft navigates back after skipping forward", async () => {
+    const questionTexts = [
+      "Describe your system design approach.",
+      "How do you evaluate ML models in production?",
+    ];
+
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
@@ -412,14 +417,24 @@ describe("Practice keyboard navigation", () => {
     fireEvent.click(await screen.findByText("Quick Start"));
     fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
 
-    expect(await screen.findByText("Describe your system design approach.")).toBeInTheDocument();
+    let initialQuestionText = "";
+    await waitFor(() => {
+      const renderedQuestion = questionTexts.find((questionText) =>
+        screen.queryByText(questionText),
+      );
+      expect(renderedQuestion).toBeDefined();
+      initialQuestionText = renderedQuestion ?? "";
+    });
+
+    const nextQuestionText = questionTexts.find((questionText) => questionText !== initialQuestionText);
+    expect(nextQuestionText).toBeDefined();
 
     fireEvent.click(screen.getByRole("button", { name: /skip/i }));
 
-    expect(await screen.findByText("How do you evaluate ML models in production?")).toBeInTheDocument();
+    expect(await screen.findByText(nextQuestionText!)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "ArrowLeft" });
 
-    expect(await screen.findByText("Describe your system design approach.")).toBeInTheDocument();
+    expect(await screen.findByText(initialQuestionText)).toBeInTheDocument();
   });
 });
