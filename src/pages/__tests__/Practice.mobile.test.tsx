@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import Practice from "../Practice";
 import { BREATHING_DISMISSED_KEY } from "@/components/practice/BreathingBreak";
@@ -363,7 +363,10 @@ describe("Practice mobile layout", () => {
 });
 
 describe("Practice keyboard navigation", () => {
+  let mathRandomSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
+    mathRandomSpy = vi.spyOn(Math, "random").mockReturnValue(0.99);
     vi.clearAllMocks();
     MockResizeObserver.reset();
     capturedSwipeConfigs.length = 0;
@@ -398,6 +401,10 @@ describe("Practice keyboard navigation", () => {
         },
       ],
     });
+  });
+
+  afterEach(() => {
+    mathRandomSpy.mockRestore();
   });
 
   it("ArrowLeft navigates back after skipping forward", async () => {

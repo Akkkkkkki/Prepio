@@ -21,6 +21,7 @@ env:
   DEFAULT_BASE_BRANCH: main
   FALLBACK_LINEAR_TEAM_KEY: PREPIO
   FALLBACK_LINEAR_ASSIGNEE_EMAIL: 0913.veronique@gmail.com
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   codex_auto_pr:
@@ -315,6 +316,8 @@ jobs:
           ISSUE_TITLE: ${{ steps.linear_issue.outputs.issue_title }}
           ISSUE_URL: ${{ steps.linear_issue.outputs.issue_url }}
           BRANCH: ${{ steps.branch.outputs.branch }}
+          NPM_TEST_RESULT: ${{ steps.verification.outputs.npm_test || 'not run' }}
+          NPM_BUILD_RESULT: ${{ steps.verification.outputs.npm_build || 'not run' }}
         run: |
           set -euo pipefail
 
@@ -341,12 +344,17 @@ jobs:
 
           ## Verification
 
+          - npm test: ${NPM_TEST_RESULT}
+          - npm run build: ${NPM_BUILD_RESULT}
+
+          Full verification logs are available in the workflow artifact named \`codex-prepio-auto-pr-run\`.
           EOF
 
-          if [ -f verification-output.md ]; then
-            cat verification-output.md >> "$PR_BODY_FILE"
-          else
-            echo "Verification did not run or produced no output." >> "$PR_BODY_FILE"
+          if [ "$NPM_TEST_RESULT" = "failed" ] || [ "$NPM_BUILD_RESULT" = "failed" ]; then
+            cat >> "$PR_BODY_FILE" <<EOF
+
+          > Verification failed in the scheduled workflow. This PR remains draft for review and follow-up.
+          EOF
           fi
 
           PR_URL="$(gh pr create \
@@ -376,7 +384,12 @@ jobs:
           ISSUE_ID="$(jq -r '.id' selected-linear-issue.json)"
 
           if [ "$HAS_CHANGES" = "true" ]; then
-            BODY="Codex scheduled auto-PR run completed.
+            VERIFICATION_STATUS="passed"
+            if [ "$NPM_TEST_RESULT" = "failed" ] || [ "$NPM_BUILD_RESULT" = "failed" ]; then
+              VERIFICATION_STATUS="failed"
+            fi
+
+            BODY="Codex scheduled auto-PR run completed with verification ${VERIFICATION_STATUS}.
 
           Draft PR: ${PR_URL}
           Branch: ${BRANCH}
@@ -386,7 +399,8 @@ jobs:
           - npm run build: ${NPM_BUILD_RESULT}
 
           Notes:
-          - See the PR body for the Codex implementation summary and verification log."
+          - See the PR body for the Codex implementation summary.
+          - Full verification logs are attached to the workflow run artifact."
           else
             BODY="Codex scheduled auto-PR run selected ${ISSUE_KEY}, but no repository changes were produced.
 
@@ -422,3 +436,9 @@ jobs:
             codex-output.md
             verification-output.md
           if-no-files-found: ignore
+
+      - name: Fail if verification failed
+        if: always() && steps.linear_issue.outputs.selected == 'true' && steps.diff.outputs.has_changes == 'true' && (steps.verification.outputs.npm_test == 'failed' || steps.verification.outputs.npm_build == 'failed')
+        run: |
+          echo "::error::Verification failed. Draft PR was created and Linear was commented; inspect codex-prepio-auto-pr-run artifacts for details."
+          exit 1
