@@ -1,0 +1,44 @@
+=== SCRIPT A: Guest Landing (Desktop 1280x800) ===
+Landing HTTP status: 200
+Hero text: "How it works"
+Example output section visible: true
+Sample questions with rationale visible: 4
+'Preview my prep' CTA: true
+'Sign in' button in header: true
+How it works section: true
+Submitted guest preview for Anthropic PM
+Preview card appeared: false
+Conversion panel appeared: false
+Ask about this prep panel: false
+
+=== SCRIPT A: Guest Landing (iPhone 390x844) ===
+Mobile hero: "How it works"
+Preview CTA visible above fold (mobile): true
+
+=== SCRIPT B: Logged-in Flow (Desktop) ===
+Auth page title: "Prepio"
+Resume context banner: false
+Post-login URL: http://localhost:5173/auth
+Logged-in home hero: "undefined"
+"your friends" copy present: false
+Dashboard title: "Prepio"
+Start practice button: false
+Empty dashboard state shown: false
+History page: unknown state
+Profile page loaded: true
+Import CV link visible: false
+CV trust/privacy copy on profile: true
+
+=== SCRIPT C: Mobile Logged-in (390x844) ===
+Mobile logged-in hero: "undefined"
+Mobile step indicator visible: false
+Mobile fixed footer present: false
+PrepSummaryHero on mobile: false
+
+=== SCRIPT E: Accessibility ===
+#main-content skip target: true
+Inputs missing labels (landing): 0
+Buttons without accessible name (landing): 0
+Focusable elements on landing: 6
+Auth inputs: 2 total, 2 properly labeled
+Small text elements with potentially low contrast (heuristic): 0
