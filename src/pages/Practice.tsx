@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSwipeable } from "react-swipeable";
 import Navigation from "@/components/Navigation";
@@ -279,7 +279,7 @@ const Practice = () => {
     setHasRecording(false);
   };
 
-  const discardRecordingDraft = () => {
+  const discardRecordingDraft = useCallback(() => {
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== 'inactive') {
       recorder.ondataavailable = null;
@@ -295,7 +295,7 @@ const Practice = () => {
     audioChunksRef.current = [];
     stopMediaStream();
     resetRecordingUi();
-  };
+  }, []);
 
   const getMicrophoneErrorMessage = (error: unknown) => {
     if (error instanceof DOMException) {
@@ -553,7 +553,8 @@ const getInterviewerFocus = (
     };
 
     loadSearchData();
-  }, [searchId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- urlStageIds is derived from searchParams; adding it would cause a redundant fetch since this effect writes to the same source
+  }, [searchId, setSearchParams]);
 
   useEffect(() => {
     setShowNeedsWorkOnly(focusMode === "needs_work");
@@ -716,7 +717,7 @@ const getInterviewerFocus = (
     setIsNotesExpanded(false);
     setRecordingError(null);
     discardRecordingDraft();
-  }, [currentIndex]);
+  }, [currentIndex, discardRecordingDraft]);
 
   useEffect(() => {
     return () => {
@@ -748,6 +749,7 @@ const getInterviewerFocus = (
       next.set(currentQuestion.id, storedAnswer);
       return next;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- currentQuestion?.id is intentional; the full object re-triggers on array identity changes
   }, [currentQuestion?.id]);
 
   useEffect(() => {
@@ -769,6 +771,7 @@ const getInterviewerFocus = (
         autosaveTimeoutRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- currentQuestion?.id is intentional; the full object re-triggers on array identity changes
   }, [currentAnswer, currentQuestion?.id, sessionState]);
 
   useEffect(() => {
@@ -1331,11 +1334,9 @@ const getInterviewerFocus = (
     }
   };
 
-  const previousQuestion = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1);
-    }
-  };
+  const previousQuestion = useCallback(() => {
+    setCurrentIndex(prev => prev > 0 ? prev - 1 : prev);
+  }, []);
 
   const skipQuestion = async () => {
     if (isRecording || isRecordingPaused || isSaving) return;
@@ -1357,6 +1358,11 @@ const getInterviewerFocus = (
       setIsSaving(false);
     }
   };
+
+  const handleSaveAnswerRef = useRef(handleSaveAnswer);
+  handleSaveAnswerRef.current = handleSaveAnswer;
+  const skipQuestionRef = useRef(skipQuestion);
+  skipQuestionRef.current = skipQuestion;
 
   const jumpToQuestion = (index: number) => {
     if (index >= 0 && index < questions.length) {
@@ -1510,11 +1516,11 @@ const getInterviewerFocus = (
       } else if (event.key === 'ArrowRight') {
         if (isPrimaryDisabled) return;
         event.preventDefault();
-        handleSaveAnswer();
+        handleSaveAnswerRef.current();
       } else if (event.key.toLowerCase() === 's') {
         if (isSkipDisabled) return;
         event.preventDefault();
-        skipQuestion();
+        skipQuestionRef.current();
       }
     };
 
@@ -1523,10 +1529,7 @@ const getInterviewerFocus = (
   }, [
     sessionState,
     currentIndex,
-    questions.length,
     previousQuestion,
-    skipQuestion,
-    handleSaveAnswer,
     isPrimaryDisabled,
     isSkipDisabled
   ]);

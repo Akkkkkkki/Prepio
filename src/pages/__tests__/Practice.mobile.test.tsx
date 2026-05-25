@@ -361,3 +361,65 @@ describe("Practice mobile layout", () => {
     expect(mockCompletePracticeSession).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Practice keyboard navigation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    MockResizeObserver.reset();
+    capturedSwipeConfigs.length = 0;
+    localStorage.removeItem(BREATHING_DISMISSED_KEY);
+    mockUseIsMobile.mockReturnValue(false);
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn() },
+    });
+    mockGetQuestionFlags.mockResolvedValue({ success: true, flags: {} });
+    mockCreatePracticeSession.mockResolvedValue({
+      success: true,
+      session: { id: "session-1", user_id: "user-1", search_id: "search-1", started_at: "2026-03-31T00:00:00.000Z" },
+    });
+    mockSavePracticeAnswer.mockResolvedValue({ success: true, answer: { id: "answer-1" } });
+    mockCompletePracticeSession.mockResolvedValue({
+      success: true,
+      session: { id: "session-1", user_id: "user-1", search_id: "search-1", started_at: "2026-03-31T00:00:00.000Z", completed_at: "2026-03-31T00:05:00.000Z", session_notes: null },
+    });
+    mockGetSearchResults.mockResolvedValue({
+      success: true,
+      search: { id: "search-1", company: "OpenAI", role: "Research Engineer", status: "completed" },
+      stages: [
+        {
+          id: "stage-1", name: "Technical Interview", duration: "45 minutes", interviewer: "Hiring manager",
+          content: "Systems depth.", guidance: "Prioritize impact.", order_index: 0, search_id: "search-1",
+          created_at: "2026-03-31T00:00:00.000Z",
+          questions: [
+            { id: "q-1", question: "Describe your system design approach.", created_at: "2026-03-31T00:00:00.000Z", difficulty: "Medium" },
+            { id: "q-2", question: "How do you evaluate ML models in production?", created_at: "2026-03-31T00:00:00.000Z", difficulty: "Hard" },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("ArrowLeft navigates back after skipping forward", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByText("Quick Start"));
+    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
+
+    expect(await screen.findByText("Describe your system design approach.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /skip/i }));
+
+    expect(await screen.findByText("How do you evaluate ML models in production?")).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+
+    expect(await screen.findByText("Describe your system design approach.")).toBeInTheDocument();
+  });
+});
