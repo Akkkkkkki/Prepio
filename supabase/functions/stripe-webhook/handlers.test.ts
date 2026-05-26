@@ -315,22 +315,59 @@ describe("processEvent — subscription dispatch + ordering guard", () => {
     expect(logs.some((l) => l.event === "stripe_event_stale")).toBe(true);
   });
 
-  it("subscription.deleted applies a canceled snapshot through the ordering-aware RPC", async () => {
+  it("subscription.deleted scopes the update by user_id, stripe_subscription_id, AND last_event_created<event.created", async () => {
+    // Regression: cancellation must NOT use the upsert RPC (which scopes only
+    // by user_id and would silently overwrite an unrelated active row when a
+    // late event for an old subscription arrives with a newer event.created).
     const { deps, calls } = buildDeps();
     const event = buildSubscriptionEvent("deleted");
 
     await processEvent(deps, event);
 
-    const rpc = calls.find((c) => c.rpc === "apply_subscription_event");
-    expect(rpc?.payload).toMatchObject({
-      p_user_id: "user_xyz",
-      p_stripe_subscription_id: "sub_test_123",
-      p_status: "canceled",
-      p_cadence: "monthly",
-      p_cancel_at_period_end: false,
+    expect(calls.some((c) => c.rpc === "apply_subscription_event")).toBe(false);
+    const update = calls.find((c) => c.table === "billing_subscriptions" && c.op === "update");
+    expect(update?.payload.status).toBe("canceled");
+    expect(update?.payload.last_event_created).toBe(
+      new Date(DEFAULT_EVENT_CREATED * 1000).toISOString(),
+    );
+    expect(update?.filters).toEqual([
+      { col: "user_id", op: "eq", val: "user_xyz" },
+      { col: "stripe_subscription_id", op: "eq", val: "sub_test_123" },
+      {
+        col: "last_event_created",
+        op: "lt",
+        val: new Date(DEFAULT_EVENT_CREATED * 1000).toISOString(),
+      },
+    ]);
+  });
+
+  it("subscription.deleted for an out-of-date sub_id does not overwrite the active row tracked under a different sub_id", async () => {
+    // Concrete scenario: user previously had sub_A which we marked canceled,
+    // then started sub_B which is now the user's active subscription. A
+    // Stripe-emitted customer.subscription.deleted for sub_A — or a delayed
+    // re-delivery whose event.created is newer than the row's
+    // last_event_created — must be a no-op. The .eq("stripe_subscription_id")
+    // filter is what enforces that; the previous RPC-based implementation only
+    // checked the timestamp and would have silently downgraded sub_B.
+    const { deps, calls } = buildDeps();
+    const event = buildSubscriptionEvent(
+      "deleted",
+      { id: "sub_A_old", items: { data: [{ price: { id: LOOKUP.monthly } }] } },
+      { created: DEFAULT_EVENT_CREATED + 3600 },
+    );
+
+    const result = await processEvent(deps, event);
+
+    expect(result.outcome).toBe("applied");
+    const update = calls.find((c) => c.table === "billing_subscriptions" && c.op === "update");
+    // The recorded filter scopes the UPDATE so PostgreSQL leaves any row
+    // tracking a different stripe_subscription_id (e.g. the active sub_B)
+    // untouched, regardless of how new the cancel event is.
+    expect(update?.filters).toContainEqual({
+      col: "stripe_subscription_id",
+      op: "eq",
+      val: "sub_A_old",
     });
-    expect(rpc?.payload.p_current_period_end).toBe(new Date(FUTURE_UNIX * 1000).toISOString());
-    expect(rpc?.payload.p_event_created).toBe(new Date(DEFAULT_EVENT_CREATED * 1000).toISOString());
   });
 
   it("skips with reason=unknown_price when the Stripe price id is not configured", async () => {

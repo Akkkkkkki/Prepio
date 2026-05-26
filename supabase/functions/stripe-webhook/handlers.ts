@@ -235,49 +235,40 @@ async function cancelSubscription(
   event: WebhookEvent,
   sub: SubscriptionPayload,
 ): Promise<ProcessResult> {
-  const { supabase, cadenceLookup, resolveUserId, log } = deps;
+  const { supabase, resolveUserId, log } = deps;
   const userId = await resolveUserId(sub.customer);
   if (!userId) {
     log("stripe_user_unresolved", { customerId: sub.customer, subscriptionId: sub.id });
     return { outcome: "skipped", reason: "user_unresolved" };
   }
 
-  const priceId = sub.items.data[0]?.price.id ?? "";
-  const cadence: Cadence | null = cadenceFromPriceId(priceId, cadenceLookup);
-  if (!cadence) {
-    log("stripe_unknown_price", { priceId, subscriptionId: sub.id });
-    return { outcome: "skipped", reason: "unknown_price" };
-  }
-
-  const { data, error } = await supabase.rpc("apply_subscription_event", {
-    p_user_id: userId,
-    p_stripe_subscription_id: sub.id,
-    p_status: "canceled",
-    p_cadence: cadence,
-    p_current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-    p_cancel_at_period_end: sub.cancel_at_period_end,
-    p_event_created: eventCreatedIso(event),
-  });
+  // Cancellation must NOT use the upsert RPC: that RPC scopes only by user_id
+  // and would overwrite the user's currently-tracked subscription with the
+  // canceled snapshot whenever the cancel event's timestamp is newer. If the
+  // user previously canceled sub_A and then started sub_B (a fresh
+  // subscription), a Stripe-emitted customer.subscription.updated/deleted for
+  // the long-dead sub_A — common after dashboard metadata edits — would arrive
+  // with event.created > the row's last_event_created and silently downgrade
+  // the active sub_B row to status='canceled', stripe_subscription_id=sub_A.
+  // The PostgREST UPDATE is atomic: the .eq filter scopes by sub.id (so a late
+  // event for a different subscription is a no-op) and the .lt filter still
+  // rejects stale events for the same subscription.
+  const eventCreated = eventCreatedIso(event);
+  const { error } = await supabase
+    .from("billing_subscriptions")
+    .update({
+      status: "canceled",
+      last_event_created: eventCreated,
+      updated_at: nowIso(deps),
+    })
+    .eq("user_id", userId)
+    .eq("stripe_subscription_id", sub.id)
+    .lt("last_event_created", eventCreated);
   if (error) {
-    log("stripe_subscription_apply_failed", { subscriptionId: sub.id, message: error.message });
-    throw new Error(`apply_subscription_event failed: ${error.message ?? "unknown"}`);
+    log("stripe_subscription_update_failed", { subscriptionId: sub.id, message: error.message });
+    throw new Error(`billing_subscriptions update failed: ${error.message ?? "unknown"}`);
   }
-
-  if (data !== true) {
-    log("stripe_event_stale", {
-      action: "subscription_cancel",
-      eventId: event.id,
-      subscriptionId: sub.id,
-    });
-    return { outcome: "skipped", reason: "stale_event" };
-  }
-
-  log("stripe_event_applied", {
-    action: "subscription_canceled",
-    userId,
-    subscriptionId: sub.id,
-    cadence,
-  });
+  log("stripe_event_applied", { action: "subscription_canceled", userId, subscriptionId: sub.id });
   return { outcome: "applied" };
 }
 
