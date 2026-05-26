@@ -1057,17 +1057,15 @@ const Dashboard = () => {
       )}
 
       {/* Primary action zone — prep summary + Start Practice */}
-      {!isMobile && (
-        <PrepSummaryHero
-          company={searchData?.company || ""}
-          selectedStageCount={selectedStageCount}
-          selectedQuestionCount={selectedQuestionCount}
-          topFocus={topFocus}
-          estimatedMinutes={estimatedMinutes}
-          onStartPractice={startPractice}
-          isOffline={isOffline}
-        />
-      )}
+      <PrepSummaryHero
+        company={searchData?.company || ""}
+        selectedStageCount={selectedStageCount}
+        selectedQuestionCount={selectedQuestionCount}
+        topFocus={topFocus}
+        estimatedMinutes={estimatedMinutes}
+        onStartPractice={startPractice}
+        isOffline={isOffline}
+      />
 
       <PrepPriorityStrip priorities={prepPriorities} />
 
@@ -1097,36 +1095,22 @@ const Dashboard = () => {
     return (
       <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
-        <div className="px-4 py-5 pb-36">
+        <div className="px-4 py-5 pb-28">
           <div className="space-y-5">
             {content}
           </div>
         </div>
 
-        {/* Mobile bottom bar */}
+        {/* Mobile bottom bar — CTA only; summary lives in PrepSummaryHero above */}
         <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
-          <div className="mx-auto max-w-md space-y-3" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
-            <div className="rounded-[24px] border bg-card/95 px-4 py-3 shadow-sm">
-              <p className="text-sm font-medium">
-                {selectedQuestionCount} question{selectedQuestionCount === 1 ? '' : 's'} across {selectedStageCount} stage{selectedStageCount === 1 ? '' : 's'}
-              </p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                {isOffline
-                  ? "Reconnect to launch practice."
-                  : selectedQuestionCount > 0
-                  ? topFocus
-                    ? `Focus: ${topFocus}`
-                    : "Start practice when the mix looks right."
-                  : "Select at least one stage to unlock practice."}
-              </p>
-            </div>
+          <div className="mx-auto max-w-md" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
             <Button
               onClick={startPractice}
               disabled={selectedQuestionCount === 0 || isOffline}
               className="h-12 w-full rounded-2xl text-base"
             >
               <PlayCircle className="mr-2 h-4 w-4" />
-              Start practice
+              Start practice{selectedQuestionCount > 0 ? ` · ${selectedQuestionCount}` : ""}
             </Button>
           </div>
         </div>
