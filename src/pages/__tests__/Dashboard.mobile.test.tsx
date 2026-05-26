@@ -135,13 +135,28 @@ describe("Dashboard mobile layout", () => {
     expect(await screen.findByText("Prep plan")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "OpenAI" })).toBeInTheDocument();
     expect(screen.getByText("Stage roadmap")).toBeInTheDocument();
-    expect(screen.getByText("3 questions across 2 stages")).toBeInTheDocument();
+    expect(screen.getByText(/3 questions across 2 stages/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Remove Initial Screening" }));
 
     await waitFor(() => {
-      expect(screen.getByText("2 questions across 1 stage")).toBeInTheDocument();
+      expect(screen.getByText(/2 questions across 1 stage/)).toBeInTheDocument();
     });
+  });
+
+  it("renders PrepSummaryHero on mobile with headline and practice CTA", async () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/OpenAI · prep summary/i)).toBeInTheDocument();
+    expect(screen.getByText(/You're set up with 3 questions across 2 stages/)).toBeInTheDocument();
+    const practiceButtons = screen.getAllByRole("button", { name: /Start practice/ });
+    expect(practiceButtons.length).toBeGreaterThanOrEqual(2);
   });
 
   it("shows only data-backed overview metrics on desktop", async () => {
