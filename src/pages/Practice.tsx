@@ -1085,7 +1085,7 @@ const getInterviewerFocus = (
     setSessionState(breathingDismissed ? 'inProgress' : 'breathing');
     setCurrentIndex(0);
     setIsCoachSheetOpen(false);
-    setIsNotesExpanded(false);
+    setIsNotesExpanded(true);
     setRecordingError(null);
     return true;
   };
