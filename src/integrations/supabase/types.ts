@@ -14,6 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      answer_feedback: {
+        Row: {
+          created_at: string
+          generation_metadata: Json
+          id: string
+          improvements: Json
+          model: string | null
+          next_action: Json
+          practice_answer_id: string | null
+          practice_session_id: string
+          question_id: string
+          star_breakdown: Json
+          strengths: Json
+          superseded_by: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          generation_metadata?: Json
+          id?: string
+          improvements?: Json
+          model?: string | null
+          next_action: Json
+          practice_answer_id?: string | null
+          practice_session_id: string
+          question_id: string
+          star_breakdown: Json
+          strengths?: Json
+          superseded_by?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          generation_metadata?: Json
+          id?: string
+          improvements?: Json
+          model?: string | null
+          next_action?: Json
+          practice_answer_id?: string | null
+          practice_session_id?: string
+          question_id?: string
+          star_breakdown?: Json
+          strengths?: Json
+          superseded_by?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "answer_feedback_practice_answer_id_fkey"
+            columns: ["practice_answer_id"]
+            isOneToOne: false
+            referencedRelation: "practice_answers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answer_feedback_practice_session_id_fkey"
+            columns: ["practice_session_id"]
+            isOneToOne: false
+            referencedRelation: "practice_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answer_feedback_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "interview_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answer_feedback_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "answer_feedback"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answer_feedback_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       candidate_profiles: {
         Row: {
           certifications: Json
