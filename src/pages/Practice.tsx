@@ -714,7 +714,6 @@ const getInterviewerFocus = (
   useEffect(() => {
     setCurrentQuestionStartTime(Date.now());
     setIsCoachSheetOpen(false);
-    setIsNotesExpanded(false);
     setRecordingError(null);
     discardRecordingDraft();
   }, [currentIndex, discardRecordingDraft]);
