@@ -45,6 +45,7 @@ Core tables:
 - `prep_plans`: structured prep plan JSON for a search.
 - `practice_sessions`: one user practice run for one search.
 - `practice_answers`: text answers, audio path, transcript text, timing, self-rating.
+- `answer_feedback`: paid structured coaching feedback for submitted practice answers, including strengths, improvements, STAR breakdown, one next action, and regeneration lineage.
 - `user_question_flags`: favorite, needs-work, skipped.
 - `resumes`: active profile resume versions and per-search snapshots.
 - `candidate_profiles`: canonical structured interview profile.
