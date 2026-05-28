@@ -179,7 +179,12 @@ function normalizeId(value: unknown): string | null {
 }
 
 function normalizeAnswer(textAnswer: string | null, transcriptText: string | null): string {
-  return (textAnswer?.trim() || transcriptText?.trim() || "").replace(/\s+/g, " ");
+  const typedAnswer = textAnswer?.trim() ?? "";
+  const transcriptAnswer = transcriptText?.trim() ?? "";
+  const answer =
+    typedAnswer.length >= MIN_ANSWER_CHARS || !transcriptAnswer ? typedAnswer : transcriptAnswer;
+
+  return answer.replace(/\s+/g, " ");
 }
 
 function hasUsableAnswer(textAnswer: string | null, transcriptText: string | null): boolean {
