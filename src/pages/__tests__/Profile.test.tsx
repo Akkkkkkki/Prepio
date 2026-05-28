@@ -125,6 +125,18 @@ describe("Profile page", () => {
     expect(screen.queryByText("About")).not.toBeInTheDocument();
   });
 
+  it("shows CV privacy/trust copy near the import upload trigger", async () => {
+    renderProfile("/profile/import");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Import CV" })).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText(/saved privately to your account/i),
+    ).toBeInTheDocument();
+  });
+
   it("bootstraps from legacy parsed resume data when no canonical profile exists", async () => {
     mockGetResume.mockResolvedValue({
       success: true,
