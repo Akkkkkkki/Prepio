@@ -148,6 +148,10 @@ const ProfileImportView = ({ workspace }: ProfileImportViewProps) => {
             <p className="text-sm text-muted-foreground">
               Upload a PDF or DOCX, or paste CV text below.
             </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Files are read in your browser. Your CV is saved privately to your account, and you can
+              delete it anytime from Current CV source below.
+            </p>
             <Button
               type="button"
               variant="outline"
