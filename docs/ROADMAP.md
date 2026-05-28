@@ -98,9 +98,11 @@ This tracks product reality against the latest `main` branch.
 - Speech-pattern feedback after transcription quality and cost are proven.
 - More normalized relational storage for research artifacts.
 
-See [`reviews/2026-05-28-practice-capability-review.md`](./reviews/2026-05-28-practice-capability-review.md)
-for the practice enhancement backlog (Linear-ready issues behind the items
-above).
+The practice-enhancement backlog behind the items above is tracked in the
+**Prepio** Linear team: feedback UI in PREPIO-11 (with PREPIO-32 for the paid
+gate), and PREPIO-41 (rubric self-check), PREPIO-43 (non-blocking
+transcription), PREPIO-45 (history progress + readiness), and PREPIO-47
+(follow-up "interviewer mode") under Quality & Maintenance.
 
 ## Product Decisions
 
