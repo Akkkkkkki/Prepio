@@ -12,6 +12,10 @@ This tracks product reality against the latest `main` branch.
 - Search progress tracking through `searches.status`, `progress_step`, and `progress_pct`.
 - Guest preview UX backed by `research-preview`, `research_previews`, and `research_preview_rate_limits`.
 
+> Known gap: live retrieval in `company-research` is currently throttled (few queries, no raw
+> content/extraction, caching off) to fit a synchronous timeout, so synthesis leans more on model
+> priors than on fresh community evidence. Tracked in [`docs/research-backlog.md`](./research-backlog.md).
+
 ### Resume and profile
 
 - PDF and DOCX upload.
@@ -67,6 +71,9 @@ This tracks product reality against the latest `main` branch.
 
 ## Next
 
+- Research evidence depth: restore real community-source retrieval as the primary input to
+  synthesis, surface the evidence to users, and guard yield. See
+  [`docs/research-backlog.md`](./research-backlog.md).
 - Readiness scoring based on actual answer feedback.
 - Better dashboard/history progress views.
 - Lifecycle messaging for research completion and practice follow-up.

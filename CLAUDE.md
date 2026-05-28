@@ -150,6 +150,7 @@ Every issue should have one Type and at least one Area. Resist adding more dimen
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Stack, data model, edge functions, data flows |
 | [`docs/PRODUCT_STRATEGY.md`](./docs/PRODUCT_STRATEGY.md) | Vision, users, positioning |
 | [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Shipped work, near-term, future ideas |
+| [`docs/research-backlog.md`](./docs/research-backlog.md) | Research-capability enhancement backlog, ready for Linear import |
 | [`docs/DESIGN_PRINCIPLES.md`](./docs/DESIGN_PRINCIPLES.md) | UX principles, design tokens, patterns |
 | [`docs/TESTING.md`](./docs/TESTING.md) | Test coverage, priorities, how to run |
 | [`docs/BILLING.md`](./docs/BILLING.md) | Stripe subscription contract (cadences, tables, webhook events, entitlement resolver) |
