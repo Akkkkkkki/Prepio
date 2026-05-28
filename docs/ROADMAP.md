@@ -14,7 +14,8 @@ This tracks product reality against the latest `main` branch.
 
 > Known gap: live retrieval in `company-research` is currently throttled (few queries, no raw
 > content/extraction, caching off) to fit a synchronous timeout, so synthesis leans more on model
-> priors than on fresh community evidence. Tracked in [`docs/research-backlog.md`](./research-backlog.md).
+> priors than on fresh community evidence. Tracked in the **Prepio** Linear team under
+> **Quality & Maintenance** (`area:research-pipeline`, starting with the async-job refactor PREPIO-40).
 
 ### Resume and profile
 
@@ -77,8 +78,9 @@ This tracks product reality against the latest `main` branch.
 ## Next
 
 - Research evidence depth: restore real community-source retrieval as the primary input to
-  synthesis, surface the evidence to users, and guard yield. See
-  [`docs/research-backlog.md`](./research-backlog.md).
+  synthesis, surface the evidence to users, and guard yield. Tracked in Linear under
+  **Quality & Maintenance** (`area:research-pipeline`); the async-job refactor PREPIO-40 unblocks
+  the richer-retrieval items.
 - Readiness scoring based on actual answer feedback.
 - Better dashboard/history progress views (trends, recurring weak signals,
   one-click launch into a needs-work practice queue).
