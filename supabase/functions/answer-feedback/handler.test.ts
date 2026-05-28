@@ -284,6 +284,38 @@ describe("generateAnswerFeedback", () => {
     });
   });
 
+  it("uses transcript text when a short typed answer accompanies a usable recording transcript", async () => {
+    const db = buildDb({
+      practice_answers: [
+        {
+          id: ANSWER_ID,
+          session_id: SESSION_ID,
+          question_id: QUESTION_ID,
+          text_answer: "see recording",
+          transcript_text:
+            "The recording explains how I changed the rollout plan after reliability data showed the first approach would miss our target.",
+        },
+      ],
+    });
+    const model = buildModel();
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db),
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(model.generate.mock.calls[0][0].answer).toMatchObject({
+      textAnswer: "see recording",
+      transcriptText: expect.stringContaining("reliability data"),
+      effectiveText: expect.stringContaining("reliability data"),
+    });
+  });
+
   it("rejects empty or partial answers without model calls or partial feedback rows", async () => {
     const db = buildDb({
       practice_answers: [
