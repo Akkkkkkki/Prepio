@@ -49,7 +49,12 @@ This tracks product reality against the latest `main` branch.
 - Gate before any OpenAI call through the shared entitlement resolver.
 - Store structured feedback separately from `practice_answers`.
 - Support regeneration without losing history.
-- Show feedback in Practice, History, and Session Summary.
+- Show feedback in Practice, History, and Session Summary. The Edge Function,
+  table, entitlement gate, and prompt are built and tested; the client call and
+  render are still stubbed (`SessionSummary.tsx` "Get detailed coaching").
+- Keep feedback concise, direct, and information-dense: capped scannable bullets
+  for strengths/improvements, a compact STAR row, and exactly one next action —
+  optimized for a fast read, not prose.
 
 ### 2. Finish billing product surface
 
@@ -68,16 +73,27 @@ This tracks product reality against the latest `main` branch.
 ## Next
 
 - Readiness scoring based on actual answer feedback.
-- Better dashboard/history progress views.
+- Better dashboard/history progress views (trends, recurring weak signals,
+  one-click launch into a needs-work practice queue).
+- Post-answer rubric self-check for free users, reusing each question's
+  `good_answer_signals` / `evaluation_criteria` to close the loop without a
+  model call.
+- Non-blocking audio transcription so saving a voice answer no longer waits on
+  the transcription call.
 - Lifecycle messaging for research completion and practice follow-up.
 - Public navigation, legal pages, and footer.
 
 ## Later
 
 - SEO/content engine and public company interview pages.
-- Real-time conversational mock interviews.
+- Real-time conversational mock interviews (starting with follow-up question
+  drilling that reuses each question's `follow_up_questions`).
 - Speech-pattern feedback after transcription quality and cost are proven.
 - More normalized relational storage for research artifacts.
+
+See [`reviews/2026-05-28-practice-capability-review.md`](./reviews/2026-05-28-practice-capability-review.md)
+for the practice enhancement backlog (Linear-ready issues behind the items
+above).
 
 ## Product Decisions
 
