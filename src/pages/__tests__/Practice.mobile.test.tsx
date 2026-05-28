@@ -174,7 +174,7 @@ describe("Practice mobile layout", () => {
     });
   });
 
-  it("opens coach notes as a modal and preserves notes while measured footer spacing updates", async () => {
+  it("starts with notes expanded and preserves them across coach sheet open/close", async () => {
     const { container } = render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
@@ -193,33 +193,11 @@ describe("Practice mobile layout", () => {
       await screen.findByText("How did you leverage LLM technology in the AI product evaluation at Hg Capital?")
     ).toBeInTheDocument();
 
+    const notesField = await screen.findByPlaceholderText("Jot the beats you want to hit...");
+    expect(notesField).toBeInTheDocument();
+
     const shell = container.querySelector("[data-mobile-practice-shell]") as HTMLElement;
     const footer = container.querySelector("[data-mobile-practice-footer]") as HTMLElement;
-
-    Object.defineProperty(footer, "getBoundingClientRect", {
-      configurable: true,
-      value: () => ({
-        x: 0,
-        y: 0,
-        top: 0,
-        right: 390,
-        bottom: 260,
-        left: 0,
-        width: 390,
-        height: 260,
-        toJSON: () => ({}),
-      }),
-    });
-
-    await act(async () => {
-      MockResizeObserver.triggerAll();
-    });
-
-    await waitFor(() => {
-      expect(shell.style.paddingBottom).toBe("260px");
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Notes" }));
 
     Object.defineProperty(footer, "getBoundingClientRect", {
       configurable: true,
@@ -244,7 +222,6 @@ describe("Practice mobile layout", () => {
       expect(shell.style.paddingBottom).toBe("420px");
     });
 
-    const notesField = await screen.findByPlaceholderText("Jot the beats you want to hit...");
     fireEvent.change(notesField, { target: { value: "STAR bullets and metrics" } });
 
     fireEvent.click(screen.getByRole("button", { name: "Answer guide" }));
@@ -312,7 +289,6 @@ describe("Practice mobile layout", () => {
     );
 
     await startPracticeSession();
-    fireEvent.click(await screen.findByRole("button", { name: "Notes" }));
 
     fireEvent.change(
       await screen.findByPlaceholderText("Jot the beats you want to hit..."),
@@ -337,7 +313,6 @@ describe("Practice mobile layout", () => {
     );
 
     await startPracticeSession();
-    fireEvent.click(await screen.findByRole("button", { name: "Notes" }));
 
     fireEvent.change(
       await screen.findByPlaceholderText("Jot the beats you want to hit..."),
