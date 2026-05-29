@@ -252,6 +252,16 @@ describe("Dashboard mobile layout", () => {
             trustWeight: "medium",
             contradictionGroup: null,
           },
+          {
+            id: "ev-3",
+            sourceType: "market_heuristic",
+            sourceLabel: "Role norm for senior ICs",
+            excerpt: "Expect a systems-design round.",
+            url: "javascript:alert(1)",
+            relevance: "low",
+            trustWeight: "low",
+            contradictionGroup: null,
+          },
         ],
         created_at: "2026-03-31T00:00:00.000Z",
       },
@@ -272,10 +282,15 @@ describe("Dashboard mobile layout", () => {
     expect(screen.getByText("Community report")).toBeInTheDocument();
     expect(screen.getAllByText("First-party").length).toBeGreaterThanOrEqual(1);
 
+    // The javascript: URL on ev-3 is still listed as a source but must not render a link.
+    expect(screen.getByText("Role norm for senior ICs")).toBeInTheDocument();
     const sourceLinks = screen.getAllByRole("link", { name: /View source/ });
     expect(sourceLinks).toHaveLength(2);
     expect(sourceLinks[0]).toHaveAttribute("href", "https://openai.com/careers/research-engineer");
     expect(sourceLinks[0]).toHaveAttribute("target", "_blank");
+    expect(
+      sourceLinks.some((link) => link.getAttribute("href")?.startsWith("javascript:")),
+    ).toBe(false);
   });
 
   it("preserves the real failure message when offline", async () => {

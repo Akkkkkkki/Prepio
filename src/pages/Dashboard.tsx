@@ -135,6 +135,19 @@ const evidenceSourceMeta = (
   }
 };
 
+// Evidence URLs are model-generated (synthesizePrepPlan) and stored without
+// validation, so a malformed or injected javascript:/data: value must never be
+// rendered as a clickable link. Only absolute http(s) URLs are treated as safe.
+const isSafeHttpUrl = (url: string | null): url is string => {
+  if (!url) return false;
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
 const formatSearchStatus = (status?: string) => {
   switch (status) {
     case "completed": return "Ready";
@@ -615,7 +628,7 @@ function EvidenceSourcesCard({ evidence }: { evidence: EvidenceItem[] }) {
               </div>
               {item.sourceLabel && <p className="mt-2 text-sm font-medium">{item.sourceLabel}</p>}
               {item.excerpt && <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.excerpt}</p>}
-              {item.url && (
+              {isSafeHttpUrl(item.url) && (
                 <a
                   href={item.url}
                   target="_blank"
