@@ -27,6 +27,7 @@ import {
   ChevronUp,
   MessageSquareText,
   Send,
+  ExternalLink,
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -37,6 +38,8 @@ import type {
   AssessmentSignal,
   PrepPriority,
   CandidatePositioning,
+  EvidenceItem,
+  EvidenceSourceType,
   Confidence,
   Priority,
 } from "@/types/prepPlan";
@@ -98,6 +101,51 @@ const priorityIcon = (p?: Priority | null) => {
   if (p === "high") return <Target className="h-3.5 w-3.5" />;
   if (p === "medium") return <TrendingUp className="h-3.5 w-3.5" />;
   return <Shield className="h-3.5 w-3.5" />;
+};
+
+// Maps an evidence source to a human label and trust framing. First-party means
+// the user or the employer supplied it directly (their note, CV, the job post, or
+// the company's own materials) — as opposed to a community report or a role norm.
+const evidenceSourceMeta = (
+  sourceType: EvidenceSourceType,
+): { label: string; firstParty: boolean; badgeClass: string } => {
+  const firstPartyBadge = "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+  switch (sourceType) {
+    case "official_company":
+      return { label: "Company source", firstParty: true, badgeClass: firstPartyBadge };
+    case "official_job":
+      return { label: "Job description", firstParty: true, badgeClass: firstPartyBadge };
+    case "user_note":
+      return { label: "Your note", firstParty: true, badgeClass: firstPartyBadge };
+    case "cv":
+      return { label: "Your CV", firstParty: true, badgeClass: firstPartyBadge };
+    case "public_report":
+      return {
+        label: "Community report",
+        firstParty: false,
+        badgeClass: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+      };
+    case "market_heuristic":
+    default:
+      return {
+        label: "Role norm",
+        firstParty: false,
+        badgeClass: "bg-muted text-muted-foreground",
+      };
+  }
+};
+
+// Evidence URLs are model-generated (synthesizePrepPlan) and stored without
+// validation, so a malformed or injected javascript:/data: value must never be
+// rendered as a clickable link. Only absolute http(s) URLs are treated as safe.
+const isSafeHttpUrl = (url: string | null): url is string => {
+  if (!url) return false;
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
 };
 
 const formatSearchStatus = (status?: string) => {
@@ -556,15 +604,60 @@ function PrepAskPanel({
   );
 }
 
+function EvidenceSourcesCard({ evidence }: { evidence: EvidenceItem[] }) {
+  if (!evidence?.length) return null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Sources</CardTitle>
+        <CardDescription>The evidence this plan was built from</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {evidence.map((item, index) => {
+          const meta = evidenceSourceMeta(item.sourceType);
+          return (
+            <div key={item.id || `${item.sourceLabel}-${index}`} className="rounded-xl border bg-muted/20 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className={`text-[10px] ${meta.badgeClass}`}>{meta.label}</Badge>
+                {meta.firstParty && (
+                  <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    First-party
+                  </span>
+                )}
+              </div>
+              {item.sourceLabel && <p className="mt-2 text-sm font-medium">{item.sourceLabel}</p>}
+              {item.excerpt && <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.excerpt}</p>}
+              {isSafeHttpUrl(item.url) && (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  View source
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
 function DeepDiveSection({
   assessmentSignals,
   prepPriorities,
   candidatePositioning,
+  evidence,
   isMobile,
 }: {
   assessmentSignals: AssessmentSignal[];
   prepPriorities: PrepPriority[];
   candidatePositioning: CandidatePositioning | null;
+  evidence: EvidenceItem[];
   isMobile: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -577,13 +670,15 @@ function DeepDiveSection({
       candidatePositioning.mismatchRisks?.length
     )
   );
-  const hasAnything = assessmentSignals.length > 0 || prepPriorities.length > 0 || hasPositioning;
+  const hasEvidence = evidence.length > 0;
+  const hasAnything = assessmentSignals.length > 0 || prepPriorities.length > 0 || hasPositioning || hasEvidence;
   if (!hasAnything) return null;
 
   const itemLabels = [
     assessmentSignals.length > 0 ? "Assessment signals" : null,
     prepPriorities.length > 0 ? "Prep priorities" : null,
     hasPositioning ? "Your positioning" : null,
+    hasEvidence ? "Sources" : null,
   ].filter(Boolean).join(" · ");
 
   return (
@@ -622,6 +717,7 @@ function DeepDiveSection({
               <PrepPrioritiesCard priorities={prepPriorities} />
             </div>
           )}
+          <EvidenceSourcesCard evidence={evidence} />
         </div>
       )}
     </section>
@@ -891,6 +987,7 @@ const Dashboard = () => {
   const assessmentSignals = (prepPlan?.assessment_signals || []) as AssessmentSignal[];
   const prepPriorities = (prepPlan?.prep_priorities || []) as PrepPriority[];
   const candidatePositioning = (prepPlan?.candidate_positioning || null) as CandidatePositioning | null;
+  const evidenceLog = (prepPlan?.internal_evidence_log || []) as EvidenceItem[];
   const isWeakSignal = summary?.weakSignalCase === true;
 
   // ── Empty state ──
@@ -1086,6 +1183,7 @@ const Dashboard = () => {
         assessmentSignals={assessmentSignals}
         prepPriorities={prepPriorities}
         candidatePositioning={candidatePositioning}
+        evidence={evidenceLog}
         isMobile={isMobile}
       />
     </>

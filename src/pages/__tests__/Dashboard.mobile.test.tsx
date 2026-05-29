@@ -180,6 +180,119 @@ describe("Dashboard mobile layout", () => {
     expect(screen.getByText("Prep priorities")).toBeInTheDocument();
   });
 
+  it("surfaces the evidence log with first-party labels and source links in the deep dive", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    mockGetSearchResults.mockResolvedValue({
+      success: true,
+      search: {
+        id: "search-1",
+        company: "OpenAI",
+        role: "Research Engineer",
+        country: "United Kingdom",
+        status: "completed",
+        banner_dismissed: true,
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+      stages: [
+        {
+          id: "stage-1",
+          name: "Initial Screening",
+          duration: "30 minutes",
+          interviewer: "Recruiter",
+          content: "Introductions and fit check.",
+          guidance: "Keep this concise and outcome-focused.",
+          order_index: 0,
+          search_id: "search-1",
+          created_at: "2026-03-31T00:00:00.000Z",
+          questions: [
+            { id: "q-1", question: "Tell me about yourself.", created_at: "2026-03-31T00:00:00.000Z" },
+          ],
+        },
+      ],
+      prepPlan: {
+        id: "plan-1",
+        search_id: "search-1",
+        summary: {
+          company: "OpenAI",
+          roleName: "Research Engineer",
+          industryFocus: "tech",
+          level: "senior_ic",
+          overallConfidence: "high",
+          weakSignalCase: false,
+        },
+        assessment_signals: [],
+        stage_roadmap: [],
+        prep_priorities: [],
+        candidate_positioning: {
+          strengthsToLeanOn: [],
+          weakSpotsToAddress: [],
+          storyCoverageGaps: [],
+          mismatchRisks: [],
+        },
+        practice_sequence: [],
+        question_plan: { coreMustPractice: [], likelyFollowUps: [], extraDepth: [] },
+        internal_evidence_log: [
+          {
+            id: "ev-1",
+            sourceType: "official_job",
+            sourceLabel: "Research Engineer job posting",
+            excerpt: "Requires strong evaluation and modeling judgment.",
+            url: "https://openai.com/careers/research-engineer",
+            relevance: "high",
+            trustWeight: "high",
+            contradictionGroup: null,
+          },
+          {
+            id: "ev-2",
+            sourceType: "public_report",
+            sourceLabel: "Glassdoor interview report",
+            excerpt: "Panel focused on systems tradeoffs.",
+            url: "https://www.glassdoor.com/openai-interview",
+            relevance: "medium",
+            trustWeight: "medium",
+            contradictionGroup: null,
+          },
+          {
+            id: "ev-3",
+            sourceType: "market_heuristic",
+            sourceLabel: "Role norm for senior ICs",
+            excerpt: "Expect a systems-design round.",
+            url: "javascript:alert(1)",
+            relevance: "low",
+            trustWeight: "low",
+            contradictionGroup: null,
+          },
+        ],
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /Deep dive — why this plan/ }));
+
+    expect(await screen.findByText("The evidence this plan was built from")).toBeInTheDocument();
+    expect(screen.getByText("Job description")).toBeInTheDocument();
+    expect(screen.getByText("Community report")).toBeInTheDocument();
+    expect(screen.getAllByText("First-party").length).toBeGreaterThanOrEqual(1);
+
+    // The javascript: URL on ev-3 is still listed as a source but must not render a link.
+    expect(screen.getByText("Role norm for senior ICs")).toBeInTheDocument();
+    const sourceLinks = screen.getAllByRole("link", { name: /View source/ });
+    expect(sourceLinks).toHaveLength(2);
+    expect(sourceLinks[0]).toHaveAttribute("href", "https://openai.com/careers/research-engineer");
+    expect(sourceLinks[0]).toHaveAttribute("target", "_blank");
+    expect(
+      sourceLinks.some((link) => link.getAttribute("href")?.startsWith("javascript:")),
+    ).toBe(false);
+  });
+
   it("preserves the real failure message when offline", async () => {
     mockUseIsMobile.mockReturnValue(false);
     mockNetworkStatus.isOnline = false;
