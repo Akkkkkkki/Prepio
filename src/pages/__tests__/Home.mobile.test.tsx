@@ -183,6 +183,67 @@ describe("Home flow", () => {
     expect(screen.getByDisplayValue("https://example.com/job")).toBeInTheDocument();
   });
 
+  it("prefills role and country from saved profile preferences for a returning signed-in user", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+    mockGetCandidateProfile.mockResolvedValue({
+      success: true,
+      profile: {
+        preferences: {
+          targetRoles: ["Staff Engineer"],
+          targetIndustries: [],
+          locations: ["Germany"],
+          workModes: [],
+          notes: "",
+        },
+      },
+    });
+
+    renderHome();
+
+    expect(await screen.findByDisplayValue("Staff Engineer")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Role details & job description/ }));
+    expect(await screen.findByDisplayValue("Germany")).toBeInTheDocument();
+  });
+
+  it("never overwrites a saved draft with profile preferences", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+    mockGetCandidateProfile.mockResolvedValue({
+      success: true,
+      profile: {
+        preferences: {
+          targetRoles: ["Staff Engineer"],
+          targetIndustries: [],
+          locations: ["Germany"],
+          workModes: [],
+          notes: "",
+        },
+      },
+    });
+    window.sessionStorage.setItem(
+      RESEARCH_DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        company: "Stripe",
+        role: "",
+        country: "",
+        cv: "",
+        roleLinks: "",
+        step: "company",
+        savedAt: "2026-04-03T18:00:00.000Z",
+      }),
+    );
+
+    renderHome();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Company *")).toHaveValue("Stripe");
+    });
+    expect(screen.getByLabelText("Role (optional)")).toHaveValue("");
+    expect(mockGetCandidateProfile).not.toHaveBeenCalled();
+  });
+
   it("generates a guest preview without requiring auth", async () => {
     renderHome();
 
