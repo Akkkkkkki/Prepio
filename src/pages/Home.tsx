@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   CheckCircle2,
@@ -1324,14 +1324,19 @@ const Home = () => {
       ) : (
         <PublicHeader
           actions={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => navigateToAuth(GUEST_RESEARCH_RESUME_STEP)}
-            >
-              Sign in or create account
-            </Button>
+            <>
+              <Button type="button" variant="ghost" size="sm" asChild>
+                <Link to="/pricing">Pricing</Link>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => navigateToAuth(GUEST_RESEARCH_RESUME_STEP)}
+              >
+                Sign in or create account
+              </Button>
+            </>
           }
         />
       )}

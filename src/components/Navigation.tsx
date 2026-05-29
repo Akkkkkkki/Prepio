@@ -22,6 +22,7 @@ import {
   ClipboardList,
   User, 
   History,
+  CreditCard,
   LogOut,
   Loader2,
   AlertCircle,
@@ -61,6 +62,7 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
     { path: "/dashboard", label: "Dashboard", icon: BarChart3 },
     { path: "/practice", label: "Practice", icon: Play },
     { path: "/history", label: "Practice History", icon: ClipboardList },
+    { path: "/pricing", label: "Pricing", icon: CreditCard },
     { path: "/profile", label: "Profile", icon: User },
   ];
 

@@ -129,11 +129,11 @@ User resolution: subscription events carry a Stripe customer ID, not our `user_i
 
 ## Frontend flows
 
-The webhook, tables, and entitlement readers are implemented. The user-facing purchase and management flows below are the remaining billing product work.
+The webhook, tables, entitlement readers, Checkout session creator, Customer Portal session creator, and pricing page are implemented. A dedicated Checkout return page remains tracked separately.
 
 ### Upgrade
 
-1. User hits a paid gate or clicks a pricing CTA.
+1. User hits a paid gate or clicks a pricing CTA on `/pricing`.
 2. Frontend calls an edge function `create-checkout-session` with `{ cadence }`.
 3. Edge function creates a Stripe Checkout Session and returns its URL. (Creates a Stripe Customer lazily if one doesn't exist yet.) The session is created with `idempotencyKey = checkout:<user_id>` (user-scoped, not cadence-scoped) so a free-tier user cannot mint distinct Sessions for two cadences in parallel before the first webhook lands. If a different cadence is retried within Stripe's 24h key window, Stripe rejects the second call and the edge function surfaces `409 { error: "pending_checkout" }` — the UI should prompt the user to finish or abandon the in-flight Checkout. Cadence changes for already-paid users belong in the Customer Portal, not Checkout.
 4. Client redirects to the URL. On success, user returns to `/profile?checkout=success&session_id=…`; on cancel, to `/?checkout=canceled`. A dedicated `/billing/return` page that polls `getEntitlement` until the webhook lands is tracked in PREPIO-21; until then the Profile page is the landing spot.
@@ -143,9 +143,11 @@ If the caller already has an active paid subscription, `create-checkout-session`
 
 ### Manage subscription
 
-1. User clicks "Manage subscription" in Profile.
-2. Frontend calls a planned edge function `create-portal-session`; edge function returns the Customer Portal URL.
+1. User clicks "Manage subscription" from `/pricing`.
+2. Frontend calls edge function `create-portal-session`; edge function returns the Customer Portal URL.
 3. User self-serves in the portal. Any change fires a webhook; the app picks it up on next refetch.
+
+`create-portal-session` checks the same entitlement rules before creating a Portal session. If the caller has no active paid entitlement it returns `409 { error: "no_active_subscription" }`; if no Stripe customer row exists it returns `409 { error: "no_customer" }`. Other error codes mirror Checkout where applicable: `401 missing/invalid bearer | user_token_required`, `500 internal_error | misconfigured`, `502 stripe_error`.
 
 ## Tax
 
