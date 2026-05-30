@@ -1296,6 +1296,8 @@ const getInterviewerFocus = (
             transcriptText: transcriptText ?? null,
             audioUrl: audioUrl ?? null,
             selfRating: result.answer.self_rating ?? null,
+            goodSignals: currentQuestion.good_answer_signals ?? null,
+            weakSignals: currentQuestion.weak_answer_signals ?? null,
           });
           return next;
         });

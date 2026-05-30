@@ -9,6 +9,8 @@ export interface SavedPracticeAnswerRecord {
   transcriptText?: string | null;
   audioUrl?: string | null;
   selfRating?: number | null;
+  goodSignals?: string[] | null;
+  weakSignals?: string[] | null;
 }
 
 export function usePracticeSession(currentQuestionId?: string | null) {
