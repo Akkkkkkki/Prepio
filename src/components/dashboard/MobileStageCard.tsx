@@ -6,7 +6,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { ArrowRight } from "lucide-react";
+import { AlertTriangle, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface MobileStageCardProps {
@@ -17,6 +17,7 @@ export interface MobileStageCardProps {
     interviewer: string | null;
     content: string | null;
     guidance: string | null;
+    low_confidence_guidance?: string | null;
     questions?: { question: string }[];
   };
   index: number;
@@ -68,6 +69,15 @@ export const MobileStageCard = ({
           {selected ? "Included" : "Include"}
         </label>
       </div>
+
+      {stage.low_confidence_guidance && (
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+          <p className="text-xs leading-5 text-amber-900 dark:text-amber-200">
+            <span className="font-medium">Low confidence:</span> {stage.low_confidence_guidance}
+          </p>
+        </div>
+      )}
 
       <Accordion type="single" collapsible className="mt-3">
         <AccordionItem value="details" className="border-none">

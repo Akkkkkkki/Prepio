@@ -293,6 +293,78 @@ describe("Dashboard mobile layout", () => {
     ).toBe(false);
   });
 
+  it("surfaces stage-level low_confidence_guidance inline on the mobile stage card", async () => {
+    mockUseIsMobile.mockReturnValue(true);
+    mockGetSearchResults.mockResolvedValue({
+      success: true,
+      search: {
+        id: "search-1",
+        company: "OpenAI",
+        role: "Research Engineer",
+        country: "United Kingdom",
+        status: "completed",
+        banner_dismissed: true,
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+      stages: [
+        {
+          id: "stage-1",
+          name: "Initial Screening",
+          duration: "30 minutes",
+          interviewer: "Recruiter",
+          content: "Introductions and fit check.",
+          guidance: "Keep this concise and outcome-focused.",
+          confidence: "low",
+          low_confidence_guidance:
+            "Screening format is unconfirmed; treat the question themes as directional.",
+          order_index: 0,
+          search_id: "search-1",
+          created_at: "2026-03-31T00:00:00.000Z",
+          questions: [
+            { id: "q-1", question: "Tell me about yourself.", created_at: "2026-03-31T00:00:00.000Z" },
+          ],
+        },
+      ],
+      prepPlan: {
+        id: "plan-1",
+        search_id: "search-1",
+        summary: {
+          company: "OpenAI",
+          roleName: "Research Engineer",
+          industryFocus: "tech",
+          level: "senior_ic",
+          overallConfidence: "low",
+          weakSignalCase: false,
+        },
+        assessment_signals: [],
+        stage_roadmap: [],
+        prep_priorities: [],
+        candidate_positioning: {
+          strengthsToLeanOn: [],
+          weakSpotsToAddress: [],
+          storyCoverageGaps: [],
+          mismatchRisks: [],
+        },
+        practice_sequence: [],
+        question_plan: { coreMustPractice: [], likelyFollowUps: [], extraDepth: [] },
+        internal_evidence_log: [],
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText(/treat the question themes as directional/),
+    ).toBeInTheDocument();
+  });
+
   it("surfaces stage-level low_confidence_guidance inline without expanding the accordion", async () => {
     mockUseIsMobile.mockReturnValue(false);
     mockGetSearchResults.mockResolvedValue({
