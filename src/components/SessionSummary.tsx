@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { SavedPracticeAnswerRecord } from "@/hooks/usePracticeSession";
 
+type AnswerFeedbackAccess = "loading" | "free" | "paid";
+
 interface SessionSummaryProps {
   answeredCount: number;
   totalQuestions: number;
@@ -28,6 +30,7 @@ interface SessionSummaryProps {
   isSavingRating?: boolean;
   needsWorkQuestionIds?: Set<string>;
   onToggleNeedsWork?: (questionId: string) => Promise<void> | void;
+  answerFeedbackAccess?: AnswerFeedbackAccess;
 }
 
 export const SessionSummary = ({
@@ -49,6 +52,7 @@ export const SessionSummary = ({
   isSavingRating = false,
   needsWorkQuestionIds,
   onToggleNeedsWork,
+  answerFeedbackAccess = "free",
 }: SessionSummaryProps) => {
   const [sessionNotes, setSessionNotes] = useState("");
   const [notesSaved, setNotesSaved] = useState(false);
@@ -296,25 +300,50 @@ export const SessionSummary = ({
                     <div className="mt-3 rounded-xl border bg-primary/5 p-3">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <p className="text-sm font-medium">Get detailed coaching</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium">
+                              {answerFeedbackAccess === "paid"
+                                ? "Detailed coaching"
+                                : answerFeedbackAccess === "loading"
+                                  ? "Checking coaching access"
+                                  : "Detailed coaching is paid"}
+                            </p>
+                            {answerFeedbackAccess === "free" && (
+                              <Badge variant="secondary" className="text-[11px]">
+                                Paid
+                              </Badge>
+                            )}
+                          </div>
                           <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                            AI feedback reviews structure, missing proof, STAR quality, and one next action.
+                            {answerFeedbackAccess === "paid"
+                              ? "AI feedback reviews structure, missing proof, STAR quality, and one next action."
+                              : answerFeedbackAccess === "loading"
+                                ? "We confirm access before showing any AI feedback action."
+                                : "Free answers stay saved and rateable without generating AI feedback."}
                           </p>
                         </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="shrink-0"
-                          onClick={() => setCoachingNotice(true)}
-                        >
-                          <Brain className="mr-2 h-4 w-4" />
-                          Get detailed coaching
-                        </Button>
+                        {answerFeedbackAccess === "paid" && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0"
+                            onClick={() => setCoachingNotice(true)}
+                          >
+                            <Brain className="mr-2 h-4 w-4" />
+                            Get detailed coaching
+                          </Button>
+                        )}
+                        {answerFeedbackAccess === "loading" && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Checking
+                          </div>
+                        )}
                       </div>
                       {coachingNotice && (
                         <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                          Detailed coaching is the paid upgrade path. Free answers stay saved and rateable without generating AI feedback.
+                          Your paid entitlement is checked again by the answer-feedback function before any model call runs.
                         </p>
                       )}
                     </div>

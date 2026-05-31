@@ -41,6 +41,7 @@ import {
   Trash2
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
+import { getEntitlement } from "@/services/entitlements";
 import { sessionSampler } from "@/services/sessionSampler";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -68,6 +69,8 @@ const OFFLINE_PRACTICE_MESSAGE = "Reconnect to start practice, save answers, or 
 const RECOMMENDED_ANSWER_TIME_COPY = "Aim for 1-2 min";
 const ABORTED_RECORDING_ERROR_MESSAGE =
   "Recording stopped before any audio was captured. Try again or switch to notes.";
+
+type AnswerFeedbackAccess = "loading" | "free" | "paid";
 
 const SETUP_STEPS = [
   { key: "goal", label: "Goal" },
@@ -213,6 +216,8 @@ const Practice = () => {
   const [savedAnswers, setSavedAnswers] = useState<Map<string, boolean>>(new Map());
   const [savedAnswerRecords, setSavedAnswerRecords] = useState<SavedPracticeAnswerRecord[]>([]);
   const [isSavingRating, setIsSavingRating] = useState(false);
+  const [answerFeedbackAccess, setAnswerFeedbackAccess] =
+    useState<AnswerFeedbackAccess>("loading");
   
   // Question flags (Epic 1.3)
   const [questionFlags, setQuestionFlags] = useState<Record<string, { flag_type: string; id: string }>>({});
@@ -259,6 +264,33 @@ const Practice = () => {
     if (typeof window === "undefined") return;
     sessionStorage.removeItem(getAutosaveKey(questionId));
   };
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (!user?.id) {
+      setAnswerFeedbackAccess("free");
+      return;
+    }
+
+    setAnswerFeedbackAccess("loading");
+    void getEntitlement(user.id)
+      .then((entitlement) => {
+        if (!isCancelled) {
+          setAnswerFeedbackAccess(entitlement.tier === "paid" ? "paid" : "free");
+        }
+      })
+      .catch((error) => {
+        console.error("Error loading answer feedback entitlement:", error);
+        if (!isCancelled) {
+          setAnswerFeedbackAccess("free");
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user?.id]);
 
   const clearSavedRecording = () => {
     setAudioBlob(null);
@@ -2332,6 +2364,7 @@ const getInterviewerFocus = (
             isSavingRating={isSavingRating}
             needsWorkQuestionIds={needsWorkQuestionIds}
             onToggleNeedsWork={isOffline ? undefined : handleToggleNeedsWork}
+            answerFeedbackAccess={answerFeedbackAccess}
           />
         </div>
       </div>

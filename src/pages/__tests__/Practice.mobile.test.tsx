@@ -11,6 +11,7 @@ const mockCreatePracticeSession = vi.fn();
 const mockSavePracticeAnswer = vi.fn();
 const mockCompletePracticeSession = vi.fn();
 const mockSavePracticeSessionNotes = vi.fn();
+const mockGetEntitlement = vi.fn();
 const mockUseIsMobile = vi.fn();
 
 class MockResizeObserver {
@@ -76,6 +77,10 @@ vi.mock("@/services/searchService", () => ({
   },
 }));
 
+vi.mock("@/services/entitlements", () => ({
+  getEntitlement: (...args: unknown[]) => mockGetEntitlement(...args),
+}));
+
 beforeAll(() => {
   vi.stubGlobal("ResizeObserver", MockResizeObserver);
 });
@@ -99,6 +104,12 @@ describe("Practice mobile layout", () => {
       },
     });
     mockGetQuestionFlags.mockResolvedValue({ success: true, flags: {} });
+    mockGetEntitlement.mockResolvedValue({
+      tier: "free",
+      cadence: null,
+      currentPeriodEnd: null,
+      status: "none",
+    });
     mockCreatePracticeSession.mockResolvedValue({
       success: true,
       session: {
