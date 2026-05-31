@@ -206,8 +206,9 @@ function WeakSignalNotice() {
     <Alert className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950">
       <AlertTriangle className="h-4 w-4 text-amber-600" />
       <AlertDescription>
-        <strong>Best-guess process.</strong> Limited public data was available for this employer.
-        The stage order may not be exact — focus on cross-stage practice first.
+        <strong>Best-guess plan.</strong> Limited employer-specific evidence was available, so this
+        plan leans on role norms. Treat stage order as approximate and focus on cross-stage practice
+        first.
       </AlertDescription>
     </Alert>
   );
@@ -802,6 +803,14 @@ function StageRoadmapCard({
                   </div>
                 </AccordionTrigger>
               </div>
+              {stage.low_confidence_guidance && (
+                <div className="-mt-1 mb-4 ml-9 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                  <p className="text-xs leading-5 text-amber-900 dark:text-amber-200">
+                    <span className="font-medium">Low confidence:</span> {stage.low_confidence_guidance}
+                  </p>
+                </div>
+              )}
               <AccordionContent className="pb-4 pt-1">
                 <div className="space-y-4 rounded-xl bg-muted/20 p-4">
                   {stage.what_it_tests && stage.what_it_tests.length > 0 && (
@@ -851,16 +860,6 @@ function StageRoadmapCard({
                     </div>
                   )}
 
-                  {stage.low_confidence_guidance && (
-                    <div className="space-y-1.5">
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                        Low-confidence guidance
-                      </p>
-                      <p className="text-sm italic text-amber-700 dark:text-amber-400">
-                        {stage.low_confidence_guidance}
-                      </p>
-                    </div>
-                  )}
                 </div>
               </AccordionContent>
             </AccordionItem>
