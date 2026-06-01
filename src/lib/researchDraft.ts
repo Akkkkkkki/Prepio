@@ -2,7 +2,7 @@ export type Level = "junior" | "mid" | "senior_ic" | "people_manager";
 
 export type ResearchStep = "company" | "details" | "tailoring";
 
-export type AuthIntent = "research" | "practice" | "dashboard" | "profile";
+export type AuthIntent = "research" | "practice" | "dashboard" | "profile" | "billing";
 
 export type ResearchPreviewDraft = {
   previewId: string;
@@ -39,6 +39,7 @@ export const AUTH_RESUME_LABELS: Record<AuthIntent, string> = {
   practice: "Practice",
   dashboard: "Dashboard",
   profile: "Profile",
+  billing: "Pricing",
 };
 
 const RESEARCH_STEPS: ResearchStep[] = ["company", "details", "tailoring"];
@@ -76,6 +77,8 @@ export const getAuthIntentFromPath = (pathname: string): AuthIntent | undefined 
   }
 
   switch (pathname) {
+    case "/pricing":
+      return "billing";
     case "/":
       return "research";
     case "/practice":
