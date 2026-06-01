@@ -136,16 +136,16 @@ The webhook, tables, and entitlement readers are implemented. The user-facing pu
 1. User hits a paid gate or clicks a pricing CTA.
 2. Frontend calls an edge function `create-checkout-session` with `{ cadence }`.
 3. Edge function creates a Stripe Checkout Session and returns its URL. (Creates a Stripe Customer lazily if one doesn't exist yet.) The session is created with `idempotencyKey = checkout:<user_id>` (user-scoped, not cadence-scoped) so a free-tier user cannot mint distinct Sessions for two cadences in parallel before the first webhook lands. If a different cadence is retried within Stripe's 24h key window, Stripe rejects the second call and the edge function surfaces `409 { error: "pending_checkout" }` — the UI should prompt the user to finish or abandon the in-flight Checkout. Cadence changes for already-paid users belong in the Customer Portal, not Checkout.
-4. Client redirects to the URL. On success, user returns to `/profile?checkout=success&session_id=…`; on cancel, to `/?checkout=canceled`. A dedicated `/billing/return` page that polls `getEntitlement` until the webhook lands is tracked in PREPIO-21; until then the Profile page is the landing spot.
-5. The webhook usually lands within ~2s of completion; until the polling return page exists, paid features become available on the next entitlement refetch.
+4. Client redirects to the URL. On success, user returns to `/billing/return?session_id=…`; on cancel, to `/?checkout=canceled`.
+5. `/billing/return` polls `getEntitlement` until the webhook lands, then links into Practice. If entitlement is still free after the timeout window, it keeps a clear fallback back into the app; paid features still rely on server-side entitlement checks.
 
 If the caller already has an active paid subscription, `create-checkout-session` refuses with `409 { error: "already_subscribed" }`. The frontend should route those users into the Customer Portal flow instead — cadence changes belong to the portal, not a fresh Checkout. Other error codes: `400 invalid_cadence | invalid_json`, `401 missing/invalid bearer | user_token_required`, `409 pending_checkout` (a Checkout Session for this user is already in flight), `500 internal_error | misconfigured`, `502 stripe_error`.
 
 ### Manage subscription
 
 1. User clicks "Manage subscription" in Profile.
-2. Frontend calls a planned edge function `create-portal-session`; edge function returns the Customer Portal URL.
-3. User self-serves in the portal. Any change fires a webhook; the app picks it up on next refetch.
+2. Frontend calls the edge function `create-portal-session`; edge function returns the Customer Portal URL for the user's existing Stripe Customer.
+3. User self-serves in the portal. Any change fires a webhook; the app picks it up on next refetch. Portal returns to `/profile?billing=portal_return`.
 
 ## Tax
 

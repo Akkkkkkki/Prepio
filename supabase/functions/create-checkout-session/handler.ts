@@ -208,7 +208,7 @@ export async function createCheckoutSession(
         mode: "subscription",
         customer: stripeCustomerId,
         line_items: [{ price: priceId, quantity: 1 }],
-        success_url: `${deps.appBaseUrl}/profile?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        success_url: `${deps.appBaseUrl}/billing/return?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${deps.appBaseUrl}/?checkout=canceled`,
         client_reference_id: req.userId,
         allow_promotion_codes: false,
