@@ -122,7 +122,7 @@ Three classes of public entry point:
 
 - **Service-only sub-functions.** `company-research`, `job-analysis`, and `cv-analysis` are invoked by `interview-research` using the service-role bearer. They call `authorizeRequest` and reject anything that isn't `kind: "service"` with a 403. Direct anon invocations are rejected before any OpenAI/Tavily call or service-role DB write.
 - **User-scoped functions.** `interview-research`, `answer-feedback`, `practice-audio-transcribe`, `create-checkout-session`, `create-portal-session`, and `profile-import` require a user JWT.
-- **Genuinely public function.** `research-preview` stays unauthenticated by product design (guest preview). It is rate-limited per fingerprint via `research_preview_rate_limits`. The fingerprint is derived from the gateway-set `x-forwarded-for` first IP and a coarse user-agent bucket; client-controlled headers like `x-preview-session` are NOT trusted (PREPIO-61).
+- **Genuinely public function.** `research-preview` stays unauthenticated by product design (guest preview). It is rate-limited per fingerprint via `research_preview_rate_limits`. The fingerprint is the gateway-set `x-forwarded-for` first IP only — client-controlled headers like `x-preview-session` and `user-agent` are deliberately excluded from the key, because including any client-controllable signal lets a single attacker rotate the header and land in fresh rate-limit rows (PREPIO-61).
 - **Signed function.** `stripe-webhook` verifies Stripe's signature instead of a JWT.
 
 ### Allowed origins (CORS)
