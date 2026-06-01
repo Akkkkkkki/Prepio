@@ -114,6 +114,25 @@ where user_id = '<user_id>';
 
 Then compare against `src/shared/entitlement-rules.ts`. The frontend and Edge copies of entitlement rules must stay in lock-step.
 
+## Edge Function Auth Posture
+
+All Edge Functions run with `verify_jwt = false` (see [`supabase/config.toml`](../supabase/config.toml)) and enforce their own caller checks via [`supabase/functions/_shared/auth.ts`](../supabase/functions/_shared/auth.ts).
+
+Three classes of public entry point:
+
+- **Service-only sub-functions.** `company-research`, `job-analysis`, and `cv-analysis` are invoked by `interview-research` using the service-role bearer. They call `authorizeRequest` and reject anything that isn't `kind: "service"` with a 403. Direct anon invocations are rejected before any OpenAI/Tavily call or service-role DB write.
+- **User-scoped functions.** `interview-research`, `answer-feedback`, `practice-audio-transcribe`, `create-checkout-session`, `create-portal-session`, and `profile-import` require a user JWT.
+- **Genuinely public function.** `research-preview` stays unauthenticated by product design (guest preview). It is rate-limited per fingerprint via `research_preview_rate_limits`. The fingerprint is derived from the gateway-set `x-forwarded-for` first IP and a coarse user-agent bucket; client-controlled headers like `x-preview-session` are NOT trusted (PREPIO-61).
+- **Signed function.** `stripe-webhook` verifies Stripe's signature instead of a JWT.
+
+### Allowed origins (CORS)
+
+`company-research`, `job-analysis`, and `research-preview` use the shared [`buildCorsHeaders`](../supabase/functions/_shared/cors.ts) helper. Set `APP_ALLOWED_ORIGINS` (comma-separated) as a function-level secret to lock CORS down to known origins; if the env var is unset, the helper falls back to `*` so local dev keeps working.
+
+```bash
+supabase secrets set APP_ALLOWED_ORIGINS="https://prepio.app,https://www.prepio.app"
+```
+
 ## Tests To Run Before Release
 
 ```bash
