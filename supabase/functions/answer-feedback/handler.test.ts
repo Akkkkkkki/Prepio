@@ -344,6 +344,46 @@ describe("generateAnswerFeedback", () => {
     expect(db.answer_feedback).toHaveLength(0);
   });
 
+  it("hides answers owned by another user without generating feedback", async () => {
+    const db = buildDb({
+      practice_sessions: [{ id: SESSION_ID, user_id: "other-user", search_id: SEARCH_ID }],
+    });
+    const model = buildModel();
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db),
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID },
+    );
+
+    expect(result).toEqual({ ok: false, status: 404, error: "practice_answer_not_found" });
+    expect(model.generate).not.toHaveBeenCalled();
+    expect(db.answer_feedback).toHaveLength(0);
+  });
+
+  it("rejects mismatched question and search context before model generation", async () => {
+    const db = buildDb({
+      interview_questions: [{ ...question, search_id: "different-search" }],
+    });
+    const model = buildModel();
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db),
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID },
+    );
+
+    expect(result).toEqual({ ok: false, status: 404, error: "practice_context_not_found" });
+    expect(model.generate).not.toHaveBeenCalled();
+    expect(db.answer_feedback).toHaveLength(0);
+  });
+
   it("regenerates feedback by preserving history and leaving one latest row", async () => {
     const db = buildDb({
       answer_feedback: [
