@@ -16,6 +16,26 @@ const jsonHeaders = { "Content-Type": "application/json" };
 const log = (event: string, fields: Record<string, unknown> = {}) =>
   console.log(JSON.stringify({ event, fn: "stripe-webhook", ...fields }));
 
+interface BillingCustomerResolverSupabase {
+  from: (table: "billing_customers") => {
+    select: (columns: string) => {
+      eq: (
+        column: "stripe_customer_id",
+        value: string,
+      ) => {
+        maybeSingle: () => Promise<{
+          data: { user_id?: string | null } | null;
+          error: { message?: string } | null;
+        }>;
+      };
+    };
+    upsert: (
+      row: { user_id: string; stripe_customer_id: string },
+      options: { onConflict: string },
+    ) => Promise<{ error: { message?: string } | null }>;
+  };
+}
+
 function readEnv(name: string): string {
   const value = Deno.env.get(name);
   if (!value) throw new Error(`missing env var: ${name}`);
@@ -35,7 +55,7 @@ function buildCadenceLookup(): CadenceLookup {
 // the Stripe Customer and reads metadata.user_id, then upserts so future
 // events resolve from the DB.
 function buildResolveUserId(
-  supabase: ReturnType<typeof createClient>,
+  supabase: BillingCustomerResolverSupabase,
   stripe: Stripe,
 ) {
   return async (stripeCustomerId: string): Promise<string | null> => {
@@ -138,13 +158,15 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  const webhookSupabase = supabase as unknown as Parameters<typeof processEvent>[0]["supabase"];
+  const customerResolverSupabase = supabase as unknown as BillingCustomerResolverSupabase;
 
   try {
     const result = await processEvent(
       {
-        supabase: supabase as unknown as Parameters<typeof processEvent>[0]["supabase"],
+        supabase: webhookSupabase,
         cadenceLookup,
-        resolveUserId: buildResolveUserId(supabase, stripe),
+        resolveUserId: buildResolveUserId(customerResolverSupabase, stripe),
         log,
       },
       event,
