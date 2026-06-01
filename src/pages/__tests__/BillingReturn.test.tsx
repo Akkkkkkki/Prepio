@@ -93,4 +93,20 @@ describe("BillingReturn page", () => {
 
     expect(screen.getByRole("link", { name: "Continue to Prepio" })).toHaveAttribute("href", "/profile");
   });
+
+  it("rejects protocol-relative returnTo values that would leave the site", async () => {
+    mockGetEntitlement.mockResolvedValue(FREE);
+
+    renderBillingReturn("/billing/return?returnTo=//evil.test");
+
+    expect(screen.getByRole("link", { name: "Continue to Prepio" })).toHaveAttribute("href", "/profile");
+  });
+
+  it("rejects backslash-escaped protocol-relative returnTo values", async () => {
+    mockGetEntitlement.mockResolvedValue(FREE);
+
+    renderBillingReturn("/billing/return?returnTo=/\\evil.test");
+
+    expect(screen.getByRole("link", { name: "Continue to Prepio" })).toHaveAttribute("href", "/profile");
+  });
 });

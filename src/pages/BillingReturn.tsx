@@ -14,6 +14,17 @@ type BillingReturnState = "polling" | "paid" | "timeout";
 
 const isPaid = (entitlement: Entitlement) => entitlement.tier === "paid";
 
+const DEFAULT_FALLBACK = "/profile";
+
+// Only accept same-origin, single-slash absolute paths. Reject protocol-relative
+// (`//evil.test`, `/\evil.test`) and absolute URLs so the fallback link can't take
+// a signed-in user off-site.
+const safeReturnTo = (returnTo: string | null): string => {
+  if (!returnTo || !returnTo.startsWith("/")) return DEFAULT_FALLBACK;
+  if (returnTo.startsWith("//") || returnTo.startsWith("/\\")) return DEFAULT_FALLBACK;
+  return returnTo;
+};
+
 const BillingReturn = () => {
   const { user } = useAuthContext();
   const [searchParams] = useSearchParams();
@@ -21,10 +32,10 @@ const BillingReturn = () => {
   const [state, setState] = useState<BillingReturnState>("polling");
   const startedAtRef = useRef(Date.now());
 
-  const fallbackHref = useMemo(() => {
-    const returnTo = searchParams.get("returnTo");
-    return returnTo?.startsWith("/") ? returnTo : "/profile";
-  }, [searchParams]);
+  const fallbackHref = useMemo(
+    () => safeReturnTo(searchParams.get("returnTo")),
+    [searchParams],
+  );
 
   useEffect(() => {
     let cancelled = false;
