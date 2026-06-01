@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react-swc";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
@@ -43,6 +44,8 @@ export default defineConfig(({ mode }) => ({
   test: {
     environment: "jsdom",
     globals: true,
-    setupFiles: "./vitest.setup.ts"
+    setupFiles: "./vitest.setup.ts",
+    // Playwright specs in e2e/ are run by `npm run test:e2e`, not Vitest.
+    exclude: [...configDefaults.exclude, "e2e/**"],
   }
 }));
