@@ -16,6 +16,15 @@ Stripe billing contract for Prepio. Single source of truth for anyone touching p
 | Checkout | Stripe Checkout (hosted). Success URL returns to app with session ID; cancel URL returns to pricing page. |
 | Customer Portal | Stripe Customer Portal (hosted). Enabled features: update payment method, update plan (swap cadence), cancel subscription. |
 
+### Customer Portal dashboard configuration
+
+Configure the same Customer Portal features in Stripe test mode and live mode:
+
+- **Payment methods:** allow customers to update their default payment method.
+- **Subscriptions:** allow customers to cancel subscriptions and switch between the three Prices on the `Prepio Subscription` Product.
+- **Allowed plan changes:** include only `prepio_subscription_monthly`, `prepio_subscription_quarterly`, and `prepio_subscription_annual` so self-serve changes stay within the v1 cadence model.
+- **Return URL:** the app-created portal session sends customers back to `/profile?billing=portal_return`; the Stripe dashboard default return URL should point at the same stable Profile surface for manual/test sessions.
+
 ### Stripe product and price catalog
 
 Create the same Product and three recurring Prices in both Stripe test mode and live mode. Do not hard-code Product or Price IDs in this repository; the Edge Functions read environment-scoped Price IDs from Supabase secrets.

@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
-import { Award, BookOpen, GraduationCap, Languages, Sparkles, UserRound } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Award, BookOpen, CreditCard, GraduationCap, Languages, Loader2, Sparkles, UserRound } from "lucide-react";
 import { Link } from "react-router-dom";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,7 @@ import {
   createEmptyLanguage,
   createEmptySkillGroup,
 } from "@/lib/candidateProfile";
+import { createPortalSession, BillingError } from "@/services/billing";
 
 import ProfileHeader from "./ProfileHeader";
 import ProfileSectionCard from "./ProfileSectionCard";
@@ -27,11 +29,30 @@ import type { ProfileWorkspaceState } from "./useProfileWorkspace";
 import ExperienceList from "./ExperienceList";
 import ProjectList from "./ProjectList";
 
+const getPortalErrorMessage = (error: unknown) => {
+  if (error instanceof BillingError) {
+    switch (error.code) {
+      case "no_active_subscription":
+      case "no_customer":
+        return "We could not find an active subscription to manage yet. Start a subscription first.";
+      case "user_token_required":
+      case "Missing bearer token":
+        return "Sign in again before managing billing.";
+      default:
+        return "Billing management is temporarily unavailable. Please try again.";
+    }
+  }
+
+  return "Billing management is temporarily unavailable. Please try again.";
+};
+
 interface ProfileMainViewProps {
   workspace: ProfileWorkspaceState;
 }
 
 const ProfileMainView = ({ workspace }: ProfileMainViewProps) => {
+  const [billingError, setBillingError] = useState<string | null>(null);
+  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
   const {
     activeImport,
     activeResume,
@@ -52,6 +73,19 @@ const ProfileMainView = ({ workspace }: ProfileMainViewProps) => {
     : profile.updatedAt
       ? `Updated ${new Date(profile.updatedAt).toLocaleDateString()}`
       : `Current source: ${formatResumeLabel(activeResume)}`;
+
+  const handleManageSubscription = async () => {
+    setIsOpeningPortal(true);
+    setBillingError(null);
+
+    try {
+      const { url } = await createPortalSession();
+      window.location.assign(url);
+    } catch (error) {
+      setBillingError(getPortalErrorMessage(error));
+      setIsOpeningPortal(false);
+    }
+  };
 
   const sections: Record<MainProfileSectionId, ReactNode> = {
     about: (
@@ -425,6 +459,19 @@ const ProfileMainView = ({ workspace }: ProfileMainViewProps) => {
         description="Shape the familiar, public-facing version of your professional profile here. Import mechanics and research settings live elsewhere."
         actions={
           <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleManageSubscription()}
+              disabled={isOpeningPortal}
+            >
+              {isOpeningPortal ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CreditCard className="mr-2 h-4 w-4" />
+              )}
+              Manage subscription
+            </Button>
             <Button asChild variant="outline">
               <Link to="/profile/import">Import CV</Link>
             </Button>
@@ -434,6 +481,12 @@ const ProfileMainView = ({ workspace }: ProfileMainViewProps) => {
           </>
         }
       />
+
+      {billingError ? (
+        <Alert variant="destructive">
+          <AlertDescription>{billingError}</AlertDescription>
+        </Alert>
+      ) : null}
 
       <ProfileSummaryCard
         activeImportCreatedAt={activeImport?.createdAt ?? null}
