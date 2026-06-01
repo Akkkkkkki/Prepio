@@ -7,12 +7,9 @@ import { SearchLogger } from "../_shared/logger.ts";
 import { RESEARCH_CONFIG, getAllSearchQueries, getOpenAIModel } from "../_shared/config.ts";
 import { UrlDeduplicationService } from "../_shared/url-deduplication.ts";
 import { createHybridScraper, InterviewExperience } from "../_shared/native-scrapers.ts";
+import { authorizeRequest, ensureServiceCaller } from "../_shared/auth.ts";
+import { buildCorsHeaders } from "../_shared/cors.ts";
 import { buildSearchPayloads } from "./result-aggregation.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 interface CompanyResearchRequest {
   company: string;
@@ -644,9 +641,31 @@ async function conductHybridResearch(
 }
 
 serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req);
+
   // Handle CORS preflight request
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Create Supabase client up front so auth checks can run before any work.
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  const authResult = await authorizeRequest(req, supabase);
+  if (!authResult.ok) {
+    return new Response(authResult.response.body, {
+      status: authResult.response.status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const serviceCheck = ensureServiceCaller(authResult.context);
+  if (!serviceCheck.ok) {
+    return new Response(serviceCheck.response.body, {
+      status: serviceCheck.response.status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
@@ -659,11 +678,6 @@ serve(async (req) => {
     // Initialize logger
     const logger = new SearchLogger(searchId, 'company-research');
     logger.log('REQUEST_INPUT', 'VALIDATION', { company, role, country, searchId });
-
-    // Create Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get OpenAI API key
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
