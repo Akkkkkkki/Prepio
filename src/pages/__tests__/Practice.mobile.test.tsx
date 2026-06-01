@@ -419,4 +419,33 @@ describe("Practice keyboard navigation", () => {
 
     expect(await screen.findByText(initialQuestionText)).toBeInTheDocument();
   });
+
+  it("debounces the aria-live question announcement so rapid navigation doesn't flood screen readers", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByText("Quick Start"));
+    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
+
+    const initialAnnouncement = await screen.findByText("Question 1 of 2");
+    expect(initialAnnouncement).toHaveAttribute("aria-live", "polite");
+    expect(initialAnnouncement).toHaveAttribute("aria-atomic", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: /skip/i }));
+
+    // Synchronously after navigation, the live region text still reflects the
+    // previous index — the debounce hasn't elapsed yet.
+    expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
+    expect(screen.queryByText("Question 2 of 2")).not.toBeInTheDocument();
+
+    await waitFor(
+      () => expect(screen.getByText("Question 2 of 2")).toBeInTheDocument(),
+      { timeout: 1500 },
+    );
+  });
 });
