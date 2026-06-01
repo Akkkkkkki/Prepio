@@ -39,13 +39,13 @@ function buildFakeSupabase(opts: FakeSupabaseOptions = {}): FakeSupabaseRecorder
                   if (opts.customerSelectError) {
                     return { data: null, error: opts.customerSelectError };
                   }
-                  if (opts.existingCustomerId) {
-                    return {
-                      data: { stripe_customer_id: opts.existingCustomerId },
-                      error: null,
-                    };
+                  if (!opts.existingCustomerId) {
+                    return { data: null, error: null };
                   }
-                  return { data: null, error: null };
+                  return {
+                    data: { stripe_customer_id: opts.existingCustomerId },
+                    error: null,
+                  };
                 },
               };
             },
@@ -55,7 +55,7 @@ function buildFakeSupabase(opts: FakeSupabaseOptions = {}): FakeSupabaseRecorder
     },
   };
 
-  return { supabase: supabase as unknown as SupabaseLike, customerSelectCalls };
+  return { supabase: supabase as SupabaseLike, customerSelectCalls };
 }
 
 interface FakeStripeOptions {
@@ -64,17 +64,12 @@ interface FakeStripeOptions {
   sessionCreateError?: Error;
 }
 
-interface FakeStripeRecorder {
-  stripe: StripeLike;
-  sessionCreate: ReturnType<typeof vi.fn>;
-}
-
-function buildFakeStripe(opts: FakeStripeOptions = {}): FakeStripeRecorder {
+function buildFakeStripe(opts: FakeStripeOptions = {}) {
   const sessionCreate = vi.fn(async (_params: unknown) => {
     if (opts.sessionCreateError) throw opts.sessionCreateError;
     return {
       id: opts.sessionId ?? "bps_test_123",
-      url: opts.sessionUrl === undefined ? "https://billing.stripe.com/p/session/test_123" : opts.sessionUrl,
+      url: opts.sessionUrl === undefined ? "https://billing.stripe.com/p/session/test" : opts.sessionUrl,
     };
   });
   const stripe: StripeLike = {
@@ -87,61 +82,59 @@ function buildFakeStripe(opts: FakeStripeOptions = {}): FakeStripeRecorder {
   return { stripe, sessionCreate };
 }
 
-interface BuildDepsResult {
-  deps: Deps;
-  supabaseRec: FakeSupabaseRecorder;
-  stripeRec: FakeStripeRecorder;
-  logs: Array<{ event: string; fields?: Record<string, unknown> }>;
-}
-
 function buildDeps(
   overrides: { supabase?: FakeSupabaseOptions; stripe?: FakeStripeOptions } = {},
-): BuildDepsResult {
+) {
   const supabaseRec = buildFakeSupabase(overrides.supabase);
   const stripeRec = buildFakeStripe(overrides.stripe);
-  const logs: BuildDepsResult["logs"] = [];
-  return {
-    deps: {
-      supabase: supabaseRec.supabase,
-      stripe: stripeRec.stripe,
-      appBaseUrl: APP_BASE_URL,
-      log: (event, fields) => logs.push({ event, fields }),
-    },
-    supabaseRec,
-    stripeRec,
-    logs,
+  const logs: Array<{ event: string; fields?: Record<string, unknown> }> = [];
+  const deps: Deps = {
+    supabase: supabaseRec.supabase,
+    stripe: stripeRec.stripe,
+    appBaseUrl: APP_BASE_URL,
+    log: (event, fields) => logs.push({ event, fields }),
   };
+  return { deps, supabaseRec, stripeRec, logs };
 }
 
 describe("createPortalSession", () => {
-  it("looks up the current user's existing Stripe customer and creates a portal session", async () => {
-    const { deps, supabaseRec, stripeRec } = buildDeps({
+  it("looks up the authenticated user's existing Stripe customer", async () => {
+    const { deps, supabaseRec } = buildDeps({
       supabase: { existingCustomerId: "cus_existing_123" },
-      stripe: { sessionId: "bps_live_42", sessionUrl: "https://billing.stripe.com/p/session/live_42" },
+    });
+
+    await createPortalSession(deps, { userId: USER_ID });
+
+    expect(supabaseRec.customerSelectCalls).toEqual([{ col: "user_id", val: USER_ID }]);
+  });
+
+  it("creates a Customer Portal session with the expected return URL", async () => {
+    const { deps, stripeRec } = buildDeps({
+      supabase: { existingCustomerId: "cus_existing_123" },
+      stripe: { sessionId: "bps_live_42", sessionUrl: "https://billing.stripe.com/p/session/live" },
     });
 
     const result = await createPortalSession(deps, { userId: USER_ID });
 
     expect(result).toEqual({
       ok: true,
-      url: "https://billing.stripe.com/p/session/live_42",
+      url: "https://billing.stripe.com/p/session/live",
       sessionId: "bps_live_42",
     });
-    expect(supabaseRec.customerSelectCalls).toEqual([{ col: "user_id", val: USER_ID }]);
     expect(stripeRec.sessionCreate).toHaveBeenCalledWith({
       customer: "cus_existing_123",
       return_url: `${APP_BASE_URL}/profile?billing=portal_return`,
     });
   });
 
-  it("does not create a Stripe customer when no billing_customers row exists", async () => {
+  it("returns 404 when the user has no billing_customers row", async () => {
     const { deps, stripeRec, logs } = buildDeps();
 
     const result = await createPortalSession(deps, { userId: USER_ID });
 
-    expect(result).toEqual({ ok: false, status: 409, error: "no_billing_customer" });
+    expect(result).toEqual({ ok: false, status: 404, error: "customer_not_found" });
     expect(stripeRec.sessionCreate).not.toHaveBeenCalled();
-    expect(logs.map((l) => l.event)).toContain("portal_blocked_missing_customer");
+    expect(logs.map((l) => l.event)).toContain("portal_customer_missing");
   });
 
   it("returns 500 when reading billing_customers fails", async () => {
@@ -156,10 +149,10 @@ describe("createPortalSession", () => {
     expect(logs.map((l) => l.event)).toContain("billing_customers_read_failed");
   });
 
-  it("returns 502 when Stripe portal session creation throws", async () => {
+  it("returns 502 when Stripe portal creation throws", async () => {
     const { deps, logs } = buildDeps({
       supabase: { existingCustomerId: "cus_existing_123" },
-      stripe: { sessionCreateError: new Error("rate limited") },
+      stripe: { sessionCreateError: new Error("stripe outage") },
     });
 
     const result = await createPortalSession(deps, { userId: USER_ID });

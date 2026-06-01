@@ -123,4 +123,49 @@ describe("SessionSummary rubric self-check", () => {
     expect(firstCheckbox).toHaveAttribute("data-state", "checked");
     expect(secondCheckbox).toHaveAttribute("data-state", "unchecked");
   });
+
+  it("does not show a feedback generation action for free users", () => {
+    renderSummary([
+      {
+        id: "answer-1",
+        questionId: "q-1",
+        question: "Tell me about a hard tradeoff.",
+        stageName: "Behavioral",
+        textAnswer: "I picked the smaller scope to ship on time.",
+        goodSignals: [],
+        weakSignals: [],
+      },
+    ]);
+
+    expect(screen.getByText("Detailed coaching is paid")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Free answers stay saved and rateable without generating AI feedback/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /get detailed coaching/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the feedback generation action for paid users", () => {
+    render(
+      <MemoryRouter>
+        <SessionSummary
+          {...baseProps}
+          savedAnswers={[
+            {
+              id: "answer-1",
+              questionId: "q-1",
+              question: "Tell me about a hard tradeoff.",
+              stageName: "Behavioral",
+              textAnswer: "I picked the smaller scope to ship on time.",
+              goodSignals: [],
+              weakSignals: [],
+            },
+          ]}
+          onRateAnswer={vi.fn().mockResolvedValue(undefined)}
+          answerFeedbackAccess="paid"
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("button", { name: /get detailed coaching/i })).toBeInTheDocument();
+  });
 });

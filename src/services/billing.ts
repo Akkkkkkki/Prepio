@@ -1,84 +1,77 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type BillingPortalErrorCode =
-  | "no_billing_customer"
-  | "misconfigured"
-  | "stripe_error"
-  | "internal_error"
-  | "unknown";
+export type BillingCadence = "monthly" | "quarterly" | "annual";
 
-export type BillingPortalSessionResult =
-  | { success: true; url: string; sessionId: string | null }
-  | { success: false; code: BillingPortalErrorCode; message: string };
+export class BillingError extends Error {
+  code: string;
+  status?: number;
 
-const portalErrorMessages: Record<BillingPortalErrorCode, string> = {
-  no_billing_customer: "No active billing account is linked yet. Start a subscription before using the portal.",
-  misconfigured: "Billing management is not configured yet.",
-  stripe_error: "Stripe could not open the billing portal. Please try again.",
-  internal_error: "Billing management is temporarily unavailable. Please try again.",
-  unknown: "Billing management is temporarily unavailable. Please try again.",
+  constructor(code: string, message?: string, status?: number) {
+    super(message ?? code);
+    this.name = "BillingError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+type FunctionErrorShape = {
+  message?: string;
+  context?: Response;
 };
 
-const isPortalErrorCode = (value: unknown): value is BillingPortalErrorCode =>
-  value === "no_billing_customer" ||
-  value === "misconfigured" ||
-  value === "stripe_error" ||
-  value === "internal_error";
-
-async function readFunctionErrorCode(error: unknown): Promise<BillingPortalErrorCode> {
-  const context = typeof error === "object" && error !== null ? (error as { context?: unknown }).context : null;
-
-  if (context instanceof Response) {
+const readFunctionError = async (error: unknown): Promise<BillingError> => {
+  const functionError = error as FunctionErrorShape;
+  const context = functionError?.context;
+  if (context) {
     try {
-      const body = (await context.clone().json()) as { error?: unknown };
-      if (isPortalErrorCode(body.error)) {
-        return body.error;
+      const body: unknown = await context.clone().json();
+      if (body && typeof body === "object") {
+        const code = (body as { error?: unknown }).error;
+        if (typeof code === "string" && code.trim()) {
+          return new BillingError(code, functionError.message, context.status);
+        }
       }
     } catch {
-      return "unknown";
+      // Fall through to the generic function error below.
     }
   }
 
-  return "unknown";
-}
+  return new BillingError("function_error", functionError?.message ?? "Billing request failed");
+};
 
-export async function createBillingPortalSession(): Promise<BillingPortalSessionResult> {
-  let response: Awaited<ReturnType<typeof supabase.functions.invoke>>;
-  try {
-    response = await supabase.functions.invoke("create-portal-session", {
-      body: {},
-    });
-  } catch {
-    return {
-      success: false,
-      code: "unknown",
-      message: portalErrorMessages.unknown,
-    };
-  }
-
-  const { data, error } = response;
+export async function createCheckoutSession(cadence: BillingCadence): Promise<{
+  url: string;
+  sessionId: string;
+}> {
+  const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+    body: { cadence },
+  });
 
   if (error) {
-    const code = await readFunctionErrorCode(error);
-    return { success: false, code, message: portalErrorMessages[code] };
+    throw await readFunctionError(error);
   }
 
-  const payload = data as { url?: unknown; sessionId?: unknown } | null;
-  if (!payload || typeof payload.url !== "string" || !payload.url) {
-    return {
-      success: false,
-      code: "unknown",
-      message: portalErrorMessages.unknown,
-    };
+  const payload = data as Partial<{ url: string; sessionId: string }> | null;
+  if (!payload?.url || !payload.sessionId) {
+    throw new BillingError("invalid_response", "Checkout did not return a redirect URL");
   }
 
-  return {
-    success: true,
-    url: payload.url,
-    sessionId: typeof payload.sessionId === "string" ? payload.sessionId : null,
-  };
+  return { url: payload.url, sessionId: payload.sessionId };
 }
 
-export function redirectToBillingPortal(url: string) {
-  window.location.assign(url);
+export async function createPortalSession(): Promise<{ url: string }> {
+  const { data, error } = await supabase.functions.invoke("create-portal-session", {
+    body: {},
+  });
+
+  if (error) {
+    throw await readFunctionError(error);
+  }
+
+  const payload = data as Partial<{ url: string }> | null;
+  if (!payload?.url) {
+    throw new BillingError("invalid_response", "Customer Portal did not return a redirect URL");
+  }
+
+  return { url: payload.url };
 }

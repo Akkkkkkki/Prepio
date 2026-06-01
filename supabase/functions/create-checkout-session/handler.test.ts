@@ -273,7 +273,7 @@ describe("createCheckoutSession", () => {
     }
   });
 
-  it("uses success_url with the {CHECKOUT_SESSION_ID} placeholder verbatim", async () => {
+  it("uses billing return success_url with the {CHECKOUT_SESSION_ID} placeholder verbatim", async () => {
     const { deps, stripeRec } = buildDeps();
     await createCheckoutSession(deps, {
       userId: USER_ID,
@@ -282,7 +282,7 @@ describe("createCheckoutSession", () => {
     });
     expect(stripeRec.sessionCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        success_url: `${APP_BASE_URL}/profile?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        success_url: `${APP_BASE_URL}/billing/return?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${APP_BASE_URL}/?checkout=canceled`,
         client_reference_id: USER_ID,
       }),
@@ -299,6 +299,29 @@ describe("createCheckoutSession", () => {
         { idempotencyKey: `checkout:${USER_ID}` },
       );
     }
+  });
+
+  it("ignores client-supplied Price IDs and amounts", async () => {
+    const { deps, stripeRec } = buildDeps();
+    await createCheckoutSession(deps, {
+      userId: USER_ID,
+      userEmail: USER_EMAIL,
+      cadence: "quarterly",
+      price: "price_attacker_controlled",
+      amount: 1,
+      line_items: [{ price: "price_attacker_controlled", quantity: 99 }],
+    } as never);
+
+    expect(stripeRec.sessionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        line_items: [{ price: LOOKUP.quarterly, quantity: 1 }],
+      }),
+      expect.any(Object),
+    );
+    expect(stripeRec.sessionCreate.mock.calls[0][0]).not.toMatchObject({
+      price: "price_attacker_controlled",
+      amount: 1,
+    });
   });
 
   it("returns 409 pending_checkout when Stripe rejects the idempotency key as in-use", async () => {

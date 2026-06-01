@@ -13,7 +13,7 @@ import {
   createEmptyLanguage,
   createEmptySkillGroup,
 } from "@/lib/candidateProfile";
-import { createBillingPortalSession, redirectToBillingPortal } from "@/services/billing";
+import { createPortalSession, BillingError } from "@/services/billing";
 
 import ProfileHeader from "./ProfileHeader";
 import ProfileSectionCard from "./ProfileSectionCard";
@@ -28,6 +28,23 @@ import {
 import type { ProfileWorkspaceState } from "./useProfileWorkspace";
 import ExperienceList from "./ExperienceList";
 import ProjectList from "./ProjectList";
+
+const getPortalErrorMessage = (error: unknown) => {
+  if (error instanceof BillingError) {
+    switch (error.code) {
+      case "no_active_subscription":
+      case "no_customer":
+        return "We could not find an active subscription to manage yet. Start a subscription first.";
+      case "user_token_required":
+      case "Missing bearer token":
+        return "Sign in again before managing billing.";
+      default:
+        return "Billing management is temporarily unavailable. Please try again.";
+    }
+  }
+
+  return "Billing management is temporarily unavailable. Please try again.";
+};
 
 interface ProfileMainViewProps {
   workspace: ProfileWorkspaceState;
@@ -61,14 +78,13 @@ const ProfileMainView = ({ workspace }: ProfileMainViewProps) => {
     setIsOpeningPortal(true);
     setBillingError(null);
 
-    const result = await createBillingPortalSession();
-    if (result.success) {
-      redirectToBillingPortal(result.url);
-      return;
+    try {
+      const { url } = await createPortalSession();
+      window.location.assign(url);
+    } catch (error) {
+      setBillingError(getPortalErrorMessage(error));
+      setIsOpeningPortal(false);
     }
-
-    setBillingError(result.message);
-    setIsOpeningPortal(false);
   };
 
   const sections: Record<MainProfileSectionId, ReactNode> = {

@@ -1,11 +1,8 @@
-// Stripe Customer Portal entrypoint. Creates a hosted Customer Portal Session
-// for the authenticated user's existing Stripe Customer and returns its URL.
+// Stripe Customer Portal entrypoint. Creates a hosted Portal Session for the
+// authenticated user's existing Stripe Customer and returns its URL.
 //
 // Deployed with verify_jwt = false (see supabase/config.toml). Auth is enforced
-// here via the shared authorizeRequest helper, matching the rest of the
-// codebase.
-//
-// Contract: docs/BILLING.md -> "Manage subscription".
+// here via the shared authorizeRequest helper.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
@@ -78,6 +75,7 @@ serve(async (req) => {
   }
 
   const stripe = new Stripe(stripeSecret, { httpClient: Stripe.createFetchHttpClient() });
+
   const result = await createPortalSession(
     {
       supabase: supabase as unknown as SupabaseLike,

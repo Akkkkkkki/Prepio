@@ -1,85 +1,81 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockSupabase } = vi.hoisted(() => ({
-  mockSupabase: {
+const { mockInvoke } = vi.hoisted(() => ({
+  mockInvoke: vi.fn(),
+}));
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
     functions: {
-      invoke: vi.fn(),
+      invoke: (...args: unknown[]) => mockInvoke(...args),
     },
   },
 }));
 
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: mockSupabase,
-}));
+import {
+  BillingError,
+  createCheckoutSession,
+  createPortalSession,
+} from "./billing";
 
-import { createBillingPortalSession } from "./billing";
-
-describe("createBillingPortalSession", () => {
+describe("billing service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("calls the create-portal-session edge function and returns its URL", async () => {
-    mockSupabase.functions.invoke.mockResolvedValue({
-      data: { url: "https://billing.stripe.com/p/session/test", sessionId: "bps_123" },
+  it("invokes create-checkout-session with the selected cadence", async () => {
+    mockInvoke.mockResolvedValue({
+      data: { url: "https://checkout.stripe.com/c/pay/cs_test", sessionId: "cs_test" },
       error: null,
     });
 
-    const result = await createBillingPortalSession();
+    const result = await createCheckoutSession("annual");
 
-    expect(result).toEqual({
-      success: true,
-      url: "https://billing.stripe.com/p/session/test",
-      sessionId: "bps_123",
+    expect(mockInvoke).toHaveBeenCalledWith("create-checkout-session", {
+      body: { cadence: "annual" },
     });
-    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("create-portal-session", {
-      body: {},
+    expect(result).toEqual({
+      url: "https://checkout.stripe.com/c/pay/cs_test",
+      sessionId: "cs_test",
     });
   });
 
-  it("maps backend error codes from a function response body", async () => {
-    mockSupabase.functions.invoke.mockResolvedValue({
+  it("preserves edge function error codes from Checkout", async () => {
+    mockInvoke.mockResolvedValue({
       data: null,
       error: {
-        context: new Response(JSON.stringify({ error: "no_billing_customer" }), {
-          status: 409,
-        }),
+        message: "FunctionsHttpError",
+        context: new Response(JSON.stringify({ error: "pending_checkout" }), { status: 409 }),
       },
     });
 
-    const result = await createBillingPortalSession();
-
-    expect(result).toEqual({
-      success: false,
-      code: "no_billing_customer",
-      message: "No active billing account is linked yet. Start a subscription before using the portal.",
+    await expect(createCheckoutSession("monthly")).rejects.toMatchObject({
+      code: "pending_checkout",
+      status: 409,
     });
   });
 
-  it("fails closed when the function returns no URL", async () => {
-    mockSupabase.functions.invoke.mockResolvedValue({
-      data: { sessionId: "bps_123" },
+  it("invokes create-portal-session", async () => {
+    mockInvoke.mockResolvedValue({
+      data: { url: "https://billing.stripe.com/p/session" },
       error: null,
     });
 
-    const result = await createBillingPortalSession();
+    const result = await createPortalSession();
 
-    expect(result).toEqual({
-      success: false,
-      code: "unknown",
-      message: "Billing management is temporarily unavailable. Please try again.",
-    });
+    expect(mockInvoke).toHaveBeenCalledWith("create-portal-session", { body: {} });
+    expect(result).toEqual({ url: "https://billing.stripe.com/p/session" });
   });
 
-  it("fails closed when the function invoke throws", async () => {
-    mockSupabase.functions.invoke.mockRejectedValue(new Error("network down"));
+  it("throws invalid_response when a billing function returns no redirect URL", async () => {
+    mockInvoke.mockResolvedValue({ data: { sessionId: "cs_test" }, error: null });
 
-    const result = await createBillingPortalSession();
-
-    expect(result).toEqual({
-      success: false,
-      code: "unknown",
-      message: "Billing management is temporarily unavailable. Please try again.",
-    });
+    try {
+      await createCheckoutSession("quarterly");
+      throw new Error("expected createCheckoutSession to reject");
+    } catch (error) {
+      expect(error).toBeInstanceOf(BillingError);
+      expect(error).toMatchObject({ code: "invalid_response" });
+    }
   });
 });

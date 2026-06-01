@@ -1,6 +1,6 @@
-// Pure handler for the create-portal-session edge function. No Deno or Stripe
-// SDK imports here so Vitest can exercise the billing lookup and Stripe Portal
-// call without a runtime.
+// Pure handler for the create-portal-session edge function. The Deno entrypoint
+// wires auth, env, Supabase, and Stripe; this file keeps the billing contract
+// testable under Vitest.
 //
 // Contract: docs/BILLING.md -> "Manage subscription".
 
@@ -76,8 +76,8 @@ export async function createPortalSession(
   }
 
   if (!customer?.stripe_customer_id) {
-    deps.log("portal_blocked_missing_customer", { userId: req.userId });
-    return { ok: false, status: 409, error: "no_billing_customer" };
+    deps.log("portal_customer_missing", { userId: req.userId });
+    return { ok: false, status: 404, error: "customer_not_found" };
   }
 
   let session: { id: string; url: string | null };
@@ -89,7 +89,6 @@ export async function createPortalSession(
   } catch (err) {
     deps.log("stripe_portal_create_failed", {
       userId: req.userId,
-      stripeCustomerId: customer.stripe_customer_id,
       message: err instanceof Error ? err.message : String(err),
     });
     return { ok: false, status: 502, error: "stripe_error" };

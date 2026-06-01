@@ -25,8 +25,7 @@ const mockUploadResumeFile = vi.fn();
 const mockDeleteResumeFiles = vi.fn();
 const mockExtractResumeText = vi.fn();
 const mockUseAuth = vi.fn();
-const mockCreateBillingPortalSession = vi.fn();
-const mockRedirectToBillingPortal = vi.fn();
+const mockCreatePortalSession = vi.fn();
 
 vi.mock("@/components/Navigation", () => ({
   default: () => <div>Navigation</div>,
@@ -55,10 +54,24 @@ vi.mock("@/services/searchService", () => ({
   },
 }));
 
-vi.mock("@/services/billing", () => ({
-  createBillingPortalSession: (...args: unknown[]) => mockCreateBillingPortalSession(...args),
-  redirectToBillingPortal: (...args: unknown[]) => mockRedirectToBillingPortal(...args),
-}));
+vi.mock("@/services/billing", () => {
+  class BillingError extends Error {
+    code: string;
+    status?: number;
+
+    constructor(code: string, message?: string, status?: number) {
+      super(message ?? code);
+      this.name = "BillingError";
+      this.code = code;
+      this.status = status;
+    }
+  }
+
+  return {
+    createPortalSession: (...args: unknown[]) => mockCreatePortalSession(...args),
+    BillingError,
+  };
+});
 
 vi.mock("@/lib/resumeUpload", () => ({
   ACCEPTED_RESUME_TYPES:
@@ -93,10 +106,8 @@ describe("Profile page", () => {
     mockFinalizeProfileImportAutoApply.mockResolvedValue({ success: true });
     mockDeleteResume.mockResolvedValue({ success: true });
     mockUpdateProfile.mockResolvedValue({ success: true, profile: { level: "mid" } });
-    mockCreateBillingPortalSession.mockResolvedValue({
-      success: true,
+    mockCreatePortalSession.mockResolvedValue({
       url: "https://billing.stripe.com/p/session/test",
-      sessionId: "bps_123",
     });
   });
 
@@ -115,29 +126,44 @@ describe("Profile page", () => {
   });
 
   it("opens the Stripe Customer Portal from the profile action", async () => {
-    renderProfile();
-
-    fireEvent.click(await screen.findByRole("button", { name: "Manage subscription" }));
-
-    await waitFor(() => {
-      expect(mockCreateBillingPortalSession).toHaveBeenCalled();
+    const assignMock = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...originalLocation, assign: assignMock },
     });
-    expect(mockRedirectToBillingPortal).toHaveBeenCalledWith("https://billing.stripe.com/p/session/test");
+
+    try {
+      renderProfile();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Manage subscription" }));
+
+      await waitFor(() => {
+        expect(mockCreatePortalSession).toHaveBeenCalled();
+      });
+      expect(assignMock).toHaveBeenCalledWith("https://billing.stripe.com/p/session/test");
+    } finally {
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
   });
 
   it("shows a billing error when the portal session cannot be created", async () => {
-    mockCreateBillingPortalSession.mockResolvedValue({
-      success: false,
-      code: "no_billing_customer",
-      message: "No active billing account is linked yet. Start a subscription before using the portal.",
-    });
+    const { BillingError } = await import("@/services/billing");
+    mockCreatePortalSession.mockRejectedValue(
+      new BillingError("no_customer", "no_customer", 409),
+    );
 
     renderProfile();
 
     fireEvent.click(await screen.findByRole("button", { name: "Manage subscription" }));
 
     expect(
-      await screen.findByText("No active billing account is linked yet. Start a subscription before using the portal."),
+      await screen.findByText(
+        "We could not find an active subscription to manage yet. Start a subscription first.",
+      ),
     ).toBeInTheDocument();
   });
 

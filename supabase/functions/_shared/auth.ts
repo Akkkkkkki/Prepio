@@ -90,3 +90,19 @@ export async function authorizeRequest(
     },
   };
 }
+
+export function ensureServiceCaller(
+  context: AuthorizedRequestContext,
+): { ok: true } | { ok: false; response: Response } {
+  if (context.kind === "service") {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    response: new Response(
+      JSON.stringify({ success: false, error: "Service caller required" }),
+      { status: 403, headers: jsonHeaders },
+    ),
+  };
+}

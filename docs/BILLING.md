@@ -128,9 +128,9 @@ Events handled at v1:
 
 Idempotency: each event is first pre-checked against `billing_events.stripe_event_id`. A hit returns 200 `duplicate` without touching subscription state. On a miss, dispatch runs the mutation; only a successful applied mutation then logs the event. If the mutation fails, no `billing_events` row is written — Stripe retries can still apply the change. Unknown / skipped / stale / ignored events do not write to `billing_events`, so a config fix followed by a manual resend from the Stripe dashboard can still apply them.
 
-Ordering: Stripe does not guarantee webhook delivery order, so each mutation is also gated on the originating event's `created` timestamp via `billing_subscriptions.last_event_created`. The `created`/`updated` path goes through the `apply_subscription_event` RPC, whose `ON CONFLICT DO UPDATE WHERE last_event_created < EXCLUDED.last_event_created` is the only way to make the "ignore stale" check atomic against concurrent deliveries. `deleted` and `invoice.payment_failed` mutations use a `.lt("last_event_created", event_created)` filter. A late-arriving stale snapshot therefore cannot resurrect a canceled or past-due row.
+Ordering: Stripe does not guarantee webhook delivery order, so each mutation is also gated on the originating event's `created` timestamp via `billing_subscriptions.last_event_created`. The `created`/`updated` path goes through the `apply_subscription_event` RPC, whose `ON CONFLICT DO UPDATE WHERE last_event_created < EXCLUDED.last_event_created` is the only way to make the "ignore stale" check atomic against concurrent deliveries. `invoice.payment_failed` uses a `.lt("last_event_created", event_created)` filter on a scoped `UPDATE`. A late-arriving stale snapshot therefore cannot resurrect a canceled or past-due row.
 
-Scope: `subscription.deleted` and `invoice.payment_failed` also filter by `stripe_subscription_id` so a late delete for an already-replaced subscription is a silent no-op rather than clobbering the user's current row.
+Scope: `subscription.deleted` and `invoice.payment_failed` also filter by `stripe_subscription_id` so a late delete for an already-replaced subscription is a silent no-op rather than clobbering the user's current row. `subscription.deleted` uses its own RPC (`apply_subscription_cancel`) which is both ordering-aware AND subscription-id-aware: it INSERTs a canceled snapshot when no row exists yet (so an out-of-order `deleted` arriving before `created` materialises the canceled state and the later older `created` event is rejected by the `apply_subscription_event` ordering guard), and on conflict only UPDATEs when the existing row's `stripe_subscription_id` matches the event AND the event is newer than `last_event_created`. A delete for an unrelated subscription is a no-op (returned to the handler as `skipped: stale_event`) and is not logged to `billing_events`, leaving redelivery viable after a config fix.
 
 Invoice subscription field: `invoice.payment_failed` reads `invoice.parent.subscription_details.subscription` first (Stripe API 2025-03-31.basil and newer), falling back to legacy `invoice.subscription`.
 
@@ -145,16 +145,16 @@ The webhook, tables, and entitlement readers are implemented. The user-facing pu
 1. User hits a paid gate or clicks a pricing CTA.
 2. Frontend calls an edge function `create-checkout-session` with `{ cadence }`.
 3. Edge function creates a Stripe Checkout Session and returns its URL. (Creates a Stripe Customer lazily if one doesn't exist yet.) The session is created with `idempotencyKey = checkout:<user_id>` (user-scoped, not cadence-scoped) so a free-tier user cannot mint distinct Sessions for two cadences in parallel before the first webhook lands. If a different cadence is retried within Stripe's 24h key window, Stripe rejects the second call and the edge function surfaces `409 { error: "pending_checkout" }` — the UI should prompt the user to finish or abandon the in-flight Checkout. Cadence changes for already-paid users belong in the Customer Portal, not Checkout.
-4. Client redirects to the URL. On success, user returns to `/profile?checkout=success&session_id=…`; on cancel, to `/?checkout=canceled`. A dedicated `/billing/return` page that polls `getEntitlement` until the webhook lands is tracked in PREPIO-21; until then the Profile page is the landing spot.
-5. The webhook usually lands within ~2s of completion; until the polling return page exists, paid features become available on the next entitlement refetch.
+4. Client redirects to the URL. On success, user returns to `/billing/return?session_id=…`; on cancel, to `/?checkout=canceled`.
+5. `/billing/return` polls `getEntitlement` until the webhook lands, then links into Practice. If entitlement is still free after the timeout window, it keeps a clear fallback back into the app; paid features still rely on server-side entitlement checks.
 
 If the caller already has an active paid subscription, `create-checkout-session` refuses with `409 { error: "already_subscribed" }`. The frontend should route those users into the Customer Portal flow instead — cadence changes belong to the portal, not a fresh Checkout. Other error codes: `400 invalid_cadence | invalid_json`, `401 missing/invalid bearer | user_token_required`, `409 pending_checkout` (a Checkout Session for this user is already in flight), `500 internal_error | misconfigured`, `502 stripe_error`.
 
 ### Manage subscription
 
 1. User clicks "Manage subscription" in Profile.
-2. Frontend calls a planned edge function `create-portal-session`; edge function returns the Customer Portal URL.
-3. User self-serves in the portal. Any change fires a webhook; the app picks it up on next refetch.
+2. Frontend calls the edge function `create-portal-session`; edge function returns the Customer Portal URL for the user's existing Stripe Customer.
+3. User self-serves in the portal. Any change fires a webhook; the app picks it up on next refetch. Portal returns to `/profile?billing=portal_return`.
 
 ## Tax
 
