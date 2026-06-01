@@ -3,11 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
 
 import { callOpenAI, parseJsonResponse } from "../_shared/openai-client.ts";
 import { getOpenAIModel } from "../_shared/config.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-preview-session",
-};
+import { buildCorsHeaders } from "../_shared/cors.ts";
+import { getFingerprint } from "./fingerprint.ts";
 
 type Confidence = "high" | "medium" | "low";
 
@@ -102,12 +99,6 @@ const normalizeInput = (value?: string) => value?.trim().replace(/\s+/g, " ") ||
 
 const buildCacheKey = (company: string, role?: string, country?: string) =>
   [company, role, country].map((part) => normalizeInput(part).toLowerCase()).join("|");
-
-const getFingerprint = (req: Request) => {
-  const forwardedFor = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const session = req.headers.get("x-preview-session")?.trim();
-  return session || forwardedFor || "unknown";
-};
 
 const checkRateLimit = async (supabase: any, fingerprint: string) => {
   const windowMinutes = 60;
@@ -274,6 +265,7 @@ const generatePreview = async (company: string, role?: string, country?: string)
 };
 
 serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

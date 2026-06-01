@@ -270,6 +270,36 @@ const Home = () => {
     };
   }, [user]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const prefillFromPreferences = async () => {
+      if (!user) return;
+      // An in-progress draft is the user's own work — never overwrite it.
+      if (loadResearchDraft()) return;
+
+      const result = await searchService.getCandidateProfile();
+      if (!isMounted || !result.success || !result.profile) return;
+
+      const suggestedRole = result.profile.preferences.targetRoles[0]?.trim() ?? "";
+      const suggestedCountry = result.profile.preferences.locations[0]?.trim() ?? "";
+      if (!suggestedRole && !suggestedCountry) return;
+
+      setFormData((prev) => {
+        const next = { ...prev };
+        if (suggestedRole && !prev.role.trim()) next.role = suggestedRole;
+        if (suggestedCountry && !prev.country.trim()) next.country = suggestedCountry;
+        return next;
+      });
+    };
+
+    void prefillFromPreferences();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
   const persistDraft = (step: ResearchStep) => {
     const draft: ResearchDraft = {
       company: formData.company,

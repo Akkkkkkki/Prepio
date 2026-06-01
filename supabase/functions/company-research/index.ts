@@ -7,11 +7,9 @@ import { SearchLogger } from "../_shared/logger.ts";
 import { RESEARCH_CONFIG, getAllSearchQueries, getOpenAIModel } from "../_shared/config.ts";
 import { UrlDeduplicationService } from "../_shared/url-deduplication.ts";
 import { createHybridScraper, InterviewExperience } from "../_shared/native-scrapers.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { authorizeRequest, ensureServiceCaller } from "../_shared/auth.ts";
+import { buildCorsHeaders } from "../_shared/cors.ts";
+import { buildSearchPayloads } from "./result-aggregation.ts";
 
 interface CompanyResearchRequest {
   company: string;
@@ -169,7 +167,7 @@ async function searchCompanyInfo(
       });
 
       let searchResults: any[] = [];
-      let validResults: any[] = [];
+      let validFreshResults: any[] = [];
 
       // If we have sufficient cached content, use it and skip fresh searches
       if (combinedResults.shouldSkipFreshSearch) {
@@ -179,19 +177,14 @@ async function searchCompanyInfo(
         });
         console.log(`Using ${combinedResults.cachedResults.length} cached results, skipping fresh search...`);
 
-        // Convert cached results to search result format
-        searchResults = [{
-          query: `Cached results for ${company}`,
-          answer: `Using cached interview and company data for ${company}`,
-          results: combinedResults.cachedResults.map(cached => ({
-            title: cached.content.title || 'Cached Content',
-            url: cached.url,
-            content: cached.content.content,
-            raw_content: cached.content.raw_content,
-            score: cached.content.score,
-            published_date: null
-          }))
-        }];
+        const built = buildSearchPayloads({
+          shouldSkipFresh: true,
+          freshResults: [],
+          cachedResults: combinedResults.cachedResults,
+          company,
+        });
+        searchResults = built.searchPayloads;
+        validFreshResults = built.validFreshResults;
       } else {
         // Get search queries from centralized config - LIMITED to 2 queries to prevent timeout
         const searchQueries = getAllSearchQueries(company, role, country).slice(0, 2);
@@ -233,33 +226,21 @@ async function searchCompanyInfo(
         });
 
         const freshSearchResults = await Promise.all(searchPromises);
-        const validResults = freshSearchResults.filter(r => r !== null);
+        const built = buildSearchPayloads({
+          shouldSkipFresh: false,
+          freshResults: freshSearchResults,
+          cachedResults: combinedResults.cachedResults,
+          company,
+        });
+        searchResults = built.searchPayloads;
+        validFreshResults = built.validFreshResults;
 
         logger?.log('DISCOVERY_COMPLETE', 'PHASE1', {
           totalQueries: 2, // Reduced for speed
-          successfulResults: validResults.length,
-          failedResults: 2 - validResults.length,
+          successfulResults: validFreshResults.length,
+          failedResults: 2 - validFreshResults.length,
           cachedResultsAvailable: combinedResults.cachedResults.length
         });
-
-        // Combine fresh results with cached content
-        if (combinedResults.cachedResults.length > 0) {
-          const cachedAsSearchResult = {
-            query: `Cached content for ${company}`,
-            answer: `Reusing ${combinedResults.cachedResults.length} previously analyzed sources`,
-            results: combinedResults.cachedResults.map(cached => ({
-              title: cached.content.title || 'Cached Content',
-              url: cached.url,
-              content: cached.content.content,
-              raw_content: cached.content.raw_content,
-              score: cached.content.score,
-              published_date: null
-            }))
-          };
-          searchResults = [cachedAsSearchResult, ...validResults];
-        } else {
-          searchResults = validResults;
-        }
       }
 
       // Phase 2: Extract URLs for deep content extraction
@@ -274,13 +255,13 @@ async function searchCompanyInfo(
       logger?.log('EXTRACTION_SKIPPED', 'PHASE2', { reason: 'Disabled for speed', urlsFound: interviewUrls.length });
 
       logger?.logPhaseTransition('EXTRACTION', 'RESULT_AGGREGATION', {
-        searchResults: validResults.length,
+        searchResults: searchResults.length,
         extractedContent: extractedContent.length
       });
 
       // Combine search results with extracted content
       const result = {
-        search_results: validResults,
+        search_results: searchResults,
         extracted_content: extractedContent,
         total_urls_extracted: interviewUrls.length
       };
@@ -660,9 +641,31 @@ async function conductHybridResearch(
 }
 
 serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req);
+
   // Handle CORS preflight request
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Create Supabase client up front so auth checks can run before any work.
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  const authResult = await authorizeRequest(req, supabase);
+  if (!authResult.ok) {
+    return new Response(authResult.response.body, {
+      status: authResult.response.status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const serviceCheck = ensureServiceCaller(authResult.context);
+  if (!serviceCheck.ok) {
+    return new Response(serviceCheck.response.body, {
+      status: serviceCheck.response.status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
@@ -675,11 +678,6 @@ serve(async (req) => {
     // Initialize logger
     const logger = new SearchLogger(searchId, 'company-research');
     logger.log('REQUEST_INPUT', 'VALIDATION', { company, role, country, searchId });
-
-    // Create Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get OpenAI API key
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");

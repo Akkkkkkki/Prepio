@@ -4,8 +4,9 @@
 
 ```bash
 npm test
-npm test -- src/services/entitlements.test.ts src/shared/entitlement-rules.test.ts
-npm test -- supabase/functions/stripe-webhook/handlers.test.ts
+npx vitest run src/services/entitlements.test.ts src/shared/entitlement-rules.test.ts
+npx vitest run supabase/functions/create-checkout-session/handler.test.ts supabase/functions/create-portal-session/handler.test.ts src/pages/__tests__/BillingReturn.test.tsx
+npx vitest run supabase/functions/stripe-webhook/handlers.test.ts
 make test
 ```
 
@@ -55,13 +56,18 @@ Before shipping the hosted feature, run a Supabase Edge Function smoke check aga
 
 ### Billing product surface
 
-The billing foundation has tests. The unshipped purchase/manage surface still needs coverage:
+The billing foundation and local purchase/manage surface now have focused tests:
 
-- Checkout session creation maps cadence to the right Stripe Price
-- Customer Portal session creation uses the existing Stripe customer
-- return page polls entitlement until the webhook lands
-- stale client state cannot unlock paid AI work
-- expired subscriptions downgrade cleanly
+- Checkout session creation maps cadence to the configured Stripe Price IDs and ignores client-supplied Price IDs or amounts.
+- Checkout refuses already-paid users, reuses or creates the Stripe Customer, writes `billing_customers`, and sets Stripe Customer `metadata.user_id`.
+- Customer Portal session creation uses the existing Stripe customer, requires a stored customer row, and returns to Profile.
+- `/billing/return` polls entitlement until the webhook lands and falls back clearly when the webhook is delayed.
+- Paid answer feedback re-checks entitlement server-side and returns `403` before any model call for free users.
+
+Still cover with a hosted, non-production smoke check before release:
+
+- deployed Checkout and Portal auth wiring
+- expired subscription downgrade behavior against deployed PostgREST/RLS
 
 ### Practice audio
 
@@ -82,6 +88,16 @@ npm run build
 ```
 
 For Supabase or Edge Function changes, add a targeted hosted check because the legacy Deno suite is not a full release gate.
+
+## Manual Stripe Test-Card Flow
+
+Run these only against Stripe test mode and a non-production Supabase project. Do not use live cards or live Stripe objects.
+
+1. Successful subscription: sign in as a free test user, start Checkout for each cadence in separate runs, pay with Stripe test card `4242 4242 4242 4242`, confirm `/billing/return` reaches the paid state, and verify `billing_customers` plus `billing_subscriptions` rows use the expected cadence.
+2. 3DS-required card: repeat Checkout with `4000 0025 0000 3155`, complete the authentication challenge, and verify the return page waits until the webhook-created entitlement becomes paid.
+3. Declined card: repeat Checkout with `4000 0000 0000 0002`, confirm Checkout blocks payment, and verify no paid entitlement is created.
+4. Portal cancellation: open Customer Portal from a paid test user, cancel at period end, verify the webhook sets `cancel_at_period_end`, and verify entitlement remains paid until `current_period_end`.
+5. Cadence change: open Customer Portal from a paid test user, switch cadence, and verify the next webhook updates `billing_subscriptions.cadence` without creating a second local subscription row.
 
 ## Lint Baseline
 

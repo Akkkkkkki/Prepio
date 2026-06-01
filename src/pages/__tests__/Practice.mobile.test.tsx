@@ -11,6 +11,7 @@ const mockCreatePracticeSession = vi.fn();
 const mockSavePracticeAnswer = vi.fn();
 const mockCompletePracticeSession = vi.fn();
 const mockSavePracticeSessionNotes = vi.fn();
+const mockGetEntitlement = vi.fn();
 const mockUseIsMobile = vi.fn();
 
 class MockResizeObserver {
@@ -76,6 +77,10 @@ vi.mock("@/services/searchService", () => ({
   },
 }));
 
+vi.mock("@/services/entitlements", () => ({
+  getEntitlement: (...args: unknown[]) => mockGetEntitlement(...args),
+}));
+
 beforeAll(() => {
   vi.stubGlobal("ResizeObserver", MockResizeObserver);
 });
@@ -99,6 +104,12 @@ describe("Practice mobile layout", () => {
       },
     });
     mockGetQuestionFlags.mockResolvedValue({ success: true, flags: {} });
+    mockGetEntitlement.mockResolvedValue({
+      tier: "free",
+      cadence: null,
+      currentPeriodEnd: null,
+      status: "none",
+    });
     mockCreatePracticeSession.mockResolvedValue({
       success: true,
       session: {
@@ -418,5 +429,34 @@ describe("Practice keyboard navigation", () => {
     fireEvent.keyDown(window, { key: "ArrowLeft" });
 
     expect(await screen.findByText(initialQuestionText)).toBeInTheDocument();
+  });
+
+  it("debounces the aria-live question announcement so rapid navigation doesn't flood screen readers", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByText("Quick Start"));
+    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
+
+    const initialAnnouncement = await screen.findByText("Question 1 of 2");
+    expect(initialAnnouncement).toHaveAttribute("aria-live", "polite");
+    expect(initialAnnouncement).toHaveAttribute("aria-atomic", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: /skip/i }));
+
+    // Synchronously after navigation, the live region text still reflects the
+    // previous index — the debounce hasn't elapsed yet.
+    expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
+    expect(screen.queryByText("Question 2 of 2")).not.toBeInTheDocument();
+
+    await waitFor(
+      () => expect(screen.getByText("Question 2 of 2")).toBeInTheDocument(),
+      { timeout: 1500 },
+    );
   });
 });

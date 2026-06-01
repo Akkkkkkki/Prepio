@@ -41,6 +41,7 @@ import {
   Trash2
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
+import { getEntitlement } from "@/services/entitlements";
 import { sessionSampler } from "@/services/sessionSampler";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -68,6 +69,8 @@ const OFFLINE_PRACTICE_MESSAGE = "Reconnect to start practice, save answers, or 
 const RECOMMENDED_ANSWER_TIME_COPY = "Aim for 1-2 min";
 const ABORTED_RECORDING_ERROR_MESSAGE =
   "Recording stopped before any audio was captured. Try again or switch to notes.";
+
+type AnswerFeedbackAccess = "loading" | "free" | "paid";
 
 const SETUP_STEPS = [
   { key: "goal", label: "Goal" },
@@ -196,6 +199,7 @@ const Practice = () => {
   const [allStages, setAllStages] = useState<InterviewStage[]>([]);
   const [searchData, setSearchData] = useState<{ status: string; company?: string; role?: string } | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [announcedIndex, setAnnouncedIndex] = useState(0);
   const [answers, setAnswers] = useState<Map<string, string>>(new Map());
   const [questionTimers, setQuestionTimers] = useState<Map<string, number>>(new Map());
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(Date.now());
@@ -213,6 +217,8 @@ const Practice = () => {
   const [savedAnswers, setSavedAnswers] = useState<Map<string, boolean>>(new Map());
   const [savedAnswerRecords, setSavedAnswerRecords] = useState<SavedPracticeAnswerRecord[]>([]);
   const [isSavingRating, setIsSavingRating] = useState(false);
+  const [answerFeedbackAccess, setAnswerFeedbackAccess] =
+    useState<AnswerFeedbackAccess>("loading");
   
   // Question flags (Epic 1.3)
   const [questionFlags, setQuestionFlags] = useState<Record<string, { flag_type: string; id: string }>>({});
@@ -259,6 +265,33 @@ const Practice = () => {
     if (typeof window === "undefined") return;
     sessionStorage.removeItem(getAutosaveKey(questionId));
   };
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (!user?.id) {
+      setAnswerFeedbackAccess("free");
+      return;
+    }
+
+    setAnswerFeedbackAccess("loading");
+    void getEntitlement(user.id)
+      .then((entitlement) => {
+        if (!isCancelled) {
+          setAnswerFeedbackAccess(entitlement.tier === "paid" ? "paid" : "free");
+        }
+      })
+      .catch((error) => {
+        console.error("Error loading answer feedback entitlement:", error);
+        if (!isCancelled) {
+          setAnswerFeedbackAccess("free");
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user?.id]);
 
   const clearSavedRecording = () => {
     setAudioBlob(null);
@@ -717,6 +750,15 @@ const getInterviewerFocus = (
     setRecordingError(null);
     discardRecordingDraft();
   }, [currentIndex, discardRecordingDraft]);
+
+  // Debounce the screen-reader announcement so rapid keyboard/swipe navigation
+  // doesn't flood the live region with "Question N of M" on every step.
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setAnnouncedIndex(currentIndex);
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [currentIndex]);
 
   useEffect(() => {
     return () => {
@@ -1296,6 +1338,8 @@ const getInterviewerFocus = (
             transcriptText: transcriptText ?? null,
             audioUrl: audioUrl ?? null,
             selfRating: result.answer.self_rating ?? null,
+            goodSignals: currentQuestion.good_answer_signals ?? null,
+            weakSignals: currentQuestion.weak_answer_signals ?? null,
           });
           return next;
         });
@@ -2330,6 +2374,7 @@ const getInterviewerFocus = (
             isSavingRating={isSavingRating}
             needsWorkQuestionIds={needsWorkQuestionIds}
             onToggleNeedsWork={isOffline ? undefined : handleToggleNeedsWork}
+            answerFeedbackAccess={answerFeedbackAccess}
           />
         </div>
       </div>
@@ -2693,8 +2738,8 @@ const getInterviewerFocus = (
   return (
     <div id="main-content" className="min-h-screen bg-background">
       <Navigation />
-      <span className="sr-only" aria-live="polite">
-        Question {currentIndex + 1} of {questions.length}
+      <span className="sr-only" aria-live="polite" aria-atomic="true">
+        Question {announcedIndex + 1} of {questions.length}
       </span>
       <CompletionCheckmark visible={showCheckmark} />
       <div className="container mx-auto max-w-6xl px-4 py-6 pb-32 lg:py-8 lg:pb-40">

@@ -1,9 +1,8 @@
-// Pure handler for Customer Portal session creation. The Deno entrypoint wires
-// Stripe and Supabase; this module keeps subscription gating unit-testable.
+// Pure handler for the create-portal-session edge function. The Deno entrypoint
+// wires auth, env, Supabase, and Stripe; this file keeps the billing contract
+// testable under Vitest.
 //
 // Contract: docs/BILLING.md -> "Manage subscription".
-
-import { resolveEntitlement, type SubscriptionRow } from "../_shared/entitlement-rules.ts";
 
 export interface SupabaseError {
   code?: string;
@@ -20,23 +19,12 @@ interface CustomerSelectBuilder {
   };
 }
 
-interface SubscriptionSelectBuilder {
-  eq: (col: string, val: string) => {
-    maybeSingle: () => Promise<{ data: SubscriptionRow | null; error: SupabaseError | null }>;
-  };
-}
-
 interface BillingCustomersTable {
   select: (columns: string) => CustomerSelectBuilder;
 }
 
-interface BillingSubscriptionsTable {
-  select: (columns: string) => SubscriptionSelectBuilder;
-}
-
 export interface SupabaseLike {
   from(table: "billing_customers"): BillingCustomersTable;
-  from(table: "billing_subscriptions"): BillingSubscriptionsTable;
 }
 
 export interface StripePortalSessionCreateParams {
@@ -59,7 +47,6 @@ export interface Deps {
   stripe: StripeLike;
   appBaseUrl: string;
   log: (event: string, fields?: Record<string, unknown>) => void;
-  now?: () => Date;
 }
 
 export interface PortalRequest {
@@ -74,30 +61,7 @@ export async function createPortalSession(
   deps: Deps,
   req: PortalRequest,
 ): Promise<PortalResult> {
-  const { data: subscriptionRow, error: subscriptionReadError } = await deps.supabase
-    .from("billing_subscriptions")
-    .select("status, cadence, current_period_end, cancel_at_period_end")
-    .eq("user_id", req.userId)
-    .maybeSingle();
-
-  if (subscriptionReadError) {
-    deps.log("billing_subscriptions_read_failed", {
-      userId: req.userId,
-      message: subscriptionReadError.message,
-    });
-    return { ok: false, status: 500, error: "internal_error" };
-  }
-
-  const entitlement = resolveEntitlement(subscriptionRow ?? null, deps.now?.() ?? new Date());
-  if (entitlement.tier !== "paid") {
-    deps.log("portal_blocked_no_active_subscription", {
-      userId: req.userId,
-      status: entitlement.status,
-    });
-    return { ok: false, status: 409, error: "no_active_subscription" };
-  }
-
-  const { data: customerRow, error: customerReadError } = await deps.supabase
+  const { data: customer, error: customerReadError } = await deps.supabase
     .from("billing_customers")
     .select("stripe_customer_id")
     .eq("user_id", req.userId)
@@ -111,19 +75,17 @@ export async function createPortalSession(
     return { ok: false, status: 500, error: "internal_error" };
   }
 
-  if (!customerRow?.stripe_customer_id) {
-    deps.log("portal_blocked_no_customer", { userId: req.userId });
-    return { ok: false, status: 409, error: "no_customer" };
+  if (!customer?.stripe_customer_id) {
+    deps.log("portal_customer_missing", { userId: req.userId });
+    return { ok: false, status: 404, error: "customer_not_found" };
   }
 
   let session: { id: string; url: string | null };
   try {
-    session = await deps.stripe.billingPortal.sessions.create(
-      {
-        customer: customerRow.stripe_customer_id,
-        return_url: `${deps.appBaseUrl}/pricing`,
-      },
-    );
+    session = await deps.stripe.billingPortal.sessions.create({
+      customer: customer.stripe_customer_id,
+      return_url: `${deps.appBaseUrl}/profile?billing=portal_return`,
+    });
   } catch (err) {
     deps.log("stripe_portal_create_failed", {
       userId: req.userId,

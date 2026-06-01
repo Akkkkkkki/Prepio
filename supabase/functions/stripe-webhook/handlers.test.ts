@@ -315,22 +315,91 @@ describe("processEvent — subscription dispatch + ordering guard", () => {
     expect(logs.some((l) => l.event === "stripe_event_stale")).toBe(true);
   });
 
-  it("subscription.deleted applies a canceled snapshot through the ordering-aware RPC", async () => {
+  it("subscription.deleted calls apply_subscription_cancel with the cancel snapshot and event timestamp", async () => {
     const { deps, calls } = buildDeps();
     const event = buildSubscriptionEvent("deleted");
 
-    await processEvent(deps, event);
+    const result = await processEvent(deps, event);
 
-    const rpc = calls.find((c) => c.rpc === "apply_subscription_event");
+    expect(result.outcome).toBe("applied");
+    // Cancellation goes through its own ordering- AND subscription-id-aware
+    // RPC, not through apply_subscription_event (which would clobber an
+    // unrelated active row whenever the cancel timestamp is newer).
+    expect(calls.some((c) => c.rpc === "apply_subscription_event")).toBe(false);
+    const rpc = calls.find((c) => c.rpc === "apply_subscription_cancel");
     expect(rpc?.payload).toMatchObject({
       p_user_id: "user_xyz",
       p_stripe_subscription_id: "sub_test_123",
-      p_status: "canceled",
       p_cadence: "monthly",
       p_cancel_at_period_end: false,
     });
     expect(rpc?.payload.p_current_period_end).toBe(new Date(FUTURE_UNIX * 1000).toISOString());
     expect(rpc?.payload.p_event_created).toBe(new Date(DEFAULT_EVENT_CREATED * 1000).toISOString());
+  });
+
+  it("subscription.deleted returns skipped:stale_event when the cancel RPC reports a no-op (dual-sub or stale)", async () => {
+    // Concrete dual-sub scenario the RPC's WHERE clause protects against:
+    // user previously canceled sub_A and now has an active sub_B. A late
+    // Stripe-emitted delete for sub_A (or a delayed redelivery with a newer
+    // event.created) must NOT overwrite the sub_B row. apply_subscription_cancel
+    // returns false (no row updated, INSERT skipped by the user_id conflict),
+    // we treat it as stale, and crucially do NOT log the event to
+    // billing_events — so a config fix + dashboard resend can still apply
+    // the correct state if needed.
+    const fake = buildFakeSupabase({ rpcResults: { apply_subscription_cancel: false } });
+    const { deps, calls, logs } = buildDeps({ supabase: fake.supabase, calls: fake.calls });
+    const event = buildSubscriptionEvent(
+      "deleted",
+      { id: "sub_A_old", items: { data: [{ price: { id: LOOKUP.monthly } }] } },
+      { created: DEFAULT_EVENT_CREATED + 3600 },
+    );
+
+    const result = await processEvent(deps, event);
+
+    expect(result).toEqual({ outcome: "skipped", reason: "stale_event" });
+    expect(calls.some((c) => c.table === "billing_events" && c.op === "insert")).toBe(false);
+    expect(logs.some((l) => l.event === "stripe_event_stale")).toBe(true);
+  });
+
+  it("subscription.deleted before subscription.created materialises a canceled snapshot so the older create cannot resurrect the row", async () => {
+    // Out-of-order delivery: delete lands before created (e.g. webhook
+    // endpoint catching up after downtime, redelivery queue). The cancel RPC
+    // must INSERT a canceled row stamped with the delete event's timestamp.
+    // Otherwise an UPDATE-only cancel would no-op, processEvent would still
+    // mark the event as applied in billing_events, and a later replay of the
+    // older `created` event would slip through apply_subscription_event and
+    // insert an active row — granting paid entitlement for a sub Stripe has
+    // already canceled.
+    const { deps, calls } = buildDeps();
+    const event = buildSubscriptionEvent("deleted");
+
+    const result = await processEvent(deps, event);
+
+    expect(result.outcome).toBe("applied");
+    // The RPC carries the cancel snapshot — including current_period_end and
+    // cancel_at_period_end — so the migration-side INSERT branch has all the
+    // fields it needs to materialise a NOT-NULL row.
+    const rpc = calls.find((c) => c.rpc === "apply_subscription_cancel");
+    expect(rpc?.payload.p_current_period_end).toBe(new Date(FUTURE_UNIX * 1000).toISOString());
+    expect(rpc?.payload.p_event_created).toBe(new Date(DEFAULT_EVENT_CREATED * 1000).toISOString());
+    expect(calls.some((c) => c.table === "billing_events" && c.op === "insert")).toBe(true);
+  });
+
+  it("subscription.deleted skips with reason=unknown_price when the price is not configured", async () => {
+    // The INSERT branch of apply_subscription_cancel needs a NOT NULL cadence
+    // to satisfy the row's CHECK constraint. Failing closed (skip + no event
+    // log) keeps redelivery viable after a config fix.
+    const { deps, calls, logs } = buildDeps();
+    const event = buildSubscriptionEvent("deleted", {
+      items: { data: [{ price: { id: "price_legacy" } }] },
+    });
+
+    const result = await processEvent(deps, event);
+
+    expect(result).toEqual({ outcome: "skipped", reason: "unknown_price" });
+    expect(calls.some((c) => c.op === "rpc")).toBe(false);
+    expect(calls.some((c) => c.table === "billing_events" && c.op === "insert")).toBe(false);
+    expect(logs.some((l) => l.event === "stripe_unknown_price")).toBe(true);
   });
 
   it("skips with reason=unknown_price when the Stripe price id is not configured", async () => {

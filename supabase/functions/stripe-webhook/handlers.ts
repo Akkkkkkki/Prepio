@@ -245,14 +245,32 @@ async function cancelSubscription(
   const priceId = sub.items.data[0]?.price.id ?? "";
   const cadence: Cadence | null = cadenceFromPriceId(priceId, cadenceLookup);
   if (!cadence) {
+    // Without a known cadence we cannot satisfy the NOT NULL CHECK on the
+    // billing_subscriptions row in the no-row-yet branch of the RPC. Skip
+    // rather than fail; a config fix + Stripe dashboard resend can still
+    // apply this event later because we did not log it to billing_events.
     log("stripe_unknown_price", { priceId, subscriptionId: sub.id });
     return { outcome: "skipped", reason: "unknown_price" };
   }
 
-  const { data, error } = await supabase.rpc("apply_subscription_event", {
+  // apply_subscription_cancel atomically handles three cases:
+  //   1. No row exists yet (delete arrived before created/updated): INSERT a
+  //      canceled snapshot stamped with this event.created. A later replay of
+  //      the older customer.subscription.created event then loses the
+  //      apply_subscription_event ordering guard and cannot resurrect the
+  //      subscription as active.
+  //   2. Row exists but tracks a different stripe_subscription_id (e.g. the
+  //      user previously canceled sub_A and now has an active sub_B): no-op.
+  //      A late Stripe-emitted delete for sub_A — common after dashboard
+  //      metadata edits — must NOT overwrite the active sub_B row.
+  //   3. Row exists for the same subscription: UPDATE to canceled only if the
+  //      event is newer than the row's last_event_created (stale-event guard).
+  // Returns false when the call is a no-op for cases 2 or 3; we treat both as
+  // "stale" so processEvent does not log the event to billing_events, leaving
+  // the door open for a redelivery + config fix to apply the right state.
+  const { data, error } = await supabase.rpc("apply_subscription_cancel", {
     p_user_id: userId,
     p_stripe_subscription_id: sub.id,
-    p_status: "canceled",
     p_cadence: cadence,
     p_current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
     p_cancel_at_period_end: sub.cancel_at_period_end,
@@ -260,7 +278,7 @@ async function cancelSubscription(
   });
   if (error) {
     log("stripe_subscription_apply_failed", { subscriptionId: sub.id, message: error.message });
-    throw new Error(`apply_subscription_event failed: ${error.message ?? "unknown"}`);
+    throw new Error(`apply_subscription_cancel failed: ${error.message ?? "unknown"}`);
   }
 
   if (data !== true) {
@@ -272,12 +290,7 @@ async function cancelSubscription(
     return { outcome: "skipped", reason: "stale_event" };
   }
 
-  log("stripe_event_applied", {
-    action: "subscription_canceled",
-    userId,
-    subscriptionId: sub.id,
-    cadence,
-  });
+  log("stripe_event_applied", { action: "subscription_canceled", userId, subscriptionId: sub.id });
   return { outcome: "applied" };
 }
 
