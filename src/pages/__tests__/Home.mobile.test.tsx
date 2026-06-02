@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
@@ -266,6 +266,30 @@ describe("Home flow", () => {
     expect(screen.getByText("Systems judgment")).toBeInTheDocument();
     expect(screen.getByText("How would you design a resilient payment event pipeline?")).toBeInTheDocument();
     expect(screen.queryByTestId("auth-state")).not.toBeInTheDocument();
+  });
+
+  it("shows preset quick guidance for guest previews without a free-text ask box", async () => {
+    renderHome();
+
+    fireEvent.change(screen.getByLabelText("Company *"), {
+      target: { value: "Stripe" },
+    });
+    fireEvent.change(screen.getByLabelText("Role (optional)"), {
+      target: { value: "Platform Engineer" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
+
+    const guidance = await screen.findByRole("region", { name: "Quick guidance" });
+
+    expect(within(guidance).getByRole("button", { name: "What should I practice first?" })).toBeInTheDocument();
+    expect(within(guidance).getByRole("button", { name: "Which questions are most senior-level?" })).toBeInTheDocument();
+    expect(within(guidance).getByRole("button", { name: "How should I position my background?" })).toBeInTheDocument();
+    expect(within(guidance).queryByLabelText("Ask about this prep")).not.toBeInTheDocument();
+    expect(within(guidance).queryByRole("button", { name: "Ask" })).not.toBeInTheDocument();
+
+    fireEvent.click(within(guidance).getByRole("button", { name: "Which questions are most senior-level?" }));
+
+    expect(within(guidance).getByText(/strongest senior signal is Systems judgment/i)).toBeInTheDocument();
   });
 
   it("saves the guest preview draft and carries preview auth state to /auth", async () => {
