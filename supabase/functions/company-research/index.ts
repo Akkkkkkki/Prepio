@@ -10,6 +10,10 @@ import { createHybridScraper, InterviewExperience } from "../_shared/native-scra
 import { authorizeRequest, ensureServiceCaller } from "../_shared/auth.ts";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import { buildSearchPayloads } from "./result-aggregation.ts";
+import {
+  NATIVE_COVERAGE_THRESHOLD,
+  decideTavilyCoverage,
+} from "./hybrid-coverage.ts";
 
 interface CompanyResearchRequest {
   company: string;
@@ -544,6 +548,27 @@ async function conductHybridResearch(
     logger?.logPhaseTransition('NATIVE_SCRAPING', 'TAVILY_DISCOVERY', { company, role });
     console.log("Phase 2: Tavily discovery of additional sources (blogs, unknown forums)...");
 
+    // Per-platform coverage decision (PREPIO-49): only exclude a community
+    // domain from Tavily when its native scraper actually produced meaningful
+    // results. Otherwise Tavily blanket-skips the most anti-bot-protected
+    // sites — Glassdoor / Blind / Reddit / LeetCode — when those are exactly
+    // the sources where candidate-reported questions live.
+    const coverage = decideTavilyCoverage(
+      nativeResults.executionSummary.platformBreakdown,
+    );
+    logger?.log('TAVILY_COVERAGE_DECISION', 'PHASE2', {
+      platformBreakdown: nativeResults.executionSummary.platformBreakdown,
+      threshold: NATIVE_COVERAGE_THRESHOLD,
+      excludedDomains: coverage.excludedDomains,
+      rescuedDomains: coverage.rescuedDomains,
+      uncoveredPlatforms: coverage.uncoveredPlatforms,
+    });
+    if (coverage.rescuedDomains.length > 0) {
+      console.log(
+        `[HybridResearch] Rescuing under-covered platforms via Tavily: ${coverage.uncoveredPlatforms.join(', ')}`,
+      );
+    }
+
     // Use Tavily for discovering content NOT covered by native scrapers
     const tavilyQueries = [
       `"${company}" interview experience blog 2024`,
@@ -561,7 +586,7 @@ async function conductHybridResearch(
           searchDepth: 'basic',
           maxResults: 8, // Smaller limit since this is supplementary
           includeRawContent: false,
-          excludeDomains: ['glassdoor.com', 'reddit.com', 'blind.teamblind.com', 'leetcode.com'] // Exclude sites we already scraped natively
+          excludeDomains: coverage.excludedDomains,
         }, searchId, userId, supabase);
 
         if (searchResult) {
