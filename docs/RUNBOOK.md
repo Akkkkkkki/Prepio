@@ -120,14 +120,14 @@ All Edge Functions run with `verify_jwt = false` (see [`supabase/config.toml`](.
 
 Three classes of public entry point:
 
-- **Service-only sub-functions.** `company-research`, `job-analysis`, and `cv-analysis` are invoked by `interview-research` using the service-role bearer. They call `authorizeRequest` and reject anything that isn't `kind: "service"` with a 403. Direct anon invocations are rejected before any OpenAI/Tavily call or service-role DB write.
+- **Service-only sub-functions.** `company-research`, `job-analysis`, `cv-analysis`, and `interview-question-generator` are invoked by `interview-research` using the service-role bearer. They call `authorizeRequest` and reject anything that isn't `kind: "service"` with a 403. Direct anon invocations are rejected before any OpenAI/Tavily call or service-role DB write.
 - **User-scoped functions.** `interview-research`, `answer-feedback`, `practice-audio-transcribe`, `create-checkout-session`, `create-portal-session`, and `profile-import` require a user JWT.
 - **Genuinely public function.** `research-preview` stays unauthenticated by product design (guest preview). It is rate-limited per fingerprint via `research_preview_rate_limits`. The fingerprint is the gateway-set `x-forwarded-for` first IP only — client-controlled headers like `x-preview-session` and `user-agent` are deliberately excluded from the key, because including any client-controllable signal lets a single attacker rotate the header and land in fresh rate-limit rows (PREPIO-61).
 - **Signed function.** `stripe-webhook` verifies Stripe's signature instead of a JWT.
 
 ### Allowed origins (CORS)
 
-`company-research`, `job-analysis`, and `research-preview` use the shared [`buildCorsHeaders`](../supabase/functions/_shared/cors.ts) helper. Set `APP_ALLOWED_ORIGINS` (comma-separated) as a function-level secret to lock CORS down to known origins; if the env var is unset, the helper falls back to `*` so local dev keeps working.
+`company-research`, `job-analysis`, `interview-question-generator`, and `research-preview` use the shared [`buildCorsHeaders`](../supabase/functions/_shared/cors.ts) helper. Set `APP_ALLOWED_ORIGINS` (comma-separated) as a function-level secret to lock CORS down to known origins; if the env var is unset, the helper falls back to `*` so local dev keeps working.
 
 ```bash
 supabase secrets set APP_ALLOWED_ORIGINS="https://prepio.app,https://www.prepio.app"

@@ -1,15 +1,12 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
 import { getOpenAIModel } from "../_shared/config.ts";
+import { authorizeRequest, ensureServiceCaller } from "../_shared/auth.ts";
+import { buildCorsHeaders } from "../_shared/cors.ts";
 import {
   resolveExperienceLevel,
   type CanonicalLevel,
 } from "./experience-level.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 interface QuestionGenerationRequest {
   searchId: string;
@@ -474,9 +471,31 @@ You MUST return ONLY valid JSON in this exact structure - no markdown, no additi
 }
 
 serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req);
+
   // Handle CORS preflight request
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Create Supabase client up front so auth checks can run before any work.
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  const authResult = await authorizeRequest(req, supabase);
+  if (!authResult.ok) {
+    return new Response(authResult.response.body, {
+      status: authResult.response.status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const serviceCheck = ensureServiceCaller(authResult.context);
+  if (!serviceCheck.ok) {
+    return new Response(serviceCheck.response.body, {
+      status: serviceCheck.response.status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
