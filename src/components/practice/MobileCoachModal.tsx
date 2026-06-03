@@ -46,6 +46,7 @@ export const MobileCoachModal = ({
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-4">
           <QuestionInsightsPanel
             data={insights}
+            hideHeader
             className="space-y-4 rounded-none border-0 bg-transparent p-0 shadow-none"
           />
         </div>

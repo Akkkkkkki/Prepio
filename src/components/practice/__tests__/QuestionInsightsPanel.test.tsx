@@ -37,5 +37,15 @@ describe("QuestionInsightsPanel", () => {
     const { container } = render(<QuestionInsightsPanel data={null} />);
     expect(container.firstChild).toBeNull();
   });
+
+  it("omits the panel header when hideHeader is set, keeping the depth badge", () => {
+    render(<QuestionInsightsPanel data={sampleData} hideHeader />);
+
+    expect(screen.queryByText("What strong answers show")).not.toBeInTheDocument();
+    expect(screen.queryByText("Interviewer focus")).not.toBeInTheDocument();
+    expect(screen.getByText(sampleData.depthLabel)).toBeInTheDocument();
+    // Body content should still render so the panel remains useful.
+    expect(screen.getByText("Great answers include")).toBeInTheDocument();
+  });
 });
 
