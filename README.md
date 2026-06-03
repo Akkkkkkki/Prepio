@@ -12,13 +12,12 @@ Shipped:
 - Resume upload for PDF/DOCX, pasted resume text, active resume versioning, and file cleanup.
 - Structured candidate profile with AI-assisted CV import, automatic safe merges, and conflict review.
 - Practice audio upload, transcription, and saved answer transcripts.
-- Billing foundation: Stripe webhook, billing tables, shared entitlement rules, frontend and Edge entitlement readers.
+- Billing: Stripe webhook, Checkout session creation, Customer Portal session creation, user-facing pricing page, and entitlement-gated paid features.
+- AI answer feedback on submitted practice answers, gated by entitlement.
 - Offline banners, PWA metadata, mobile practice flows, and core UI tests.
 
 Not shipped yet:
 
-- User-facing pricing page, Stripe Checkout session creation, Customer Portal session creation, and upgrade prompts.
-- AI answer feedback on submitted practice answers.
 - Readiness scoring based on feedback.
 - Lifecycle notifications.
 
