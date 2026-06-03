@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils";
 
 const SWIPE_THRESHOLD_PX = 60;
 const VERTICAL_SCROLL_SUPPRESSION_DELTA = 12;
+const MOBILE_FOOTER_CLEARANCE_PX = 16;
 const SWIPE_HINT_STORAGE_PREFIX = "practiceSwipeHintDismissed";
 const ANSWER_AUTOSAVE_PREFIX = "practiceAnswerAutosave";
 const AUTOSAVE_DELAY_MS = 5000;
@@ -2390,7 +2391,12 @@ const getInterviewerFocus = (
         className={cn(
           "min-h-[100dvh] bg-background transition-[padding] duration-200"
         )}
-        style={{ paddingBottom: mobileFooterHeight > 0 ? `${mobileFooterHeight}px` : undefined }}
+        style={{
+          paddingBottom:
+            mobileFooterHeight > 0
+              ? `${mobileFooterHeight + MOBILE_FOOTER_CLEARANCE_PX}px`
+              : undefined,
+        }}
       >
         <div className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <div className="flex h-14 items-center gap-2 px-4">
