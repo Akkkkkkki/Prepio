@@ -22,35 +22,47 @@ export interface QuestionInsightsData {
 interface QuestionInsightsPanelProps {
   data: QuestionInsightsData | null;
   className?: string;
+  /**
+   * Hide the panel's own "Interviewer focus / What strong answers show" header.
+   * Set when the panel is embedded in a surface that already provides a title
+   * (e.g. MobileCoachModal's SheetHeader) to avoid a duplicated heading.
+   */
+  hideHeader?: boolean;
 }
 
-export const QuestionInsightsPanel = ({ data, className }: QuestionInsightsPanelProps) => {
+export const QuestionInsightsPanel = ({ data, className, hideHeader = false }: QuestionInsightsPanelProps) => {
   if (!data) return null;
 
   const hasSignals = (data.goodSignals?.length ?? 0) > 0 || (data.weakSignals?.length ?? 0) > 0;
   const hasFollowUps = (data.followUps?.length ?? 0) > 0;
   const hasOutline = Boolean(data.sampleAnswerOutline);
+  const badgeLabel = data.depthLabel ?? data.meta?.difficulty ?? null;
 
   return (
     <div className={cn("rounded-2xl border bg-background p-4 shadow-sm space-y-3", className)}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase text-muted-foreground">Interviewer focus</p>
-          <h3 className="text-base font-semibold">What strong answers show</h3>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {data.depthLabel && (
+      {hideHeader ? (
+        badgeLabel && (
+          <div className="flex flex-wrap justify-end gap-2">
             <Badge variant="outline" className="text-xs">
-              {data.depthLabel}
+              {badgeLabel}
             </Badge>
-          )}
-          {data.meta?.difficulty && !data.depthLabel && (
-            <Badge variant="outline" className="text-xs">
-              {data.meta.difficulty}
-            </Badge>
+          </div>
+        )
+      ) : (
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase text-muted-foreground">Interviewer focus</p>
+            <h3 className="text-base font-semibold">What strong answers show</h3>
+          </div>
+          {badgeLabel && (
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="text-xs">
+                {badgeLabel}
+              </Badge>
+            </div>
           )}
         </div>
-      </div>
+      )}
 
       {(data.meta?.company || data.meta?.role || data.seniorityExpectation) && (
         <div className="space-y-1 text-xs text-muted-foreground">
