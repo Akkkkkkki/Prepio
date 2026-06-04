@@ -144,7 +144,7 @@ describe("Dashboard mobile layout", () => {
     });
   });
 
-  it("renders PrepSummaryHero on mobile with headline and practice CTA", async () => {
+  it("renders PrepSummaryHero on mobile with headline and exactly one practice CTA in the sticky bar", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
         <Routes>
@@ -156,7 +156,7 @@ describe("Dashboard mobile layout", () => {
     expect(await screen.findByText(/OpenAI · prep summary/i)).toBeInTheDocument();
     expect(screen.getByText(/You're set up with 3 questions across 2 stages/)).toBeInTheDocument();
     const practiceButtons = screen.getAllByRole("button", { name: /Start practice/ });
-    expect(practiceButtons.length).toBeGreaterThanOrEqual(2);
+    expect(practiceButtons).toHaveLength(1);
   });
 
   it("shows only data-backed overview metrics on desktop", async () => {
