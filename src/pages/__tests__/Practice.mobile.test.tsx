@@ -230,7 +230,7 @@ describe("Practice mobile layout", () => {
     });
 
     await waitFor(() => {
-      expect(shell.style.paddingBottom).toBe("420px");
+      expect(shell.style.paddingBottom).toBe("436px");
     });
 
     fireEvent.change(notesField, { target: { value: "STAR bullets and metrics" } });
@@ -251,6 +251,47 @@ describe("Practice mobile layout", () => {
     });
 
     expect(screen.getByDisplayValue("STAR bullets and metrics")).toBeInTheDocument();
+  });
+
+  it("reserves clearance beyond the footer height so the question card bottom isn't covered", async () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await startPracticeSession();
+
+    const shell = container.querySelector("[data-mobile-practice-shell]") as HTMLElement;
+    const footer = container.querySelector("[data-mobile-practice-footer]") as HTMLElement;
+
+    const measuredFooterHeight = 200;
+    Object.defineProperty(footer, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        x: 0,
+        y: 0,
+        top: 0,
+        right: 390,
+        bottom: measuredFooterHeight,
+        left: 0,
+        width: 390,
+        height: measuredFooterHeight,
+        toJSON: () => ({}),
+      }),
+    });
+
+    await act(async () => {
+      MockResizeObserver.triggerAll();
+    });
+
+    await waitFor(() => {
+      const reservedPx = Number.parseInt(shell.style.paddingBottom, 10);
+      expect(Number.isNaN(reservedPx)).toBe(false);
+      expect(reservedPx).toBeGreaterThan(measuredFooterHeight);
+    });
   });
 
   it("keeps touch swipe navigation on mobile and shows permission-denied recording guidance", async () => {
