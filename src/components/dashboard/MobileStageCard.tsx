@@ -48,7 +48,7 @@ export const MobileStageCard = ({
           <Badge variant="outline" className="shrink-0 text-[11px] uppercase tracking-[0.14em]">
             Stage {index + 1}
           </Badge>
-          <span className="min-w-0 break-words text-xs text-muted-foreground">
+          <span className="whitespace-nowrap text-xs text-muted-foreground">
             {questionCount} question{questionCount === 1 ? "" : "s"}
           </span>
         </div>

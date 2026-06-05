@@ -144,6 +144,25 @@ describe("Dashboard mobile layout", () => {
     });
   });
 
+  it("keeps per-stage question counts on a single line so 'question' doesn't break mid-word", async () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Stage roadmap");
+
+    for (const text of ["1 question", "2 questions"]) {
+      const count = screen.getByText(text);
+      expect(count.tagName).toBe("SPAN");
+      expect(count.className).toMatch(/whitespace-nowrap/);
+      expect(count.className).not.toMatch(/break-words/);
+    }
+  });
+
   it("renders PrepSummaryHero on mobile with headline and practice CTA", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
