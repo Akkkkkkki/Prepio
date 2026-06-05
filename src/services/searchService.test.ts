@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockSupabase } = vi.hoisted(() => ({
   mockSupabase: {
@@ -98,10 +98,15 @@ const createDeleteChain = (
 describe("practice history answer dedupe helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
     mockSupabase.auth.getUser.mockResolvedValue({
       data: { user: { id: "user-1" } },
       error: null,
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("keeps only the latest answer per question", () => {
@@ -345,6 +350,32 @@ describe("practice history answer dedupe helpers", () => {
         searchId: "search-1",
       },
     });
+  });
+
+  it("does not fail startup when the research function acknowledgement takes longer than 15 seconds", async () => {
+    vi.useFakeTimers();
+    mockSupabase.functions.invoke.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => {
+            resolve({
+              data: { status: "accepted" },
+              error: null,
+            });
+          }, 16_000);
+        }),
+    );
+
+    const resultPromise = searchService.startProcessing("search-slow-ack", {
+      company: "OpenAI",
+    });
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(mockSupabase.from).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    await expect(resultPromise).resolves.toEqual({ success: true });
+    expect(mockSupabase.from).not.toHaveBeenCalled();
   });
 
   it("marks the search as failed when the research function cannot be started", async () => {

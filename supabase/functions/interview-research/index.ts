@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
 import { SearchLogger } from "../_shared/logger.ts";
-import { RESEARCH_CONFIG, getOpenAIModel, getMaxTokens } from "../_shared/config.ts";
-import { ProgressTracker, PROGRESS_STEPS, CONCURRENT_TIMEOUTS, executeWithTimeout } from "../_shared/progress-tracker.ts";
+import { getOpenAIModel } from "../_shared/config.ts";
+import { ProgressTracker, CONCURRENT_TIMEOUTS } from "../_shared/progress-tracker.ts";
 import { authorizeRequest, type AuthorizedRequestContext } from "../_shared/auth.ts";
 import { parseJsonResponse } from "../_shared/openai-client.ts";
 
@@ -955,15 +955,17 @@ serve(async (req: Request) => {
     return jsonResponse({ success: false, error: "Missing required fields: company, searchId, userId" }, 400);
   }
 
-  // Fire-and-forget: process in background if EdgeRuntime supports it
-  const work = processInterviewResearch(requestData, authResult.context);
+  const work = processInterviewResearch(requestData, authResult.context).catch((error) => {
+    console.error("Unhandled background interview research error:", error);
+  });
 
   if (edgeRuntime.EdgeRuntime?.waitUntil) {
     edgeRuntime.EdgeRuntime.waitUntil(work);
-    return jsonResponse({ success: true, message: "Research started", searchId: requestData.searchId }, 202);
   }
 
-  // Fallback: await inline
-  await work;
-  return jsonResponse({ success: true, message: "Research completed", searchId: requestData.searchId }, 200);
+  return jsonResponse({
+    success: true,
+    message: "Research queued",
+    searchId: requestData.searchId,
+  }, 202);
 });

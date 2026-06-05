@@ -135,17 +135,16 @@ export class ProgressTracker {
 }
 
 /**
- * Concurrent processing timeout configuration
- * Optimized for parallel execution to prevent cascade failures
- * Phase 2 Update: Increased timeouts to handle slower external APIs
- * Phase 4 Update: Increased AI Synthesis timeout to handle complex OpenAI responses
+ * Concurrent processing timeout configuration.
+ * Retrieval runs in the interview-research background job, so these are
+ * stall guards for individual phases rather than user-facing request limits.
  */
 export const CONCURRENT_TIMEOUTS = {
-  companyResearch: 20000,      // 15s → 20s (external API calls may take time)
-  jobAnalysis: 20000,          // 15s → 20s (large job descriptions need more time)
-  cvAnalysis: 15000,           // 10s → 15s (reliable, give some headroom)
-  questionGeneration: 40000,   // 25s → 40s (OpenAI API can be slow with complex JSON responses)
-  totalOperation: 60000        // 35s → 60s (total concurrent timeout - increased for longer AI synthesis)
+  companyResearch: 120000,
+  jobAnalysis: 120000,
+  cvAnalysis: 45000,
+  questionGeneration: 120000,
+  totalOperation: 300000,
 } as const;
 
 /**

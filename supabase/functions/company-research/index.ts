@@ -76,11 +76,6 @@ async function searchCompanyInfo(
   supabase?: any,
   logger?: SearchLogger
 ): Promise<any> {
-  // Set a maximum execution time for the entire function (15 seconds for concurrent execution)
-  const functionTimeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Company research function timeout')), 15000)
-  );
-
   const researchPromise = async () => {
     const tavilyApiKey = Deno.env.get("TAVILY_API_KEY");
     if (!tavilyApiKey) {
@@ -282,11 +277,11 @@ async function searchCompanyInfo(
   }; // End of researchPromise
 
   try {
-    return await Promise.race([researchPromise(), functionTimeout]);
+    return await researchPromise();
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    logger?.log('SEARCH_TIMEOUT', 'COMPANY_INFO', { company, role }, errorMsg);
-    console.error("Company research timed out or failed:", error);
+    logger?.log('SEARCH_ERROR', 'COMPANY_INFO', { company, role }, errorMsg);
+    console.error("Company research failed:", error);
     return null;
   }
 }
