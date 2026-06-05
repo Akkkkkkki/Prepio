@@ -78,11 +78,13 @@ TAVILY_API_KEY=...
 |------|--------|-----------|
 | `/` | Public | `Home` |
 | `/auth` | Public | `Auth` |
+| `/pricing` | Public | `Pricing` |
 | `/dashboard` | Protected | `Dashboard` |
 | `/search/:searchId` | Protected | `Dashboard` |
 | `/practice` | Protected | `Practice` |
 | `/history` | Protected | `History` |
-| `/profile` | Protected | `Profile` |
+| `/profile/*` | Protected | `Profile` |
+| `/billing/return` | Protected | `BillingReturn` |
 
 Protected-route behavior: [`src/App.tsx`](./src/App.tsx).
 
