@@ -1410,7 +1410,7 @@ const Home = () => {
                       </div>
                       <p
                         className={cn(
-                          "mt-2 text-[11px] font-medium uppercase tracking-[0.16em]",
+                          "mt-2 whitespace-nowrap text-[10px] font-medium uppercase leading-tight tracking-[0.04em]",
                           isCurrent ? "text-foreground" : "text-muted-foreground",
                         )}
                       >

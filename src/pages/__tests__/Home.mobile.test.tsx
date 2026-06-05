@@ -160,6 +160,21 @@ describe("Home flow", () => {
     mockDeleteResumeFiles.mockResolvedValue(undefined);
   });
 
+  it("keeps mobile stepper labels on a single line so 'Role Details' doesn't wrap", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+
+    renderHome();
+
+    const roleDetailsLabel = await screen.findByText("Role Details");
+    expect(roleDetailsLabel.tagName).toBe("P");
+    expect(roleDetailsLabel.className).toMatch(/whitespace-nowrap/);
+
+    for (const label of ["Company", "Role Details", "Personalize"]) {
+      const node = screen.getByText(label);
+      expect(node.className).toMatch(/whitespace-nowrap/);
+    }
+  });
+
   it("restores a saved draft into the signed-in mobile flow", async () => {
     window.sessionStorage.setItem(
       RESEARCH_DRAFT_STORAGE_KEY,
