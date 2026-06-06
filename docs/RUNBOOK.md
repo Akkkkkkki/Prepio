@@ -57,10 +57,10 @@ Check function logs for Tavily 402/429 responses and the configured credit cap i
 
 Quality counterpart to the Tavily cost query above. Use this to spot regressions where retrieval is paid for but synthesis produces little — e.g. throttled extraction or upstream prompt drift.
 
-`interview-research` emits one `[research_yield]` JSON log per completed run with `questions_extracted`, `sources_returned`, `tavily_calls`, and `tavily_credits`. Grep Edge Function logs for live alerting:
+`interview-research` emits one `[research_yield]` JSON log per completed run with `questions_extracted`, `sources_returned`, `tavily_calls`, and `tavily_credits`. Grep Edge Function logs for live alerting — the body is JSON, so match the literal tag plus the JSON-encoded field:
 
 ```
-event=research_yield questions_extracted=0
+[research_yield] "questions_extracted":0
 ```
 
 Daily yield-per-credit (last 14 days):
