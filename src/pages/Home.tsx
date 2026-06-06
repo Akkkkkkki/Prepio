@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -191,6 +191,8 @@ const Home = () => {
   const [preview, setPreview] = useState<ResearchPreview | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [mobileFooterHeight, setMobileFooterHeight] = useState(0);
+  const [mobileFooterElement, setMobileFooterElement] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const draft = loadResearchDraft();
@@ -684,6 +686,37 @@ const Home = () => {
     (!isOnline && mobileStep === "tailoring") ||
     (mobileStep === "company" && !formData.company.trim());
   const mobileFooterPadding = "calc(1rem + env(safe-area-inset-bottom))";
+
+  useLayoutEffect(() => {
+    if (!isMobile || !user) {
+      setMobileFooterHeight(0);
+      return;
+    }
+
+    const footer = mobileFooterElement;
+    if (!footer) return;
+
+    const measureFooter = () => {
+      setMobileFooterHeight(Math.ceil(footer.getBoundingClientRect().height));
+    };
+
+    measureFooter();
+
+    const handleResize = () => measureFooter();
+    window.addEventListener("resize", handleResize);
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => window.removeEventListener("resize", handleResize);
+    }
+
+    const observer = new ResizeObserver(() => measureFooter());
+    observer.observe(footer);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [isMobile, mobileFooterElement, mobileStep, user]);
 
   const renderProfileResumeNote = (buttonClassName?: string) => (
     <>
@@ -1373,7 +1406,10 @@ const Home = () => {
 
       <div className={user ? signedInContainerClassName : "container mx-auto px-4 py-8 md:py-12"}>
         {!user ? renderGuestHome() : isMobile ? (
-          <div className="mx-auto max-w-md space-y-6">
+          <div
+            className="mx-auto max-w-md space-y-6 transition-[padding] duration-200"
+            style={{ paddingBottom: mobileFooterHeight > 0 ? `${mobileFooterHeight}px` : undefined }}
+          >
             <div className="space-y-4">
               <div className="space-y-3">
                 <h1 className="text-4xl font-bold tracking-tight">
@@ -1410,7 +1446,7 @@ const Home = () => {
                       </div>
                       <p
                         className={cn(
-                          "mt-2 text-[11px] font-medium uppercase tracking-[0.16em]",
+                          "mt-2 whitespace-nowrap text-[10px] font-medium uppercase leading-tight tracking-[0.04em]",
                           isCurrent ? "text-foreground" : "text-muted-foreground",
                         )}
                       >
@@ -1445,6 +1481,7 @@ const Home = () => {
             </form>
 
             <div
+              ref={setMobileFooterElement}
               className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85"
               data-mobile-home-footer
             >

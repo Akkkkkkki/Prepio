@@ -425,6 +425,7 @@ function PrepSummaryHero({
   estimatedMinutes,
   onStartPractice,
   isOffline,
+  isMobile,
 }: {
   company: string;
   selectedStageCount: number;
@@ -433,6 +434,7 @@ function PrepSummaryHero({
   estimatedMinutes: number;
   onStartPractice: () => void;
   isOffline: boolean;
+  isMobile: boolean;
 }) {
   const headline = selectedQuestionCount > 0
     ? `You're set up with ${selectedQuestionCount} question${selectedQuestionCount === 1 ? "" : "s"} across ${selectedStageCount} stage${selectedStageCount === 1 ? "" : "s"}.`
@@ -459,15 +461,17 @@ function PrepSummaryHero({
             {selectedQuestionCount > 0 && `~${estimatedMinutes} min end-to-end.`}
           </p>
         </div>
-        <Button
-          onClick={onStartPractice}
-          disabled={selectedQuestionCount === 0 || isOffline}
-          size="lg"
-          className="motion-cta shrink-0 md:min-w-[220px]"
-        >
-          <PlayCircle className="mr-2 h-5 w-5" />
-          Start practice{selectedQuestionCount > 0 ? ` · ${selectedQuestionCount}` : ""}
-        </Button>
+        {!isMobile && (
+          <Button
+            onClick={onStartPractice}
+            disabled={selectedQuestionCount === 0 || isOffline}
+            size="lg"
+            className="motion-cta shrink-0 md:min-w-[220px]"
+          >
+            <PlayCircle className="mr-2 h-5 w-5" />
+            Start practice{selectedQuestionCount > 0 ? ` · ${selectedQuestionCount}` : ""}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
@@ -1161,6 +1165,7 @@ const Dashboard = () => {
         estimatedMinutes={estimatedMinutes}
         onStartPractice={startPractice}
         isOffline={isOffline}
+        isMobile={isMobile}
       />
 
       <PrepPriorityStrip priorities={prepPriorities} />

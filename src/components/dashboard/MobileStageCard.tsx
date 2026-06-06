@@ -44,7 +44,7 @@ export const MobileStageCard = ({
       )}
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <Badge variant="outline" className="shrink-0 text-[11px] uppercase tracking-[0.14em]">
             Stage {index + 1}
           </Badge>

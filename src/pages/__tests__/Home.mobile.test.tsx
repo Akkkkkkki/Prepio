@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 import Home from "../Home";
@@ -24,6 +24,39 @@ const mockNetworkStatus = {
   isOnline: true,
   isOffline: false,
 };
+
+class MockResizeObserver {
+  static instances: MockResizeObserver[] = [];
+
+  callback: ResizeObserverCallback;
+
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+    MockResizeObserver.instances.push(this);
+  }
+
+  observe = vi.fn(() => {
+    this.callback([], this as unknown as ResizeObserver);
+  });
+
+  unobserve = vi.fn();
+
+  disconnect = vi.fn();
+
+  static triggerAll() {
+    for (const instance of MockResizeObserver.instances) {
+      instance.callback([], instance as unknown as ResizeObserver);
+    }
+  }
+
+  static reset() {
+    MockResizeObserver.instances = [];
+  }
+}
+
+beforeAll(() => {
+  vi.stubGlobal("ResizeObserver", MockResizeObserver);
+});
 
 vi.mock("@/components/Navigation", () => ({
   default: () => <div>Navigation</div>,
@@ -97,6 +130,7 @@ describe("Home flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.sessionStorage.clear();
+    MockResizeObserver.reset();
     mockNetworkStatus.isOnline = true;
     mockNetworkStatus.isOffline = false;
 
@@ -158,6 +192,21 @@ describe("Home flow", () => {
       resume: { id: "resume-1", created_at: "2026-04-03T00:00:00.000Z" },
     });
     mockDeleteResumeFiles.mockResolvedValue(undefined);
+  });
+
+  it("keeps mobile stepper labels on a single line so 'Role Details' doesn't wrap", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+
+    renderHome();
+
+    const roleDetailsLabel = await screen.findByText("Role Details");
+    expect(roleDetailsLabel.tagName).toBe("P");
+    expect(roleDetailsLabel.className).toMatch(/whitespace-nowrap/);
+
+    for (const label of ["Company", "Role Details", "Personalize"]) {
+      const node = screen.getByText(label);
+      expect(node.className).toMatch(/whitespace-nowrap/);
+    }
   });
 
   it("restores a saved draft into the signed-in mobile flow", async () => {
@@ -495,5 +544,40 @@ describe("Home flow", () => {
         title: "Resume uploaded",
       }),
     );
+  });
+
+  it("reserves bottom padding equal to the measured fixed footer height so chips clear it", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+
+    const { container } = renderHome();
+
+    expect(await screen.findByLabelText("Company *")).toBeInTheDocument();
+
+    const footer = container.querySelector("[data-mobile-home-footer]") as HTMLElement;
+    expect(footer).not.toBeNull();
+
+    Object.defineProperty(footer, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        x: 0,
+        y: 0,
+        top: 0,
+        right: 390,
+        bottom: 180,
+        left: 0,
+        width: 390,
+        height: 180,
+        toJSON: () => ({}),
+      }),
+    });
+
+    await act(async () => {
+      MockResizeObserver.triggerAll();
+    });
+
+    const wrapper = footer.parentElement as HTMLElement;
+    await waitFor(() => {
+      expect(wrapper.style.paddingBottom).toBe("180px");
+    });
   });
 });

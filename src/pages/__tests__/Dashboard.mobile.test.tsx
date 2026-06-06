@@ -144,7 +144,7 @@ describe("Dashboard mobile layout", () => {
     });
   });
 
-  it("keeps per-stage question counts on a single line so 'question' doesn't break mid-word", async () => {
+  it("keeps the mobile stage count on one word while letting the header wrap instead of overflowing the toggle", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
         <Routes>
@@ -153,17 +153,16 @@ describe("Dashboard mobile layout", () => {
       </MemoryRouter>
     );
 
-    await screen.findByText("Stage roadmap");
-
-    for (const text of ["1 question", "2 questions"]) {
-      const count = screen.getByText(text);
-      expect(count.tagName).toBe("SPAN");
-      expect(count.className).toMatch(/whitespace-nowrap/);
-      expect(count.className).not.toMatch(/break-words/);
-    }
+    const count = await screen.findByText("1 question");
+    // The word "question" must never break mid-word (no "questio n").
+    expect(count.className).toContain("whitespace-nowrap");
+    expect(count.className).not.toContain("break-words");
+    // The header group must be able to wrap the count as a unit so it can drop
+    // below the Stage badge rather than overflow behind the Include toggle.
+    expect(count.parentElement?.className).toContain("flex-wrap");
   });
 
-  it("renders PrepSummaryHero on mobile with headline and practice CTA", async () => {
+  it("renders PrepSummaryHero on mobile with headline and exactly one practice CTA in the sticky bar", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
         <Routes>
@@ -175,7 +174,7 @@ describe("Dashboard mobile layout", () => {
     expect(await screen.findByText(/OpenAI · prep summary/i)).toBeInTheDocument();
     expect(screen.getByText(/You're set up with 3 questions across 2 stages/)).toBeInTheDocument();
     const practiceButtons = screen.getAllByRole("button", { name: /Start practice/ });
-    expect(practiceButtons.length).toBeGreaterThanOrEqual(2);
+    expect(practiceButtons).toHaveLength(1);
   });
 
   it("shows only data-backed overview metrics on desktop", async () => {
