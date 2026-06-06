@@ -176,6 +176,57 @@ async function ensureResumeSnapshotForSearch(
   }
 }
 
+// Emits a single structured `[research_yield]` log line so we can track
+// real questions extracted and Tavily source volume per completed run.
+// See docs/RUNBOOK.md → "Research Evidence Yield" for the matching SQL.
+async function emitResearchYield(
+  supabase: any,
+  searchId: string,
+  company: string,
+  level: string,
+) {
+  try {
+    const { count: questionsExtracted } = await supabase
+      .from('interview_questions')
+      .select('id', { count: 'exact', head: true })
+      .eq('search_id', searchId);
+
+    const { data: tavilyRows } = await supabase
+      .schema('ops')
+      .from('tavily_searches')
+      .select('credits_used, results_count')
+      .eq('search_id', searchId);
+
+    const tavilyCalls = (tavilyRows || []).length;
+    const tavilyCredits = (tavilyRows || []).reduce(
+      (sum: number, row: any) => sum + (row.credits_used ?? 0),
+      0,
+    );
+    const sourcesReturned = (tavilyRows || []).reduce(
+      (sum: number, row: any) => sum + (row.results_count ?? 0),
+      0,
+    );
+
+    console.log(
+      `[research_yield] ${JSON.stringify({
+        event: 'research_yield',
+        search_id: searchId,
+        company,
+        level,
+        questions_extracted: questionsExtracted ?? 0,
+        sources_returned: sourcesReturned,
+        tavily_calls: tavilyCalls,
+        tavily_credits: tavilyCredits,
+      })}`,
+    );
+  } catch (error) {
+    console.warn(
+      'Failed to emit research_yield telemetry:',
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
+
 // ── PHASE 1: Concurrent Data Gathering ──────────────────────
 
 async function gatherCompanyData(company: string, role?: string, country?: string, searchId?: string) {
@@ -888,6 +939,7 @@ async function processInterviewResearch(
     await tracker.updateStep('QUESTION_GENERATION_COMPLETE');
     console.log(`\n✅ Interview research complete for search: ${searchId}`);
     logger?.log("FUNCTION_SUCCESS", "COMPLETE");
+    await emitResearchYield(supabase, searchId, requestData.company, level);
     await tracker.markCompleted();
 
   } catch (error) {
