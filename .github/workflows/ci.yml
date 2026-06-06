@@ -30,14 +30,14 @@ jobs:
         run: |
           set +e
           npm run lint
-          status=$?
+          lint_status=$?
           set -e
 
-          if [ "$status" -eq 0 ] || [ "$status" -eq 1 ]; then
+          if [ "$lint_status" -eq 0 ] || [ "$lint_status" -eq 1 ]; then
             exit 0
           fi
 
-          exit "$status"
+          exit "$lint_status"
 
       - name: Typecheck
         run: npm run typecheck
