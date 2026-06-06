@@ -26,7 +26,7 @@ Not shipped yet:
 - Frontend: React, TypeScript, Vite, Tailwind, shadcn-style UI components, TanStack Query.
 - Backend: Supabase Auth, Postgres, Storage, Realtime, Edge Functions.
 - Search and AI: Tavily-backed research plus OpenAI-backed analysis/generation.
-- Billing: Stripe webhook and entitlement foundation. Checkout and portal flows are next.
+- Billing: Stripe webhook, entitlement foundation, Checkout, and Customer Portal.
 - Tests: Vitest for the main frontend/service suite. Deno edge-function tests exist but are legacy.
 
 ## Main Commands
