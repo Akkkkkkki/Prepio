@@ -567,4 +567,41 @@ describe("practice history answer dedupe helpers", () => {
     expect(mockSupabase.from).toHaveBeenCalledWith("practice_answers");
     expect(updates[0]).toEqual({ self_rating: 4 });
   });
+
+  it("updatePracticeAnswerTranscript patches transcript_text for the answer row", async () => {
+    const updates: Array<Record<string, unknown>> = [];
+
+    mockSupabase.from.mockReturnValueOnce(
+      createUpdateChain(
+        { error: null },
+        (payload) => updates.push(payload as Record<string, unknown>),
+      ),
+    );
+
+    const result = await searchService.updatePracticeAnswerTranscript(
+      "answer-1",
+      "transcribed answer",
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockSupabase.from).toHaveBeenCalledWith("practice_answers");
+    expect(updates[0]).toEqual({ transcript_text: "transcribed answer" });
+  });
+
+  it("updatePracticeAnswerTranscript returns success:false when the update errors", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    mockSupabase.from.mockReturnValueOnce(
+      createUpdateChain({ error: new Error("update failed") }),
+    );
+
+    const result = await searchService.updatePracticeAnswerTranscript(
+      "answer-1",
+      "transcribed answer",
+    );
+
+    expect(result.success).toBe(false);
+
+    consoleErrorSpy.mockRestore();
+  });
 });

@@ -914,6 +914,22 @@ export const searchService = {
     }
   },
 
+  async updatePracticeAnswerTranscript(answerId: string, transcriptText: string) {
+    try {
+      const { error } = await supabase
+        .from("practice_answers")
+        .update({ transcript_text: transcriptText })
+        .eq("id", answerId);
+
+      if (error) throw error;
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error updating practice answer transcript:", error);
+      return { error, success: false };
+    }
+  },
+
   async getResume(userId: string) {
     try {
       const { data, error } = await supabase
