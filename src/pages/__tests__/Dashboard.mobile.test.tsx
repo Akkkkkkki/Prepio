@@ -144,6 +144,24 @@ describe("Dashboard mobile layout", () => {
     });
   });
 
+  it("keeps the mobile stage count on one word while letting the header wrap instead of overflowing the toggle", async () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const count = await screen.findByText("1 question");
+    // The word "question" must never break mid-word (no "questio n").
+    expect(count.className).toContain("whitespace-nowrap");
+    expect(count.className).not.toContain("break-words");
+    // The header group must be able to wrap the count as a unit so it can drop
+    // below the Stage badge rather than overflow behind the Include toggle.
+    expect(count.parentElement?.className).toContain("flex-wrap");
+  });
+
   it("renders PrepSummaryHero on mobile with headline and exactly one practice CTA in the sticky bar", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
