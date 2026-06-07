@@ -1440,7 +1440,7 @@ const Home = () => {
                     <div
                       key={step}
                       className={cn(
-                        "rounded-2xl px-3 py-3 text-center transition-colors",
+                        "min-w-0 overflow-hidden rounded-2xl px-3 py-3 text-center transition-colors",
                         isCurrent ? "bg-background shadow-sm" : "bg-transparent",
                       )}
                     >
@@ -1456,7 +1456,7 @@ const Home = () => {
                       </div>
                       <p
                         className={cn(
-                          "mt-2 whitespace-nowrap text-[10px] font-medium uppercase leading-tight tracking-[0.04em]",
+                          "mt-2 whitespace-nowrap text-[10px] font-medium uppercase leading-tight tracking-normal",
                           isCurrent ? "text-foreground" : "text-muted-foreground",
                         )}
                       >
