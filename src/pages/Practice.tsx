@@ -1320,7 +1320,11 @@ const getInterviewerFocus = (
         const savedAnswerId = result.answer.id;
         if (pendingTranscription) {
           // Fire-and-forget: don't block question advance on Whisper latency.
-          // On success, patch the row and local record; on failure, leave audio_path alone.
+          // Scope DB + state patches to the audio_path we transcribed — if the
+          // user re-records this question first, savePracticeAnswer updates the
+          // same row in place with a new audio_path, and a late transcript for
+          // the older recording must not overwrite the newer one.
+          const transcribedAudioPath = pendingTranscription.path;
           void (async () => {
             const transcriptionResult = await searchService.transcribePracticeAudio(pendingTranscription);
             if (!transcriptionResult.success) return;
@@ -1329,12 +1333,18 @@ const getInterviewerFocus = (
               : "";
             if (!transcript) return;
 
-            const patchResult = await searchService.updatePracticeAnswerTranscript(savedAnswerId, transcript);
+            const patchResult = await searchService.updatePracticeAnswerTranscript(
+              savedAnswerId,
+              transcribedAudioPath,
+              transcript,
+            );
             if (!patchResult.success) return;
 
             setSavedAnswerRecords((prev) =>
               prev.map((record) =>
-                record.id === savedAnswerId ? { ...record, transcriptText: transcript } : record,
+                record.id === savedAnswerId && record.audioUrl === transcribedAudioPath
+                  ? { ...record, transcriptText: transcript }
+                  : record,
               ),
             );
           })();

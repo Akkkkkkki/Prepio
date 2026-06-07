@@ -914,12 +914,17 @@ export const searchService = {
     }
   },
 
-  async updatePracticeAnswerTranscript(answerId: string, transcriptText: string) {
+  async updatePracticeAnswerTranscript(
+    answerId: string,
+    audioPath: string,
+    transcriptText: string,
+  ) {
     try {
       const { error } = await supabase
         .from("practice_answers")
         .update({ transcript_text: transcriptText })
-        .eq("id", answerId);
+        .eq("id", answerId)
+        .eq("audio_path", audioPath);
 
       if (error) throw error;
 
