@@ -179,6 +179,9 @@ export type Database = {
           good_answer_signals: string[] | null
           id: string
           linked_priority: string | null
+          linked_story_bullet_id: string | null
+          linked_story_source: string | null
+          linked_story_text: string | null
           question: string
           rationale: string | null
           reason: string | null
@@ -203,6 +206,9 @@ export type Database = {
           good_answer_signals?: string[] | null
           id?: string
           linked_priority?: string | null
+          linked_story_bullet_id?: string | null
+          linked_story_source?: string | null
+          linked_story_text?: string | null
           question: string
           rationale?: string | null
           reason?: string | null
@@ -227,6 +233,9 @@ export type Database = {
           good_answer_signals?: string[] | null
           id?: string
           linked_priority?: string | null
+          linked_story_bullet_id?: string | null
+          linked_story_source?: string | null
+          linked_story_text?: string | null
           question?: string
           rationale?: string | null
           reason?: string | null

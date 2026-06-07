@@ -30,6 +30,9 @@ interface CreateResearchPreviewParams {
 
 const RESEARCH_START_TIMEOUT_MS = 15000;
 const PRACTICE_AUDIO_BUCKET = "practice-audio";
+const PROFILE_STORY_LINKING_ENABLED = ["1", "true", "yes", "on"].includes(
+  (import.meta.env.VITE_PROFILE_STORY_LINKING ?? "").trim().toLowerCase(),
+);
 
 interface ResumeFileInput {
   name: string;
@@ -350,6 +353,14 @@ export const searchService = {
         throw new Error("No authenticated user");
       }
       const normalizedRoleLinks = normalizeRoleLinks(roleLinks);
+      let candidateProfile: CandidateProfile | null = null;
+
+      if (PROFILE_STORY_LINKING_ENABLED) {
+        const profileResult = await this.getCandidateProfile();
+        if (profileResult.success && profileResult.profile) {
+          candidateProfile = profileResult.profile;
+        }
+      }
 
       const response = await Promise.race([
         supabase.functions.invoke("interview-research", {
@@ -362,6 +373,8 @@ export const searchService = {
             level,
             userNote,
             jobDescription,
+            candidateProfile: candidateProfile ?? undefined,
+            candidateProfileResumeId: candidateProfile?.lastResumeId ?? undefined,
             userId: user.id,
             searchId,
           }

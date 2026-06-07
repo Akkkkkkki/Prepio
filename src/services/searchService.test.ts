@@ -341,6 +341,8 @@ describe("practice history answer dedupe helpers", () => {
         level: "senior_ic",
         userNote: undefined,
         jobDescription: undefined,
+        candidateProfile: undefined,
+        candidateProfileResumeId: undefined,
         userId: "user-1",
         searchId: "search-1",
       },

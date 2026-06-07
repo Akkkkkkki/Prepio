@@ -5,6 +5,12 @@ import { RESEARCH_CONFIG, getOpenAIModel, getMaxTokens } from "../_shared/config
 import { ProgressTracker, PROGRESS_STEPS, CONCURRENT_TIMEOUTS, executeWithTimeout } from "../_shared/progress-tracker.ts";
 import { authorizeRequest, type AuthorizedRequestContext } from "../_shared/auth.ts";
 import { parseJsonResponse } from "../_shared/openai-client.ts";
+import {
+  resolveOrMatchStoryForQuestion,
+  serializeProfileForPrompt,
+  type CandidateProfileForStoryLinking,
+  type ProfilePromptContext,
+} from "./profile-story-linking.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,6 +30,8 @@ interface InterviewResearchRequest {
   country?: string;
   roleLinks?: string[];
   cv?: string;
+  candidateProfile?: CandidateProfileForStoryLinking;
+  candidateProfileResumeId?: string | null;
   level?: Level;
   userNote?: string;
   jobDescription?: string;
@@ -35,6 +43,7 @@ interface RawResearchData {
   company_research_raw?: any;
   job_analysis_raw?: any;
   cv_analysis_raw?: any;
+  profile_context_raw?: any;
 }
 
 interface PrepPlanOutput {
@@ -100,12 +109,18 @@ interface QuestionItem {
   linkedPriority: string;
   reason: string;
   answerGuidanceStatus: 'pending' | 'generated';
+  leveragesStoryId: string | null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────
 
 function resolveLevel(req: InterviewResearchRequest): Level {
   return req.level ?? 'unknown';
+}
+
+function isProfileStoryLinkingEnabled(): boolean {
+  const value = Deno.env.get("PROFILE_STORY_LINKING") || "";
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
 async function withDbTimeout<T>(
@@ -332,6 +347,13 @@ QUESTION GENERATION — MINIMUM 40 QUESTIONS TOTAL:
 - Questions must feel downstream of the research, not generic.
 - Set answerGuidanceStatus to "pending" for all questions.
 
+STORY LINKING:
+- When a STRUCTURED CANDIDATE PROFILE block is present, each question must set leveragesStoryId to one shown story handle such as "S1" or to null.
+- Cite only story handles shown in the profile block. Never invent a handle.
+- Prefer STAR-flagged stories when they genuinely fit the question.
+- Use null when no shown story is relevant.
+- Ground candidatePositioning in the shown profile handles and call out gaps when no story handle covers an important assessment theme.
+
 INDUSTRY SUPPORT: Optimize for tech, consulting, and finance. Do not assume software engineering everywhere.
 
 Return ONLY valid JSON matching the exact schema specified. No markdown, no extra text.`;
@@ -347,6 +369,7 @@ function buildPrepPlanPrompt(
   companyInsights: any,
   jobRequirements: any,
   cvAnalysis: any,
+  profileContext: ProfilePromptContext | null,
 ): string {
   let prompt = `Build a PrepPlan for:\n`;
   prompt += `Company: ${company}\n`;
@@ -436,8 +459,10 @@ function buildPrepPlanPrompt(
     prompt += `\n`;
   }
 
-  // ── CV evidence ──
-  if (cvAnalysis) {
+  // ── Profile / CV evidence ──
+  if (profileContext) {
+    prompt += `${profileContext.promptBlock}\n\n`;
+  } else if (cvAnalysis) {
     const a = cvAnalysis.aiAnalysis || cvAnalysis;
     prompt += `=== CANDIDATE CV ===\n`;
     if (a.current_role) prompt += `Current role: ${a.current_role}\n`;
@@ -529,20 +554,20 @@ function getPrepPlanSchema(): any {
     ],
     questionPlan: {
       coreMustPractice: [
-        { question: "Core question 1 — tailored to stage and candidate", stageName: "Phone Screen", linkedPriority: "high", reason: "Why this matters", answerGuidanceStatus: "pending" },
-        { question: "Core question 2 — different dimension", stageName: "Technical Round", linkedPriority: "high", reason: "Why this matters", answerGuidanceStatus: "pending" },
-        { question: "Core question 3 — covers weak spot", stageName: "Behavioral Round", linkedPriority: "high", reason: "Why this matters", answerGuidanceStatus: "pending" },
+        { question: "Core question 1 — tailored to stage and candidate", stageName: "Phone Screen", linkedPriority: "high", reason: "Why this matters", answerGuidanceStatus: "pending", leveragesStoryId: "S1 | null" },
+        { question: "Core question 2 — different dimension", stageName: "Technical Round", linkedPriority: "high", reason: "Why this matters", answerGuidanceStatus: "pending", leveragesStoryId: "S2 | null" },
+        { question: "Core question 3 — covers weak spot", stageName: "Behavioral Round", linkedPriority: "high", reason: "Why this matters", answerGuidanceStatus: "pending", leveragesStoryId: "S3 | null" },
         "... MUST generate ≥ 15 items in this array"
       ],
       likelyFollowUps: [
-        { question: "Follow-up question 1", stageName: null, linkedPriority: "medium", reason: "Why", answerGuidanceStatus: "pending" },
-        { question: "Follow-up question 2", stageName: "Phone Screen", linkedPriority: "medium", reason: "Why", answerGuidanceStatus: "pending" },
-        { question: "Follow-up question 3", stageName: null, linkedPriority: "medium", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Follow-up question 1", stageName: null, linkedPriority: "medium", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: null },
+        { question: "Follow-up question 2", stageName: "Phone Screen", linkedPriority: "medium", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: "S1 | null" },
+        { question: "Follow-up question 3", stageName: null, linkedPriority: "medium", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: null },
         "... MUST generate ≥ 15 items in this array"
       ],
       extraDepth: [
-        { question: "Depth question 1", stageName: null, linkedPriority: "low", reason: "Why", answerGuidanceStatus: "pending" },
-        { question: "Depth question 2", stageName: "Final Round", linkedPriority: "low", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Depth question 1", stageName: null, linkedPriority: "low", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: null },
+        { question: "Depth question 2", stageName: "Final Round", linkedPriority: "low", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: "S1 | null" },
         "... MUST generate ≥ 10 items in this array"
       ],
     },
@@ -561,6 +586,44 @@ function getPrepPlanSchema(): any {
   };
 }
 
+function buildStageThemesByName(plan: PrepPlanOutput): Record<string, string[]> {
+  const lookup: Record<string, string[]> = {};
+  (plan.stageRoadmap || []).forEach((stage) => {
+    lookup[stage.stageName] = stage.questionThemes || [];
+  });
+  return lookup;
+}
+
+function applyStoryLinksToPrepPlan(
+  plan: PrepPlanOutput,
+  profileContext: ProfilePromptContext | null,
+): PrepPlanOutput {
+  if (!profileContext) return plan;
+
+  const stageThemesByName = buildStageThemesByName(plan);
+  const apply = (items: QuestionItem[] = []) =>
+    items.map((question) => {
+      const matchedStory = resolveOrMatchStoryForQuestion(
+        question,
+        profileContext,
+        question.stageName ? stageThemesByName[question.stageName] || [] : [],
+      );
+      return {
+        ...question,
+        leveragesStoryId: matchedStory?.alias ?? null,
+      };
+    });
+
+  return {
+    ...plan,
+    questionPlan: {
+      coreMustPractice: apply(plan.questionPlan?.coreMustPractice || []),
+      likelyFollowUps: apply(plan.questionPlan?.likelyFollowUps || []),
+      extraDepth: apply(plan.questionPlan?.extraDepth || []),
+    },
+  };
+}
+
 async function synthesizePrepPlan(
   company: string,
   role: string | undefined,
@@ -571,6 +634,7 @@ async function synthesizePrepPlan(
   companyInsights: any,
   jobRequirements: any,
   cvAnalysis: any,
+  profileContext: ProfilePromptContext | null,
   openaiApiKey: string,
 ): Promise<PrepPlanOutput | null> {
   try {
@@ -578,7 +642,7 @@ async function synthesizePrepPlan(
 
     const prompt = buildPrepPlanPrompt(
       company, role, country, level, userNote, jobDescription,
-      companyInsights, jobRequirements, cvAnalysis,
+      companyInsights, jobRequirements, cvAnalysis, profileContext,
     );
 
     const model = getOpenAIModel('interviewSynthesis');
@@ -644,6 +708,7 @@ async function savePrepPlanToDatabase(
   userId: string,
   rawData: RawResearchData,
   plan: PrepPlanOutput,
+  profileContext: ProfilePromptContext | null,
 ) {
   try {
     console.log("💾 Saving PrepPlan to database...");
@@ -720,6 +785,13 @@ async function savePrepPlanToDatabase(
       const addQuestions = (items: QuestionItem[], tier: string) => {
         (items || []).forEach((q) => {
           const stageId = q.stageName ? (stageIdByName[q.stageName] ?? null) : null;
+          const linkedStory = resolveOrMatchStoryForQuestion(
+            q,
+            profileContext,
+            q.stageName
+              ? (plan.stageRoadmap || []).find((stage) => stage.stageName === q.stageName)?.questionThemes || []
+              : [],
+          );
           questionsToInsert.push({
             search_id: searchId,
             stage_id: stageId,
@@ -731,7 +803,10 @@ async function savePrepPlanToDatabase(
             evaluation_criteria: [],
             follow_up_questions: [],
             company_context: '',
-            star_story_fit: false,
+            star_story_fit: Boolean(linkedStory),
+            linked_story_bullet_id: linkedStory?.realBulletId ?? null,
+            linked_story_text: linkedStory?.text ?? null,
+            linked_story_source: linkedStory?.sourceLabel ?? null,
             tier,
             linked_priority: q.linkedPriority || '',
             reason: q.reason || '',
@@ -806,6 +881,7 @@ async function processInterviewResearch(
       roleLinkCount: requestData.roleLinks?.length || 0,
       hasUserNote: !!requestData.userNote,
       hasJobDescription: !!requestData.jobDescription,
+      hasCandidateProfile: !!requestData.candidateProfile,
     });
 
     console.log(`\n🚀 Starting interview research (V2 PrepPlan) for search: ${searchId}`);
@@ -832,6 +908,11 @@ async function processInterviewResearch(
       await ensureResumeSnapshotForSearch(supabase, searchId, userId, cvText);
     }
 
+    const profileStoryLinkingEnabled = isProfileStoryLinkingEnabled();
+    const profileContext = profileStoryLinkingEnabled
+      ? serializeProfileForPrompt(requestData.candidateProfile)
+      : null;
+
     // ── PHASE 1: Concurrent Data Gathering ──
     console.log("\n📊 PHASE 1: Gathering research data...");
     await tracker.updateStep('DATA_GATHERING_START');
@@ -839,7 +920,7 @@ async function processInterviewResearch(
     const [companyInsights, jobRequirements, cvAnalysis] = await Promise.allSettled([
       gatherCompanyData(requestData.company, requestData.role, requestData.country, searchId),
       gatherJobData(requestData.roleLinks || [], searchId, requestData.company, requestData.role),
-      gatherCVData(cvText, userId),
+      profileContext ? Promise.resolve(null) : gatherCVData(cvText, userId),
     ]).then(results => [
       results[0].status === 'fulfilled' ? results[0].value : null,
       results[1].status === 'fulfilled' ? results[1].value : null,
@@ -854,6 +935,12 @@ async function processInterviewResearch(
       company_research_raw: companyInsights,
       job_analysis_raw: jobRequirements,
       cv_analysis_raw: cvAnalysis,
+      profile_context_raw: profileContext
+        ? {
+            aliasToBulletId: profileContext.aliasToBulletId,
+            candidateProfileResumeId: requestData.candidateProfileResumeId ?? null,
+          }
+        : null,
     };
 
     // ── PHASE 2: PrepPlan Synthesis ──
@@ -870,6 +957,7 @@ async function processInterviewResearch(
       companyInsights,
       jobRequirements,
       cvAnalysis,
+      profileContext,
       openaiApiKey,
     );
 
@@ -877,13 +965,15 @@ async function processInterviewResearch(
       throw new Error("PrepPlan synthesis failed");
     }
 
+    const linkedPrepPlan = applyStoryLinksToPrepPlan(prepPlan, profileContext);
+
     await tracker.updateStep('AI_SYNTHESIS_COMPLETE');
 
     // ── PHASE 3: Save to database ──
     console.log("\n💾 PHASE 3: Saving PrepPlan to database...");
     await tracker.updateStep('QUESTION_GENERATION_START');
 
-    await savePrepPlanToDatabase(supabase, searchId, userId, rawData, prepPlan);
+    await savePrepPlanToDatabase(supabase, searchId, userId, rawData, linkedPrepPlan, profileContext);
 
     await tracker.updateStep('QUESTION_GENERATION_COMPLETE');
     console.log(`\n✅ Interview research complete for search: ${searchId}`);
