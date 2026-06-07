@@ -24,11 +24,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Lint is informational only — see docs/TESTING.md "Lint Baseline".
-      # Pre-existing failures are documented; keep this non-blocking.
+      # Lint rule violations are informational only (exit 1, tolerated below).
+      # The lint script runs with --exit-on-fatal-error so parser/config
+      # breakage exits 2 and still fails CI instead of being masked by the
+      # tolerated baseline.
       - name: Lint (informational)
-        run: npm run lint
-        continue-on-error: true
+        run: |
+          set +e
+          npm run lint
+          lint_status=$?
+          set -e
+
+          if [ "$lint_status" -eq 0 ] || [ "$lint_status" -eq 1 ]; then
+            exit 0
+          fi
+
+          exit "$lint_status"
 
       - name: Typecheck
         run: npm run typecheck
