@@ -24,8 +24,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Lint rule violations are informational only; unexpected lint runtime
-      # failures still fail CI so config/parser breakage cannot be hidden.
+      # Lint rule violations are informational only (exit 1, tolerated below).
+      # The lint script runs with --exit-on-fatal-error so parser/config
+      # breakage exits 2 and still fails CI instead of being masked by the
+      # tolerated baseline.
       - name: Lint (informational)
         run: |
           set +e
