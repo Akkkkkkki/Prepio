@@ -546,7 +546,7 @@ describe("Home flow", () => {
     );
   });
 
-  it("reserves bottom padding equal to the measured fixed footer height so chips clear it", async () => {
+  it("reserves bottom padding equal to the measured fixed footer height plus a small buffer so chips clear it", async () => {
     mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
     const { container } = renderHome();
@@ -577,7 +577,33 @@ describe("Home flow", () => {
 
     const wrapper = footer.parentElement as HTMLElement;
     await waitFor(() => {
-      expect(wrapper.style.paddingBottom).toBe("180px");
+      expect(wrapper.style.paddingBottom).toBe("196px");
     });
+  });
+
+  it("falls back to a non-zero padding before the footer is measured so the wizard isn't covered on first paint", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+
+    const { container } = renderHome();
+
+    expect(await screen.findByLabelText("Company *")).toBeInTheDocument();
+
+    const footer = container.querySelector("[data-mobile-home-footer]") as HTMLElement;
+    expect(footer).not.toBeNull();
+
+    const wrapper = footer.parentElement as HTMLElement;
+    expect(wrapper.style.paddingBottom).toBe("128px");
+  });
+
+  it("does not stack a static pb-32 below the dynamic clearance", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+
+    const { container } = renderHome();
+
+    expect(await screen.findByLabelText("Company *")).toBeInTheDocument();
+
+    const outerContainer = container.querySelector(".container.mx-auto.px-4") as HTMLElement;
+    expect(outerContainer).not.toBeNull();
+    expect(outerContainer.className).not.toMatch(/\bpb-32\b/);
   });
 });
