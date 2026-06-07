@@ -206,6 +206,10 @@ describe("Home flow", () => {
     for (const label of ["Company", "Role Details", "Personalize"]) {
       const node = screen.getByText(label);
       expect(node.className).toMatch(/whitespace-nowrap/);
+      // Cell wrapper must contain any horizontal overflow so the label
+      // cannot bleed into the neighboring stepper cell on narrow viewports.
+      const cell = node.parentElement;
+      expect(cell?.className).toMatch(/overflow-hidden/);
     }
   });
 
