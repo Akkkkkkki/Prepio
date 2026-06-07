@@ -53,6 +53,71 @@ order by 1 desc;
 
 Check function logs for Tavily 402/429 responses and the configured credit cap in `supabase/functions/_shared/config.ts`.
 
+## Research Evidence Yield
+
+Quality counterpart to the Tavily cost query above. Use this to spot regressions where retrieval is paid for but synthesis produces little — e.g. throttled extraction or upstream prompt drift.
+
+`interview-research` emits one `[research_yield]` JSON log per completed run with `questions_extracted`, `sources_returned`, `tavily_calls`, and `tavily_credits`. Grep Edge Function logs for live alerting — the body is JSON, so match the literal tag plus the JSON-encoded field:
+
+```
+[research_yield] "questions_extracted":0
+```
+
+Daily yield-per-credit (last 14 days):
+
+```sql
+select
+  date_trunc('day', s.completed_at) as day,
+  count(distinct s.id) as completed_runs,
+  sum(coalesce(q.q_count, 0)) as questions_extracted,
+  sum(coalesce(t.credits, 0)) as tavily_credits,
+  round(sum(coalesce(q.q_count, 0))::numeric
+        / nullif(sum(coalesce(t.credits, 0)), 0), 2) as questions_per_credit
+from searches s
+left join (
+  select search_id, count(*) as q_count
+  from interview_questions
+  group by 1
+) q on q.search_id = s.id
+left join (
+  select search_id, sum(credits_used) as credits
+  from ops.tavily_searches
+  group by 1
+) t on t.search_id = s.id
+where s.status = 'completed'
+  and s.completed_at > now() - interval '14 days'
+group by 1
+order by 1 desc;
+```
+
+Zero-evidence runs (completed but nothing landed in `interview_questions`):
+
+```sql
+select s.id, s.company, s.role, s.completed_at,
+       coalesce(t.credits, 0) as tavily_credits
+from searches s
+left join (
+  select search_id, sum(credits_used) as credits
+  from ops.tavily_searches
+  group by 1
+) t on t.search_id = s.id
+where s.status = 'completed'
+  and s.completed_at > now() - interval '7 days'
+  and not exists (
+    select 1 from interview_questions q where q.search_id = s.id
+  )
+order by s.completed_at desc;
+```
+
+Per-run drill-down for a specific search:
+
+```sql
+select
+  (select count(*) from interview_questions where search_id = '<search_id>') as questions_extracted,
+  (select coalesce(sum(results_count), 0) from ops.tavily_searches where search_id = '<search_id>') as sources_returned,
+  (select coalesce(sum(credits_used), 0) from ops.tavily_searches where search_id = '<search_id>') as tavily_credits;
+```
+
 ## Resume Upload Fails
 
 Check:
