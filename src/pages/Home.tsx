@@ -63,6 +63,11 @@ type ResearchFormData = {
 const HOME_CV_UPLOAD_ID = "home-cv-upload";
 const MOBILE_STEP_ORDER: ResearchStep[] = ["company", "details", "tailoring"];
 const GUEST_RESEARCH_RESUME_STEP: ResearchStep = "details";
+const MOBILE_FOOTER_CLEARANCE_PX = 16;
+// Floor used before the footer ref measures (first paint / jsdom) so the wizard
+// never renders under the fixed action bar. Matches the proven pb-32 clearance
+// from PREPIO-64.
+const MOBILE_FOOTER_FALLBACK_PX = 128;
 const SUGGESTED_COMPANIES = ["Google", "Meta", "Amazon", "Stripe", "OpenAI", "Palantir"];
 const DEFAULT_FORM_DATA: ResearchFormData = {
   company: "",
@@ -1378,7 +1383,7 @@ const Home = () => {
     </div>
   );
 
-  const signedInContainerClassName = cn("container mx-auto px-4", isMobile ? "pb-32 pt-8" : "py-16");
+  const signedInContainerClassName = cn("container mx-auto px-4", isMobile ? "pt-8" : "py-16");
 
   return (
     <div id="main-content" className="min-h-screen bg-background">
@@ -1408,7 +1413,12 @@ const Home = () => {
         {!user ? renderGuestHome() : isMobile ? (
           <div
             className="mx-auto max-w-md space-y-6 transition-[padding] duration-200"
-            style={{ paddingBottom: mobileFooterHeight > 0 ? `${mobileFooterHeight}px` : undefined }}
+            style={{
+              paddingBottom:
+                mobileFooterHeight > 0
+                  ? `${mobileFooterHeight + MOBILE_FOOTER_CLEARANCE_PX}px`
+                  : `${MOBILE_FOOTER_FALLBACK_PX}px`,
+            }}
           >
             <div className="space-y-4">
               <div className="space-y-3">
