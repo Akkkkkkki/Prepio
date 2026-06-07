@@ -61,11 +61,15 @@ const createInsertChain = <T,>(
 const createUpdateChain = <T,>(
   result: { data?: T; error: unknown },
   onUpdate?: (payload: unknown) => void,
+  onEq?: (column: string, value: unknown) => void,
 ) => {
   const chain = {
     data: result.data,
     error: result.error,
-    eq: vi.fn(() => chain),
+    eq: vi.fn((column: string, value: unknown) => {
+      onEq?.(column, value);
+      return chain;
+    }),
     select: vi.fn(() => chain),
     single: vi.fn(async () => result),
   };
@@ -566,5 +570,52 @@ describe("practice history answer dedupe helpers", () => {
     expect(result.success).toBe(true);
     expect(mockSupabase.from).toHaveBeenCalledWith("practice_answers");
     expect(updates[0]).toEqual({ self_rating: 4 });
+  });
+
+  it("updatePracticeAnswerTranscript patches transcript_text scoped by id and audio_path", async () => {
+    const updates: Array<Record<string, unknown>> = [];
+    const eqCalls: Array<[string, unknown]> = [];
+
+    mockSupabase.from.mockReturnValueOnce(
+      createUpdateChain(
+        { error: null },
+        (payload) => updates.push(payload as Record<string, unknown>),
+        (column, value) => eqCalls.push([column, value]),
+      ),
+    );
+
+    const result = await searchService.updatePracticeAnswerTranscript(
+      "answer-1",
+      "user-1/session-1/q-1-1717000000000.webm",
+      "transcribed answer",
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockSupabase.from).toHaveBeenCalledWith("practice_answers");
+    expect(updates[0]).toEqual({ transcript_text: "transcribed answer" });
+    // The audio_path filter is what protects against a stale transcription
+    // overwriting a row whose audio has since been re-recorded.
+    expect(eqCalls).toEqual([
+      ["id", "answer-1"],
+      ["audio_path", "user-1/session-1/q-1-1717000000000.webm"],
+    ]);
+  });
+
+  it("updatePracticeAnswerTranscript returns success:false when the update errors", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    mockSupabase.from.mockReturnValueOnce(
+      createUpdateChain({ error: new Error("update failed") }),
+    );
+
+    const result = await searchService.updatePracticeAnswerTranscript(
+      "answer-1",
+      "user-1/session-1/q-1.webm",
+      "transcribed answer",
+    );
+
+    expect(result.success).toBe(false);
+
+    consoleErrorSpy.mockRestore();
   });
 });

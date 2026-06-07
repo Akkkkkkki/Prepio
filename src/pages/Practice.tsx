@@ -1283,7 +1283,9 @@ const getInterviewerFocus = (
     
     try {
       let audioUrl: string | undefined;
-      let transcriptText: string | undefined;
+      let pendingTranscription:
+        | { path: string; mimeType: string; fileName: string }
+        | undefined;
 
       if (audioBlob && user?.id) {
         const extension = audioBlob.type.split("/")[1]?.split(";")[0] || "webm";
@@ -1298,16 +1300,11 @@ const getInterviewerFocus = (
         }
 
         audioUrl = uploadResult.path;
-
-        const transcriptionResult = await searchService.transcribePracticeAudio({
+        pendingTranscription = {
           path: uploadResult.path,
           mimeType: audioFile.type,
           fileName: audioFile.name,
-        });
-
-        if (transcriptionResult.success && typeof transcriptionResult.transcript === "string") {
-          transcriptText = transcriptionResult.transcript.trim() || undefined;
-        }
+        };
       }
 
       const result = await searchService.savePracticeAnswer({
@@ -1315,11 +1312,44 @@ const getInterviewerFocus = (
         questionId: questionId,
         textAnswer: currentAnswer.trim() || undefined,
         audioUrl,
-        transcriptText,
+        transcriptText: undefined,
         answerTime: timeSpent
       });
 
       if (result.success && result.answer) {
+        const savedAnswerId = result.answer.id;
+        if (pendingTranscription) {
+          // Fire-and-forget: don't block question advance on Whisper latency.
+          // Scope DB + state patches to the audio_path we transcribed — if the
+          // user re-records this question first, savePracticeAnswer updates the
+          // same row in place with a new audio_path, and a late transcript for
+          // the older recording must not overwrite the newer one.
+          const transcribedAudioPath = pendingTranscription.path;
+          void (async () => {
+            const transcriptionResult = await searchService.transcribePracticeAudio(pendingTranscription);
+            if (!transcriptionResult.success) return;
+            const transcript = typeof transcriptionResult.transcript === "string"
+              ? transcriptionResult.transcript.trim()
+              : "";
+            if (!transcript) return;
+
+            const patchResult = await searchService.updatePracticeAnswerTranscript(
+              savedAnswerId,
+              transcribedAudioPath,
+              transcript,
+            );
+            if (!patchResult.success) return;
+
+            setSavedAnswerRecords((prev) =>
+              prev.map((record) =>
+                record.id === savedAnswerId && record.audioUrl === transcribedAudioPath
+                  ? { ...record, transcriptText: transcript }
+                  : record,
+              ),
+            );
+          })();
+        }
+
         // Mark question as answered
         answeredIdsRef.current.add(questionId);
         setQuestions(prev =>
@@ -1336,7 +1366,7 @@ const getInterviewerFocus = (
             question: currentQuestion.question,
             stageName: currentQuestion.stage_name,
             textAnswer: currentAnswer.trim() || null,
-            transcriptText: transcriptText ?? null,
+            transcriptText: null,
             audioUrl: audioUrl ?? null,
             selfRating: result.answer.self_rating ?? null,
             goodSignals: currentQuestion.good_answer_signals ?? null,
