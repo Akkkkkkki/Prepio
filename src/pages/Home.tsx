@@ -1412,7 +1412,7 @@ const Home = () => {
       <div className={user ? signedInContainerClassName : "container mx-auto px-4 py-8 md:py-12"}>
         {!user ? renderGuestHome() : isMobile ? (
           <div
-            className="mx-auto max-w-md space-y-6 transition-[padding] duration-200"
+            className="mx-auto max-w-md space-y-6"
             style={{
               paddingBottom:
                 mobileFooterHeight > 0
