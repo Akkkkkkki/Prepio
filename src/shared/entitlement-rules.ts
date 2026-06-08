@@ -14,6 +14,7 @@ export interface Entitlement {
   cadence: Cadence | null;
   currentPeriodEnd: string | null;
   status: EntitlementStatus;
+  cancelAtPeriodEnd: boolean;
 }
 
 export interface SubscriptionRow {
@@ -28,6 +29,7 @@ export const FREE_ENTITLEMENT: Entitlement = {
   cadence: null,
   currentPeriodEnd: null,
   status: "none",
+  cancelAtPeriodEnd: false,
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -54,6 +56,7 @@ export function resolveEntitlement(
       cadence: paid ? cadence : null,
       currentPeriodEnd,
       status: "active",
+      cancelAtPeriodEnd: paid ? row.cancel_at_period_end : false,
     };
   }
 
@@ -65,6 +68,7 @@ export function resolveEntitlement(
       cadence: paid ? cadence : null,
       currentPeriodEnd,
       status: "past_due",
+      cancelAtPeriodEnd: paid ? row.cancel_at_period_end : false,
     };
   }
 
@@ -73,5 +77,6 @@ export function resolveEntitlement(
     cadence: null,
     currentPeriodEnd,
     status: row.status === "canceled" ? "canceled" : "none",
+    cancelAtPeriodEnd: false,
   };
 }
