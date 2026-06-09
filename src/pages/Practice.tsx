@@ -2418,9 +2418,7 @@ const getInterviewerFocus = (
     return (
       <div
         data-mobile-practice-shell
-        className={cn(
-          "min-h-[100dvh] bg-background transition-[padding] duration-200"
-        )}
+        className="min-h-[100dvh] bg-background"
         style={{
           paddingBottom:
             mobileFooterHeight > 0
