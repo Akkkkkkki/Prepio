@@ -127,6 +127,64 @@ describe("Profile page", () => {
     expect(screen.queryByRole("button", { name: "Update profile from pasted CV" })).not.toBeInTheDocument();
   });
 
+  it("opens the Stripe Customer Portal from the profile action", async () => {
+    const assignMock = vi.fn();
+    const originalLocation = window.location;
+    const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    mockGetEntitlement.mockResolvedValue({
+      tier: "paid",
+      cadence: "monthly",
+      currentPeriodEnd: future,
+      status: "active",
+      cancelAtPeriodEnd: false,
+    });
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...originalLocation, assign: assignMock },
+    });
+
+    try {
+      renderProfile();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Manage subscription" }));
+
+      await waitFor(() => {
+        expect(mockCreatePortalSession).toHaveBeenCalled();
+      });
+      expect(assignMock).toHaveBeenCalledWith("https://billing.example/portal");
+    } finally {
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
+  });
+
+  it("shows a billing error when the portal session cannot be created", async () => {
+    const { BillingError } = await import("@/services/billing");
+    const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    mockGetEntitlement.mockResolvedValue({
+      tier: "paid",
+      cadence: "monthly",
+      currentPeriodEnd: future,
+      status: "active",
+      cancelAtPeriodEnd: false,
+    });
+    mockCreatePortalSession.mockRejectedValue(
+      new BillingError("no_customer", "no_customer", 409),
+    );
+
+    renderProfile();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Manage subscription" }));
+
+    expect(
+      await screen.findByText(
+        "We could not find an active subscription to manage yet. Start a subscription first.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("renders the preferences surface separately from import and profile editing", async () => {
     renderProfile("/profile/preferences");
 
