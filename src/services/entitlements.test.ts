@@ -61,6 +61,28 @@ describe("getEntitlement", () => {
     expect(ent.tier).toBe("paid");
     expect(ent.cadence).toBe("monthly");
     expect(ent.status).toBe("active");
+    expect(ent.cancelAtPeriodEnd).toBe(false);
+  });
+
+  it("exposes cancel_at_period_end for active paid subscriptions", async () => {
+    const future = new Date(Date.now() + 30 * MS_PER_DAY).toISOString();
+    mockSupabase.from.mockReturnValueOnce(
+      chain({
+        data: {
+          status: "active",
+          cadence: "annual",
+          current_period_end: future,
+          cancel_at_period_end: true,
+        },
+        error: null,
+      }),
+    );
+
+    const ent = await getEntitlement("user-123");
+
+    expect(ent.tier).toBe("paid");
+    expect(ent.cadence).toBe("annual");
+    expect(ent.cancelAtPeriodEnd).toBe(true);
   });
 
   it("filters by user_id", async () => {

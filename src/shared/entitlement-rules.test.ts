@@ -36,6 +36,7 @@ describe("resolveEntitlement", () => {
     );
     expect(ent.tier).toBe("paid");
     expect(ent.status).toBe("active");
+    expect(ent.cancelAtPeriodEnd).toBe(true);
   });
 
   it("downgrades active to free once period_end has passed", () => {
@@ -44,6 +45,7 @@ describe("resolveEntitlement", () => {
     expect(ent.tier).toBe("free");
     expect(ent.cadence).toBeNull();
     expect(ent.status).toBe("active");
+    expect(ent.cancelAtPeriodEnd).toBe(false);
   });
 
   it("treats trialing with future period_end as paid", () => {
@@ -61,6 +63,7 @@ describe("resolveEntitlement", () => {
     expect(ent.tier).toBe("paid");
     expect(ent.status).toBe("past_due");
     expect(ent.cadence).toBe("monthly");
+    expect(ent.cancelAtPeriodEnd).toBe(false);
   });
 
   it("treats past_due beyond grace as free", () => {
@@ -74,6 +77,7 @@ describe("resolveEntitlement", () => {
     expect(ent.tier).toBe("free");
     expect(ent.cadence).toBeNull();
     expect(ent.status).toBe("past_due");
+    expect(ent.cancelAtPeriodEnd).toBe(false);
   });
 
   it("treats canceled as free regardless of period_end", () => {

@@ -17,3 +17,32 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: vi.fn(),
   })),
 });
+
+const localStorageState = new Map<string, string>();
+
+const localStorageMock = {
+  getItem: vi.fn((key: string) => localStorageState.get(key) ?? null),
+  setItem: vi.fn((key: string, value: string) => {
+    localStorageState.set(key, value);
+  }),
+  removeItem: vi.fn((key: string) => {
+    localStorageState.delete(key);
+  }),
+  clear: vi.fn(() => {
+    localStorageState.clear();
+  }),
+  key: vi.fn((index: number) => Array.from(localStorageState.keys())[index] ?? null),
+  get length() {
+    return localStorageState.size;
+  },
+};
+
+Object.defineProperty(window, "localStorage", {
+  configurable: true,
+  value: localStorageMock,
+});
+
+Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
+  value: localStorageMock,
+});
