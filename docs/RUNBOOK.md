@@ -142,6 +142,91 @@ Check:
 
 Answer save should not depend on transcription text being present.
 
+## Stripe Billing Go-Live
+
+Use this checklist before accepting live payments. Run it separately for Stripe test mode and live mode, and do not paste secret values into the repo, issue tracker, or PR comments.
+
+### Stripe Dashboard settings
+
+- **Branding and business details:** configure the Prepio logo/icon, brand colors, public business name, statement descriptor, public business website, support email, support URL, support phone if available, and customer-facing address/tax details required for the launch country.
+- **Receipts and emails:** enable successful payment receipts, failed payment emails where appropriate, and make sure support contact details render correctly on hosted Checkout, receipt emails, invoices, and Customer Portal.
+- **Payment methods:** enable Stripe dynamic payment methods for Checkout and keep Link enabled. Check the hosted Checkout page on desktop browser, mobile browser, and installed PWA context before live launch.
+- **Product and Prices:** create one `Prepio Subscription` Product and the three recurring Prices described in `docs/BILLING.md`: monthly, quarterly, and annual. Use the same lookup keys in test and live mode; Price IDs are mode-specific.
+
+### Customer Portal settings
+
+Configure the same Customer Portal features in test and live mode:
+
+- Allow payment method updates.
+- Allow subscription cancellation at period end.
+- Allow plan changes only among the monthly, quarterly, and annual `Prepio Subscription` Prices.
+- Set the dashboard fallback return URL to the same Profile surface the app uses for created sessions: `https://<app-origin>/profile?billing=portal_return`.
+
+### Supabase secrets
+
+Set these on the deployed Supabase project before smoke testing. The service-role key already exists for the project, but verify it is present because Checkout, Portal, and webhook handlers all depend on service-role database access.
+
+```bash
+supabase secrets set \
+  STRIPE_SECRET_KEY="sk_test_or_live_..." \
+  STRIPE_WEBHOOK_SECRET="whsec_..." \
+  STRIPE_PRICE_MONTHLY="price_..." \
+  STRIPE_PRICE_QUARTERLY="price_..." \
+  STRIPE_PRICE_ANNUAL="price_..." \
+  APP_BASE_URL="https://<app-origin>" \
+  --project-ref "<supabase-project-ref>"
+```
+
+Verification:
+
+- `STRIPE_SECRET_KEY` mode must match the Stripe Dashboard mode being tested.
+- `STRIPE_WEBHOOK_SECRET` must be copied from the matching Stripe webhook endpoint, not from a local Stripe CLI listener.
+- `STRIPE_PRICE_MONTHLY`, `STRIPE_PRICE_QUARTERLY`, and `STRIPE_PRICE_ANNUAL` must be the Price IDs from the same Stripe mode as `STRIPE_SECRET_KEY`.
+- `APP_BASE_URL` must be the deployed app origin used for Checkout success/cancel URLs and Portal return URLs.
+- If a subscription webhook logs `unknown_price`, correct the relevant `STRIPE_PRICE_*` secret and resend the Stripe event from the Dashboard.
+
+### Webhook endpoint
+
+Register the deployed Edge Function as a Stripe webhook endpoint in both test and live mode:
+
+```text
+https://<supabase-project-ref>.functions.supabase.co/stripe-webhook
+```
+
+Select at least these events:
+
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_failed`
+
+After creating each endpoint, copy its signing secret into the matching environment's `STRIPE_WEBHOOK_SECRET`. Send Stripe's test event, then check Supabase Edge Function logs for signature verification and handler output.
+
+### Test-mode smoke path
+
+Run this end to end in Stripe test mode before configuring live mode. Use a fresh test user that does not already have rows in `billing_customers` or `billing_subscriptions`.
+
+1. Sign in as the test user and start Checkout from `/pricing?checkout=monthly`.
+2. Pay with Stripe test card `4242 4242 4242 4242`.
+3. Confirm Checkout returns to `/billing/return?session_id=...` and the page reaches the paid state after the webhook lands.
+4. Verify the database row:
+
+```sql
+select user_id, stripe_subscription_id, status, cadence, current_period_end, cancel_at_period_end, updated_at
+from billing_subscriptions
+where user_id = '<user_id>';
+```
+
+Expected: `status` is `active`, `cadence` is `monthly`, `cancel_at_period_end` is `false`, and `current_period_end` is in the future.
+
+5. Open Profile and launch Customer Portal.
+6. Change cadence to quarterly or annual in the Portal, return to Profile, and verify `billing_subscriptions.cadence` updates after the webhook lands.
+7. Re-open Portal, cancel at period end, and verify `cancel_at_period_end` becomes `true`.
+8. Confirm entitlement remains paid until `current_period_end`; paid access should not disappear immediately after a period-end cancellation.
+9. Repeat the Checkout start and entitlement-return check for the other two cadences with separate fresh test users, or reset the test subscription/customer state between runs.
+
+Do not run live-card payments until the test-mode smoke path passes and the live-mode Dashboard, Portal, webhook endpoint, and Supabase secrets have all been configured independently.
+
 ## Stripe Webhook Looks Wrong
 
 Check:

@@ -104,14 +104,16 @@ Not yet shipped:
 
 ### Billing
 
-1. Stripe sends subscription events to `stripe-webhook`.
-2. The function verifies the Stripe signature.
-3. The handler resolves the user from `billing_customers` or Stripe customer metadata.
-4. Subscription state is written to `billing_subscriptions`.
-5. `billing_events` prevents duplicate processing.
-6. Entitlement reads derive `free` or `paid` from the subscription row.
-
-Checkout and Customer Portal session creation are not implemented yet.
+1. User starts a subscription from `/pricing`; the browser calls `create-checkout-session`.
+2. The function creates or reuses the Stripe Customer, creates a hosted Checkout Session, and returns the hosted Checkout URL.
+3. Stripe redirects successful Checkout sessions to `/billing/return`, which polls entitlement until the webhook lands.
+4. Stripe sends subscription events to `stripe-webhook`.
+5. The function verifies the Stripe signature.
+6. The handler resolves the user from `billing_customers` or Stripe customer metadata.
+7. Subscription state is written to `billing_subscriptions`.
+8. `billing_events` prevents duplicate processing.
+9. Entitlement reads derive `free` or `paid` from the subscription row.
+10. Existing subscribers manage payment methods, cadence changes, and cancellations through `create-portal-session` and Stripe Customer Portal.
 
 ## Security Model
 
