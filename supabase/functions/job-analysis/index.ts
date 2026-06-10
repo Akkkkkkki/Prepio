@@ -74,12 +74,7 @@ async function extractJobDescriptions(
   const tavilyApiKey = Deno.env.get("TAVILY_API_KEY");
   if (!tavilyApiKey || !urls.length) {
     if (!tavilyApiKey) {
-      console.warn("🚨 TAVILY_API_KEY missing!");
-      console.warn("💡 Solution: Run functions with environment file:");
-      console.warn("   npm run functions:serve");
-      console.warn("   or: supabase functions serve --env-file .env.local");
-      console.warn("📋 Available environment variables:");
-      console.warn(Object.keys(Deno.env.toObject()).filter(key => key.includes('API') || key.includes('KEY')).sort());
+      console.warn("TAVILY_API_KEY missing. Set it in the function secrets or .env.local.");
     }
     console.warn("TAVILY_API_KEY not found or no URLs provided, skipping job extraction");
     return null;
