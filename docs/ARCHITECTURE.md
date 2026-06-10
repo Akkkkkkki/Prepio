@@ -55,7 +55,6 @@ Core tables:
 - `billing_customers`: user to Stripe customer mapping.
 - `billing_subscriptions`: Stripe subscription state and entitlement source.
 - `billing_events`: Stripe webhook idempotency/audit log.
-- `answer_feedback`: paid structured feedback rows for saved practice answers, with regeneration history.
 - `ops.scraped_urls` and `ops.tavily_searches`: research cache and operational logging.
 
 Not yet shipped:

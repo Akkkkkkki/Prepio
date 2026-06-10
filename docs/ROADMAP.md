@@ -31,7 +31,7 @@ This tracks product reality against the latest `main` branch.
 
 - Stage-based question setup.
 - Text answers with local autosave.
-- Voice recording, upload to `practice-audio`, transcription via `practice-audio-transcribe`, and saved transcript text.
+- Voice recording, upload to `practice-audio`, non-blocking transcription via `practice-audio-transcribe`, and saved transcript text.
 - Favorites, needs-work, skip tracking, self-ratings, completion summary, dashboard/history surfaces.
 - Mobile practice controls, bottom navigation, swipe handling, and offline guards.
 
@@ -87,8 +87,6 @@ This tracks product reality against the latest `main` branch.
 - Post-answer rubric self-check for free users, reusing each question's
   `good_answer_signals` / `evaluation_criteria` to close the loop without a
   model call.
-- Non-blocking audio transcription so saving a voice answer no longer waits on
-  the transcription call.
 - Lifecycle messaging for research completion and practice follow-up.
 - Public navigation, legal pages, and footer.
 
@@ -102,9 +100,9 @@ This tracks product reality against the latest `main` branch.
 
 The practice-enhancement backlog behind the items above is tracked in the
 **Prepio** Linear team: feedback UI in PREPIO-11 (with PREPIO-32 for the paid
-gate), and PREPIO-41 (rubric self-check), PREPIO-43 (non-blocking
-transcription), PREPIO-45 (history progress + readiness), and PREPIO-47
-(follow-up "interviewer mode") under Quality & Maintenance.
+gate), and PREPIO-41 (rubric self-check), PREPIO-45 (history progress +
+readiness), and PREPIO-47 (follow-up "interviewer mode") under Quality &
+Maintenance.
 
 ## Product Decisions
 
