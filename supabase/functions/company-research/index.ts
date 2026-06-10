@@ -88,15 +88,9 @@ async function searchCompanyInfo(
       logger?.log('CONFIG_ERROR', 'API_KEY_MISSING', {
         company,
         role,
-        availableEnvVars: Object.keys(Deno.env.toObject()).filter(key => key.includes('API') || key.includes('KEY')).sort(),
-        supabaseEnvVars: Object.keys(Deno.env.toObject()).filter(key => key.includes('SUPABASE')).sort()
+        missingKey: 'TAVILY_API_KEY'
       }, errorMsg);
-      console.warn("🚨 TAVILY_API_KEY missing!");
-      console.warn("💡 Solution: Run functions with environment file:");
-      console.warn("   npm run functions:serve");
-      console.warn("   or: supabase functions serve --env-file .env.local");
-      console.warn("📋 Available environment variables:");
-      console.warn(Object.keys(Deno.env.toObject()).filter(key => key.includes('API') || key.includes('KEY')).sort());
+      console.warn("TAVILY_API_KEY missing. Set it in the function secrets or .env.local.");
       return null;
     }
 
