@@ -34,17 +34,34 @@ export function useMobileFooterHeight(enabled: boolean): UseMobileFooterHeightRe
     const handleResize = () => measure();
     window.addEventListener("resize", handleResize);
 
-    if (typeof ResizeObserver === "undefined") {
-      return () => window.removeEventListener("resize", handleResize);
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(() => measure());
+      observer.observe(element);
+      return () => {
+        observer.disconnect();
+        window.removeEventListener("resize", handleResize);
+      };
     }
 
-    const observer = new ResizeObserver(() => measure());
-    observer.observe(element);
+    // No ResizeObserver: fall back to MutationObserver so footer content
+    // changes (recording controls swapping in, notes panel expanding) still
+    // trigger re-measure. Otherwise the reserved padding would stay stuck
+    // at the first-mount value until the window resizes.
+    if (typeof MutationObserver !== "undefined") {
+      const mutationObserver = new MutationObserver(() => measure());
+      mutationObserver.observe(element, {
+        attributes: true,
+        characterData: true,
+        childList: true,
+        subtree: true,
+      });
+      return () => {
+        mutationObserver.disconnect();
+        window.removeEventListener("resize", handleResize);
+      };
+    }
 
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", handleResize);
-    };
+    return () => window.removeEventListener("resize", handleResize);
   }, [enabled, element]);
 
   return { height, setRef: setElement };

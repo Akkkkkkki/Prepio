@@ -141,6 +141,80 @@ describe("useMobileFooterHeight", () => {
     expect(results.at(-1)).toBe(0);
   });
 
+  it("falls back to MutationObserver remeasure when ResizeObserver is unavailable", () => {
+    vi.stubGlobal("ResizeObserver", undefined);
+
+    class MockMutationObserver {
+      static instances: MockMutationObserver[] = [];
+
+      callback: MutationCallback;
+
+      constructor(callback: MutationCallback) {
+        this.callback = callback;
+        MockMutationObserver.instances.push(this);
+      }
+
+      observe = vi.fn();
+
+      disconnect = vi.fn();
+
+      takeRecords = vi.fn(() => []);
+    }
+
+    vi.stubGlobal("MutationObserver", MockMutationObserver);
+
+    try {
+      const heights = [50, 110];
+      let current = 0;
+      const results: number[] = [];
+
+      function Harness({ onResult }: { onResult: (height: number) => void }) {
+        const { height, setRef } = useMobileFooterHeight(true);
+        onResult(height);
+        return (
+          <div
+            ref={(node) => {
+              if (node) {
+                Object.defineProperty(node, "getBoundingClientRect", {
+                  configurable: true,
+                  value: () => ({
+                    height: heights[current],
+                    width: 0,
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    x: 0,
+                    y: 0,
+                    toJSON: () => ({}),
+                  }),
+                });
+              }
+              setRef(node as HTMLDivElement | null);
+            }}
+          />
+        );
+      }
+
+      render(<Harness onResult={(height) => results.push(height)} />);
+
+      expect(results.at(-1)).toBe(50);
+      expect(MockMutationObserver.instances).toHaveLength(1);
+      const observer = MockMutationObserver.instances[0];
+      expect(observer.observe).toHaveBeenCalled();
+
+      current = 1;
+      act(() => {
+        observer.callback([], observer as unknown as MutationObserver);
+      });
+
+      expect(results.at(-1)).toBe(110);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.stubGlobal("ResizeObserver", MockResizeObserver);
+    }
+  });
+
   it("remeasures on ResizeObserver callbacks", () => {
     const heights = [40, 80];
     let current = 0;
