@@ -350,76 +350,34 @@ export const buildSearchQuery = (
 export const getAllSearchQueries = (company: string, role?: string, country?: string): string[] => {
   const ticker = getCompanyTicker(company);
   const { queryTemplates } = RESEARCH_CONFIG.search;
-  
-  const queries: string[] = [];
-  
-  // Add Glassdoor queries
-  queryTemplates.glassdoor.forEach(template => {
-    queries.push(buildSearchQuery(template, company, role, country, ticker));
-  });
-  
-  // Add Blind queries
-  queryTemplates.blind.forEach(template => {
-    queries.push(buildSearchQuery(template, company, role, country, ticker));
-  });
-  
-  // Add Reddit queries for forum content
-  queryTemplates.reddit.forEach(template => {
-    queries.push(buildSearchQuery(template, company, role, country, ticker));
-  });
-  
-  // Add technical platform queries
-  queryTemplates.technical.forEach(template => {
-    queries.push(buildSearchQuery(template, company, role, country, ticker));
-  });
-  
-  // Add international queries if enabled
-  if (RESEARCH_CONFIG.features.enableInternationalSearch) {
-    queryTemplates.international.forEach(template => {
-      queries.push(buildSearchQuery(template, company, role, country, ticker));
-    });
-  }
-  
-  // Add general queries
-  queryTemplates.general.forEach(template => {
-    queries.push(buildSearchQuery(template, company, role, country, ticker));
-  });
-  
-  return queries;
-};
 
-// Returns a platform-diverse set of search queries: the highest-value query
-// from each platform category, in priority order. The synchronous timeout caps
-// how many queries a fresh run can afford, and `getAllSearchQueries` front-loads
-// all four Glassdoor templates — so a naive `.slice(0, N)` queries only
-// Glassdoor and never touches Blind/Reddit/LeetCode/community sources. Picking
-// one query per category spreads a small budget across platforms instead.
-// (Searches run concurrently, so a handful of queries stays within the timeout.)
-export const getDiverseSearchQueries = (
-  company: string,
-  role?: string,
-  country?: string,
-): string[] => {
-  const ticker = getCompanyTicker(company);
-  const { queryTemplates } = RESEARCH_CONFIG.search;
+  const build = (template: string) =>
+    buildSearchQuery(template, company, role, country, ticker);
 
-  // [category, index-within-category]. `general[1]` is the broad,
-  // non-site-locked query that leans on includeDomains to span all domains.
-  const picks: Array<[keyof typeof queryTemplates, number]> = [
-    ['glassdoor', 0],
-    ['reddit', 0],
-    ['blind', 0],
-    ['technical', 0],
-    ['general', 1],
+  // Interleave one query from each category before moving on to the second
+  // (round-robin). Callers that cap retrieval breadth with `.slice(0, N)`
+  // (e.g. company-research keeps it to a handful to stay under the 15s
+  // function timeout) need the first N queries to span platforms instead of
+  // all coming from Glassdoor. Total query set is unchanged — only the order.
+  const categories: string[][] = [
+    queryTemplates.glassdoor.map(build),
+    queryTemplates.blind.map(build),
+    queryTemplates.reddit.map(build),
+    queryTemplates.technical.map(build),
+    ...(RESEARCH_CONFIG.features.enableInternationalSearch
+      ? [queryTemplates.international.map(build)]
+      : []),
+    queryTemplates.general.map(build),
   ];
-  if (RESEARCH_CONFIG.features.enableInternationalSearch) {
-    picks.push(['international', 0]);
-  }
 
-  return picks
-    .map(([category, index]) => queryTemplates[category]?.[index])
-    .filter((template): template is string => typeof template === 'string')
-    .map((template) => buildSearchQuery(template, company, role, country, ticker));
+  const queries: string[] = [];
+  const maxLen = Math.max(...categories.map((c) => c.length));
+  for (let i = 0; i < maxLen; i++) {
+    for (const category of categories) {
+      if (i < category.length) queries.push(category[i]);
+    }
+  }
+  return queries;
 };
 
 // Configuration validation
