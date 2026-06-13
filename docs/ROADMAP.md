@@ -13,11 +13,12 @@ This tracks product reality against the latest `main` branch.
 - Guest preview UX backed by `research-preview`, `research_previews`, and `research_preview_rate_limits`.
 
 > Known gaps: (1) live retrieval in `company-research` is throttled (few queries, no raw
-> content/extraction, caching off) to fit a synchronous timeout; (2) more seriously, the
-> default hybrid path feeds **fabricated mock "scraper" data** into synthesis, the evidence
-> log shown to users is **LLM-invented rather than retrieval-backed**, and confidence is
-> model-asserted rather than computed. So synthesis leans on model priors dressed up as
-> research. The full as-is analysis and the target grounded-evidence (v3) architecture are in
+> content/extraction, caching off) to fit a synchronous timeout; (2) the evidence log shown
+> to users is **LLM-invented rather than retrieval-backed**, and confidence is model-asserted
+> rather than computed. So synthesis leans on model priors dressed up as research. The
+> fabricated-scraper-data failure mode is mitigated as of PREPIO-77 (`enableHybridScraping`
+> now defaults off); the dead hybrid branch and `_shared/native-scrapers.ts` still need
+> deletion. The full as-is analysis and the target grounded-evidence (v3) architecture are in
 > [`docs/RESEARCH_PIPELINE.md`](./RESEARCH_PIPELINE.md), tracked under the **[Epic] Research
 > pipeline v3** (PREPIO-76) in **Quality & Maintenance** (`area:research-pipeline`).
 

@@ -29,13 +29,14 @@ Browser ──► interview-research (orchestrator)
 ```
 
 `company-research` itself has two paths, selected by
-`RESEARCH_CONFIG.features.enableHybridScraping` (default **true**):
+`RESEARCH_CONFIG.features.enableHybridScraping` (default **false** as of PREPIO-77):
 
-- **Hybrid path (default)**: "native scrapers" for Glassdoor/Reddit/Blind/LeetCode plus
+- **Traditional path (default)**: Tavily search over templated queries (`getAllSearchQueries`)
+  with URL dedup/caching and a deep-extraction phase.
+- **Hybrid path (disabled)**: "native scrapers" for Glassdoor/Reddit/Blind/LeetCode plus
   three generic Tavily blog-discovery queries, with per-platform domain exclusion decided
-  by `hybrid-coverage.ts` (PREPIO-49).
-- **Traditional path (fallback)**: Tavily search over templated queries, with URL
-  dedup/caching and a deep-extraction phase.
+  by `hybrid-coverage.ts` (PREPIO-49). The scrapers return hard-coded mock data, so this
+  path stays off until they're either deleted or replaced with real implementations.
 
 ## Why quality is below bar
 
@@ -50,7 +51,7 @@ core of v3:
 
 | # | Failure | Where | Tracked |
 |---|---------|-------|---------|
-| 1 | The default hybrid path's native scrapers return **hard-coded mock data** — fabricated candidate experiences, questions, URLs — fed to the analyzer as real reports. The mock Reddit count (24 fake hits) also clears the coverage threshold, so reddit.com is excluded from real Tavily search. | `_shared/native-scrapers.ts`, `company-research/index.ts` | PREPIO-77 |
+| 1 | The hybrid path's native scrapers return **hard-coded mock data** — fabricated candidate experiences, questions, URLs — fed to the analyzer as real reports. The mock Reddit count (24 fake hits) also clears the coverage threshold, so reddit.com is excluded from real Tavily search. Mitigated by flipping `enableHybridScraping` off (PREPIO-77); the dead hybrid branch and `_shared/native-scrapers.ts` still need to be deleted (follow-up). | `_shared/native-scrapers.ts`, `company-research/index.ts` | PREPIO-77 |
 | 2 | `internalEvidenceLog` (now user-visible via the Dashboard "Sources" affordance) is written freeform by the synthesis LLM — URLs and trust weights are model-invented, not derived from retrieval. | `interview-research/index.ts` | PREPIO-78 |
 | 3 | Synthesis is one 12k-token mega-call with no schema enforcement: question minimums are prompt-only, stage links are free-text (mismatches silently orphan questions), malformed output fails the whole run with no repair. | `interview-research/index.ts` | PREPIO-79 |
 | 4 | Confidence (`stageRoadmap[].confidence`, `overallConfidence`, `weakSignalCase`) is model self-assessment; zero-evidence runs still present confident roadmaps. `contradictionGroup` exists in the schema but nothing computes it. | `interview-research/index.ts` | PREPIO-81 |

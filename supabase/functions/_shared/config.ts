@@ -257,7 +257,12 @@ export const RESEARCH_CONFIG = {
 
   // Feature Flags
   features: {
-    enableHybridScraping: true,     // Use hybrid native + Tavily approach (recommended)
+    // PREPIO-77: kept off. The native scrapers in `_shared/native-scrapers.ts`
+    // return hard-coded mock interview experiences, not real scraped data, and
+    // their fake platformBreakdown also defeats the PREPIO-49 Tavily rescue.
+    // Leave false until the scrapers are either deleted or replaced with real
+    // implementations — do not flip on without resolving PREPIO-77.
+    enableHybridScraping: false,
     enableDeepExtraction: true,     // Use Tavily extract API for full content
     enableCompanyTickers: true,     // Use ticker symbols for Blind searches
     enableInternationalSearch: true, // Include 1point3acres and international sites
