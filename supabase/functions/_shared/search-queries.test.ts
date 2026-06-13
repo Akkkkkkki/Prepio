@@ -33,8 +33,7 @@ function classify(query: string): string {
 }
 
 describe("getAllSearchQueries", () => {
-  // With the hybrid path removed (PREPIO-77), `searchCompanyInfo` is the only
-  // retrieval path and caps query breadth with `.slice(0, 6)` to stay under
+  // `searchCompanyInfo` caps query breadth with `.slice(0, 6)` to stay under
   // the 15s function timeout. If the categories were emitted in blocks (all 4
   // Glassdoor first, then Blind, etc.), that slice would never touch
   // Blind/Reddit/LeetCode/international — leaving most community evidence out

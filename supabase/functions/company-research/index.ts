@@ -556,13 +556,8 @@ serve(async (req) => {
 
     const userId = searchData?.user_id;
 
-    // Step 1: Conduct retrieval-grounded research.
-    // The former "hybrid" path ran native scrapers that only ever returned
-    // hard-coded mock candidate experiences (fake URLs, fake questions), which
-    // were fed to the analyzer as real reports (PREPIO-77). We now always use
-    // the real Tavily retrieval path. With no native-coverage gaps to
-    // compensate for, Tavily searches every allowed community domain directly
-    // — the outcome PREPIO-49's coverage rescue was reaching for.
+    // Step 1: Conduct retrieval-grounded research via Tavily across every
+    // allowed community domain.
     logger.log('STEP_START', 'RESEARCH', { step: 1, description: 'Conducting retrieval-grounded research' });
     console.log("Conducting retrieval-grounded research (Tavily)...");
     const researchData = await searchCompanyInfo(company, role, country, searchId, userId, supabase, logger);

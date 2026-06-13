@@ -239,9 +239,9 @@ async function emitResearchYield(
       })}`,
     );
 
-    // Zero-evidence guard (PREPIO-77): removing the fabricated native-scraper
-    // path means real retrieval must carry every run. Surface the case where a
-    // run produced no real sources so a silent drop to zero evidence is visible.
+    // Zero-evidence guard: real retrieval must carry every run, so surface the
+    // case where a run produced no real sources rather than letting synthesis
+    // silently fall back to model priors alone.
     if (sourcesReturned === 0) {
       console.warn(
         `[research_yield] ⚠️ ZERO real sources returned for search ${searchId} (${company}). ` +
