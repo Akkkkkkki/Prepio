@@ -138,6 +138,7 @@ Every issue should have one Type and at least one Area. Resist adding more dimen
 
 ### Workflow
 
+- **Claim before you touch it.** The FIRST thing to do when starting work on a Linear issue — before writing any code, creating a branch, or editing files — is move it to **In Progress** (and assign it to yourself). This is how parallel sessions avoid duplicating each other: an issue still in `Todo`/`Backlog` is fair game, so if two sessions both pick up an unclaimed issue, they waste each other's work. If the issue is already **In Progress** and assigned to someone else, stop and check before proceeding — it's likely already being worked on.
 - Issue threshold: anything that takes >30 min or you'd lose track of overnight. Don't log every commit-sized task.
 - Branches: include `PREPIO-NN` in the branch name (e.g. `claude/prepio-12-stripe-webhook-handler`) so the GitHub integration auto-links the PR.
 - PR open auto-moves the issue to **In Review**; PR merge auto-moves to **Done**. Don't move issues by hand if a PR exists.
