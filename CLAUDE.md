@@ -150,6 +150,7 @@ Every issue should have one Type and at least one Area. Resist adding more dimen
 |----------|---------|
 | [`README.md`](./README.md) | Product overview, quick start, routes |
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Stack, data model, edge functions, data flows |
+| [`docs/RESEARCH_PIPELINE.md`](./docs/RESEARCH_PIPELINE.md) | Research pipeline as-shipped (v2), quality gaps, and target grounded-evidence (v3) design |
 | [`docs/PRODUCT_STRATEGY.md`](./docs/PRODUCT_STRATEGY.md) | Vision, users, positioning |
 | [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Shipped work, near-term, future ideas |
 | [`docs/DESIGN_PRINCIPLES.md`](./docs/DESIGN_PRINCIPLES.md) | UX principles, design tokens, patterns |
