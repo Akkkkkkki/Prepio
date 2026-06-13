@@ -388,6 +388,40 @@ export const getAllSearchQueries = (company: string, role?: string, country?: st
   return queries;
 };
 
+// Returns a platform-diverse set of search queries: the highest-value query
+// from each platform category, in priority order. The synchronous timeout caps
+// how many queries a fresh run can afford, and `getAllSearchQueries` front-loads
+// all four Glassdoor templates — so a naive `.slice(0, N)` queries only
+// Glassdoor and never touches Blind/Reddit/LeetCode/community sources. Picking
+// one query per category spreads a small budget across platforms instead.
+// (Searches run concurrently, so a handful of queries stays within the timeout.)
+export const getDiverseSearchQueries = (
+  company: string,
+  role?: string,
+  country?: string,
+): string[] => {
+  const ticker = getCompanyTicker(company);
+  const { queryTemplates } = RESEARCH_CONFIG.search;
+
+  // [category, index-within-category]. `general[1]` is the broad,
+  // non-site-locked query that leans on includeDomains to span all domains.
+  const picks: Array<[keyof typeof queryTemplates, number]> = [
+    ['glassdoor', 0],
+    ['reddit', 0],
+    ['blind', 0],
+    ['technical', 0],
+    ['general', 1],
+  ];
+  if (RESEARCH_CONFIG.features.enableInternationalSearch) {
+    picks.push(['international', 0]);
+  }
+
+  return picks
+    .map(([category, index]) => queryTemplates[category]?.[index])
+    .filter((template): template is string => typeof template === 'string')
+    .map((template) => buildSearchQuery(template, company, role, country, ticker));
+};
+
 // Configuration validation
 export const validateConfig = (): { valid: boolean; errors: string[] } => {
   const errors: string[] = [];

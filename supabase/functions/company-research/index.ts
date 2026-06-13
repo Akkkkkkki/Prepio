@@ -4,7 +4,7 @@ import { extractInterviewReviewUrls, TavilySearchRequest } from "../_shared/tavi
 import { searchWithFallback } from "../_shared/duckduckgo-fallback.ts";
 import { callOpenAI, parseJsonResponse, OpenAIRequest } from "../_shared/openai-client.ts";
 import { SearchLogger } from "../_shared/logger.ts";
-import { RESEARCH_CONFIG, getAllSearchQueries, getOpenAIModel } from "../_shared/config.ts";
+import { RESEARCH_CONFIG, getDiverseSearchQueries, getOpenAIModel } from "../_shared/config.ts";
 import { UrlDeduplicationService } from "../_shared/url-deduplication.ts";
 import { authorizeRequest, ensureServiceCaller } from "../_shared/auth.ts";
 import { buildCorsHeaders } from "../_shared/cors.ts";
@@ -179,8 +179,11 @@ async function searchCompanyInfo(
         searchResults = built.searchPayloads;
         validFreshResults = built.validFreshResults;
       } else {
-        // Get search queries from centralized config - LIMITED to 2 queries to prevent timeout
-        const searchQueries = getAllSearchQueries(company, role, country).slice(0, 2);
+        // Platform-diverse query selection: the synchronous timeout limits how
+        // many queries we can run, so pick one query per platform category
+        // (Glassdoor/Reddit/Blind/technical/general/international) rather than
+        // front-loading Glassdoor templates. Searches run concurrently below.
+        const searchQueries = getDiverseSearchQueries(company, role, country);
 
         logger?.logPhaseTransition('CACHE_CHECK', 'DISCOVERY', {
           queriesCount: searchQueries.length,
@@ -229,9 +232,9 @@ async function searchCompanyInfo(
         validFreshResults = built.validFreshResults;
 
         logger?.log('DISCOVERY_COMPLETE', 'PHASE1', {
-          totalQueries: 2, // Reduced for speed
+          totalQueries: searchQueries.length,
           successfulResults: validFreshResults.length,
-          failedResults: 2 - validFreshResults.length,
+          failedResults: searchQueries.length - validFreshResults.length,
           cachedResultsAvailable: combinedResults.cachedResults.length
         });
       }

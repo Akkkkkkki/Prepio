@@ -8,6 +8,7 @@ import { parseJsonResponse } from "../_shared/openai-client.ts";
 import {
   buildRepairInstructions,
   DIFFICULTY_VALUES,
+  normalizeStageName,
   validatePrepPlan,
   type PrepPlanValidationResult,
 } from "./prep-plan-validation.ts";
@@ -844,10 +845,12 @@ async function savePrepPlanToDatabase(
       return data;
     }, 'Insert interview stages');
 
-    // Build stage name → ID map for question linking
+    // Build stage name → ID map for question linking. Key by the normalized
+    // name so the lookup matches the tolerant comparison validatePrepPlan uses
+    // (trim + lowercase) — otherwise a validated question can still orphan.
     const stageIdByName: Record<string, string> = {};
     (stageRecords || []).forEach((s: any) => {
-      stageIdByName[s.name] = s.id;
+      stageIdByName[normalizeStageName(s.name)] = s.id;
     });
     console.log(`  ✅ ${(stageRecords || []).length} stages saved`);
 
@@ -875,7 +878,7 @@ async function savePrepPlanToDatabase(
 
       const addQuestions = (items: QuestionItem[], tier: string) => {
         (items || []).forEach((q) => {
-          const stageId = q.stageName ? (stageIdByName[q.stageName] ?? null) : null;
+          const stageId = q.stageName ? (stageIdByName[normalizeStageName(q.stageName)] ?? null) : null;
           questionsToInsert.push({
             search_id: searchId,
             stage_id: stageId,

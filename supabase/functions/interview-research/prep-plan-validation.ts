@@ -49,8 +49,13 @@ function asArray(value: unknown): any[] {
   return Array.isArray(value) ? value : [];
 }
 
-/** Normalizes a stage name for tolerant matching (trim + lowercase). */
-function normalizeStageName(name: unknown): string {
+/**
+ * Normalizes a stage name for tolerant matching (trim + lowercase). Exported so
+ * the persistence path keys its stage→ID map identically — otherwise a question
+ * stageName that passes validation here could still miss the exact-match lookup
+ * in savePrepPlanToDatabase and persist with stage_id: null.
+ */
+export function normalizeStageName(name: unknown): string {
   return typeof name === "string" ? name.trim().toLowerCase() : "";
 }
 

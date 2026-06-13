@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildRepairInstructions,
   countQuestions,
+  normalizeStageName,
   QUESTION_MINIMUMS,
   validatePrepPlan,
 } from "./prep-plan-validation.ts";
@@ -112,6 +113,18 @@ describe("validatePrepPlan", () => {
     expect(validatePrepPlan(null).valid).toBe(false);
     expect(validatePrepPlan(undefined).valid).toBe(false);
     expect(validatePrepPlan("nope").valid).toBe(false);
+  });
+});
+
+describe("normalizeStageName", () => {
+  it("trims and lowercases so validation and persistence key identically", () => {
+    // The persistence path (savePrepPlanToDatabase) keys its stage→ID map with
+    // this same function; if a validated stageName normalized differently here
+    // vs. there, the question would orphan with stage_id: null.
+    expect(normalizeStageName("  Phone Screen  ")).toBe("phone screen");
+    expect(normalizeStageName("Phone Screen")).toBe(normalizeStageName("  phone screen "));
+    expect(normalizeStageName(null)).toBe("");
+    expect(normalizeStageName(undefined)).toBe("");
   });
 });
 
