@@ -119,8 +119,7 @@ select
 ```
 
 A `[research_yield]` line also emits a `⚠️ ZERO real sources returned` warning when a run
-synthesised without any retrieved evidence — the guardrail added when the fabricated
-native-scraper path was removed (PREPIO-77). Grep for it directly:
+synthesised without any retrieved evidence. Grep for it directly:
 
 ```
 [research_yield] ⚠️ ZERO real sources
