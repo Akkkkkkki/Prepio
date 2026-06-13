@@ -77,6 +77,11 @@ Not yet shipped:
 4. Edge Functions generate company/job/resume insights, stages, prep plan, and questions.
 5. Progress updates land on the search row and are read by realtime/polling UI.
 
+The current (v2) implementation, its quality gaps, and the target grounded-evidence (v3)
+architecture are documented in [`RESEARCH_PIPELINE.md`](./RESEARCH_PIPELINE.md). Read it
+before changing anything under `supabase/functions/interview-research`,
+`company-research`, `job-analysis`, or `_shared` retrieval code.
+
 ### Guest preview
 
 1. Visitor submits company/role preview inputs.

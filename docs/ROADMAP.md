@@ -12,10 +12,14 @@ This tracks product reality against the latest `main` branch.
 - Search progress tracking through `searches.status`, `progress_step`, and `progress_pct`.
 - Guest preview UX backed by `research-preview`, `research_previews`, and `research_preview_rate_limits`.
 
-> Known gap: live retrieval in `company-research` is currently throttled (few queries, no raw
-> content/extraction, caching off) to fit a synchronous timeout, so synthesis leans more on model
-> priors than on fresh community evidence. Tracked in the **Prepio** Linear team under
-> **Quality & Maintenance** (`area:research-pipeline`, starting with the async-job refactor PREPIO-40).
+> Known gaps: (1) live retrieval in `company-research` is throttled (few queries, no raw
+> content/extraction, caching off) to fit a synchronous timeout; (2) more seriously, the
+> default hybrid path feeds **fabricated mock "scraper" data** into synthesis, the evidence
+> log shown to users is **LLM-invented rather than retrieval-backed**, and confidence is
+> model-asserted rather than computed. So synthesis leans on model priors dressed up as
+> research. The full as-is analysis and the target grounded-evidence (v3) architecture are in
+> [`docs/RESEARCH_PIPELINE.md`](./RESEARCH_PIPELINE.md), tracked under the **[Epic] Research
+> pipeline v3** (PREPIO-76) in **Quality & Maintenance** (`area:research-pipeline`).
 
 ### Resume and profile
 
@@ -77,10 +81,11 @@ This tracks product reality against the latest `main` branch.
 
 ## Next
 
-- Research evidence depth: restore real community-source retrieval as the primary input to
-  synthesis, surface the evidence to users, and guard yield. Tracked in Linear under
-  **Quality & Maintenance** (`area:research-pipeline`); the async-job refactor PREPIO-40 unblocks
-  the richer-retrieval items.
+- Research pipeline v3 (grounded evidence): remove fabricated/stub inputs, build a
+  retrieval-backed evidence ledger with resolvable citations, derive confidence from
+  corroboration, and validate staged synthesis output. Sequenced rollout in
+  [`docs/RESEARCH_PIPELINE.md`](./RESEARCH_PIPELINE.md) under the **[Epic] Research pipeline
+  v3** (PREPIO-76); the async-job refactor PREPIO-40 unblocks the richer-retrieval steps.
 - Readiness scoring based on actual answer feedback.
 - Better dashboard/history progress views (trends, recurring weak signals,
   one-click launch into a needs-work practice queue).

@@ -42,6 +42,7 @@ make test
 ## Key Docs
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Research pipeline](docs/RESEARCH_PIPELINE.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Testing](docs/TESTING.md)
 - [Product strategy](docs/PRODUCT_STRATEGY.md)
