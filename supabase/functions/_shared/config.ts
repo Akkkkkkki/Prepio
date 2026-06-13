@@ -257,7 +257,6 @@ export const RESEARCH_CONFIG = {
 
   // Feature Flags
   features: {
-    enableHybridScraping: true,     // Use hybrid native + Tavily approach (recommended)
     enableDeepExtraction: true,     // Use Tavily extract API for full content
     enableCompanyTickers: true,     // Use ticker symbols for Blind searches
     enableInternationalSearch: true, // Include 1point3acres and international sites
@@ -265,7 +264,6 @@ export const RESEARCH_CONFIG = {
     enableInterviewStageExtraction: true, // Extract stages from candidate reports
     enableJsonMode: true,           // Force JSON responses from OpenAI
     enableFallbackResponses: true,  // Provide fallback data when APIs fail
-    enableNativeScrapingOnly: false, // Use only native scraping (no Tavily discovery)
   },
 
   // Development and Testing Configuration
@@ -352,41 +350,33 @@ export const buildSearchQuery = (
 export const getAllSearchQueries = (company: string, role?: string, country?: string): string[] => {
   const ticker = getCompanyTicker(company);
   const { queryTemplates } = RESEARCH_CONFIG.search;
-  
+
+  const build = (template: string) =>
+    buildSearchQuery(template, company, role, country, ticker);
+
+  // Interleave one query from each category before moving on to the second
+  // (round-robin). Callers that cap retrieval breadth with `.slice(0, N)`
+  // (e.g. company-research keeps it to a handful to stay under the 15s
+  // function timeout) need the first N queries to span platforms instead of
+  // all coming from Glassdoor. Total query set is unchanged — only the order.
+  const categories: string[][] = [
+    queryTemplates.glassdoor.map(build),
+    queryTemplates.blind.map(build),
+    queryTemplates.reddit.map(build),
+    queryTemplates.technical.map(build),
+    ...(RESEARCH_CONFIG.features.enableInternationalSearch
+      ? [queryTemplates.international.map(build)]
+      : []),
+    queryTemplates.general.map(build),
+  ];
+
   const queries: string[] = [];
-  
-  // Add Glassdoor queries
-  queryTemplates.glassdoor.forEach(template => {
-    queries.push(buildSearchQuery(template, company, role, country, ticker));
-  });
-  
-  // Add Blind queries
-  queryTemplates.blind.forEach(template => {
-    queries.push(buildSearchQuery(template, company, role, country, ticker));
-  });
-  
-  // Add Reddit queries for forum content
-  queryTemplates.reddit.forEach(template => {
-    queries.push(buildSearchQuery(template, company, role, country, ticker));
-  });
-  
-  // Add technical platform queries
-  queryTemplates.technical.forEach(template => {
-    queries.push(buildSearchQuery(template, company, role, country, ticker));
-  });
-  
-  // Add international queries if enabled
-  if (RESEARCH_CONFIG.features.enableInternationalSearch) {
-    queryTemplates.international.forEach(template => {
-      queries.push(buildSearchQuery(template, company, role, country, ticker));
-    });
+  const maxLen = Math.max(...categories.map((c) => c.length));
+  for (let i = 0; i < maxLen; i++) {
+    for (const category of categories) {
+      if (i < category.length) queries.push(category[i]);
+    }
   }
-  
-  // Add general queries
-  queryTemplates.general.forEach(template => {
-    queries.push(buildSearchQuery(template, company, role, country, ticker));
-  });
-  
   return queries;
 };
 

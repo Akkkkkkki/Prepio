@@ -118,6 +118,43 @@ select
   (select coalesce(sum(credits_used), 0) from ops.tavily_searches where search_id = '<search_id>') as tavily_credits;
 ```
 
+A `[research_yield]` line also emits a `⚠️ ZERO real sources returned` warning when a run
+synthesised without any retrieved evidence — the guardrail added when the fabricated
+native-scraper path was removed (PREPIO-77). Grep for it directly:
+
+```
+[research_yield] ⚠️ ZERO real sources
+```
+
+## Synthesis Validation
+
+`interview-research` validates every synthesized PrepPlan against the schema before
+persisting (PREPIO-79): question minimums (core ≥15, follow-ups ≥15, depth ≥10), stage-link
+resolution (a question's `stageName` must match a generated roadmap stage), and per-question
+difficulty enums. On failure it runs one bounded repair pass; if the plan still fails, it is
+persisted with `prep_plans.summary -> synthesisQuality.degraded = true` rather than silently
+completing.
+
+Each run emits one `[synthesis_validation]` JSON log with `degraded`, `repair_attempted`,
+`question_counts`, and the first errors. Grep Edge Function logs for degraded runs:
+
+```
+[synthesis_validation] "degraded":true
+```
+
+Recent degraded runs (last 7 days):
+
+```sql
+select s.id, s.company, s.role, s.completed_at,
+       p.summary -> 'synthesisQuality' ->> 'degraded' as degraded,
+       p.summary -> 'synthesisQuality' -> 'questionCounts' ->> 'total' as question_total
+from searches s
+join prep_plans p on p.search_id = s.id
+where (p.summary -> 'synthesisQuality' ->> 'degraded')::boolean is true
+  and s.completed_at > now() - interval '7 days'
+order by s.completed_at desc;
+```
+
 ## Resume Upload Fails
 
 Check:
