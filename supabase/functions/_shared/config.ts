@@ -257,7 +257,6 @@ export const RESEARCH_CONFIG = {
 
   // Feature Flags
   features: {
-    enableHybridScraping: true,     // Use hybrid native + Tavily approach (recommended)
     enableDeepExtraction: true,     // Use Tavily extract API for full content
     enableCompanyTickers: true,     // Use ticker symbols for Blind searches
     enableInternationalSearch: true, // Include 1point3acres and international sites
@@ -265,7 +264,6 @@ export const RESEARCH_CONFIG = {
     enableInterviewStageExtraction: true, // Extract stages from candidate reports
     enableJsonMode: true,           // Force JSON responses from OpenAI
     enableFallbackResponses: true,  // Provide fallback data when APIs fail
-    enableNativeScrapingOnly: false, // Use only native scraping (no Tavily discovery)
   },
 
   // Development and Testing Configuration

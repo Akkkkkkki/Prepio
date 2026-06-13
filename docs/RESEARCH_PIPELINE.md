@@ -28,14 +28,15 @@ Browser ──► interview-research (orchestrator)
                            interview_questions, searches.status
 ```
 
-`company-research` itself has two paths, selected by
-`RESEARCH_CONFIG.features.enableHybridScraping` (default **true**):
+`company-research` runs a single **retrieval-grounded path**: Tavily search over
+templated queries (across every allowed community domain), with URL dedup/caching and a
+deep-extraction phase.
 
-- **Hybrid path (default)**: "native scrapers" for Glassdoor/Reddit/Blind/LeetCode plus
-  three generic Tavily blog-discovery queries, with per-platform domain exclusion decided
-  by `hybrid-coverage.ts` (PREPIO-49).
-- **Traditional path (fallback)**: Tavily search over templated queries, with URL
-  dedup/caching and a deep-extraction phase.
+> The former "hybrid" path and its `_shared/native-scrapers.ts` "native scrapers" for
+> Glassdoor/Reddit/Blind/LeetCode were removed (PREPIO-77): they never made HTTP requests
+> and only ever returned hard-coded mock candidate experiences. With no native-coverage gaps
+> to compensate for, `hybrid-coverage.ts`'s per-platform exclusion (PREPIO-49) is no longer
+> needed — Tavily searches all community domains directly.
 
 ## Why quality is below bar
 
@@ -50,9 +51,9 @@ core of v3:
 
 | # | Failure | Where | Tracked |
 |---|---------|-------|---------|
-| 1 | The default hybrid path's native scrapers return **hard-coded mock data** — fabricated candidate experiences, questions, URLs — fed to the analyzer as real reports. The mock Reddit count (24 fake hits) also clears the coverage threshold, so reddit.com is excluded from real Tavily search. | `_shared/native-scrapers.ts`, `company-research/index.ts` | PREPIO-77 |
+| 1 | ~~The default hybrid path's native scrapers return **hard-coded mock data** — fabricated candidate experiences, questions, URLs — fed to the analyzer as real reports. The mock Reddit count (24 fake hits) also clears the coverage threshold, so reddit.com is excluded from real Tavily search.~~ **FIXED:** native scrapers + hybrid path deleted; `company-research` now always uses real Tavily retrieval across all community domains. | `company-research/index.ts` | PREPIO-77 ✅ |
 | 2 | `internalEvidenceLog` (now user-visible via the Dashboard "Sources" affordance) is written freeform by the synthesis LLM — URLs and trust weights are model-invented, not derived from retrieval. | `interview-research/index.ts` | PREPIO-78 |
-| 3 | Synthesis is one 12k-token mega-call with no schema enforcement: question minimums are prompt-only, stage links are free-text (mismatches silently orphan questions), malformed output fails the whole run with no repair. | `interview-research/index.ts` | PREPIO-79 |
+| 3 | Synthesis is one 12k-token mega-call with no schema enforcement: question minimums are prompt-only, stage links are free-text (mismatches silently orphan questions), malformed output fails the whole run with no repair. **PARTIALLY FIXED:** synthesis output is now schema-validated (minimums, stage-link resolution, per-question difficulty enums) with one bounded repair pass; runs that still fail are persisted with an honest `summary.synthesisQuality.degraded` marker instead of silently completing. The staged-generation split remains open. | `interview-research/index.ts`, `interview-research/prep-plan-validation.ts` | PREPIO-79 ◑ |
 | 4 | Confidence (`stageRoadmap[].confidence`, `overallConfidence`, `weakSignalCase`) is model self-assessment; zero-evidence runs still present confident roadmaps. `contradictionGroup` exists in the schema but nothing computes it. | `interview-research/index.ts` | PREPIO-81 |
 | 5 | Retrieval is SWE-biased regardless of role: query templates and allowed domains assume software engineering; `level` and `country` never shape a query; the DuckDuckGo "fallback" hits the instant-answer API and returns no forum results. | `_shared/config.ts`, `_shared/duckduckgo-fallback.ts` | PREPIO-80 |
 | 6 | `job-analysis` falls back to generic stub requirements with no provenance flag; synthesis is told they came "from link analysis". | `job-analysis/index.ts` | PREPIO-82 |

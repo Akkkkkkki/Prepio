@@ -5,6 +5,12 @@ import { RESEARCH_CONFIG, getOpenAIModel, getMaxTokens } from "../_shared/config
 import { ProgressTracker, PROGRESS_STEPS, CONCURRENT_TIMEOUTS, executeWithTimeout } from "../_shared/progress-tracker.ts";
 import { authorizeRequest, type AuthorizedRequestContext } from "../_shared/auth.ts";
 import { parseJsonResponse } from "../_shared/openai-client.ts";
+import {
+  buildRepairInstructions,
+  DIFFICULTY_VALUES,
+  validatePrepPlan,
+  type PrepPlanValidationResult,
+} from "./prep-plan-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,6 +51,15 @@ interface PrepPlanOutput {
     level: string;
     overallConfidence: Confidence;
     weakSignalCase: boolean;
+    // Records whether the synthesis passed schema validation. `degraded: true`
+    // means the run is persisted but did not meet every quality minimum even
+    // after the bounded repair pass — surfaced instead of silently completing.
+    synthesisQuality?: {
+      degraded: boolean;
+      repairAttempted: boolean;
+      validationErrors: string[];
+      questionCounts: { coreMustPractice: number; likelyFollowUps: number; extraDepth: number; total: number };
+    };
   };
   assessmentSignals: Array<{ name: string; importance: Priority; rationale: string }>;
   stageRoadmap: Array<{
@@ -98,6 +113,9 @@ interface QuestionItem {
   question: string;
   stageName: string | null;
   linkedPriority: string;
+  // Difficulty is assigned per question by the model within an enum, reflecting
+  // the actual difficulty of the question — not inferred from its tier.
+  difficulty?: 'Easy' | 'Medium' | 'Hard';
   reason: string;
   answerGuidanceStatus: 'pending' | 'generated';
 }
@@ -219,6 +237,16 @@ async function emitResearchYield(
         tavily_credits: tavilyCredits,
       })}`,
     );
+
+    // Zero-evidence guard (PREPIO-77): removing the fabricated native-scraper
+    // path means real retrieval must carry every run. Surface the case where a
+    // run produced no real sources so a silent drop to zero evidence is visible.
+    if (sourcesReturned === 0) {
+      console.warn(
+        `[research_yield] ⚠️ ZERO real sources returned for search ${searchId} (${company}). ` +
+          `Synthesis is running without retrieved evidence — check Tavily retrieval.`,
+      );
+    }
   } catch (error) {
     console.warn(
       'Failed to emit research_yield telemetry:',
@@ -381,6 +409,8 @@ QUESTION GENERATION — MINIMUM 40 QUESTIONS TOTAL:
 - A candidate cannot be fully prepared with only a handful of questions. Cover every stage, every assessment dimension, and every weak spot.
 - Weight questions using stage hypotheses, prep priorities, and candidate weak spots.
 - Questions must feel downstream of the research, not generic.
+- Every question's stageName MUST exactly match one of the stageRoadmap stageName values, or be null if not stage-specific. Never invent a stage name.
+- Assign each question a "difficulty" of "Easy", "Medium", or "Hard" reflecting the actual difficulty of THAT question — do not derive it from the tier (a coreMustPractice question can be Easy; an extraDepth question can be Hard).
 - Set answerGuidanceStatus to "pending" for all questions.
 
 INDUSTRY SUPPORT: Optimize for tech, consulting, and finance. Do not assume software engineering everywhere.
@@ -580,21 +610,21 @@ function getPrepPlanSchema(): any {
     ],
     questionPlan: {
       coreMustPractice: [
-        { question: "Core question 1 — tailored to stage and candidate", stageName: "Phone Screen", linkedPriority: "high", reason: "Why this matters", answerGuidanceStatus: "pending" },
-        { question: "Core question 2 — different dimension", stageName: "Technical Round", linkedPriority: "high", reason: "Why this matters", answerGuidanceStatus: "pending" },
-        { question: "Core question 3 — covers weak spot", stageName: "Behavioral Round", linkedPriority: "high", reason: "Why this matters", answerGuidanceStatus: "pending" },
-        "... MUST generate ≥ 15 items in this array"
+        { question: "Core question 1 — tailored to stage and candidate", stageName: "Phone Screen", linkedPriority: "high", difficulty: "Medium", reason: "Why this matters", answerGuidanceStatus: "pending" },
+        { question: "Core question 2 — different dimension", stageName: "Technical Round", linkedPriority: "high", difficulty: "Hard", reason: "Why this matters", answerGuidanceStatus: "pending" },
+        { question: "Core question 3 — covers weak spot", stageName: "Behavioral Round", linkedPriority: "high", difficulty: "Easy", reason: "Why this matters", answerGuidanceStatus: "pending" },
+        "... MUST generate ≥ 15 items in this array (stageName must match a stageRoadmap stage or be null)"
       ],
       likelyFollowUps: [
-        { question: "Follow-up question 1", stageName: null, linkedPriority: "medium", reason: "Why", answerGuidanceStatus: "pending" },
-        { question: "Follow-up question 2", stageName: "Phone Screen", linkedPriority: "medium", reason: "Why", answerGuidanceStatus: "pending" },
-        { question: "Follow-up question 3", stageName: null, linkedPriority: "medium", reason: "Why", answerGuidanceStatus: "pending" },
-        "... MUST generate ≥ 15 items in this array"
+        { question: "Follow-up question 1", stageName: null, linkedPriority: "medium", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Follow-up question 2", stageName: "Phone Screen", linkedPriority: "medium", difficulty: "Easy", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Follow-up question 3", stageName: null, linkedPriority: "medium", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending" },
+        "... MUST generate ≥ 15 items in this array (stageName must match a stageRoadmap stage or be null)"
       ],
       extraDepth: [
-        { question: "Depth question 1", stageName: null, linkedPriority: "low", reason: "Why", answerGuidanceStatus: "pending" },
-        { question: "Depth question 2", stageName: "Final Round", linkedPriority: "low", reason: "Why", answerGuidanceStatus: "pending" },
-        "... MUST generate ≥ 10 items in this array"
+        { question: "Depth question 1", stageName: null, linkedPriority: "low", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Depth question 2", stageName: "Final Round", linkedPriority: "low", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending" },
+        "... MUST generate ≥ 10 items in this array (stageName must match a stageRoadmap stage or be null)"
       ],
     },
     internalEvidenceLog: [
@@ -610,6 +640,68 @@ function getPrepPlanSchema(): any {
       },
     ],
   };
+}
+
+// Single OpenAI chat call that returns a parsed PrepPlan (or null on
+// API/parse failure). Shared by the initial synthesis and the repair pass.
+async function requestPrepPlanCompletion(
+  openaiApiKey: string,
+  model: string,
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens: number,
+): Promise<PrepPlanOutput | null> {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      max_tokens: maxTokens,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("❌ OpenAI PrepPlan synthesis error:", response.status, errorText);
+    return null;
+  }
+
+  const data = await response.json();
+  const rawContent = data.choices?.[0]?.message?.content;
+  return parseJsonResponse<PrepPlanOutput>(rawContent, null as any);
+}
+
+function logSynthesisOutcome(
+  plan: PrepPlanOutput,
+  validation: PrepPlanValidationResult,
+  repairAttempted: boolean,
+) {
+  console.log(repairAttempted ? "✅ PrepPlan synthesis complete (after repair)" : "✅ PrepPlan synthesis complete");
+  console.log(`   Stages: ${plan.stageRoadmap?.length || 0}, Signals: ${plan.assessmentSignals?.length || 0}`);
+  const c = validation.counts;
+  console.log(`   Questions: ${c.total} (core: ${c.coreMustPractice}, follow-up: ${c.likelyFollowUps}, depth: ${c.extraDepth})`);
+  console.log(`   Confidence: ${plan.summary.overallConfidence}, Weak signal: ${plan.summary.weakSignalCase}`);
+  // Structured line so validation failures + repairs are observable in logs
+  // alongside [research_yield]. See docs/RUNBOOK.md.
+  console.log(
+    `[synthesis_validation] ${JSON.stringify({
+      event: 'synthesis_validation',
+      company: plan.summary.company,
+      degraded: !validation.valid,
+      repair_attempted: repairAttempted,
+      question_counts: validation.counts,
+      error_count: validation.errors.length,
+      errors: validation.errors.slice(0, 20),
+    })}`,
+  );
 }
 
 async function synthesizePrepPlan(
@@ -634,51 +726,56 @@ async function synthesizePrepPlan(
 
     const model = getOpenAIModel('interviewSynthesis');
     const maxTokens = 12000; // PrepPlan is larger than old synthesis
+    const systemPrompt = getPrepPlanSystemPrompt();
     console.log(`🤖 Using model: ${model}`);
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: 'system', content: getPrepPlanSystemPrompt() },
-          { role: 'user', content: prompt },
-        ],
-        max_tokens: maxTokens,
-      }),
-    });
+    let plan = await requestPrepPlanCompletion(openaiApiKey, model, systemPrompt, prompt, maxTokens);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ OpenAI PrepPlan synthesis error:", response.status, errorText);
-      return null;
-    }
-
-    const data = await response.json();
-    const rawContent = data.choices[0].message.content;
-    const plan = parseJsonResponse<PrepPlanOutput>(rawContent, null as any);
-
+    // Hard failure: no parseable plan at all. Caller marks the search failed.
     if (!plan?.summary || !plan?.stageRoadmap) {
       console.error("❌ PrepPlan synthesis returned invalid structure");
       return null;
     }
 
-    // Log summary
-    const qp = plan.questionPlan;
-    const totalQuestions =
-      (qp?.coreMustPractice?.length || 0) +
-      (qp?.likelyFollowUps?.length || 0) +
-      (qp?.extraDepth?.length || 0);
+    // Schema + content validation (PREPIO-79). The minimums and stage links
+    // were previously prompt-only and silently unenforced.
+    let validation = validatePrepPlan(plan);
+    let repairAttempted = false;
 
-    console.log("✅ PrepPlan synthesis complete");
-    console.log(`   Stages: ${plan.stageRoadmap.length}, Signals: ${plan.assessmentSignals?.length || 0}`);
-    console.log(`   Questions: ${totalQuestions} (core: ${qp?.coreMustPractice?.length || 0}, follow-up: ${qp?.likelyFollowUps?.length || 0}, depth: ${qp?.extraDepth?.length || 0})`);
-    console.log(`   Confidence: ${plan.summary.overallConfidence}, Weak signal: ${plan.summary.weakSignalCase}`);
+    if (!validation.valid) {
+      console.warn(`⚠️ PrepPlan failed validation (${validation.errors.length} issue(s)); attempting one bounded repair pass`);
+      repairAttempted = true;
+      const roadmapNames = (plan.stageRoadmap || [])
+        .map((s) => s.stageName)
+        .filter((n): n is string => typeof n === 'string' && n.trim().length > 0);
+      const repairPrompt =
+        buildRepairInstructions(validation, roadmapNames) +
+        `\n\nPREVIOUS JSON:\n${JSON.stringify(plan)}`;
+
+      const repaired = await requestPrepPlanCompletion(openaiApiKey, model, systemPrompt, repairPrompt, maxTokens);
+      if (repaired?.summary && repaired?.stageRoadmap) {
+        const repairedValidation = validatePrepPlan(repaired);
+        // Keep the repaired plan when it fully passes, or when it is at least
+        // not worse than the original on total question coverage.
+        if (repairedValidation.valid || repairedValidation.counts.total >= validation.counts.total) {
+          plan = repaired;
+          validation = repairedValidation;
+        }
+      } else {
+        console.warn("⚠️ Repair pass returned no usable plan; keeping original output");
+      }
+    }
+
+    // Persist an honest quality marker rather than silently completing a run
+    // that never met the minimums. The Dashboard can surface this.
+    plan.summary.synthesisQuality = {
+      degraded: !validation.valid,
+      repairAttempted,
+      validationErrors: validation.errors,
+      questionCounts: validation.counts,
+    };
+
+    logSynthesisOutcome(plan, validation, repairAttempted);
 
     return plan;
   } catch (error) {
@@ -756,10 +853,18 @@ async function savePrepPlanToDatabase(
 
     // 3. Insert interview_questions (normalized for practice references)
     console.log("  → Saving interview questions...");
-    const normalizeDifficulty = (tier: string): string => {
+    // Tier-based fallback only — difficulty is now assigned per question by the
+    // model (PREPIO-79). Tier previously stood in for difficulty, conflating
+    // prep priority with how hard the question actually is.
+    const difficultyFromTier = (tier: string): string => {
       if (tier === 'core_must_practice') return 'Hard';
       if (tier === 'likely_follow_ups') return 'Medium';
       return 'Easy';
+    };
+    const resolveDifficulty = (q: QuestionItem, tier: string): string => {
+      return q.difficulty && (DIFFICULTY_VALUES as readonly string[]).includes(q.difficulty)
+        ? q.difficulty
+        : difficultyFromTier(tier);
     };
 
     let totalQuestionsInserted = 0;
@@ -776,7 +881,7 @@ async function savePrepPlanToDatabase(
             stage_id: stageId,
             question: q.question,
             category: 'role_specific', // Default; the tier is the primary organizer now
-            difficulty: normalizeDifficulty(tier),
+            difficulty: resolveDifficulty(q, tier),
             rationale: q.reason || '',
             suggested_answer_approach: '',
             evaluation_criteria: [],

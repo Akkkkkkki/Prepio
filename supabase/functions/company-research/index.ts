@@ -1,19 +1,14 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
-import { searchTavily, extractTavily, extractInterviewReviewUrls, TavilySearchRequest } from "../_shared/tavily-client.ts";
+import { extractInterviewReviewUrls, TavilySearchRequest } from "../_shared/tavily-client.ts";
 import { searchWithFallback } from "../_shared/duckduckgo-fallback.ts";
 import { callOpenAI, parseJsonResponse, OpenAIRequest } from "../_shared/openai-client.ts";
 import { SearchLogger } from "../_shared/logger.ts";
 import { RESEARCH_CONFIG, getAllSearchQueries, getOpenAIModel } from "../_shared/config.ts";
 import { UrlDeduplicationService } from "../_shared/url-deduplication.ts";
-import { createHybridScraper, InterviewExperience } from "../_shared/native-scrapers.ts";
 import { authorizeRequest, ensureServiceCaller } from "../_shared/auth.ts";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import { buildSearchPayloads } from "./result-aggregation.ts";
-import {
-  NATIVE_COVERAGE_THRESHOLD,
-  decideTavilyCoverage,
-} from "./hybrid-coverage.ts";
 
 interface CompanyResearchRequest {
   company: string;
@@ -502,163 +497,6 @@ You MUST return ONLY valid JSON in this exact structure:
   }
 }
 
-// Enhanced hybrid research combining native scraping with Tavily discovery
-async function conductHybridResearch(
-  company: string,
-  role?: string,
-  country?: string,
-  searchId?: string,
-  userId?: string,
-  supabase?: any,
-  logger?: SearchLogger
-): Promise<any> {
-  const tavilyApiKey = Deno.env.get("TAVILY_API_KEY");
-  if (!tavilyApiKey) {
-    console.warn("TAVILY_API_KEY not found, skipping Tavily discovery phase");
-  }
-
-  const hybridScraper = createHybridScraper();
-
-  logger?.log('HYBRID_RESEARCH_START', 'NATIVE_SCRAPING', { company, role, country });
-  console.log(`[HybridResearch] Starting comprehensive research for ${company} ${role || ''}`);
-
-  try {
-    // Phase 1: Native Scraping of Known High-Value Sources (Exhaustive)
-    logger?.logPhaseTransition('INIT', 'NATIVE_SCRAPING', { company, role });
-    console.log("Phase 1: Native scraping of structured interview sites...");
-
-    const nativeResults = await hybridScraper.scrapeAllSources(company, role);
-
-    logger?.log('NATIVE_SCRAPING_COMPLETE', 'PHASE1', {
-      totalExperiences: nativeResults.combinedExperiences.length,
-      platformBreakdown: nativeResults.executionSummary.platformBreakdown,
-      executionTime: nativeResults.executionSummary.totalExecutionTime
-    });
-
-    console.log(`Phase 1 Complete: Found ${nativeResults.combinedExperiences.length} native experiences`);
-    console.log(`Platform breakdown:`, nativeResults.executionSummary.platformBreakdown);
-
-    // Phase 2: Tavily Discovery for Unknown/Blog Sources (Supplementary)
-    logger?.logPhaseTransition('NATIVE_SCRAPING', 'TAVILY_DISCOVERY', { company, role });
-    console.log("Phase 2: Tavily discovery of additional sources (blogs, unknown forums)...");
-
-    // Per-platform coverage decision (PREPIO-49): only exclude a community
-    // domain from Tavily when its native scraper actually produced meaningful
-    // results. Otherwise Tavily blanket-skips the most anti-bot-protected
-    // sites — Glassdoor / Blind / Reddit / LeetCode — when those are exactly
-    // the sources where candidate-reported questions live.
-    const coverage = decideTavilyCoverage(
-      nativeResults.executionSummary.platformBreakdown,
-    );
-    logger?.log('TAVILY_COVERAGE_DECISION', 'PHASE2', {
-      platformBreakdown: nativeResults.executionSummary.platformBreakdown,
-      threshold: NATIVE_COVERAGE_THRESHOLD,
-      excludedDomains: coverage.excludedDomains,
-      rescuedDomains: coverage.rescuedDomains,
-      uncoveredPlatforms: coverage.uncoveredPlatforms,
-    });
-    if (coverage.rescuedDomains.length > 0) {
-      console.log(
-        `[HybridResearch] Rescuing under-covered platforms via Tavily: ${coverage.uncoveredPlatforms.join(', ')}`,
-      );
-    }
-
-    // Use Tavily for discovering content NOT covered by native scrapers
-    const tavilyQueries = [
-      `"${company}" interview experience blog 2024`,
-      `${company} ${role || 'engineer'} interview tips advice`,
-      `"interviewed at ${company}" personal blog experience`,
-      `${company} hiring process insights medium linkedin`
-    ];
-
-    const tavilyResults: any[] = [];
-
-    for (const query of tavilyQueries.slice(0, 3)) { // Limit to 3 discovery queries
-      try {
-        const searchResult = await searchTavily(tavilyApiKey, {
-          query: query.trim(),
-          searchDepth: 'basic',
-          maxResults: 8, // Smaller limit since this is supplementary
-          includeRawContent: false,
-          excludeDomains: coverage.excludedDomains,
-        }, searchId, userId, supabase);
-
-        if (searchResult) {
-          tavilyResults.push(searchResult);
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Rate limiting
-      } catch (error) {
-        console.warn(`Tavily discovery query failed: ${query}`, error);
-      }
-    }
-
-    logger?.log('TAVILY_DISCOVERY_COMPLETE', 'PHASE2', {
-      queriesExecuted: Math.min(tavilyQueries.length, 3),
-      supplementaryResults: tavilyResults.length
-    });
-
-    console.log(`Phase 2 Complete: Found ${tavilyResults.length} supplementary Tavily results`);
-
-    // Phase 3: Combine and Analyze All Sources
-    logger?.logPhaseTransition('TAVILY_DISCOVERY', 'ANALYSIS', { company, role });
-    console.log("Phase 3: Analyzing combined native + discovery results...");
-
-    // Merge native experiences with Tavily discoveries
-    const combinedData = {
-      native_experiences: nativeResults.combinedExperiences,
-      tavily_discoveries: tavilyResults,
-      execution_summary: {
-        native_platforms: nativeResults.executionSummary.platformBreakdown,
-        total_native_experiences: nativeResults.combinedExperiences.length,
-        supplementary_discoveries: tavilyResults.length,
-        total_execution_time: nativeResults.executionSummary.totalExecutionTime
-      }
-    };
-
-    // Convert native experiences to format compatible with existing AI analysis
-    const convertedResults: {
-      search_results: any[];
-      extracted_content: any[];
-      native_interview_experiences: any[];
-    } = {
-      search_results: tavilyResults, // Keep Tavily format for discovery content
-      extracted_content: [], // We'll populate this from native experiences
-      native_interview_experiences: nativeResults.combinedExperiences // New field for structured experiences
-    };
-
-    // Convert native experiences to extracted content format for AI analysis
-    nativeResults.combinedExperiences.forEach((exp: InterviewExperience) => {
-      convertedResults.extracted_content.push({
-        url: exp.url,
-        title: exp.title,
-        content: `${exp.content}\n\nPlatform: ${exp.platform}\nDifficulty: ${exp.difficulty_rating}\nExperience Type: ${exp.experience_type}\nInterview Stages: ${exp.metadata.interview_stages?.join(', ') || 'Not specified'}\nQuestions Asked: ${exp.metadata.questions_asked?.join(', ') || 'Not specified'}`,
-        platform: exp.platform,
-        metadata: exp.metadata
-      });
-    });
-
-    logger?.log('HYBRID_RESEARCH_COMPLETE', 'SUCCESS', {
-      totalNativeExperiences: nativeResults.combinedExperiences.length,
-      totalTavilyDiscoveries: tavilyResults.length,
-      combinedExtractedContent: convertedResults.extracted_content.length,
-      success: true
-    });
-
-    console.log(`Hybrid Research Complete: ${nativeResults.combinedExperiences.length} native + ${tavilyResults.length} discovery results`);
-
-    return convertedResults;
-
-  } catch (error) {
-    logger?.log('HYBRID_RESEARCH_ERROR', 'FAILURE', { error: error.message, company, role });
-    console.error('Hybrid research failed:', error);
-
-    // Fallback to traditional Tavily-only approach
-    console.log('Falling back to traditional Tavily search...');
-    return await searchCompanyInfo(company, role, country, searchId, userId, supabase, logger);
-  }
-}
-
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req);
 
@@ -715,18 +553,16 @@ serve(async (req) => {
 
     const userId = searchData?.user_id;
 
-    // Step 1: Conduct research (Hybrid or Traditional based on feature flag)
-    const useHybridApproach = RESEARCH_CONFIG.features.enableHybridScraping;
-
-    if (useHybridApproach) {
-      logger.log('STEP_START', 'HYBRID_RESEARCH', { step: 1, description: 'Conducting hybrid native + discovery research' });
-      console.log("Conducting hybrid research (native scraping + discovery)...");
-      var researchData = await conductHybridResearch(company, role, country, searchId, userId, supabase, logger);
-    } else {
-      logger.log('STEP_START', 'TRADITIONAL_RESEARCH', { step: 1, description: 'Conducting traditional Tavily research' });
-      console.log("Conducting traditional Tavily research...");
-      var researchData = await searchCompanyInfo(company, role, country, searchId, userId, supabase, logger);
-    }
+    // Step 1: Conduct retrieval-grounded research.
+    // The former "hybrid" path ran native scrapers that only ever returned
+    // hard-coded mock candidate experiences (fake URLs, fake questions), which
+    // were fed to the analyzer as real reports (PREPIO-77). We now always use
+    // the real Tavily retrieval path. With no native-coverage gaps to
+    // compensate for, Tavily searches every allowed community domain directly
+    // — the outcome PREPIO-49's coverage rescue was reaching for.
+    logger.log('STEP_START', 'RESEARCH', { step: 1, description: 'Conducting retrieval-grounded research' });
+    console.log("Conducting retrieval-grounded research (Tavily)...");
+    const researchData = await searchCompanyInfo(company, role, country, searchId, userId, supabase, logger);
 
     // Step 2: Analyze research data using AI
     logger.log('STEP_START', 'ANALYSIS', { step: 2, description: 'Analyzing company data' });
