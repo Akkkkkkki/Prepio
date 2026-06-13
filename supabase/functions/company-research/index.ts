@@ -184,8 +184,11 @@ async function searchCompanyInfo(
         searchResults = built.searchPayloads;
         validFreshResults = built.validFreshResults;
       } else {
-        // Get search queries from centralized config - LIMITED to 2 queries to prevent timeout
-        const searchQueries = getAllSearchQueries(company, role, country).slice(0, 2);
+        // Get search queries from centralized config. Capped at 6 so the
+        // first round-robin sweep covers Glassdoor + Blind + Reddit +
+        // technical + international + general (one each) under the 15s
+        // function timeout. Searches run concurrently via Promise.all.
+        const searchQueries = getAllSearchQueries(company, role, country).slice(0, 6);
 
         logger?.logPhaseTransition('CACHE_CHECK', 'DISCOVERY', {
           queriesCount: searchQueries.length,
@@ -234,9 +237,9 @@ async function searchCompanyInfo(
         validFreshResults = built.validFreshResults;
 
         logger?.log('DISCOVERY_COMPLETE', 'PHASE1', {
-          totalQueries: 2, // Reduced for speed
+          totalQueries: searchQueries.length,
           successfulResults: validFreshResults.length,
-          failedResults: 2 - validFreshResults.length,
+          failedResults: searchQueries.length - validFreshResults.length,
           cachedResultsAvailable: combinedResults.cachedResults.length
         });
       }
