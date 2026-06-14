@@ -46,6 +46,7 @@ export type AssessmentSignal = {
 export type StagePlan = {
   stageName: string;
   orderIndex: number;
+  evidenceIds?: string[];
   confidence: Confidence;
   whatItTests: string[];
   whyLikely: string;
@@ -86,6 +87,7 @@ export type QuestionPlan = {
 export type QuestionItem = {
   question: string;
   stageName: string | null;
+  evidenceIds?: string[];
   linkedPriority: string;
   reason: string;
   answerGuidanceStatus: AnswerGuidanceStatus;
@@ -100,6 +102,10 @@ export type EvidenceItem = {
   relevance: Priority;
   trustWeight: Priority;
   contradictionGroup: string | null;
+  title?: string;
+  platform?: string;
+  publishedDate?: string | null;
+  snippet?: string;
 };
 
 // ── Database row shape (matches prep_plans table JSONB columns) ──

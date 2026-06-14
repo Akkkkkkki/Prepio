@@ -135,9 +135,8 @@ const evidenceSourceMeta = (
   }
 };
 
-// Evidence URLs are model-generated (synthesizePrepPlan) and stored without
-// validation, so a malformed or injected javascript:/data: value must never be
-// rendered as a clickable link. Only absolute http(s) URLs are treated as safe.
+// Evidence URLs come from the retrieval ledger, but stored JSON can still be
+// malformed or stale. Only absolute http(s) URLs are treated as safe links.
 const isSafeHttpUrl = (url: string | null): url is string => {
   if (!url) return false;
   try {

@@ -329,6 +329,7 @@ serve(async (req) => {
         status: "success", 
         message: "Job analysis completed",
         job_requirements: jobRequirements,
+        raw_job_data: jobData || null,
         urls_processed: urlsProcessed
       }),
       {

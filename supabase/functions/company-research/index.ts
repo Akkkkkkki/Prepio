@@ -588,6 +588,7 @@ serve(async (req) => {
       status: "success",
       message: "Company research completed",
       company_insights: companyInsights,
+      raw_research_data: researchData || null,
       research_sources: researchData ? researchData.search_results?.length || 0 : 0,
       extracted_urls: researchData ? researchData.total_urls_extracted || 0 : 0,
       deep_extracts: researchData ? researchData.extracted_content?.length || 0 : 0,
