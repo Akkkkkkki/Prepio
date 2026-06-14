@@ -144,6 +144,25 @@ Every issue should have one Type and at least one Area. Resist adding more dimen
 - Status types in this team: `Backlog` → `Todo` → `In Progress` → `In Review` → `Done`. Use `Canceled` for dropped work, `Duplicate` for merged-into-other-issue.
 - Cycles drive cadence. Plan weekly; keep "In Progress" small.
 
+### Recurring hygiene reviews
+
+The recurring hygiene reviews under [`docs/audits/`](./docs/audits) produce a
+list of deferred items each run. **File a Linear issue for every deferred
+item that meets the >30-min threshold** (almost all of them do — security
+fixes, dependency upgrades, edge-function refactors, dead-code decisions).
+Don't leave deferred items as bullet points in the audit doc only — the
+audit doc is for the dated trail; Linear is for the team's actionable
+backlog. Each issue should:
+
+- Land in the **Quality & Maintenance** project unless it clearly belongs
+  to one of the active "Now" projects.
+- Carry the `Chore` Type label plus the matching Area label.
+- Cross-link back to the audit doc and the PR that introduced the
+  finding, so a future maintainer can trace the history.
+
+The audit doc's *Deferred items* section should then list the issues by
+identifier rather than re-describing the work.
+
 ## Docs Map
 
 | Document | Purpose |

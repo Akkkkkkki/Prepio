@@ -95,14 +95,31 @@ but the dev-only impact keeps the production risk low — see Medium.)
     `npm test`, and the RCE advisory's attack vector is a malicious
     `NPM_CONFIG_REGISTRY` env var — plausible on shared CI or
     misconfigured dev environments.
-  - Recommended fix: Plan the Vite 8 upgrade. `npm audit fix --force`
-    will install `vite@8.0.16` which is a SemVer-major bump (PWA
-    plugin, `lovable-tagger`, and the `@vitejs/plugin-react-swc`
-    config surface all need to be checked). Not appropriate for this
-    hygiene run because it touches the build pipeline and risks
-    regressions in PWA precache generation. Best handled as a
-    standalone PR with `npm run build && npm test && npm run dev`
-    smoke-checked.
+  - Recommended fix: Plan the Vite 8 upgrade **and address
+    `lovable-tagger`'s nested `esbuild` pin in the same PR.**
+    `npm audit fix --force` installs `vite@8.0.16` (SemVer-major
+    bump — PWA plugin, `@vitejs/plugin-react-swc` config surface need
+    checking), but it does **not** clear the high advisory on its
+    own: `lovable-tagger@1.3.0` carries
+    `node_modules/lovable-tagger/node_modules/esbuild@0.25.0` which
+    is still inside the affected `>=0.17.0 <0.28.1` range
+    (`package-lock.json:10202-10209,10607-10608`). Three options for
+    closing that gap, in increasing-invasiveness order:
+    1. Wait for an upstream `lovable-tagger` release that uses
+       `esbuild >= 0.28.1`, then bump.
+    2. Add an `overrides` entry in `package.json` forcing
+       `esbuild >= 0.28.1` across the dep tree (cheapest; assumes no
+       breaking API changes in esbuild between `0.25.0` and `0.28.1`
+       that `lovable-tagger` relies on).
+    3. Remove `lovable-tagger` from `vite.config.ts` and from
+       devDependencies — it's a dev-only Lovable.dev component
+       tagger, not load-bearing for the build.
+
+    Not appropriate for this hygiene run because it touches the
+    build pipeline and risks regressions in PWA precache generation.
+    Best handled as a standalone PR with `npm run build && npm test
+    && npm run dev` smoke-checked, and a fresh `npm audit` to confirm
+    the high advisory is gone after the fix.
   - Owner / next step: Open a Linear `Chore` issue for "Vite 8
     upgrade — clear esbuild advisories" and schedule for the next
     cycle. Dependabot will surface the major bump as a draft PR once
@@ -272,22 +289,28 @@ introduced here).
 
 ## Deferred items
 
-- **Vite 8 upgrade** to clear the two new high-severity `esbuild`
-  advisories. Best done as a standalone PR with smoke testing of
-  `npm run dev`, `npm run build`, and the PWA precache generation.
-- **Pin `openai/codex-action` to a commit SHA** in
+All deferred items are now tracked in Linear under the **Quality &
+Maintenance** project so they don't have to be re-discovered next
+review:
+
+- **[PREPIO-84](https://linear.app/qiuyue/issue/PREPIO-84)** — Vite 8
+  upgrade to clear the two new high-severity `esbuild` advisories.
+  Best done as a standalone PR with smoke testing of `npm run dev`,
+  `npm run build`, and the PWA precache generation.
+- **[PREPIO-85](https://linear.app/qiuyue/issue/PREPIO-85)** — Pin
+  `openai/codex-action` to a commit SHA in
   `.github/workflows/codex-prepio-linear-auto-pr.yml`. Needs verified
-  upstream SHA — best done as a focused PR rather than bundled with
-  the dependabot config.
-- **Adopting `buildCorsHeaders`** in the remaining six user-facing
-  edge functions (now overdue for a dedicated PR per the 2026-06-10
-  escalation plan). Pair with documenting `APP_ALLOWED_ORIGINS` in
-  the production secrets.
-- **Removing `interview-question-generator`** dead code (sixth
-  recurrence — needs an explicit "keep" or "delete" decision from the
-  product owner).
-- **Pin first-party `actions/*` references** to commit SHAs. Low
-  priority; bundle with the `openai/codex-action` pin if convenient.
+  upstream SHA. Bundle the first-party `actions/*` SHA pins into this
+  issue's secondary scope.
+- **[PREPIO-86](https://linear.app/qiuyue/issue/PREPIO-86)** — Adopt
+  `buildCorsHeaders` in the remaining six user-facing edge functions
+  (now overdue for a dedicated PR per the 2026-06-10 escalation
+  plan). Pair with documenting `APP_ALLOWED_ORIGINS` in the
+  production secrets.
+- **[PREPIO-87](https://linear.app/qiuyue/issue/PREPIO-87)** — Decide
+  on `interview-question-generator`: delete it (no caller observed)
+  or document the external caller in `docs/ARCHITECTURE.md`. Sixth
+  recurrence; either outcome is fine, the cost is the indecision.
 
 ## Questions for product owner
 
