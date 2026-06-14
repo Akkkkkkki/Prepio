@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
 
 import { authorizeRequest } from "../_shared/auth.ts";
 import { getOpenAIModel } from "../_shared/config.ts";
+import { buildCorsHeaders } from "../_shared/cors.ts";
 import { parseJsonResponse } from "../_shared/openai-client.ts";
 import {
   buildProfileImportReview,
@@ -10,11 +11,6 @@ import {
   createEmptyCandidateProfile,
   normalizeCandidateProfile,
 } from "../../../src/lib/candidateProfile.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 interface ProfileImportRequest {
   resumeText: string;
@@ -265,6 +261,8 @@ const buildDraftProfile = async (resumeText: string, userId: string) => {
 };
 
 serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

@@ -34,6 +34,15 @@ Supabase Edge Functions:
 
 Shared function utilities live under `supabase/functions/_shared`.
 
+All user-facing functions (everything except `stripe-webhook`, which has no
+browser caller) compose CORS headers through `buildCorsHeaders` in
+`supabase/functions/_shared/cors.ts`. The helper honors the optional
+`APP_ALLOWED_ORIGINS` env var — a comma-separated allowlist that's echoed
+back when the request's `Origin` matches — and falls back to `*` when the
+var is unset. Set `APP_ALLOWED_ORIGINS` in production secrets (typically
+the deployed `APP_BASE_URL` plus the Vercel preview origin pattern) to
+turn off the wildcard.
+
 ## Data Model
 
 Core tables:

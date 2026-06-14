@@ -8,14 +8,8 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
 import Stripe from "https://esm.sh/stripe@17.4.0?target=denonext";
 import { authorizeRequest } from "../_shared/auth.ts";
+import { buildCorsHeaders } from "../_shared/cors.ts";
 import { createPortalSession, type SupabaseLike } from "./handler.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
 const log = (event: string, fields: Record<string, unknown> = {}) =>
   console.log(JSON.stringify({ event, fn: "create-portal-session", ...fields }));
@@ -27,6 +21,9 @@ function readEnv(name: string): string {
 }
 
 serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req);
+  const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
