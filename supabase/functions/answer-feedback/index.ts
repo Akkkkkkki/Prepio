@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
 import { authorizeRequest } from "../_shared/auth.ts";
 import { RESEARCH_CONFIG } from "../_shared/config.ts";
+import { buildCorsHeaders } from "../_shared/cors.ts";
 import { getEntitlement } from "../_shared/entitlement.ts";
 import { callOpenAI, parseJsonResponse } from "../_shared/openai-client.ts";
 import {
@@ -10,13 +11,6 @@ import {
   type StructuredFeedback,
   type SupabaseLike,
 } from "./handler.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
 const fallbackFeedback: StructuredFeedback = {
   strengths: [],
@@ -60,6 +54,9 @@ function buildPrompt(input: FeedbackModelInput): string {
 }
 
 serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req);
+  const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

@@ -4,6 +4,7 @@ import { SearchLogger } from "../_shared/logger.ts";
 import { RESEARCH_CONFIG, getOpenAIModel, getMaxTokens } from "../_shared/config.ts";
 import { ProgressTracker, PROGRESS_STEPS, CONCURRENT_TIMEOUTS, executeWithTimeout } from "../_shared/progress-tracker.ts";
 import { authorizeRequest, type AuthorizedRequestContext } from "../_shared/auth.ts";
+import { buildCorsHeaders } from "../_shared/cors.ts";
 import { parseJsonResponse } from "../_shared/openai-client.ts";
 import {
   buildRepairInstructions,
@@ -12,12 +13,6 @@ import {
   validatePrepPlan,
   type PrepPlanValidationResult,
 } from "./prep-plan-validation.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -1079,17 +1074,21 @@ async function processInterviewResearch(
   }
 }
 
-const jsonResponse = (body: unknown, status: number) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-
 const edgeRuntime = globalThis as typeof globalThis & {
   EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void };
 };
 
 serve(async (req: Request) => {
+  const corsHeaders = {
+    ...buildCorsHeaders(req),
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+  const jsonResponse = (body: unknown, status: number) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
