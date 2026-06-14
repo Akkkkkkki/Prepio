@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSwipeable } from "react-swipeable";
 import Navigation from "@/components/Navigation";
@@ -45,6 +45,7 @@ import { getEntitlement } from "@/services/entitlements";
 import { sessionSampler } from "@/services/sessionSampler";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useMobileFooterHeight } from "@/hooks/useMobileFooterHeight";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { SessionSummary } from "@/components/SessionSummary";
 import { QuestionFrame } from "@/components/practice/QuestionFrame";
@@ -253,8 +254,9 @@ const Practice = () => {
   const [showCheckmark, setShowCheckmark] = useState(false);
   const [isCoachSheetOpen, setIsCoachSheetOpen] = useState(false);
   const [isNotesExpanded, setIsNotesExpanded] = useState(false);
-  const [mobileFooterHeight, setMobileFooterHeight] = useState(0);
-  const [mobileFooterElement, setMobileFooterElement] = useState<HTMLDivElement | null>(null);
+  const { height: mobileFooterHeight, setRef: setMobileFooterElement } = useMobileFooterHeight(
+    isMobile && sessionState === 'inProgress',
+  );
   const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hydratedAnswersRef = useRef<Set<string>>(new Set());
   const answeredIdsRef = useRef<Set<string>>(new Set());
@@ -831,47 +833,6 @@ const getInterviewerFocus = (
       setShouldShowSwipeHint(false);
     }
   }, [currentIndex, isMobile, sessionState, swipeHintStorageKey]);
-
-  useLayoutEffect(() => {
-    if (!isMobile || sessionState !== 'inProgress') {
-      setMobileFooterHeight(0);
-      return;
-    }
-
-    const footer = mobileFooterElement;
-    if (!footer) return;
-
-    const measureFooter = () => {
-      setMobileFooterHeight(Math.ceil(footer.getBoundingClientRect().height));
-    };
-
-    measureFooter();
-
-    const handleResize = () => measureFooter();
-    window.addEventListener('resize', handleResize);
-
-    if (typeof ResizeObserver === "undefined") {
-      return () => window.removeEventListener('resize', handleResize);
-    }
-
-    const observer = new ResizeObserver(() => measureFooter());
-    observer.observe(footer);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [
-    currentQuestion?.id,
-    hasRecording,
-    isMobile,
-    isNotesExpanded,
-    isRecording,
-    isRecordingPaused,
-    mobileFooterElement,
-    recordingError,
-    sessionState,
-  ]);
 
   // Recording timer
   useEffect(() => {

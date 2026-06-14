@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useMobileFooterHeight } from "@/hooks/useMobileFooterHeight";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import {
   clearResearchDraft,
@@ -196,8 +197,9 @@ const Home = () => {
   const [preview, setPreview] = useState<ResearchPreview | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  const [mobileFooterHeight, setMobileFooterHeight] = useState(0);
-  const [mobileFooterElement, setMobileFooterElement] = useState<HTMLDivElement | null>(null);
+  const { height: mobileFooterHeight, setRef: setMobileFooterElement } = useMobileFooterHeight(
+    isMobile && !!user,
+  );
 
   useEffect(() => {
     const draft = loadResearchDraft();
@@ -691,37 +693,6 @@ const Home = () => {
     (!isOnline && mobileStep === "tailoring") ||
     (mobileStep === "company" && !formData.company.trim());
   const mobileFooterPadding = "calc(1rem + env(safe-area-inset-bottom))";
-
-  useLayoutEffect(() => {
-    if (!isMobile || !user) {
-      setMobileFooterHeight(0);
-      return;
-    }
-
-    const footer = mobileFooterElement;
-    if (!footer) return;
-
-    const measureFooter = () => {
-      setMobileFooterHeight(Math.ceil(footer.getBoundingClientRect().height));
-    };
-
-    measureFooter();
-
-    const handleResize = () => measureFooter();
-    window.addEventListener("resize", handleResize);
-
-    if (typeof ResizeObserver === "undefined") {
-      return () => window.removeEventListener("resize", handleResize);
-    }
-
-    const observer = new ResizeObserver(() => measureFooter());
-    observer.observe(footer);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [isMobile, mobileFooterElement, mobileStep, user]);
 
   const renderProfileResumeNote = (buttonClassName?: string) => (
     <>
