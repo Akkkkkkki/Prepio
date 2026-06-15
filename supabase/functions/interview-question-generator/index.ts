@@ -1,3 +1,9 @@
+// Standalone question-generation endpoint. Service-role-gated and has no
+// in-repo caller — the live research pipeline generates questions inline in
+// `supabase/functions/interview-research/index.ts`. Preserved for external /
+// operator invocation. See `docs/ARCHITECTURE.md` under "Supabase Edge
+// Functions" for context. If you're auditing this directory and considering
+// deletion, the decision is tracked in PREPIO-87.
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
 import { getOpenAIModel } from "../_shared/config.ts";
