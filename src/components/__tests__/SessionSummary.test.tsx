@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
 import { SessionSummary } from "../SessionSummary";
 import type { SavedPracticeAnswerRecord } from "@/hooks/usePracticeSession";
+import type { AnswerFeedback } from "@/shared/answer-feedback";
 
 const baseProps = {
   answeredCount: 1,
@@ -167,5 +168,89 @@ describe("SessionSummary rubric self-check", () => {
     );
 
     expect(screen.getByRole("button", { name: /get detailed coaching/i })).toBeInTheDocument();
+  });
+
+  it("generates and renders feedback for a paid user", async () => {
+    const generated: AnswerFeedback = {
+      id: "fb-1",
+      practiceAnswerId: "answer-1",
+      model: "gpt-4o-mini",
+      createdAt: null,
+      strengths: [{ text: "Owned the outcome" }],
+      improvements: [{ text: "Add a number" }],
+      starBreakdown: { situation: "", task: "", action: "", result: "" },
+      nextAction: { text: "Re-tell with a metric." },
+    };
+    const onGenerateFeedback = vi.fn().mockResolvedValue({ success: true, feedback: generated });
+
+    render(
+      <MemoryRouter>
+        <SessionSummary
+          {...baseProps}
+          savedAnswers={[
+            {
+              id: "answer-1",
+              questionId: "q-1",
+              question: "Tell me about a hard tradeoff.",
+              stageName: "Behavioral",
+              textAnswer: "I picked the smaller scope to ship on time.",
+              goodSignals: [],
+              weakSignals: [],
+            },
+          ]}
+          onRateAnswer={vi.fn().mockResolvedValue(undefined)}
+          answerFeedbackAccess="paid"
+          onGenerateFeedback={onGenerateFeedback}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /get detailed coaching/i }));
+
+    expect(onGenerateFeedback).toHaveBeenCalledWith("answer-1", false);
+    expect(await screen.findByText("Owned the outcome")).toBeInTheDocument();
+    expect(screen.getByText(/Re-tell with a metric/)).toBeInTheDocument();
+  });
+
+  it("shows pre-loaded feedback without a generate click", () => {
+    render(
+      <MemoryRouter>
+        <SessionSummary
+          {...baseProps}
+          savedAnswers={[
+            {
+              id: "answer-1",
+              questionId: "q-1",
+              question: "Tell me about a hard tradeoff.",
+              stageName: "Behavioral",
+              textAnswer: "I picked the smaller scope to ship on time.",
+              goodSignals: [],
+              weakSignals: [],
+            },
+          ]}
+          onRateAnswer={vi.fn().mockResolvedValue(undefined)}
+          answerFeedbackAccess="paid"
+          onGenerateFeedback={vi.fn()}
+          feedbackByAnswerId={{
+            "answer-1": {
+              id: "fb-9",
+              practiceAnswerId: "answer-1",
+              model: null,
+              createdAt: null,
+              strengths: [{ text: "Concrete example" }],
+              improvements: [],
+              starBreakdown: { situation: "", task: "", action: "", result: "" },
+              nextAction: { text: "Tighten the opening." },
+            },
+          }}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Concrete example")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /regenerate/i })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /get detailed coaching/i }),
+    ).not.toBeInTheDocument();
   });
 });

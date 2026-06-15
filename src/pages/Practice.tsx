@@ -47,7 +47,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMobileFooterHeight } from "@/hooks/useMobileFooterHeight";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
-import { SessionSummary } from "@/components/SessionSummary";
+import { SessionSummary, type GenerateAnswerFeedbackResult } from "@/components/SessionSummary";
+import type { AnswerFeedback } from "@/shared/answer-feedback";
 import { QuestionFrame } from "@/components/practice/QuestionFrame";
 import { HintBanner } from "@/components/practice/HintBanner";
 import { BottomPracticeNav } from "@/components/practice/BottomPracticeNav";
@@ -221,6 +222,7 @@ const Practice = () => {
   const [isSavingRating, setIsSavingRating] = useState(false);
   const [answerFeedbackAccess, setAnswerFeedbackAccess] =
     useState<AnswerFeedbackAccess>("loading");
+  const [feedbackByAnswerId, setFeedbackByAnswerId] = useState<Record<string, AnswerFeedback>>({});
   
   // Question flags (Epic 1.3)
   const [questionFlags, setQuestionFlags] = useState<Record<string, { flag_type: string; id: string }>>({});
@@ -295,6 +297,53 @@ const Practice = () => {
       isCancelled = true;
     };
   }, [user?.id]);
+
+  // Prefetch any existing coaching feedback for saved answers so paid users see
+  // it immediately (e.g. on returning to a completed session) without a click.
+  useEffect(() => {
+    if (answerFeedbackAccess !== "paid") return;
+
+    const missingIds = savedAnswerRecords
+      .map((record) => record.id)
+      .filter((id) => id && !feedbackByAnswerId[id]);
+
+    if (missingIds.length === 0) return;
+
+    let isCancelled = false;
+    void searchService.getAnswerFeedbackForAnswers(missingIds).then((result) => {
+      if (isCancelled || !result.success || !result.feedback) return;
+      if (Object.keys(result.feedback).length === 0) return;
+      setFeedbackByAnswerId((prev) => ({ ...prev, ...result.feedback }));
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [answerFeedbackAccess, savedAnswerRecords, feedbackByAnswerId]);
+
+  const handleGenerateFeedback = async (
+    answerId: string,
+    regenerate: boolean,
+  ): Promise<GenerateAnswerFeedbackResult> => {
+    const result = await searchService.generateAnswerFeedback(answerId, regenerate);
+    if (result.success) {
+      setFeedbackByAnswerId((prev) => ({ ...prev, [answerId]: result.feedback }));
+      return result;
+    }
+
+    // A concurrent generation already produced feedback — surface the cached
+    // version instead of an error.
+    if (result.errorCode === "feedback_already_exists") {
+      const existing = await searchService.getAnswerFeedbackForAnswers([answerId]);
+      const cached = existing.success ? existing.feedback?.[answerId] : undefined;
+      if (cached) {
+        setFeedbackByAnswerId((prev) => ({ ...prev, [answerId]: cached }));
+        return { success: true, feedback: cached };
+      }
+    }
+
+    return result;
+  };
 
   const clearSavedRecording = () => {
     setAudioBlob(null);
@@ -2367,6 +2416,8 @@ const getInterviewerFocus = (
             needsWorkQuestionIds={needsWorkQuestionIds}
             onToggleNeedsWork={isOffline ? undefined : handleToggleNeedsWork}
             answerFeedbackAccess={answerFeedbackAccess}
+            feedbackByAnswerId={feedbackByAnswerId}
+            onGenerateFeedback={isOffline ? undefined : handleGenerateFeedback}
           />
         </div>
       </div>

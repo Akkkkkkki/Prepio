@@ -2,6 +2,11 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json, Tables } from "@/integrations/supabase/types";
 import type { ResearchPreview } from "@/types/researchPreview";
 import {
+  type AnswerFeedback,
+  type AnswerFeedbackErrorCode,
+  normalizeStructuredFeedback,
+} from "@/shared/answer-feedback";
+import {
   type CandidateProfile,
   type ProfileImportRecord,
   type ProfileImportSuggestion,
@@ -1658,4 +1663,108 @@ export const searchService = {
       return { error, success: false };
     }
   },
+
+  /**
+   * Read the latest non-superseded answer feedback for a set of practice
+   * answers. Returns a map keyed by `practice_answer_id`. Uses RLS-scoped
+   * reads so a user only ever sees their own feedback.
+   */
+  async getAnswerFeedbackForAnswers(
+    answerIds: string[],
+  ): Promise<{ success: boolean; feedback?: Record<string, AnswerFeedback>; error?: unknown }> {
+    try {
+      const uniqueIds = Array.from(new Set(answerIds.filter(Boolean)));
+      if (uniqueIds.length === 0) {
+        return { success: true, feedback: {} };
+      }
+
+      const { data, error } = await supabase
+        .from("answer_feedback")
+        .select(
+          "id, practice_answer_id, strengths, improvements, star_breakdown, next_action, model, created_at",
+        )
+        .in("practice_answer_id", uniqueIds)
+        .is("superseded_by", null);
+
+      if (error) throw error;
+
+      const feedback: Record<string, AnswerFeedback> = {};
+      for (const row of data ?? []) {
+        if (!row.practice_answer_id) continue;
+        feedback[row.practice_answer_id] = {
+          id: row.id,
+          practiceAnswerId: row.practice_answer_id,
+          model: row.model ?? null,
+          createdAt: row.created_at ?? null,
+          ...normalizeStructuredFeedback(row),
+        };
+      }
+
+      return { success: true, feedback };
+    } catch (error) {
+      console.error("Error loading answer feedback:", error);
+      return { error, success: false };
+    }
+  },
+
+  /**
+   * Generate (or regenerate) detailed coaching feedback for a saved answer via
+   * the `answer-feedback` edge function. The function re-checks the paid
+   * entitlement server-side; this client maps its structured error codes so
+   * callers can render honest gated / cached / too-short states instead of a
+   * broken call.
+   */
+  async generateAnswerFeedback(
+    practiceAnswerId: string,
+    regenerate = false,
+  ): Promise<
+    | { success: true; feedback: AnswerFeedback }
+    | { success: false; errorCode: AnswerFeedbackErrorCode; error?: unknown }
+  > {
+    try {
+      const { data, error } = await supabase.functions.invoke("answer-feedback", {
+        body: { practiceAnswerId, regenerate },
+      });
+
+      if (error) {
+        const errorCode = await extractFunctionErrorCode(error);
+        return { success: false, errorCode };
+      }
+
+      const feedbackId = typeof data?.feedbackId === "string" ? data.feedbackId : "";
+      return {
+        success: true,
+        feedback: {
+          id: feedbackId,
+          practiceAnswerId,
+          model: typeof data?.model === "string" ? data.model : null,
+          createdAt: null,
+          ...normalizeStructuredFeedback((data?.feedback ?? {}) as Record<string, unknown>),
+        },
+      };
+    } catch (error) {
+      console.error("Error generating answer feedback:", error);
+      return { success: false, errorCode: "unknown_error", error };
+    }
+  },
 };
+
+/**
+ * Pull the structured error code out of a Supabase Functions error. Non-2xx
+ * responses surface as a `FunctionsHttpError` whose `context` is the raw
+ * Response, so the JSON `{ error: "..." }` body has to be read off it.
+ */
+async function extractFunctionErrorCode(error: unknown): Promise<AnswerFeedbackErrorCode> {
+  const context = (error as { context?: unknown })?.context;
+  if (context && typeof (context as Response).json === "function") {
+    try {
+      const body = (await (context as Response).clone().json()) as { error?: unknown };
+      if (typeof body?.error === "string") {
+        return body.error as AnswerFeedbackErrorCode;
+      }
+    } catch {
+      // Body was not JSON — fall through to the generic code below.
+    }
+  }
+  return "unknown_error";
+}
