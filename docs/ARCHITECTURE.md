@@ -26,7 +26,7 @@ Supabase Edge Functions:
 - `company-research`: finds and summarizes company/interview-process evidence.
 - `job-analysis`: extracts role requirements.
 - `cv-analysis`: parses resume/CV text.
-- `interview-question-generator`: generates tailored questions and answer guidance.
+- `interview-question-generator`: standalone question-generation endpoint. Service-role-gated (rejects non-service callers) and has no in-repo caller — the live research pipeline generates questions inline inside `interview-research`. Preserved for external/operator invocation; see the top-of-file note in `supabase/functions/interview-question-generator/index.ts`.
 - `profile-import`: creates candidate-profile import drafts.
 - `practice-audio-transcribe`: transcribes uploaded practice recordings.
 - `answer-feedback`: paid-only structured coaching for saved practice answers.
