@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams, useParams, Link } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { MobileStageCard } from "@/components/dashboard/MobileStageCard";
 import {
   PlayCircle,
@@ -25,8 +24,7 @@ import {
   TrendingUp,
   ChevronDown,
   ChevronUp,
-  MessageSquareText,
-  Send,
+  Lightbulb,
   ExternalLink,
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
@@ -533,77 +531,94 @@ function HighLeverageQuestionsCard({ stages }: { stages: InterviewStage[] }) {
   );
 }
 
-function PrepAskPanel({
-  company,
-  role,
-  prepPriorities,
-  assessmentSignals,
-}: {
+type GuidanceKey = "practice-first" | "senior-level" | "positioning";
+
+interface GuidanceContext {
   company?: string;
   role?: string | null;
   prepPriorities: PrepPriority[];
   assessmentSignals: AssessmentSignal[];
-}) {
-  const prompts = [
-    "What should I practice first?",
-    "Which questions are most senior-level?",
-    "How should I position my background?",
-  ];
-  const [prompt, setPrompt] = useState(prompts[0]);
-  const [response, setResponse] = useState("");
+}
 
-  const answer = (nextPrompt = prompt) => {
-    const topPriority = prepPriorities[0]?.label;
-    const topSignal = assessmentSignals[0]?.name;
-    const normalized = nextPrompt.toLowerCase();
+interface GuidancePreset {
+  key: GuidanceKey;
+  label: string;
+  build: (ctx: GuidanceContext) => string;
+}
 
-    setPrompt(nextPrompt);
-    if (normalized.includes("senior")) {
-      setResponse(`Lean into ${topSignal || "decision quality"}. Senior answers should show tradeoffs, constraints, and measurable impact for ${company || "this company"}.`);
-      return;
-    }
-    if (normalized.includes("position")) {
-      setResponse(`Position your background around ${topSignal || topPriority || "the highest-priority interview signal"}${role ? ` for the ${role} role` : ""}. Use one concrete story, then explain why your decision was right for the context.`);
-      return;
-    }
-    setResponse(`Practice ${topPriority || topSignal || "the first selected stage"} first. It is the clearest path from this research plan into a useful practice session.`);
-  };
+// Preset, deterministic pointers derived from the research plan. Templated
+// guidance — not an LLM chat — so we surface only the fixed prompts and keep
+// the copy honest about that.
+const DASHBOARD_GUIDANCE_PRESETS: GuidancePreset[] = [
+  {
+    key: "practice-first",
+    label: "What to practice first",
+    build: ({ prepPriorities, assessmentSignals }) =>
+      `Practice ${
+        prepPriorities[0]?.label || assessmentSignals[0]?.name || "the first selected stage"
+      } first. It is the clearest path from this research plan into a useful practice session.`,
+  },
+  {
+    key: "senior-level",
+    label: "Most senior-level questions",
+    build: ({ assessmentSignals, company }) =>
+      `Lean into ${
+        assessmentSignals[0]?.name || "decision quality"
+      }. Senior answers should show tradeoffs, constraints, and measurable impact for ${
+        company || "this company"
+      }.`,
+  },
+  {
+    key: "positioning",
+    label: "How to position my background",
+    build: ({ assessmentSignals, prepPriorities, role }) =>
+      `Position your background around ${
+        assessmentSignals[0]?.name ||
+        prepPriorities[0]?.label ||
+        "the highest-priority interview signal"
+      }${
+        role ? ` for the ${role} role` : ""
+      }. Use one concrete story, then explain why your decision was right for the context.`,
+  },
+];
 
-  useEffect(() => {
-    answer(prompts[0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company, role, prepPriorities.length, assessmentSignals.length]);
+function PrepAskPanel(ctx: GuidanceContext) {
+  const [activeKey, setActiveKey] = useState<GuidanceKey>(DASHBOARD_GUIDANCE_PRESETS[0].key);
+
+  const response = useMemo(() => {
+    const preset =
+      DASHBOARD_GUIDANCE_PRESETS.find((item) => item.key === activeKey) ??
+      DASHBOARD_GUIDANCE_PRESETS[0];
+    return preset.build(ctx);
+  }, [activeKey, ctx]);
 
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <MessageSquareText className="h-4 w-4 text-primary" />
-          Ask about this prep
+          <Lightbulb className="h-4 w-4 text-primary" />
+          Quick guidance
         </CardTitle>
-        <CardDescription>Grounded in this research plan, not a blank chatbot.</CardDescription>
+        <CardDescription>Preset pointers pulled from this research plan — pick one.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
-          {prompts.map((item) => (
-            <Button key={item} type="button" variant="outline" size="sm" onClick={() => answer(item)}>
-              {item}
+          {DASHBOARD_GUIDANCE_PRESETS.map((item) => (
+            <Button
+              key={item.key}
+              type="button"
+              variant={item.key === activeKey ? "default" : "outline"}
+              size="sm"
+              aria-pressed={item.key === activeKey}
+              onClick={() => setActiveKey(item.key)}
+            >
+              {item.label}
             </Button>
           ))}
         </div>
-        <div className="flex flex-col gap-2 md:flex-row">
-          <Textarea
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            aria-label="Ask about this prep"
-            rows={2}
-          />
-          <Button type="button" onClick={() => answer()} disabled={!prompt.trim()} className="md:self-start">
-            <Send className="mr-2 h-4 w-4" />
-            Ask
-          </Button>
+        <div className="rounded-xl bg-muted/40 p-3 text-sm leading-6" aria-live="polite">
+          {response}
         </div>
-        {response && <div className="rounded-xl bg-muted/40 p-3 text-sm leading-6">{response}</div>}
       </CardContent>
     </Card>
   );
