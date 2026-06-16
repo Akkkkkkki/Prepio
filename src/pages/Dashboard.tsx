@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useMobileFooterHeight } from "@/hooks/useMobileFooterHeight";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import type {
   PrepPlanRow,
@@ -80,6 +81,12 @@ interface SearchData {
   created_at: string;
   banner_dismissed?: boolean;
 }
+
+const MOBILE_FOOTER_CLEARANCE_PX = 16;
+// Floor used before the footer ref measures (first paint / jsdom) so the
+// scroll content never sits under the fixed Start-practice bar. Matches the
+// previous static pb-28 clearance.
+const MOBILE_FOOTER_FALLBACK_PX = 112;
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -907,6 +914,8 @@ const Dashboard = () => {
   const [prepPlan, setPrepPlan] = useState<PrepPlanRow | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { height: mobileFooterHeight, setRef: setMobileFooterElement } =
+    useMobileFooterHeight(isMobile);
 
   const loadSearchData = useCallback(async () => {
     if (!searchId) return;
@@ -1212,14 +1221,26 @@ const Dashboard = () => {
     return (
       <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
-        <div className="px-4 py-5 pb-28">
+        <div
+          className="px-4 py-5"
+          style={{
+            paddingBottom:
+              mobileFooterHeight > 0
+                ? `${mobileFooterHeight + MOBILE_FOOTER_CLEARANCE_PX}px`
+                : `${MOBILE_FOOTER_FALLBACK_PX}px`,
+          }}
+        >
           <div className="space-y-5">
             {content}
           </div>
         </div>
 
         {/* Mobile bottom bar — CTA only; summary lives in PrepSummaryHero above */}
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+        <div
+          ref={setMobileFooterElement}
+          className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85"
+          data-mobile-dashboard-footer
+        >
           <div className="mx-auto max-w-md" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
             <Button
               onClick={startPractice}

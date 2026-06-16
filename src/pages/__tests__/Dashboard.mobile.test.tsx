@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import Dashboard from "../Dashboard";
 
@@ -10,6 +10,39 @@ const mockNetworkStatus = {
   isOnline: true,
   isOffline: false,
 };
+
+class MockResizeObserver {
+  static instances: MockResizeObserver[] = [];
+
+  callback: ResizeObserverCallback;
+
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+    MockResizeObserver.instances.push(this);
+  }
+
+  observe = vi.fn(() => {
+    this.callback([], this as unknown as ResizeObserver);
+  });
+
+  unobserve = vi.fn();
+
+  disconnect = vi.fn();
+
+  static triggerAll() {
+    for (const instance of MockResizeObserver.instances) {
+      instance.callback([], instance as unknown as ResizeObserver);
+    }
+  }
+
+  static reset() {
+    MockResizeObserver.instances = [];
+  }
+}
+
+beforeAll(() => {
+  vi.stubGlobal("ResizeObserver", MockResizeObserver);
+});
 
 vi.mock("@/components/Navigation", () => ({
   default: () => <div>Navigation</div>,
@@ -33,6 +66,7 @@ vi.mock("@/services/searchService", () => ({
 describe("Dashboard mobile layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    MockResizeObserver.reset();
     mockUseIsMobile.mockReturnValue(true);
     mockNetworkStatus.isOnline = true;
     mockNetworkStatus.isOffline = false;
@@ -544,5 +578,63 @@ describe("Dashboard mobile layout", () => {
     expect(
       screen.getByText("You're offline. Reconnect before you try loading this research again."),
     ).toBeInTheDocument();
+  });
+
+  it("reserves bottom padding equal to the measured fixed CTA bar height plus a small buffer", async () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Prep plan");
+
+    const footer = container.querySelector("[data-mobile-dashboard-footer]") as HTMLElement;
+    expect(footer).not.toBeNull();
+
+    Object.defineProperty(footer, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        x: 0,
+        y: 0,
+        top: 0,
+        right: 390,
+        bottom: 144,
+        left: 0,
+        width: 390,
+        height: 144,
+        toJSON: () => ({}),
+      }),
+    });
+
+    await act(async () => {
+      MockResizeObserver.triggerAll();
+    });
+
+    const scrollContainer = footer.previousElementSibling as HTMLElement;
+    await waitFor(() => {
+      expect(scrollContainer.style.paddingBottom).toBe("160px");
+    });
+  });
+
+  it("falls back to a non-zero padding before the CTA bar is measured so content isn't covered on first paint", async () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Prep plan");
+
+    const footer = container.querySelector("[data-mobile-dashboard-footer]") as HTMLElement;
+    expect(footer).not.toBeNull();
+
+    const scrollContainer = footer.previousElementSibling as HTMLElement;
+    expect(scrollContainer.style.paddingBottom).toBe("112px");
+    expect(scrollContainer.className).not.toMatch(/\bpb-28\b/);
   });
 });
