@@ -13,6 +13,10 @@ import {
   validatePrepPlan,
   type PrepPlanValidationResult,
 } from "./prep-plan-validation.ts";
+import {
+  formatJobRequirementsBlock,
+  type JobRequirementsSource,
+} from "./job-requirements-prompt.ts";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -285,7 +289,17 @@ async function gatherCompanyData(company: string, role?: string, country?: strin
   }
 }
 
-async function gatherJobData(roleLinks: string[], searchId: string, company?: string, role?: string) {
+interface JobAnalysisResult {
+  requirements: any;
+  source: JobRequirementsSource;
+}
+
+async function gatherJobData(
+  roleLinks: string[],
+  searchId: string,
+  company?: string,
+  role?: string,
+): Promise<JobAnalysisResult | null> {
   if (!roleLinks?.length) {
     console.log("⏭️ No role links provided, skipping job analysis");
     return null;
@@ -306,8 +320,18 @@ async function gatherJobData(roleLinks: string[], searchId: string, company?: st
     clearTimeout(timeoutId);
     if (response.ok) {
       const result = await response.json();
-      console.log("✅ Job analysis complete");
-      return result.job_requirements || null;
+      const requirements = result.job_requirements;
+      if (!requirements) {
+        console.warn("⚠️ Job analysis returned no requirements payload");
+        return null;
+      }
+      // PREPIO-82: trust the function's `requirements_source` flag and
+      // assume stub when missing (older deployment) — never silently
+      // promote stub data to "extracted" downstream.
+      const source: JobRequirementsSource =
+        result.requirements_source === "extracted" ? "extracted" : "stub";
+      console.log(`✅ Job analysis complete (source=${source})`);
+      return { requirements, source };
     }
     console.warn(`⚠️ Job analysis failed with status ${response.status}`);
     return null;
@@ -423,6 +447,7 @@ function buildPrepPlanPrompt(
   jobDescription: string | undefined,
   companyInsights: any,
   jobRequirements: any,
+  jobRequirementsSource: JobRequirementsSource | null,
   cvAnalysis: any,
 ): string {
   let prompt = `Build a PrepPlan for:\n`;
@@ -493,25 +518,9 @@ function buildPrepPlanPrompt(
   }
 
   // ── Job requirements (from link analysis) ──
-  if (jobRequirements) {
-    prompt += `=== JOB REQUIREMENTS (from link analysis) ===\n`;
-    if (jobRequirements.technical_skills?.length)
-      prompt += `Technical: ${jobRequirements.technical_skills.join(', ')}\n`;
-    if (jobRequirements.soft_skills?.length)
-      prompt += `Soft: ${jobRequirements.soft_skills.join(', ')}\n`;
-    if (jobRequirements.responsibilities?.length) {
-      prompt += `Responsibilities:\n`;
-      jobRequirements.responsibilities.forEach((r: string) => { prompt += `  - ${r}\n`; });
-    }
-    if (jobRequirements.qualifications?.length) {
-      prompt += `Qualifications:\n`;
-      jobRequirements.qualifications.forEach((q: string) => { prompt += `  - ${q}\n`; });
-    }
-    if (jobRequirements.interview_process_hints?.length) {
-      prompt += `Process hints: ${jobRequirements.interview_process_hints.join('; ')}\n`;
-    }
-    prompt += `\n`;
-  }
+  // Stub fallbacks are suppressed entirely (PREPIO-82) — see
+  // job-requirements-prompt.ts for the rationale.
+  prompt += formatJobRequirementsBlock(jobRequirements, jobRequirementsSource);
 
   // ── CV evidence ──
   if (cvAnalysis) {
@@ -709,6 +718,7 @@ async function synthesizePrepPlan(
   jobDescription: string | undefined,
   companyInsights: any,
   jobRequirements: any,
+  jobRequirementsSource: JobRequirementsSource | null,
   cvAnalysis: any,
   openaiApiKey: string,
 ): Promise<PrepPlanOutput | null> {
@@ -717,7 +727,7 @@ async function synthesizePrepPlan(
 
     const prompt = buildPrepPlanPrompt(
       company, role, country, level, userNote, jobDescription,
-      companyInsights, jobRequirements, cvAnalysis,
+      companyInsights, jobRequirements, jobRequirementsSource, cvAnalysis,
     );
 
     const model = getOpenAIModel('interviewSynthesis');
@@ -990,23 +1000,31 @@ async function processInterviewResearch(
     console.log("\n📊 PHASE 1: Gathering research data...");
     await tracker.updateStep('DATA_GATHERING_START');
 
-    const [companyInsights, jobRequirements, cvAnalysis] = await Promise.allSettled([
+    const settled = await Promise.allSettled([
       gatherCompanyData(requestData.company, requestData.role, requestData.country, searchId),
       gatherJobData(requestData.roleLinks || [], searchId, requestData.company, requestData.role),
       gatherCVData(cvText, userId),
-    ]).then(results => [
-      results[0].status === 'fulfilled' ? results[0].value : null,
-      results[1].status === 'fulfilled' ? results[1].value : null,
-      results[2].status === 'fulfilled' ? results[2].value : null,
     ]);
+    const companyInsights = settled[0].status === 'fulfilled' ? settled[0].value : null;
+    const jobAnalysis = settled[1].status === 'fulfilled'
+      ? (settled[1].value as JobAnalysisResult | null)
+      : null;
+    const cvAnalysis = settled[2].status === 'fulfilled' ? settled[2].value : null;
+    const jobRequirements = jobAnalysis?.requirements ?? null;
+    const jobRequirementsSource = jobAnalysis?.source ?? null;
 
     console.log("✅ PHASE 1 Complete");
     await tracker.updateStep('DATA_GATHERING_COMPLETE');
 
     // ── Save raw data ──
+    // PREPIO-82: persist `requirements_source` alongside the requirements
+    // blob so downstream debugging / RUNBOOK queries can tell stub-fallback
+    // runs apart from real link extraction.
     const rawData: RawResearchData = {
       company_research_raw: companyInsights,
-      job_analysis_raw: jobRequirements,
+      job_analysis_raw: jobAnalysis
+        ? { ...jobRequirements, requirements_source: jobRequirementsSource }
+        : null,
       cv_analysis_raw: cvAnalysis,
     };
 
@@ -1023,6 +1041,7 @@ async function processInterviewResearch(
       requestData.jobDescription,
       companyInsights,
       jobRequirements,
+      jobRequirementsSource,
       cvAnalysis,
       openaiApiKey,
     );

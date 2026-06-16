@@ -22,10 +22,13 @@ interface JobRequirements {
   interview_process_hints: string[];
 }
 
+type JobRequirementsSource = "extracted" | "stub";
+
 interface JobAnalysisOutput {
   job_requirements: JobRequirements;
   raw_job_data: any[];
   urls_processed: number;
+  requirements_source: JobRequirementsSource;
 }
 
 const buildStubJobRequirements = (company?: string, role?: string): JobRequirements => ({
@@ -306,9 +309,18 @@ serve(async (req) => {
 
     // Step 2: Analyze job requirements using AI (or fallback)
     let jobRequirements: JobRequirements;
+    let requirementsSource: JobRequirementsSource;
+    const logStubFallback = (reason: string) => {
+      // Tagged so RUNBOOK queries can count stub-fallback rate (PREPIO-82).
+      console.warn(
+        `[job-analysis] stub-fallback reason=${reason} urls_provided=${roleLinks.length} urls_processed=${urlsProcessed}`,
+      );
+    };
     if (useFallback || !jobData || !jobData.results || jobData.results.length === 0) {
-      console.warn("Using fallback job requirements (missing AI credentials or no extract data)");
+      const reason = useFallback ? "no_openai_key" : "no_extracted_content";
+      logStubFallback(reason);
       jobRequirements = buildStubJobRequirements(company, role);
+      requirementsSource = "stub";
     } else {
       try {
         console.log("Analyzing job requirements...");
@@ -318,18 +330,22 @@ serve(async (req) => {
           jobData,
           openaiApiKey!
         );
+        requirementsSource = "extracted";
       } catch (analysisError) {
         console.error("Job requirements analysis failed, falling back to stub:", analysisError);
+        logStubFallback("analysis_error");
         jobRequirements = buildStubJobRequirements(company, role);
+        requirementsSource = "stub";
       }
     }
 
     return new Response(
-      JSON.stringify({ 
-        status: "success", 
+      JSON.stringify({
+        status: "success",
         message: "Job analysis completed",
         job_requirements: jobRequirements,
-        urls_processed: urlsProcessed
+        urls_processed: urlsProcessed,
+        requirements_source: requirementsSource,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
