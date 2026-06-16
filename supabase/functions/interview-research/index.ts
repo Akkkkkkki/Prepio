@@ -17,6 +17,11 @@ import {
   formatJobRequirementsBlock,
   type JobRequirementsSource,
 } from "./job-requirements-prompt.ts";
+import {
+  applyConfidenceGrounding,
+  type ConfidenceGroundingResult,
+  type ConfidenceGroundingEvidence,
+} from "./confidence-grounding.ts";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -43,6 +48,16 @@ interface RawResearchData {
   cv_analysis_raw?: any;
 }
 
+interface CompanyResearchResult {
+  insights: any;
+  sourceStats: {
+    searchPayloadCount: number;
+    retrievedSourceCount: number;
+    extractedUrlCount: number;
+    deepExtractCount: number;
+  };
+}
+
 interface PrepPlanOutput {
   summary: {
     company: string;
@@ -60,6 +75,7 @@ interface PrepPlanOutput {
       validationErrors: string[];
       questionCounts: { coreMustPractice: number; likelyFollowUps: number; extraDepth: number; total: number };
     };
+    confidenceGrounding?: ConfidenceGroundingResult;
   };
   assessmentSignals: Array<{ name: string; importance: Priority; rationale: string }>;
   stageRoadmap: Array<{
@@ -257,7 +273,12 @@ async function emitResearchYield(
 
 // ── PHASE 1: Concurrent Data Gathering ──────────────────────
 
-async function gatherCompanyData(company: string, role?: string, country?: string, searchId?: string) {
+async function gatherCompanyData(
+  company: string,
+  role?: string,
+  country?: string,
+  searchId?: string,
+): Promise<CompanyResearchResult | null> {
   try {
     console.log("📊 Gathering company research data...");
     const controller = new AbortController();
@@ -275,7 +296,15 @@ async function gatherCompanyData(company: string, role?: string, country?: strin
     if (response.ok) {
       const result = await response.json();
       console.log("✅ Company research complete");
-      return result.company_insights || null;
+      return {
+        insights: result.company_insights || null,
+        sourceStats: {
+          searchPayloadCount: Number(result.research_sources ?? 0),
+          retrievedSourceCount: Number(result.retrieved_sources ?? 0),
+          extractedUrlCount: Number(result.extracted_urls ?? 0),
+          deepExtractCount: Number(result.deep_extracts ?? 0),
+        },
+      };
     }
     console.warn(`⚠️ Company research failed with status ${response.status}`);
     return null;
@@ -720,6 +749,7 @@ async function synthesizePrepPlan(
   jobRequirements: any,
   jobRequirementsSource: JobRequirementsSource | null,
   cvAnalysis: any,
+  confidenceEvidence: ConfidenceGroundingEvidence,
   openaiApiKey: string,
 ): Promise<PrepPlanOutput | null> {
   try {
@@ -780,6 +810,8 @@ async function synthesizePrepPlan(
       validationErrors: validation.errors,
       questionCounts: validation.counts,
     };
+
+    plan = applyConfidenceGrounding(plan, confidenceEvidence);
 
     logSynthesisOutcome(plan, validation, repairAttempted);
 
@@ -1005,13 +1037,23 @@ async function processInterviewResearch(
       gatherJobData(requestData.roleLinks || [], searchId, requestData.company, requestData.role),
       gatherCVData(cvText, userId),
     ]);
-    const companyInsights = settled[0].status === 'fulfilled' ? settled[0].value : null;
+    const companyResearch = settled[0].status === 'fulfilled'
+      ? (settled[0].value as CompanyResearchResult | null)
+      : null;
+    const companyInsights = companyResearch?.insights ?? null;
     const jobAnalysis = settled[1].status === 'fulfilled'
       ? (settled[1].value as JobAnalysisResult | null)
       : null;
     const cvAnalysis = settled[2].status === 'fulfilled' ? settled[2].value : null;
     const jobRequirements = jobAnalysis?.requirements ?? null;
     const jobRequirementsSource = jobAnalysis?.source ?? null;
+    const confidenceEvidence: ConfidenceGroundingEvidence = {
+      retrievedSourceCount: companyResearch?.sourceStats.retrievedSourceCount ?? 0,
+      hasExtractedJobRequirements: jobRequirementsSource === "extracted",
+      hasUserNote: Boolean(requestData.userNote?.trim()),
+      hasJobDescription: Boolean(requestData.jobDescription?.trim()),
+      hasCv: Boolean(cvAnalysis),
+    };
 
     console.log("✅ PHASE 1 Complete");
     await tracker.updateStep('DATA_GATHERING_COMPLETE');
@@ -1043,6 +1085,7 @@ async function processInterviewResearch(
       jobRequirements,
       jobRequirementsSource,
       cvAnalysis,
+      confidenceEvidence,
       openaiApiKey,
     );
 

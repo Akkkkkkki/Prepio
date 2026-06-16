@@ -61,6 +61,16 @@ interface CompanyResearchOutput {
   raw_research_data: any[];
 }
 
+function countRetrievedSources(researchData: any): number {
+  if (!researchData?.search_results || !Array.isArray(researchData.search_results)) {
+    return 0;
+  }
+
+  return researchData.search_results.reduce((count: number, payload: any) => {
+    return count + (Array.isArray(payload?.results) ? payload.results.length : 0);
+  }, 0);
+}
+
 // Enhanced company research with URL extraction and deep content analysis
 async function searchCompanyInfo(
   company: string,
@@ -589,6 +599,7 @@ serve(async (req) => {
       message: "Company research completed",
       company_insights: companyInsights,
       research_sources: researchData ? researchData.search_results?.length || 0 : 0,
+      retrieved_sources: countRetrievedSources(researchData),
       extracted_urls: researchData ? researchData.total_urls_extracted || 0 : 0,
       deep_extracts: researchData ? researchData.extracted_content?.length || 0 : 0,
       optimization_info: {
