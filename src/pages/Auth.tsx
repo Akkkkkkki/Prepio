@@ -57,7 +57,6 @@ const Auth = () => {
       }
     });
     return () => subscription.unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Redirect authenticated users away — unless they're resetting their password
