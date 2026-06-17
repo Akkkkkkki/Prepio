@@ -54,4 +54,31 @@ describe("AnswerFeedbackCard", () => {
     render(<AnswerFeedbackCard access="paid" status="generating" onGenerate={vi.fn()} />);
     expect(screen.getByText(/Generating/i)).toBeInTheDocument();
   });
+
+  it("surfaces a regenerate failure while keeping the existing feedback visible", () => {
+    render(
+      <AnswerFeedbackCard
+        access="paid"
+        feedback={feedback}
+        status="error"
+        errorCode="feedback_generation_failed"
+        onRegenerate={vi.fn()}
+      />,
+    );
+
+    // Error is shown even though prior feedback is still present.
+    expect(screen.getByText(/Couldn't regenerate coaching/i)).toBeInTheDocument();
+    // Existing feedback stays rendered.
+    expect(screen.getByText("Clear STAR structure")).toBeInTheDocument();
+  });
+
+  it("disables the generate action when no handler is available (e.g. offline)", () => {
+    render(<AnswerFeedbackCard access="paid" />);
+    expect(screen.getByRole("button", { name: /get detailed coaching/i })).toBeDisabled();
+  });
+
+  it("disables the regenerate action when no handler is available", () => {
+    render(<AnswerFeedbackCard access="paid" feedback={feedback} />);
+    expect(screen.getByRole("button", { name: /regenerate/i })).toBeDisabled();
+  });
 });

@@ -26,14 +26,18 @@ interface AnswerFeedbackCardProps {
 const ERROR_COPY: Record<string, string> = {
   answer_too_short: "Add a bit more to your answer (20+ characters) to get coaching.",
   paid_entitlement_required: "Your plan no longer includes coaching.",
-  feedback_generation_failed: "Couldn't generate coaching just now. Try again.",
   practice_answer_not_found: "We couldn't find this saved answer.",
   practice_context_not_found: "The research behind this question is no longer available.",
 };
 
-function errorMessage(code?: AnswerFeedbackErrorCode | null): string {
-  if (!code) return "Couldn't generate coaching just now. Try again.";
-  return ERROR_COPY[code] ?? "Couldn't generate coaching just now. Try again.";
+function errorMessage(code: AnswerFeedbackErrorCode | null | undefined, hasFeedback: boolean): string {
+  // `hasFeedback` means a regenerate failed while older feedback is still shown,
+  // so the verb shifts from "generate" to "regenerate".
+  const fallback = hasFeedback
+    ? "Couldn't regenerate coaching just now — showing your last version. Try again."
+    : "Couldn't generate coaching just now. Try again.";
+  if (!code) return fallback;
+  return ERROR_COPY[code] ?? fallback;
 }
 
 const STAR_LABELS: Array<{ key: keyof AnswerFeedback["starBreakdown"]; label: string }> = [
@@ -178,7 +182,7 @@ export const AnswerFeedbackCard = ({
             size="sm"
             variant="outline"
             className="shrink-0"
-            disabled={isGenerating}
+            disabled={isGenerating || !onGenerate}
             onClick={onGenerate}
           >
             {isGenerating ? (
@@ -201,7 +205,7 @@ export const AnswerFeedbackCard = ({
             size="sm"
             variant="ghost"
             className="shrink-0 text-muted-foreground"
-            disabled={isGenerating}
+            disabled={isGenerating || !onRegenerate}
             onClick={onRegenerate}
           >
             {isGenerating ? (
@@ -214,10 +218,10 @@ export const AnswerFeedbackCard = ({
         )}
       </div>
 
-      {access === "paid" && status === "error" && !hasFeedback && (
+      {access === "paid" && status === "error" && (
         <p className="mt-3 flex items-center gap-1.5 text-xs leading-5 text-destructive">
           <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
-          {errorMessage(errorCode)}
+          {errorMessage(errorCode, hasFeedback)}
         </p>
       )}
 
