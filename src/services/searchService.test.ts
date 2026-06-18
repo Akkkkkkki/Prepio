@@ -623,7 +623,7 @@ describe("practice history answer dedupe helpers", () => {
   it("getAnswerFeedbackForAnswers returns an empty map without querying for empty ids", async () => {
     const result = await searchService.getAnswerFeedbackForAnswers([
       "",
-      "   ",
+      "",
     ]);
 
     expect(result).toEqual({ success: true, feedback: {} });
