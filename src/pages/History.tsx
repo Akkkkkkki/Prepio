@@ -12,6 +12,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useAuth } from "@/hooks/useAuth";
+import { getEntitlement } from "@/services/entitlements";
+import type { AnswerFeedbackAccess } from "@/components/AnswerFeedbackCard";
 import { searchService } from "@/services/searchService";
 import type {
   PracticeHistoryOverviewStats,
@@ -88,6 +91,8 @@ const SessionListSkeleton = () => (
 const History = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { isOffline } = useNetworkStatus();
+  const { user } = useAuth();
+  const [feedbackAccess, setFeedbackAccess] = useState<AnswerFeedbackAccess>("loading");
   const [sessions, setSessions] = useState<PracticeHistorySession[]>([]);
   const [questionFlags, setQuestionFlags] = useState<PracticeQuestionFlagMap>({});
   const [stats, setStats] = useState<PracticeHistoryOverviewStats | null>(null);
@@ -96,6 +101,30 @@ const History = () => {
   const [error, setError] = useState<string | null>(null);
 
   const selectedSearchId = searchParams.get("searchId") ?? HISTORY_FILTER_ALL;
+
+  useEffect(() => {
+    let isActive = true;
+
+    if (!user?.id) {
+      setFeedbackAccess("free");
+      return;
+    }
+
+    setFeedbackAccess("loading");
+    void getEntitlement(user.id)
+      .then((entitlement) => {
+        if (isActive) {
+          setFeedbackAccess(entitlement.tier === "paid" ? "paid" : "free");
+        }
+      })
+      .catch(() => {
+        if (isActive) setFeedbackAccess("free");
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     let isActive = true;
@@ -322,7 +351,11 @@ const History = () => {
                 </CardContent>
               </Card>
             ) : (
-              <SessionList sessions={filteredSessions} questionFlags={questionFlags} />
+              <SessionList
+                sessions={filteredSessions}
+                questionFlags={questionFlags}
+                feedbackAccess={feedbackAccess}
+              />
             )}
           </div>
         )}

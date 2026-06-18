@@ -16,16 +16,24 @@ import type {
   PracticeHistorySessionDetail,
   PracticeQuestionFlagMap,
 } from "@/services/searchService";
+import { AnswerFeedbackCard, type AnswerFeedbackAccess } from "@/components/AnswerFeedbackCard";
+import type { AnswerFeedback, AnswerFeedbackErrorCode } from "@/shared/answer-feedback";
 
 interface SessionListProps {
   sessions: PracticeHistorySession[];
   questionFlags: PracticeQuestionFlagMap;
+  feedbackAccess?: AnswerFeedbackAccess;
 }
 
 interface CachedSessionDetail {
   session: PracticeHistorySessionDetail;
   answers: PracticeHistoryAnswerDetail[];
   flags: PracticeQuestionFlagMap;
+}
+
+interface FeedbackStatusEntry {
+  status: "idle" | "generating" | "error";
+  errorCode?: AnswerFeedbackErrorCode | null;
 }
 
 const formatDuration = (totalSeconds: number) => {
@@ -93,12 +101,44 @@ const renderQuestionFlag = (flagType?: string) => {
   return null;
 };
 
-export const SessionList = ({ sessions, questionFlags }: SessionListProps) => {
+export const SessionList = ({
+  sessions,
+  questionFlags,
+  feedbackAccess = "free",
+}: SessionListProps) => {
   const { isOffline } = useNetworkStatus();
   const [openSessionId, setOpenSessionId] = useState("");
   const [detailBySessionId, setDetailBySessionId] = useState<Record<string, CachedSessionDetail>>({});
   const [detailLoadingState, setDetailLoadingState] = useState<Record<string, boolean>>({});
   const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
+  const [feedbackByAnswerId, setFeedbackByAnswerId] = useState<Record<string, AnswerFeedback>>({});
+  const [feedbackStatus, setFeedbackStatus] = useState<Record<string, FeedbackStatusEntry>>({});
+
+  const handleGenerateFeedback = async (answerId: string, regenerate: boolean) => {
+    setFeedbackStatus((prev) => ({ ...prev, [answerId]: { status: "generating", errorCode: null } }));
+    const result = await searchService.generateAnswerFeedback(answerId, regenerate);
+
+    if (result.success) {
+      setFeedbackByAnswerId((prev) => ({ ...prev, [answerId]: result.feedback }));
+      setFeedbackStatus((prev) => ({ ...prev, [answerId]: { status: "idle", errorCode: null } }));
+      return;
+    }
+
+    if (result.errorCode === "feedback_already_exists") {
+      const existing = await searchService.getAnswerFeedbackForAnswers([answerId]);
+      const cached = existing.success ? existing.feedback?.[answerId] : undefined;
+      if (cached) {
+        setFeedbackByAnswerId((prev) => ({ ...prev, [answerId]: cached }));
+        setFeedbackStatus((prev) => ({ ...prev, [answerId]: { status: "idle", errorCode: null } }));
+        return;
+      }
+    }
+
+    setFeedbackStatus((prev) => ({
+      ...prev,
+      [answerId]: { status: "error", errorCode: result.errorCode },
+    }));
+  };
 
   const handleOpenChange = async (value: string) => {
     setOpenSessionId(value);
@@ -133,6 +173,14 @@ export const SessionList = ({ sessions, questionFlags }: SessionListProps) => {
           flags: result.flags ?? {},
         },
       }));
+
+      const answerIds = result.answers.map((answer) => answer.id).filter(Boolean);
+      if (answerIds.length > 0) {
+        const feedbackResult = await searchService.getAnswerFeedbackForAnswers(answerIds);
+        if (feedbackResult.success && feedbackResult.feedback) {
+          setFeedbackByAnswerId((current) => ({ ...current, ...feedbackResult.feedback }));
+        }
+      }
     } else {
       setDetailErrors((current) => ({
         ...current,
@@ -288,6 +336,20 @@ export const SessionList = ({ sessions, questionFlags }: SessionListProps) => {
                                 </Badge>
                               )}
                             </div>
+
+                            <AnswerFeedbackCard
+                              className="mt-4"
+                              access={feedbackAccess}
+                              feedback={feedbackByAnswerId[answer.id]}
+                              status={feedbackStatus[answer.id]?.status ?? "idle"}
+                              errorCode={feedbackStatus[answer.id]?.errorCode}
+                              onGenerate={
+                                isOffline ? undefined : () => void handleGenerateFeedback(answer.id, false)
+                              }
+                              onRegenerate={
+                                isOffline ? undefined : () => void handleGenerateFeedback(answer.id, true)
+                              }
+                            />
                           </div>
                         );
                       })
