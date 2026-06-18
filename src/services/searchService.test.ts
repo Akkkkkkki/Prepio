@@ -29,6 +29,7 @@ const createSelectChain = <T,>(result: { data: T; error: unknown }) => {
   const chain = {
     select: vi.fn(() => chain),
     eq: vi.fn(() => chain),
+    in: vi.fn(() => chain),
     is: vi.fn(() => chain),
     order: vi.fn(() => chain),
     limit: vi.fn(async () => result),
@@ -617,5 +618,156 @@ describe("practice history answer dedupe helpers", () => {
     expect(result.success).toBe(false);
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it("getAnswerFeedbackForAnswers returns an empty map without querying for empty ids", async () => {
+    const result = await searchService.getAnswerFeedbackForAnswers([
+      "",
+      "   ",
+    ]);
+
+    expect(result).toEqual({ success: true, feedback: {} });
+    expect(mockSupabase.from).not.toHaveBeenCalledWith("answer_feedback");
+  });
+
+  it("getAnswerFeedbackForAnswers fetches non-superseded feedback once per answer id", async () => {
+    const chain = createSelectChain({
+      data: [
+        {
+          id: "feedback-1",
+          practice_answer_id: "answer-1",
+          strengths: [
+            { text: "Clear setup", evidence: "Named the migration risk." },
+            { text: "" },
+          ],
+          improvements: ["Add a measurable result"],
+          star_breakdown: {
+            situation: "Specific context.",
+            task: "Clear responsibility.",
+            action: "Good tradeoff detail.",
+            result: "Needs metrics.",
+          },
+          next_action: {
+            text: "Rewrite the ending with one metric.",
+            practicePrompt: "Add before/after latency, cost, or team velocity.",
+          },
+          model: "gpt-4o-mini",
+          created_at: "2026-06-18T12:00:00.000Z",
+        },
+      ],
+      error: null,
+    });
+
+    mockSupabase.from.mockReturnValueOnce(chain);
+
+    const result = await searchService.getAnswerFeedbackForAnswers([
+      "answer-1",
+      "answer-1",
+      "",
+    ]);
+
+    expect(result.success).toBe(true);
+    expect(mockSupabase.from).toHaveBeenCalledWith("answer_feedback");
+    expect(chain.in).toHaveBeenCalledWith("practice_answer_id", ["answer-1"]);
+    expect(chain.is).toHaveBeenCalledWith("superseded_by", null);
+    expect(result.feedback).toEqual({
+      "answer-1": {
+        id: "feedback-1",
+        practiceAnswerId: "answer-1",
+        model: "gpt-4o-mini",
+        createdAt: "2026-06-18T12:00:00.000Z",
+        strengths: [{ text: "Clear setup", evidence: "Named the migration risk." }],
+        improvements: [{ text: "Add a measurable result" }],
+        starBreakdown: {
+          situation: "Specific context.",
+          task: "Clear responsibility.",
+          action: "Good tradeoff detail.",
+          result: "Needs metrics.",
+        },
+        nextAction: {
+          text: "Rewrite the ending with one metric.",
+          practicePrompt: "Add before/after latency, cost, or team velocity.",
+        },
+      },
+    });
+  });
+
+  it("generateAnswerFeedback maps successful edge function responses", async () => {
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: {
+        feedbackId: "feedback-new",
+        model: "gpt-4o",
+        feedback: {
+          strengths: ["Owned the tradeoff"],
+          improvements: [{ text: "Quantify impact", evidence: "No metric given." }],
+          starBreakdown: {
+            situation: "Strong context.",
+            task: "Responsibility was clear.",
+            action: "Detailed decision path.",
+            result: "Add numbers.",
+          },
+          nextAction: { text: "Add one measurable outcome." },
+        },
+      },
+      error: null,
+    });
+
+    const result = await searchService.generateAnswerFeedback("answer-1", true);
+
+    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("answer-feedback", {
+      body: { practiceAnswerId: "answer-1", regenerate: true },
+    });
+    expect(result).toEqual({
+      success: true,
+      feedback: {
+        id: "feedback-new",
+        practiceAnswerId: "answer-1",
+        model: "gpt-4o",
+        createdAt: null,
+        strengths: [{ text: "Owned the tradeoff" }],
+        improvements: [{ text: "Quantify impact", evidence: "No metric given." }],
+        starBreakdown: {
+          situation: "Strong context.",
+          task: "Responsibility was clear.",
+          action: "Detailed decision path.",
+          result: "Add numbers.",
+        },
+        nextAction: { text: "Add one measurable outcome." },
+      },
+    });
+  });
+
+  it("generateAnswerFeedback extracts structured function error codes", async () => {
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: null,
+      error: {
+        context: new Response(JSON.stringify({ error: "feedback_already_exists" }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        }),
+      },
+    });
+
+    await expect(searchService.generateAnswerFeedback("answer-1")).resolves.toEqual({
+      success: false,
+      errorCode: "feedback_already_exists",
+    });
+  });
+
+  it("generateAnswerFeedback falls back when function errors are not JSON", async () => {
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: null,
+      error: {
+        context: new Response("upstream timeout", {
+          status: 502,
+          headers: { "Content-Type": "text/plain" },
+        }),
+      },
+    });
+
+    await expect(searchService.generateAnswerFeedback("answer-1")).resolves.toEqual({
+      success: false,
+      errorCode: "unknown_error",
+    });
   });
 });
