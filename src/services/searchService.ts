@@ -1759,12 +1759,26 @@ async function extractFunctionErrorCode(error: unknown): Promise<AnswerFeedbackE
   if (context && typeof (context as Response).json === "function") {
     try {
       const body = (await (context as Response).clone().json()) as { error?: unknown };
-      if (typeof body?.error === "string") {
-        return body.error as AnswerFeedbackErrorCode;
+      if (isAnswerFeedbackErrorCode(body?.error)) {
+        return body.error;
       }
     } catch {
       // Body was not JSON — fall through to the generic code below.
     }
   }
   return "unknown_error";
+}
+
+function isAnswerFeedbackErrorCode(value: unknown): value is AnswerFeedbackErrorCode {
+  return [
+    "paid_entitlement_required",
+    "feedback_already_exists",
+    "answer_too_short",
+    "feedback_generation_failed",
+    "practice_answer_not_found",
+    "practice_context_not_found",
+    "invalid_practice_answer_id",
+    "internal_error",
+    "unknown_error",
+  ].includes(value as AnswerFeedbackErrorCode);
 }
