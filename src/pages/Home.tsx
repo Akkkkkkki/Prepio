@@ -376,7 +376,9 @@ const Home = () => {
   // guests never see one company's brief paired with another company's form/draft.
   useEffect(() => {
     if (!preview) return;
-    const normalize = (value: string) => value.trim().toLowerCase();
+    // Mirror the research-preview edge function's normalizeInput (trim + collapse
+    // internal whitespace) so inputs like "Meta  Platforms" aren't treated as stale.
+    const normalize = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
     const sameCompany = normalize(preview.company) === normalize(formData.company);
     const sameRole = normalize(preview.role ?? "") === normalize(formData.role);
     if (!sameCompany || !sameRole) {

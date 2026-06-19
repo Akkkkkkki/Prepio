@@ -419,6 +419,41 @@ describe("Home flow", () => {
     expect(screen.getByText("Your Anthropic preview will appear here")).toBeInTheDocument();
   });
 
+  it("keeps a preview when inputs differ only by collapsible internal whitespace", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    // The edge function collapses internal whitespace, so it returns the
+    // normalized company even though the form still holds the doubled spaces.
+    mockCreateResearchPreview.mockResolvedValueOnce({
+      success: true,
+      preview: {
+        previewId: "preview-2",
+        status: "completed",
+        company: "Meta Platforms",
+        role: "Platform Engineer",
+        confidence: "medium",
+        sourceSummary: "Public signals from interview reviews.",
+        expiresAt: "2026-05-18T00:00:00.000Z",
+        stages: [],
+        assessmentSignals: [],
+        questions: [],
+      },
+    });
+
+    renderHome();
+
+    fireEvent.change(screen.getByLabelText("Company *"), {
+      target: { value: "Meta  Platforms" },
+    });
+    fireEvent.change(screen.getByLabelText("Role (optional)"), {
+      target: { value: "Platform Engineer" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
+
+    expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
+    // The preview must survive — not be cleared as stale by the normalization check.
+    expect(screen.getByText("Interview brief preview")).toBeInTheDocument();
+  });
+
   it("keeps the full desktop research form for authenticated users", async () => {
     mockUseIsMobile.mockReturnValue(false);
     mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
