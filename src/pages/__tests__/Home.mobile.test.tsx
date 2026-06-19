@@ -374,6 +374,28 @@ describe("Home flow", () => {
     expect(screen.queryByText("Step 1 of 3")).not.toBeInTheDocument();
   });
 
+  it("replaces the static Stripe sample once a guest starts entering another company", () => {
+    mockUseIsMobile.mockReturnValue(false);
+
+    renderHome();
+
+    expect(
+      screen.getByText("How Stripe Senior Product Manager questions look in Prepio"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Tell me about a time you shipped a payments product/),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Company *"), {
+      target: { value: "Anthropic" },
+    });
+
+    expect(screen.getByText("Your Anthropic preview will appear here")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Tell me about a time you shipped a payments product/),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps the full desktop research form for authenticated users", async () => {
     mockUseIsMobile.mockReturnValue(false);
     mockUseAuth.mockReturnValue({ user: { id: "user-1" } });

@@ -1275,23 +1275,41 @@ const Home = () => {
               onGenerateFullPlan={() => navigateToAuth(GUEST_RESEARCH_RESUME_STEP)}
             />
           </div>
+        ) : formData.company.trim() ? (
+          <Card className="border bg-muted/20 shadow-sm">
+            <CardContent className="flex min-h-[360px] flex-col items-center justify-center px-6 py-12 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full border bg-background">
+                <Search className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+              </div>
+              <p className="mt-5 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                Tailored preview
+              </p>
+              <CardTitle className="mt-3 max-w-md text-2xl tracking-tight">
+                Your {formData.company.trim()} preview will appear here
+              </CardTitle>
+              <CardDescription className="mt-3 max-w-md text-sm leading-6">
+                Select &quot;Preview my prep&quot; to research likely stages and questions for this
+                company{formData.role.trim() ? ` and the ${formData.role.trim()} role` : ""}.
+              </CardDescription>
+            </CardContent>
+          </Card>
         ) : (
           <Card className="border bg-muted/20 shadow-sm">
             <CardHeader className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="w-fit rounded-full border bg-background px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  Example output
+                  Static example
                 </div>
                 <Badge variant="outline" className="bg-background text-[10px] font-medium">
                   {GUEST_SAMPLE_COMPANY} · {GUEST_SAMPLE_ROLE}
                 </Badge>
               </div>
               <CardTitle className="text-2xl tracking-tight">
-                Real questions, sourced from real interviews.
+                How {GUEST_SAMPLE_COMPANY} {GUEST_SAMPLE_ROLE} questions look in Prepio
               </CardTitle>
               <CardDescription className="text-sm leading-6">
                 Each question comes with the stage, difficulty, and why it matters for this company.
-                Here&apos;s a sample of what Prepio generates from Glassdoor, LinkedIn, and company signals.
+                Type your company above to generate a tailored preview.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
