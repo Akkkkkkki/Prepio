@@ -29,6 +29,7 @@ const createSelectChain = <T,>(result: { data: T; error: unknown }) => {
   const chain = {
     select: vi.fn(() => chain),
     eq: vi.fn(() => chain),
+    in: vi.fn(() => chain),
     is: vi.fn(() => chain),
     order: vi.fn(() => chain),
     limit: vi.fn(async () => result),
@@ -617,5 +618,111 @@ describe("practice history answer dedupe helpers", () => {
     expect(result.success).toBe(false);
 
     consoleErrorSpy.mockRestore();
+  });
+});
+
+describe("answer feedback service", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("maps unrecognized function error codes to unknown_error", async () => {
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: null,
+      error: {
+        context: {
+          clone: () => ({
+            json: async () => ({ error: "future_backend_error" }),
+          }),
+          json: async () => ({ error: "future_backend_error" }),
+        },
+      },
+    });
+
+    const result = await searchService.generateAnswerFeedback("answer-1");
+
+    expect(result).toEqual({
+      success: false,
+      errorCode: "unknown_error",
+    });
+  });
+
+  it("loads and normalizes current feedback for unique answer ids", async () => {
+    const chain = createSelectChain({
+      data: [
+        {
+          id: "feedback-1",
+          practice_answer_id: "answer-1",
+          strengths: ["Clear structure"],
+          improvements: [{ text: "Add a metric", evidence: "No result was quantified" }],
+          star_breakdown: { situation: "S", task: "T", action: "A", result: "R" },
+          next_action: { text: "Re-tell it with a number." },
+          model: "gpt-4o-mini",
+          created_at: "2026-06-18T07:00:00.000Z",
+        },
+      ],
+      error: null,
+    });
+    mockSupabase.from.mockReturnValueOnce(chain);
+
+    const result = await searchService.getAnswerFeedbackForAnswers([
+      "answer-1",
+      "",
+      "answer-1",
+    ]);
+
+    expect(mockSupabase.from).toHaveBeenCalledWith("answer_feedback");
+    expect(chain.in).toHaveBeenCalledWith("practice_answer_id", ["answer-1"]);
+    expect(chain.is).toHaveBeenCalledWith("superseded_by", null);
+    expect(result).toEqual({
+      success: true,
+      feedback: {
+        "answer-1": {
+          id: "feedback-1",
+          practiceAnswerId: "answer-1",
+          model: "gpt-4o-mini",
+          createdAt: "2026-06-18T07:00:00.000Z",
+          strengths: [{ text: "Clear structure" }],
+          improvements: [{ text: "Add a metric", evidence: "No result was quantified" }],
+          starBreakdown: { situation: "S", task: "T", action: "A", result: "R" },
+          nextAction: { text: "Re-tell it with a number." },
+        },
+      },
+    });
+  });
+
+  it("invokes answer-feedback with regeneration intent and normalizes the response", async () => {
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: {
+        feedbackId: "feedback-2",
+        model: "gpt-4o-mini",
+        feedback: {
+          strengths: ["Owned the outcome"],
+          improvements: ["Quantify impact"],
+          starBreakdown: { situation: "S", task: "T", action: "A", result: "R" },
+          nextAction: { text: "Add the percentage improvement." },
+        },
+      },
+      error: null,
+    });
+
+    const result = await searchService.generateAnswerFeedback("answer-2", true);
+
+    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("answer-feedback", {
+      body: { practiceAnswerId: "answer-2", regenerate: true },
+    });
+    expect(result).toEqual({
+      success: true,
+      feedback: {
+        id: "feedback-2",
+        practiceAnswerId: "answer-2",
+        model: "gpt-4o-mini",
+        createdAt: null,
+        strengths: [{ text: "Owned the outcome" }],
+        improvements: [{ text: "Quantify impact" }],
+        starBreakdown: { situation: "S", task: "T", action: "A", result: "R" },
+        nextAction: { text: "Add the percentage improvement." },
+      },
+    });
   });
 });
