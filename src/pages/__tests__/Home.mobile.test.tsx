@@ -374,6 +374,86 @@ describe("Home flow", () => {
     expect(screen.queryByText("Step 1 of 3")).not.toBeInTheDocument();
   });
 
+  it("replaces the static Stripe sample once a guest starts entering another company", () => {
+    mockUseIsMobile.mockReturnValue(false);
+
+    renderHome();
+
+    expect(
+      screen.getByText("How Stripe Senior Product Manager questions look in Prepio"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Tell me about a time you shipped a payments product/),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Company *"), {
+      target: { value: "Anthropic" },
+    });
+
+    expect(screen.getByText("Your Anthropic preview will appear here")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Tell me about a time you shipped a payments product/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clears a generated preview once the guest edits the company away from it", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+
+    renderHome();
+
+    fireEvent.change(screen.getByLabelText("Company *"), {
+      target: { value: "Stripe" },
+    });
+    fireEvent.change(screen.getByLabelText("Role (optional)"), {
+      target: { value: "Platform Engineer" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
+
+    expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Company *"), {
+      target: { value: "Anthropic" },
+    });
+
+    expect(screen.queryByText("Interview brief preview")).not.toBeInTheDocument();
+    expect(screen.getByText("Your Anthropic preview will appear here")).toBeInTheDocument();
+  });
+
+  it("keeps a preview when inputs differ only by collapsible internal whitespace", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    // The edge function collapses internal whitespace, so it returns the
+    // normalized company even though the form still holds the doubled spaces.
+    mockCreateResearchPreview.mockResolvedValueOnce({
+      success: true,
+      preview: {
+        previewId: "preview-2",
+        status: "completed",
+        company: "Meta Platforms",
+        role: "Platform Engineer",
+        confidence: "medium",
+        sourceSummary: "Public signals from interview reviews.",
+        expiresAt: "2026-05-18T00:00:00.000Z",
+        stages: [],
+        assessmentSignals: [],
+        questions: [],
+      },
+    });
+
+    renderHome();
+
+    fireEvent.change(screen.getByLabelText("Company *"), {
+      target: { value: "Meta  Platforms" },
+    });
+    fireEvent.change(screen.getByLabelText("Role (optional)"), {
+      target: { value: "Platform Engineer" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
+
+    expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
+    // The preview must survive — not be cleared as stale by the normalization check.
+    expect(screen.getByText("Interview brief preview")).toBeInTheDocument();
+  });
+
   it("keeps the full desktop research form for authenticated users", async () => {
     mockUseIsMobile.mockReturnValue(false);
     mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
