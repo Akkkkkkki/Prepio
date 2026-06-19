@@ -372,6 +372,18 @@ const Home = () => {
     setPreviewError("We couldn't build the preview. Try again, or sign in to run the full research workflow.");
   };
 
+  // Drop a generated preview once the company/role inputs no longer match it, so
+  // guests never see one company's brief paired with another company's form/draft.
+  useEffect(() => {
+    if (!preview) return;
+    const normalize = (value: string) => value.trim().toLowerCase();
+    const sameCompany = normalize(preview.company) === normalize(formData.company);
+    const sameRole = normalize(preview.role ?? "") === normalize(formData.role);
+    if (!sameCompany || !sameRole) {
+      setPreview(null);
+    }
+  }, [formData.company, formData.role, preview]);
+
   const startStatusPolling = (searchId: string) => {
     let pollCount = 0;
     let hasShownTimeoutWarning = false;

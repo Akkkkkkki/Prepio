@@ -396,6 +396,29 @@ describe("Home flow", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("clears a generated preview once the guest edits the company away from it", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+
+    renderHome();
+
+    fireEvent.change(screen.getByLabelText("Company *"), {
+      target: { value: "Stripe" },
+    });
+    fireEvent.change(screen.getByLabelText("Role (optional)"), {
+      target: { value: "Platform Engineer" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
+
+    expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Company *"), {
+      target: { value: "Anthropic" },
+    });
+
+    expect(screen.queryByText("Interview brief preview")).not.toBeInTheDocument();
+    expect(screen.getByText("Your Anthropic preview will appear here")).toBeInTheDocument();
+  });
+
   it("keeps the full desktop research form for authenticated users", async () => {
     mockUseIsMobile.mockReturnValue(false);
     mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
