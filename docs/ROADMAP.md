@@ -38,12 +38,17 @@ This tracks product reality against the latest `main` branch.
 - Favorites, needs-work, skip tracking, self-ratings, completion summary, dashboard/history surfaces.
 - Mobile practice controls, bottom navigation, swipe handling, and offline guards.
 
-### Billing foundation
+### Billing
 
 - `billing_customers`, `billing_subscriptions`, and `billing_events` migrations.
 - Shared entitlement rules in frontend and Edge-function code.
 - `getEntitlement` frontend reader.
 - `stripe-webhook` Edge Function with signature verification, idempotency, stale-event protection, and tests.
+- Pricing page surface for monthly, quarterly, and annual plans (`src/pages/Pricing.tsx`, PREPIO-14).
+- `create-checkout-session` Edge Function with cadence → Stripe Price mapping (PREPIO-28 test coverage).
+- `create-portal-session` Edge Function for self-serve plan management (PREPIO-10).
+- `/billing/return` post-checkout entitlement polling (`src/pages/BillingReturn.tsx`, PREPIO-28).
+- Paid-gate UX on answer feedback (PREPIO-7).
 
 ### App shell
 
@@ -64,15 +69,7 @@ This tracks product reality against the latest `main` branch.
   for strengths/improvements, a compact STAR row, and exactly one next action —
   optimized for a fast read, not prose.
 
-### 2. Finish billing product surface
-
-- Add visible pricing UI for monthly, quarterly, and annual plans.
-- Add `create-checkout-session`.
-- Add `create-portal-session`.
-- Add `/billing/return` handling and entitlement polling.
-- Add paid-gate UX around answer feedback.
-
-### 3. Landing and conversion path
+### 2. Landing and conversion path
 
 - Keep research entry prominent.
 - Use guest preview output to explain the value before sign-in.
