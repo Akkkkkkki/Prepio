@@ -101,17 +101,16 @@ and
   of the user's practice data. Flagged here so future maintainers don't
   expand the column's reach (e.g. analytics export, admin views) without
   re-checking.
-- **Concurrent regeneration race.** The
+- **Concurrent regeneration race — graceful fallback claim was
+  wrong, see Low finding below.** The
   `idx_answer_feedback_current` unique partial index
   (`migrations/20260525120000_answer_feedback.sql:59-61`) is the
   hard enforcement that there is exactly one non-superseded feedback
-  per `practice_answer_id`. Two concurrent regenerations will collide
-  at insert time; the client maps `feedback_already_exists` (409) to a
-  cached-read so the second caller still sees fresh feedback rather
-  than an error
-  ([`searchService.ts:1729-1738`](../../src/services/searchService.ts),
-  [`SessionList.tsx:120-129`](../../src/components/history/SessionList.tsx),
-  [`Practice.tsx:332-352`](../../src/pages/Practice.tsx)).
+  per `practice_answer_id`. The first draft of this audit asserted the
+  client gracefully recovers from a concurrent collision via the
+  `feedback_already_exists` cached-read path. That is wrong — see
+  *Findings → Low → answer-feedback concurrent-request race
+  surfaces as 500*. The actual collision returns `internal_error`.
 - **Prompt-injection blast radius.** The model input is the user's own
   question / answer / profile / search. Even if a malicious answer
   attempts a prompt-injection, the function only writes structured
@@ -122,7 +121,10 @@ and
   candidate-profile text, or model output. Only IDs, model name, and
   error messages.
 
-No findings.
+One Low finding from this review — *answer-feedback concurrent
+request race* — see *Findings → Low*. Surfaced by the Codex automated
+PR review (PR #167); the original audit text incorrectly described the
+race as gracefully handled and has been corrected above.
 
 ## Findings
 
@@ -139,6 +141,47 @@ None this run.
 None this run.
 
 ### Low / clean-up
+
+- [ ] **`answer-feedback` concurrent-request race surfaces as `500
+  internal_error` instead of falling back to cached feedback** — new
+  this review, found by Codex review on PR #167
+  - Evidence: Two concurrent calls for the same
+    `practice_answer_id` can race past the pre-model existence check
+    at
+    [`handler.ts:304-306`](../../supabase/functions/answer-feedback/handler.ts).
+    The unique partial index
+    `idx_answer_feedback_current`
+    ([`migrations/20260525120000_answer_feedback.sql:59-61`](../../supabase/migrations/20260525120000_answer_feedback.sql))
+    then rejects the second insert (no-existing case) or the second
+    `superseded_by = null` mark-current update (concurrent-regenerate
+    case). Both error paths go through
+    [`handler.ts:359-361`](../../supabase/functions/answer-feedback/handler.ts)
+    or
+    [`:378-380`](../../supabase/functions/answer-feedback/handler.ts)
+    and return `{ status: 500, error: "internal_error" }`. The
+    client's `feedback_already_exists` cached-read path
+    ([`searchService.ts:1729-1738`](../../src/services/searchService.ts),
+    [`SessionList.tsx:120-129`](../../src/components/history/SessionList.tsx),
+    [`Practice.tsx:332-352`](../../src/pages/Practice.tsx)) only
+    triggers on the `feedback_already_exists` code, so the second
+    caller sees the generic error toast instead of the freshly-saved
+    feedback the first caller produced.
+  - Risk: Low. Trigger surface is narrow — same-user double-click on
+    "Get coaching" / "Regenerate", or two tabs hitting the same
+    answer at once. No data corruption (the unique index guarantees
+    state stays consistent); the user just sees a misleading error
+    they could refresh past.
+  - Recommended fix: In the insert and mark-current error paths,
+    detect Postgres unique-constraint violations
+    (`error.code === "23505"`) and either (a) re-read the now-current
+    feedback and return it as a success with a
+    `concurrent_regeneration: true` flag, or (b) map to `status: 409,
+    error: "feedback_already_exists"` so the existing client cached-
+    read path takes over. Option (b) is the smaller change. Add a
+    handler-level test for the race using a fake supabase that fails
+    the second insert with a 23505.
+  - Owner / next step: Tracked in
+    [PREPIO-97](https://linear.app/qiuyue/issue/PREPIO-97).
 
 - [x] **Dependabot wave Linear-tracking gap** — second recurrence,
   fixed this run
@@ -234,8 +277,13 @@ changes pushed against `main`. Tickets:
   whether `lovable-tagger` is still needed; if not, remove the dep,
   the `componentTagger()` import in `vite.config.ts`, and the
   `esbuild` overrides entry that exists to hold its nested pin safe.
+- **[PREPIO-97](https://linear.app/qiuyue/issue/PREPIO-97)** — Fix
+  the `answer-feedback` concurrent-request race so a unique-constraint
+  collision returns `feedback_already_exists` (or a cached-read
+  success) instead of `internal_error`. Surfaced by Codex review on
+  this audit's PR (#167).
 
-All six issues are in **Quality & Maintenance**, labelled `Chore` +
+All seven issues are in **Quality & Maintenance**, labelled `Chore` +
 the matching Area label, and cross-link back to this audit doc and
 the relevant PR / config line.
 
@@ -256,6 +304,8 @@ discover):
   `day: monday` no-op fix.
 - [PREPIO-96](https://linear.app/qiuyue/issue/PREPIO-96) —
   `lovable-tagger` keep-or-drop decision.
+- [PREPIO-97](https://linear.app/qiuyue/issue/PREPIO-97) —
+  `answer-feedback` concurrent-request race fix.
 
 ## Questions for product owner
 
