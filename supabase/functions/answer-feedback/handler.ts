@@ -191,6 +191,10 @@ function hasUsableAnswer(textAnswer: string | null, transcriptText: string | nul
   return normalizeAnswer(textAnswer, transcriptText).length >= MIN_ANSWER_CHARS;
 }
 
+function isUniqueViolation(error: SupabaseError | null): boolean {
+  return error?.code === "23505";
+}
+
 function toDbFeedback(feedback: StructuredFeedback) {
   return {
     strengths: feedback.strengths,
@@ -357,7 +361,13 @@ export async function generateAnswerFeedback(
     .single();
 
   if (insertResult.error || !insertResult.data) {
-    deps.log?.("answer_feedback_insert_failed", { message: insertResult.error?.message });
+    deps.log?.("answer_feedback_insert_failed", {
+      code: insertResult.error?.code,
+      message: insertResult.error?.message,
+    });
+    if (isUniqueViolation(insertResult.error)) {
+      return { ok: false, status: 409, error: "feedback_already_exists" };
+    }
     return { ok: false, status: 500, error: "internal_error" };
   }
 
@@ -376,7 +386,13 @@ export async function generateAnswerFeedback(
       .update<FeedbackRow>({ superseded_by: null })
       .eq("id", newFeedbackId);
     if (markCurrentResult.error) {
-      deps.log?.("answer_feedback_mark_current_failed", { message: markCurrentResult.error.message });
+      deps.log?.("answer_feedback_mark_current_failed", {
+        code: markCurrentResult.error.code,
+        message: markCurrentResult.error.message,
+      });
+      if (isUniqueViolation(markCurrentResult.error)) {
+        return { ok: false, status: 409, error: "feedback_already_exists" };
+      }
       return { ok: false, status: 500, error: "internal_error" };
     }
   }

@@ -11,6 +11,7 @@ import {
   type PracticeSessionRow,
   type SearchRow,
   type StructuredFeedback,
+  type SupabaseError,
   type SupabaseLike,
 } from "./handler.ts";
 
@@ -25,6 +26,7 @@ const FREE: Entitlement = {
   cadence: null,
   status: "none",
   currentPeriodEnd: null,
+  cancelAtPeriodEnd: false,
 };
 
 const PAID: Entitlement = {
@@ -32,6 +34,7 @@ const PAID: Entitlement = {
   cadence: "monthly",
   status: "active",
   currentPeriodEnd: "2026-12-31T00:00:00.000Z",
+  cancelAtPeriodEnd: false,
 };
 
 const question: InterviewQuestionRow = {
@@ -115,7 +118,12 @@ function buildDb(overrides: Partial<FakeDb> = {}): FakeDb {
   };
 }
 
-function buildFakeSupabase(db: FakeDb): SupabaseLike {
+interface FakeSupabaseFailures {
+  insertAnswerFeedback?: SupabaseError;
+  markCurrentAnswerFeedback?: SupabaseError;
+}
+
+function buildFakeSupabase(db: FakeDb, failures: FakeSupabaseFailures = {}): SupabaseLike {
   return {
     from(table: string) {
       return {
@@ -150,6 +158,9 @@ function buildFakeSupabase(db: FakeDb): SupabaseLike {
             select(_columns?: string) {
               return {
                 async single() {
+                  if (table === "answer_feedback" && failures.insertAnswerFeedback) {
+                    return { data: null, error: failures.insertAnswerFeedback };
+                  }
                   (db[table as keyof FakeDb] as unknown[]).push(row);
                   return { data: row as T, error: null };
                 },
@@ -160,6 +171,13 @@ function buildFakeSupabase(db: FakeDb): SupabaseLike {
         update<T>(patch: Record<string, unknown>) {
           return {
             async eq(column: string, value: unknown) {
+              if (
+                table === "answer_feedback" &&
+                patch.superseded_by === null &&
+                failures.markCurrentAnswerFeedback
+              ) {
+                return { data: null, error: failures.markCurrentAnswerFeedback };
+              }
               const rows = db[table as keyof FakeDb] as unknown[];
               const row = rows.find((candidate) => {
                 return (candidate as Record<string, unknown>)[column] === value;
@@ -462,5 +480,64 @@ describe("generateAnswerFeedback", () => {
     expect(result).toEqual({ ok: false, status: 409, error: "feedback_already_exists" });
     expect(model.generate).not.toHaveBeenCalled();
     expect(db.answer_feedback).toHaveLength(1);
+  });
+
+  it("maps a concurrent first-generation unique violation to feedback already exists", async () => {
+    const db = buildDb();
+    const model = buildModel();
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db, {
+          insertAnswerFeedback: {
+            code: "23505",
+            message: "duplicate key value violates unique constraint idx_answer_feedback_current",
+          },
+        }),
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID },
+    );
+
+    expect(result).toEqual({ ok: false, status: 409, error: "feedback_already_exists" });
+  });
+
+  it("maps a concurrent regeneration unique violation to feedback already exists", async () => {
+    const db = buildDb({
+      answer_feedback: [
+        {
+          id: "feedback-current",
+          user_id: USER_ID,
+          practice_answer_id: ANSWER_ID,
+          practice_session_id: SESSION_ID,
+          question_id: QUESTION_ID,
+          strengths: [{ text: "Existing feedback" }],
+          improvements: [],
+          star_breakdown: feedback.starBreakdown,
+          next_action: feedback.nextAction,
+          model: "gpt-existing",
+          generation_metadata: {},
+          superseded_by: null,
+        },
+      ],
+    });
+    const model = buildModel();
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db, {
+          markCurrentAnswerFeedback: {
+            code: "23505",
+            message: "duplicate key value violates unique constraint idx_answer_feedback_current",
+          },
+        }),
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID, regenerate: true },
+    );
+
+    expect(result).toEqual({ ok: false, status: 409, error: "feedback_already_exists" });
   });
 });
