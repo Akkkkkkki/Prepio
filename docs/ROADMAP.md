@@ -92,6 +92,9 @@ can dead-end on empty states that explain the menu.
 - Sequenced P0 → P2 under the **[Epic] Interview-as-object UX restructure** (PREPIO-99;
   children PREPIO-100–107) in **Quality & Maintenance**. Ship P0 (the structure) first — it
   removes most of the "clunky" without a rewrite.
+- High-priority: takes precedence where it conflicts with existing backlog items
+  (PREPIO-34 superseded by the new home; PREPIO-33 and PREPIO-45 reconciled to the
+  restructure's surfaces).
 
 ## Next
 
