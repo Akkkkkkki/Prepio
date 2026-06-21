@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useSearchParams, useParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, useParams, Link, Navigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -936,37 +936,7 @@ const Dashboard = () => {
 
   // ── Empty state ──
   if (!searchId) {
-    return (
-      <div id="main-content" className="min-h-screen bg-background">
-        <Navigation />
-        <div className="container mx-auto px-4 py-8">
-          <div className="max-w-2xl mx-auto text-center">
-            <Card className="p-8">
-              <CardHeader>
-                <div className="flex items-center justify-center mb-4">
-                  <Brain className="h-12 w-12 text-primary" />
-                </div>
-                <CardTitle>No Active Search</CardTitle>
-                <CardDescription>
-                  Start a new search to get personalized interview insights for any company
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Button onClick={() => navigate('/')} size="lg" className="w-full">
-                    <Search className="h-4 w-4 mr-2" />
-                    Start New Search
-                  </Button>
-                  <p className="text-sm text-muted-foreground">
-                    Open the History menu in the top bar to jump back into an earlier research run.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    );
+    return <Navigate to="/interviews" replace />;
   }
 
   if (isLoading && !searchData && !error) {

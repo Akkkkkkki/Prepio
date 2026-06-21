@@ -31,20 +31,22 @@ vi.mock("@/hooks/useNetworkStatus", () => ({
 }));
 
 const researchAuthState: AuthReturnState = {
-  from: { pathname: "/" },
+  from: { pathname: "/new-interview" },
   source: "research_home",
   draftStorageKey: "prepio:research-home-draft:v1",
   intent: "research",
   resumeLabel: "Research",
 };
 
-const renderAuth = (state: AuthReturnState = researchAuthState) =>
+const renderAuth = (state?: AuthReturnState) =>
   render(
-    <MemoryRouter initialEntries={[{ pathname: "/auth", state }]}>
+    <MemoryRouter initialEntries={[{ pathname: "/auth", state: state ?? null }]}>
       <Routes>
         <Route path="/auth" element={<Auth />} />
         <Route path="/" element={<div>Home target</div>} />
+        <Route path="/new-interview" element={<div>New interview target</div>} />
         <Route path="/dashboard" element={<div>Dashboard target</div>} />
+        <Route path="/interviews" element={<div>Interviews target</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -78,7 +80,7 @@ describe("Auth page", () => {
   });
 
   it("keeps the redirect banner visible while switching auth recovery states", async () => {
-    renderAuth();
+    renderAuth(researchAuthState);
 
     expect(screen.getByText(/Continue to Research\./)).toBeInTheDocument();
 
@@ -98,7 +100,7 @@ describe("Auth page", () => {
   });
 
   it("submits password reset requests inline", async () => {
-    renderAuth();
+    renderAuth(researchAuthState);
 
     fireEvent.click(screen.getByRole("button", { name: "Forgot password?" }));
     fireEvent.change(await screen.findByLabelText("Email"), {
@@ -116,7 +118,7 @@ describe("Auth page", () => {
   });
 
   it("submits verification resend requests inline", async () => {
-    renderAuth();
+    renderAuth(researchAuthState);
 
     fireEvent.click(screen.getByRole("button", { name: "Resend verification email" }));
     fireEvent.change(await screen.findByLabelText("Email"), {
@@ -134,7 +136,7 @@ describe("Auth page", () => {
   });
 
   it("signs in and returns to the requested page", async () => {
-    renderAuth();
+    renderAuth(researchAuthState);
 
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "user@example.com" },
@@ -148,6 +150,20 @@ describe("Auth page", () => {
       expect(mockSignIn).toHaveBeenCalledWith("user@example.com", "hunter22");
     });
 
-    expect(await screen.findByText("Home target")).toBeInTheDocument();
+    expect(await screen.findByText("New interview target")).toBeInTheDocument();
+  });
+
+  it("sends a direct sign-in to the interviews home", async () => {
+    renderAuth();
+
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: "user@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "hunter22" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
+
+    expect(await screen.findByText("Interviews target")).toBeInTheDocument();
   });
 });
