@@ -24,6 +24,7 @@ export interface MobileStageCardProps {
   questionCount: number;
   selected: boolean;
   onToggle: (stageId: string) => void;
+  isStartHere?: boolean;
 }
 
 export const MobileStageCard = ({
@@ -32,6 +33,7 @@ export const MobileStageCard = ({
   questionCount,
   selected,
   onToggle,
+  isStartHere = false,
 }: MobileStageCardProps) => {
   const previewQuestions = stage.questions?.slice(0, 2) ?? [];
   const hasExtraQuestions = (stage.questions?.length ?? 0) > previewQuestions.length;
@@ -48,6 +50,11 @@ export const MobileStageCard = ({
           <Badge variant="outline" className="shrink-0 text-[11px] uppercase tracking-[0.14em]">
             Stage {index + 1}
           </Badge>
+          {isStartHere && (
+            <Badge className="shrink-0 bg-primary text-[11px] uppercase tracking-[0.14em] text-primary-foreground">
+              Start here · highest-leverage round
+            </Badge>
+          )}
           <span className="whitespace-nowrap text-xs text-muted-foreground">
             {questionCount} question{questionCount === 1 ? "" : "s"}
           </span>
