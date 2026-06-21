@@ -518,7 +518,7 @@ const Home = () => {
 
         toast({
           title: "Research Started!",
-          description: "Your research is queued. You can leave this screen and keep an eye on progress from the dashboard.",
+          description: "Your research is queued. You can leave this screen and keep an eye on progress from the plan.",
           duration: 3000,
         });
 

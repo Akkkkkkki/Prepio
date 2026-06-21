@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ClipboardList } from "lucide-react";
 import Navigation from "@/components/Navigation";
+import InterviewWorkspaceHeader from "@/components/InterviewWorkspaceHeader";
 import { OverviewStats } from "@/components/history/OverviewStats";
 import {
   HISTORY_FILTER_ALL,
@@ -210,6 +211,11 @@ const History = () => {
     return sessions.filter((session) => session.search_id === selectedSearchId);
   }, [selectedSearchId, sessions]);
 
+  const selectedSearchContext = useMemo(() => {
+    if (selectedSearchId === HISTORY_FILTER_ALL) return null;
+    return sessions.find((session) => session.search_id === selectedSearchId)?.searches ?? null;
+  }, [selectedSearchId, sessions]);
+
   const fallbackStats = useMemo(
     () => calculateOverviewStats(filteredSessions, questionFlags),
     [filteredSessions, questionFlags]
@@ -220,13 +226,13 @@ const History = () => {
     : "/dashboard";
   const practiceEntryLabel = selectedSearchId !== HISTORY_FILTER_ALL
     ? "Start practice for this research"
-    : "Go to Dashboard";
+    : "Go to Plan";
   const primaryEmptyHref = selectedSearchId !== HISTORY_FILTER_ALL
     ? `/dashboard?searchId=${selectedSearchId}`
     : "/dashboard";
   const primaryEmptyLabel = selectedSearchId !== HISTORY_FILTER_ALL
-    ? "Open research dashboard"
-    : "Go to Dashboard";
+    ? "Open plan"
+    : "Go to Plan";
   const secondaryEmptyHref = selectedSearchId !== HISTORY_FILTER_ALL ? practiceEntryHref : "/";
   const secondaryEmptyLabel = selectedSearchId !== HISTORY_FILTER_ALL
     ? "Start practice"
@@ -268,11 +274,23 @@ const History = () => {
     <div id="main-content" className="min-h-screen bg-background">
       <Navigation showSearchSelector={false} />
       <div className="container mx-auto max-w-6xl px-4 py-8">
+        {selectedSearchId !== HISTORY_FILTER_ALL && (
+          <div className="mb-6">
+            <InterviewWorkspaceHeader
+              activeStage="review"
+              company={selectedSearchContext?.company}
+              role={selectedSearchContext?.role}
+              country={selectedSearchContext?.country}
+              searchId={selectedSearchId}
+            />
+          </div>
+        )}
+
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-primary">
               <ClipboardList className="h-4 w-4" />
-              Practice History
+              Review
             </div>
             <h1 className="text-3xl font-semibold tracking-tight">Review how each round went</h1>
             <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">

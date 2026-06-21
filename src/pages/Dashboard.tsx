@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams, useParams, Link } from "react-router-dom";
 import Navigation from "@/components/Navigation";
+import InterviewWorkspaceHeader from "@/components/InterviewWorkspaceHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1006,7 +1007,6 @@ const Dashboard = () => {
     }
   };
 
-  const searchSubtitle = [searchData?.role, searchData?.country].filter(Boolean).join(' · ') || 'Interview Preparation';
   const searchStatusLabel = formatSearchStatus(searchData?.status);
 
   // Extract PrepPlan data
@@ -1125,29 +1125,38 @@ const Dashboard = () => {
   // Rough estimate: ~3.5 min per question
   const estimatedMinutes = Math.max(5, Math.round(selectedQuestionCount * 3.5));
 
-  // ── Main dashboard content ──
+  // ── Main plan content ──
   const content = (
     <>
+      <InterviewWorkspaceHeader
+        activeStage="plan"
+        company={searchData?.company}
+        role={searchData?.role}
+        country={searchData?.country}
+        confidence={summary?.overallConfidence}
+        searchId={searchId}
+      />
+
       {/* Header */}
       <header className="space-y-2">
         {!isMobile && (
           <nav className="mb-3 text-sm text-muted-foreground">
-            <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
+            <Link to="/" className="hover:text-foreground transition-colors">Interviews</Link>
             <span className="mx-2">›</span>
-            <span className="text-foreground">{searchData?.company || 'Company'} Prep Plan</span>
+            <span className="text-foreground">Plan</span>
           </nav>
         )}
         <div className="space-y-1">
           {isMobile && (
             <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
-              Prep plan
+              Plan
             </p>
           )}
           <h1 className="min-w-0 break-words text-3xl font-bold leading-tight">
-            {searchData?.company || 'Company'}
+            Prep plan
           </h1>
           <p className="min-w-0 break-words text-sm leading-6 text-muted-foreground">
-            {searchSubtitle}
+            Stages, priorities, and high-leverage questions for this interview.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {searchStatusLabel && <Badge variant="secondary">{searchStatusLabel}</Badge>}

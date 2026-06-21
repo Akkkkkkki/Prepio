@@ -393,7 +393,7 @@ export const SessionSummary = ({
             onClick={onBackToDashboard}
             className="w-full"
           >
-            Back to Dashboard
+            Back to Plan
           </Button>
           <Link
             to={historyHref}
