@@ -711,6 +711,23 @@ describe("Dashboard mobile layout", () => {
     ).toBeInTheDocument();
   });
 
+  it("sends the error-state new-search action to the new-interview flow", async () => {
+    mockGetSearchResults.mockResolvedValue({ success: false, error: new Error("load failed") });
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/new-interview" element={<div>New interview target</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start New Search" }));
+
+    expect(await screen.findByText("New interview target")).toBeInTheDocument();
+  });
+
   it("reserves bottom padding equal to the measured fixed CTA bar height plus a small buffer", async () => {
     const { container } = render(
       <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>

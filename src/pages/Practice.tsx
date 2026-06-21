@@ -1701,7 +1701,7 @@ const getInterviewerFocus = (
                   </Button>
                   <Button 
                     variant="outline" 
-                    onClick={() => navigate('/')}
+                    onClick={() => navigate('/new-interview')}
                     className="w-full"
                   >
                     Start New Search
@@ -1767,7 +1767,7 @@ const getInterviewerFocus = (
                   </Button>
                   <Button 
                     variant="outline" 
-                    onClick={() => navigate('/')}
+                    onClick={() => navigate('/new-interview')}
                     className="w-full"
                   >
                     Start New Search
@@ -1804,7 +1804,7 @@ const getInterviewerFocus = (
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={() => navigate('/')}
+                  onClick={() => navigate('/new-interview')}
                   className="w-full"
                 >
                   Start New Search

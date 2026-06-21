@@ -966,7 +966,7 @@ const Dashboard = () => {
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Try Again
               </Button>
-              <Button variant="outline" onClick={() => navigate('/')} className="w-full mt-2">
+              <Button variant="outline" onClick={() => navigate('/new-interview')} className="w-full mt-2">
                 Start New Search
               </Button>
             </CardContent>
