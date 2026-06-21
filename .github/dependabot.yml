@@ -6,15 +6,18 @@ version: 2
 # team wants tighter response on advisories. Security advisories ignore
 # this schedule and are opened as soon as GitHub detects them.
 #
-# Note: schedule.day / schedule.time / schedule.timezone only apply when
-# interval is "weekly" or "daily" — under "monthly" they're silently
-# ignored, so they're omitted here. If we move to weekly, add them back.
+# Note: schedule.day only applies when interval is "weekly" — under
+# "monthly" it's silently ignored, so it's omitted here. schedule.time
+# and schedule.timezone are honored for all intervals (otherwise
+# Dependabot picks a random time in UTC), so they're kept.
 
 updates:
   - package-ecosystem: npm
     directory: "/"
     schedule:
       interval: monthly
+      time: "09:00"
+      timezone: "Europe/London"
     open-pull-requests-limit: 5
     labels:
       - dependencies
@@ -53,6 +56,8 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
+      time: "09:00"
+      timezone: "Europe/London"
     open-pull-requests-limit: 5
     labels:
       - dependencies
