@@ -24,6 +24,7 @@ export interface MobileStageCardProps {
   questionCount: number;
   selected: boolean;
   onToggle: (stageId: string) => void;
+  isStartHere?: boolean;
 }
 
 export const MobileStageCard = ({
@@ -32,6 +33,7 @@ export const MobileStageCard = ({
   questionCount,
   selected,
   onToggle,
+  isStartHere = false,
 }: MobileStageCardProps) => {
   const previewQuestions = stage.questions?.slice(0, 2) ?? [];
   const hasExtraQuestions = (stage.questions?.length ?? 0) > previewQuestions.length;
@@ -69,6 +71,14 @@ export const MobileStageCard = ({
           {selected ? "Included" : "Include"}
         </label>
       </div>
+
+      {isStartHere && (
+        <div className="mt-3">
+          <Badge className="whitespace-normal bg-primary text-[11px] uppercase leading-4 tracking-[0.14em] text-primary-foreground">
+            Start here · highest-leverage round
+          </Badge>
+        </div>
+      )}
 
       {stage.low_confidence_guidance && (
         <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950">
