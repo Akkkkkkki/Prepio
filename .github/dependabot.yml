@@ -5,15 +5,16 @@ version: 2
 # Cadence: monthly to keep PR noise low. Bump to "weekly" later if the
 # team wants tighter response on advisories. Security advisories ignore
 # this schedule and are opened as soon as GitHub detects them.
+#
+# Note: schedule.day / schedule.time / schedule.timezone only apply when
+# interval is "weekly" or "daily" — under "monthly" they're silently
+# ignored, so they're omitted here. If we move to weekly, add them back.
 
 updates:
   - package-ecosystem: npm
     directory: "/"
     schedule:
       interval: monthly
-      day: monday
-      time: "09:00"
-      timezone: "Europe/London"
     open-pull-requests-limit: 5
     labels:
       - dependencies
@@ -52,9 +53,6 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
-      day: monday
-      time: "09:00"
-      timezone: "Europe/London"
     open-pull-requests-limit: 5
     labels:
       - dependencies
