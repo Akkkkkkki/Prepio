@@ -75,6 +75,24 @@ This tracks product reality against the latest `main` branch.
 - Use guest preview output to explain the value before sign-in.
 - Keep authenticated users one click from research and practice.
 
+### 3. Interview-as-object UX restructure
+
+The 2026-06-21 product UX review
+([`docs/audits/2026-06-21-ux-review.html`](./audits/2026-06-21-ux-review.html), digest in
+[`2026-06-21-ux-review.md`](./audits/2026-06-21-ux-review.md)) found the biggest source of
+friction is structural, not feature-level: a linear job (research → plan → practice →
+review) is shown as six peer tabs with three overlapping ways to pick a run, and new users
+can dead-end on empty states that explain the menu.
+
+- Reorganise the app around a single **interview** object: one "Your interviews" home, plus
+  a per-interview workspace with **Plan / Practice / Review** segments and a persistent
+  identity header (no hidden `?searchId`).
+- Then de-densify the Plan (hero + one CTA + roadmap + collapsed "Why this plan"), make
+  practice one tap from a card, and lock the visual system (2 radii, ≤2 badge styles).
+- Sequenced P0 → P2 under the **[Epic] Interview-as-object UX restructure** (PREPIO-99;
+  children PREPIO-100–107) in **Quality & Maintenance**. Ship P0 (the structure) first — it
+  removes most of the "clunky" without a rewrite.
+
 ## Next
 
 - Research pipeline v3 (grounded evidence): remove fabricated/stub inputs, build a
