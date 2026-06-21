@@ -121,6 +121,9 @@ function buildDb(overrides: Partial<FakeDb> = {}): FakeDb {
 interface FakeSupabaseFailures {
   insertAnswerFeedback?: SupabaseError;
   markCurrentAnswerFeedback?: SupabaseError;
+  // Row that a concurrent regeneration commits as current right before this
+  // request's mark-current step, simulating the row that won the race.
+  concurrentWinner?: FeedbackRow;
 }
 
 function buildFakeSupabase(db: FakeDb, failures: FakeSupabaseFailures = {}): SupabaseLike {
@@ -176,6 +179,9 @@ function buildFakeSupabase(db: FakeDb, failures: FakeSupabaseFailures = {}): Sup
                 patch.superseded_by === null &&
                 failures.markCurrentAnswerFeedback
               ) {
+                if (failures.concurrentWinner) {
+                  db.answer_feedback.push(failures.concurrentWinner);
+                }
                 return { data: null, error: failures.markCurrentAnswerFeedback };
               }
               const rows = db[table as keyof FakeDb] as unknown[];
@@ -187,6 +193,21 @@ function buildFakeSupabase(db: FakeDb, failures: FakeSupabaseFailures = {}): Sup
               }
               Object.assign(row, patch);
               return { data: row as T, error: null };
+            },
+          };
+        },
+        delete<T>() {
+          return {
+            async eq(column: string, value: unknown) {
+              const rows = db[table as keyof FakeDb] as unknown[];
+              const index = rows.findIndex((candidate) => {
+                return (candidate as Record<string, unknown>)[column] === value;
+              });
+              if (index === -1) {
+                return { data: null, error: { message: "row not found" } };
+              }
+              const [removed] = rows.splice(index, 1);
+              return { data: removed as T, error: null };
             },
           };
         },
@@ -503,25 +524,28 @@ describe("generateAnswerFeedback", () => {
     expect(result).toEqual({ ok: false, status: 409, error: "feedback_already_exists" });
   });
 
-  it("maps a concurrent regeneration unique violation to feedback already exists", async () => {
-    const db = buildDb({
-      answer_feedback: [
-        {
-          id: "feedback-current",
-          user_id: USER_ID,
-          practice_answer_id: ANSWER_ID,
-          practice_session_id: SESSION_ID,
-          question_id: QUESTION_ID,
-          strengths: [{ text: "Existing feedback" }],
-          improvements: [],
-          star_breakdown: feedback.starBreakdown,
-          next_action: feedback.nextAction,
-          model: "gpt-existing",
-          generation_metadata: {},
-          superseded_by: null,
-        },
-      ],
-    });
+  it("rolls back the losing row and repoints the chain on a regeneration race", async () => {
+    const previousCurrent: FeedbackRow = {
+      id: "feedback-current",
+      user_id: USER_ID,
+      practice_answer_id: ANSWER_ID,
+      practice_session_id: SESSION_ID,
+      question_id: QUESTION_ID,
+      strengths: [{ text: "Existing feedback" }],
+      improvements: [],
+      star_breakdown: feedback.starBreakdown,
+      next_action: feedback.nextAction,
+      model: "gpt-existing",
+      generation_metadata: {},
+      superseded_by: null,
+    };
+    const concurrentWinner: FeedbackRow = {
+      ...previousCurrent,
+      id: "feedback-winner",
+      strengths: [{ text: "Winning regeneration" }],
+      model: "gpt-winner",
+    };
+    const db = buildDb({ answer_feedback: [previousCurrent] });
     const model = buildModel();
 
     const result = await generateAnswerFeedback(
@@ -531,6 +555,7 @@ describe("generateAnswerFeedback", () => {
             code: "23505",
             message: "duplicate key value violates unique constraint idx_answer_feedback_current",
           },
+          concurrentWinner,
         }),
         getEntitlement: async () => PAID,
         model,
@@ -539,5 +564,15 @@ describe("generateAnswerFeedback", () => {
     );
 
     expect(result).toEqual({ ok: false, status: 409, error: "feedback_already_exists" });
+
+    // The row this request optimistically inserted must be removed so it does
+    // not linger in history; only the previous current row and the winner stay.
+    const ids = db.answer_feedback.map((row) => row.id).sort();
+    expect(ids).toEqual(["feedback-current", "feedback-winner"]);
+
+    // The previous current row must now point at the genuine winner rather than
+    // dangling at the discarded row.
+    const previous = db.answer_feedback.find((row) => row.id === "feedback-current");
+    expect(previous?.superseded_by).toBe("feedback-winner");
   });
 });
