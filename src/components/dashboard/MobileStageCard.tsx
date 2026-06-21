@@ -50,11 +50,6 @@ export const MobileStageCard = ({
           <Badge variant="outline" className="shrink-0 text-[11px] uppercase tracking-[0.14em]">
             Stage {index + 1}
           </Badge>
-          {isStartHere && (
-            <Badge className="shrink-0 bg-primary text-[11px] uppercase tracking-[0.14em] text-primary-foreground">
-              Start here · highest-leverage round
-            </Badge>
-          )}
           <span className="whitespace-nowrap text-xs text-muted-foreground">
             {questionCount} question{questionCount === 1 ? "" : "s"}
           </span>
@@ -76,6 +71,14 @@ export const MobileStageCard = ({
           {selected ? "Included" : "Include"}
         </label>
       </div>
+
+      {isStartHere && (
+        <div className="mt-3">
+          <Badge className="whitespace-normal bg-primary text-[11px] uppercase leading-4 tracking-[0.14em] text-primary-foreground">
+            Start here · highest-leverage round
+          </Badge>
+        </div>
+      )}
 
       {stage.low_confidence_guidance && (
         <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950">
