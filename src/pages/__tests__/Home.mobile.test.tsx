@@ -419,6 +419,58 @@ describe("Home flow", () => {
     expect(screen.getByText("Your Anthropic preview will appear here")).toBeInTheDocument();
   });
 
+  it("discards an in-flight preview response after the guest edits the company", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    let resolvePreview:
+      | ((result: Awaited<ReturnType<typeof mockCreateResearchPreview>>) => void)
+      | undefined;
+
+    mockCreateResearchPreview.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolvePreview = resolve;
+      }),
+    );
+
+    renderHome();
+
+    fireEvent.change(screen.getByLabelText("Company *"), {
+      target: { value: "Stripe" },
+    });
+    fireEvent.change(screen.getByLabelText("Role (optional)"), {
+      target: { value: "Platform Engineer" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
+
+    await waitFor(() => expect(mockCreateResearchPreview).toHaveBeenCalledOnce());
+
+    fireEvent.change(screen.getByLabelText("Company *"), {
+      target: { value: "Anthropic" },
+    });
+
+    await act(async () => {
+      resolvePreview?.({
+        success: true,
+        preview: {
+          previewId: "preview-stale",
+          status: "completed",
+          company: "Stripe",
+          role: "Platform Engineer",
+          confidence: "medium",
+          sourceSummary: "Public signals from interview reviews.",
+          expiresAt: "2026-05-18T00:00:00.000Z",
+          stages: [],
+          assessmentSignals: [],
+          questions: [],
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Interview brief preview")).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("Your Anthropic preview will appear here")).toBeInTheDocument();
+  });
+
   it("keeps a preview when inputs differ only by collapsible internal whitespace", async () => {
     mockUseIsMobile.mockReturnValue(false);
     // The edge function collapses internal whitespace, so it returns the
