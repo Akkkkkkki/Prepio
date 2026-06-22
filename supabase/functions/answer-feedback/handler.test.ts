@@ -124,6 +124,11 @@ interface FakeSupabaseFailures {
   // Row that a concurrent regeneration commits as current right before this
   // request's mark-current step, simulating the row that won the race.
   concurrentWinner?: FeedbackRow;
+  // Hook fired when this request's mark-current step fails, letting a test mutate
+  // the shared db to model concurrent regenerations that interleave with the
+  // losing request's rollback (e.g. advancing the chain head past the immediate
+  // winner).
+  onMarkCurrentFailure?: (db: FakeDb) => void;
 }
 
 function buildFakeSupabase(db: FakeDb, failures: FakeSupabaseFailures = {}): SupabaseLike {
@@ -182,6 +187,7 @@ function buildFakeSupabase(db: FakeDb, failures: FakeSupabaseFailures = {}): Sup
                 if (failures.concurrentWinner) {
                   db.answer_feedback.push(failures.concurrentWinner);
                 }
+                failures.onMarkCurrentFailure?.(db);
                 return { data: null, error: failures.markCurrentAnswerFeedback };
               }
               const rows = db[table as keyof FakeDb] as unknown[];
@@ -574,5 +580,82 @@ describe("generateAnswerFeedback", () => {
     // dangling at the discarded row.
     const previous = db.answer_feedback.find((row) => row.id === "feedback-current");
     expect(previous?.superseded_by).toBe("feedback-winner");
+  });
+
+  it("preserves the immediate winner when a newer regeneration advances the chain mid-rollback", async () => {
+    // Models PREPIO-109 / the Codex review case: while this request loses the
+    // mark-current race, a further regeneration completes and advances the head
+    // from the immediate winner to a newer row, repointing the previous current
+    // row at the immediate winner. The rollback must delete only the losing row
+    // and leave `old -> winner -> third` intact rather than rewriting it to
+    // `old -> third` and orphaning the immediate winner.
+    const previousCurrent: FeedbackRow = {
+      id: "feedback-current",
+      user_id: USER_ID,
+      practice_answer_id: ANSWER_ID,
+      practice_session_id: SESSION_ID,
+      question_id: QUESTION_ID,
+      strengths: [{ text: "Existing feedback" }],
+      improvements: [],
+      star_breakdown: feedback.starBreakdown,
+      next_action: feedback.nextAction,
+      model: "gpt-existing",
+      generation_metadata: {},
+      superseded_by: null,
+    };
+    const db = buildDb({ answer_feedback: [previousCurrent] });
+    const model = buildModel();
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db, {
+          markCurrentAnswerFeedback: {
+            code: "23505",
+            message: "duplicate key value violates unique constraint idx_answer_feedback_current",
+          },
+          onMarkCurrentFailure: (current) => {
+            // The immediate winner already superseded by an even newer head, and
+            // the previous current row has been repointed at that winner.
+            current.answer_feedback.push({
+              ...previousCurrent,
+              id: "feedback-winner",
+              strengths: [{ text: "Immediate winner" }],
+              model: "gpt-winner",
+              superseded_by: "feedback-third",
+            });
+            current.answer_feedback.push({
+              ...previousCurrent,
+              id: "feedback-third",
+              strengths: [{ text: "Latest head" }],
+              model: "gpt-third",
+              superseded_by: null,
+            });
+            const previous = current.answer_feedback.find((row) => row.id === "feedback-current");
+            if (previous) previous.superseded_by = "feedback-winner";
+          },
+        }),
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID, regenerate: true },
+    );
+
+    expect(result).toEqual({ ok: false, status: 409, error: "feedback_already_exists" });
+
+    // Only this request's losing row is removed; the winner and newer head stay.
+    const ids = db.answer_feedback.map((row) => row.id).sort();
+    expect(ids).toEqual(["feedback-current", "feedback-third", "feedback-winner"]);
+
+    // The previous current row keeps pointing at the immediate winner instead of
+    // being clobbered with the advanced head, so the chain stays unbroken.
+    const previous = db.answer_feedback.find((row) => row.id === "feedback-current");
+    expect(previous?.superseded_by).toBe("feedback-winner");
+
+    // Exactly one current row remains.
+    expect(
+      db.answer_feedback.filter(
+        (row) => row.practice_answer_id === ANSWER_ID && row.superseded_by === null,
+      ).map((row) => row.id),
+    ).toEqual(["feedback-third"]);
   });
 });

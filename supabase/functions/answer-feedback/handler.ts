@@ -228,6 +228,15 @@ async function readSingle<T>(
 // has already written two rows: the freshly inserted (now orphaned) row and the
 // previous current row whose `superseded_by` may now dangle at the loser. Undo
 // both so the supersession chain stays consistent before reporting the conflict.
+//
+// Concurrency note: because these steps are separate statements (no surrounding
+// transaction), a *newer* regeneration can advance the chain head while we roll
+// back. We therefore only repoint the previous current row when it still points
+// at the row we are discarding; if a winner already repointed it at a surviving
+// row, we leave that pointer alone instead of clobbering it with the latest
+// head. The one residual case — the previous current row still dangles at our
+// loser *and* the head advanced past the immediate winner — is tracked for a
+// fully atomic (RPC/locked) supersession in PREPIO-109.
 async function rollbackLosingRegeneration(
   deps: Deps,
   params: {
@@ -236,33 +245,48 @@ async function rollbackLosingRegeneration(
     previousCurrentFeedbackId: string;
   },
 ): Promise<void> {
-  // Find the row that actually won the race so the previous current row points
-  // at it rather than at the row we are about to discard.
-  const winnerResult = await deps.supabase
+  // Re-read the previous current row: only when it still dangles at the loser do
+  // we need to repoint it, because deleting the loser would otherwise cascade
+  // its `superseded_by` to NULL (ON DELETE SET NULL) and resurrect it as a
+  // second head, colliding on the partial unique index.
+  const previousResult = await deps.supabase
     .from("answer_feedback")
-    .select<FeedbackRow>("id")
-    .eq("practice_answer_id", params.practiceAnswerId)
-    .is("superseded_by", null)
+    .select<FeedbackRow>("id, superseded_by")
+    .eq("id", params.previousCurrentFeedbackId)
     .maybeSingle();
-  if (winnerResult.error) {
-    deps.log?.("answer_feedback_rollback_winner_read_failed", {
-      message: winnerResult.error.message,
+  if (previousResult.error) {
+    deps.log?.("answer_feedback_rollback_previous_read_failed", {
+      message: previousResult.error.message,
     });
   }
 
-  const winnerId = winnerResult.data?.id ?? null;
-  // Repoint before deleting: deleting the loser first would cascade the previous
-  // current row's `superseded_by` to NULL (ON DELETE SET NULL) and collide with
-  // the winner on the partial unique index.
-  if (winnerId) {
-    const repointResult = await deps.supabase
+  if (previousResult.data?.superseded_by === params.losingFeedbackId) {
+    // Find the row that actually holds the current slot so the previous current
+    // row points at a surviving winner rather than the row we are about to drop.
+    const winnerResult = await deps.supabase
       .from("answer_feedback")
-      .update<FeedbackRow>({ superseded_by: winnerId })
-      .eq("id", params.previousCurrentFeedbackId);
-    if (repointResult.error) {
-      deps.log?.("answer_feedback_rollback_repoint_failed", {
-        message: repointResult.error.message,
+      .select<FeedbackRow>("id")
+      .eq("practice_answer_id", params.practiceAnswerId)
+      .is("superseded_by", null)
+      .maybeSingle();
+    if (winnerResult.error) {
+      deps.log?.("answer_feedback_rollback_winner_read_failed", {
+        message: winnerResult.error.message,
       });
+    }
+
+    const winnerId = winnerResult.data?.id ?? null;
+    // Repoint before deleting so the cascade above can never fire on the loser.
+    if (winnerId && winnerId !== params.losingFeedbackId) {
+      const repointResult = await deps.supabase
+        .from("answer_feedback")
+        .update<FeedbackRow>({ superseded_by: winnerId })
+        .eq("id", params.previousCurrentFeedbackId);
+      if (repointResult.error) {
+        deps.log?.("answer_feedback_rollback_repoint_failed", {
+          message: repointResult.error.message,
+        });
+      }
     }
   }
 
