@@ -1,8 +1,8 @@
-export type ProfileUsageSurface = "Research" | "Dashboard" | "Practice";
+export type ProfileUsageSurface = "Research" | "Plan" | "Practice";
 
 export const PROFILE_USAGE_SURFACES: ProfileUsageSurface[] = [
   "Research",
-  "Dashboard",
+  "Plan",
   "Practice",
 ];
 

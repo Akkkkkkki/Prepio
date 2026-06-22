@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSwipeable } from "react-swipeable";
 import Navigation from "@/components/Navigation";
+import InterviewWorkspaceHeader from "@/components/InterviewWorkspaceHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1697,7 +1698,7 @@ const getInterviewerFocus = (
                     size="lg"
                     className="w-full"
                   >
-                    Go to Dashboard
+                    Go to Plan
                   </Button>
                   <Button 
                     variant="outline" 
@@ -1800,7 +1801,7 @@ const getInterviewerFocus = (
                   onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
                   className="w-full"
                 >
-                  Back to Dashboard
+                  Back to Plan
                 </Button>
                 <Button 
                   variant="outline" 
@@ -1846,7 +1847,7 @@ const getInterviewerFocus = (
                   className="w-full"
                 >
                   <ChevronLeft className="h-4 w-4 mr-2" />
-                  Back to Dashboard
+                  Back to Plan
                 </Button>
               </div>
             </CardContent>
@@ -1872,7 +1873,7 @@ const getInterviewerFocus = (
               variant="ghost"
               size="icon"
               onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
-              aria-label="Back to dashboard"
+              aria-label="Back to plan"
             >
               <ChevronLeft className="h-5 w-5" />
             </Button>
@@ -1885,6 +1886,13 @@ const getInterviewerFocus = (
 
         <div className="px-4 py-5 pb-8">
           <div className="space-y-5">
+            <InterviewWorkspaceHeader
+              activeStage="practice"
+              company={searchData?.company}
+              role={searchData?.role}
+              searchId={searchId}
+            />
+
             <section className="rounded-[28px] border bg-muted/30 p-5 shadow-sm">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 Practice summary
@@ -2113,11 +2121,19 @@ const getInterviewerFocus = (
       <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto max-w-3xl px-4 py-8">
+          <div className="mb-6">
+            <InterviewWorkspaceHeader
+              activeStage="practice"
+              company={searchData?.company}
+              role={searchData?.role}
+              searchId={searchId}
+            />
+          </div>
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}>
                 <ChevronLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
+                Back to Plan
               </Button>
               <Button variant="link" size="sm" asChild className="px-0">
                 <Link to={practiceHistoryHref}>View history</Link>
@@ -2396,6 +2412,14 @@ const getInterviewerFocus = (
       <div id="main-content" className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-8 max-w-2xl">
+          <div className="mb-6">
+            <InterviewWorkspaceHeader
+              activeStage="review"
+              company={searchData?.company}
+              role={searchData?.role}
+              searchId={searchId}
+            />
+          </div>
           <SessionSummary
             answeredCount={answeredCount}
             totalQuestions={questions.length}
@@ -2444,7 +2468,7 @@ const getInterviewerFocus = (
               variant="ghost"
               size="icon"
               onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
-              aria-label="Back to dashboard"
+              aria-label="Back to plan"
               className="h-11 w-11"
             >
               <ChevronLeft className="h-5 w-5" />
@@ -2789,6 +2813,14 @@ const getInterviewerFocus = (
       </span>
       <CompletionCheckmark visible={showCheckmark} />
       <div className="container mx-auto max-w-6xl px-4 py-6 pb-32 lg:py-8 lg:pb-40">
+        <div className="mb-6">
+          <InterviewWorkspaceHeader
+            activeStage="practice"
+            company={searchData?.company}
+            role={searchData?.role}
+            searchId={searchId}
+          />
+        </div>
         <div className="space-y-3 mb-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <Button
@@ -2797,7 +2829,7 @@ const getInterviewerFocus = (
               onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
             >
               <ChevronLeft className="h-4 w-4 mr-2" />
-              Back to dashboard
+              Back to Plan
             </Button>
             <div className="text-sm text-muted-foreground sm:text-right">
               {searchData?.company && `${searchData.company}`}
