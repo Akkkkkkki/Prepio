@@ -27,10 +27,15 @@ interface UpdateBuilder<T> {
   eq: (column: string, value: unknown) => Promise<QueryResult<T>>;
 }
 
+interface DeleteBuilder<T> {
+  eq: (column: string, value: unknown) => Promise<QueryResult<T>>;
+}
+
 interface TableBuilder {
   select: <T>(columns: string) => SelectBuilder<T>;
   insert: <T>(row: Record<string, unknown>) => InsertBuilder<T>;
   update: <T>(row: Record<string, unknown>) => UpdateBuilder<T>;
+  delete: <T>() => DeleteBuilder<T>;
 }
 
 export interface SupabaseLike {
@@ -217,6 +222,85 @@ async function readSingle<T>(
   return query.maybeSingle();
 }
 
+// A regeneration request can pass the initial existence check, insert its new
+// row, and supersede the previous current row, only to lose the race for the
+// `idx_answer_feedback_current` slot at the mark-current step. By that point it
+// has already written two rows: the freshly inserted (now orphaned) row and the
+// previous current row whose `superseded_by` may now dangle at the loser. Undo
+// both so the supersession chain stays consistent before reporting the conflict.
+//
+// Concurrency note: because these steps are separate statements (no surrounding
+// transaction), a *newer* regeneration can advance the chain head while we roll
+// back. We therefore only repoint the previous current row when it still points
+// at the row we are discarding; if a winner already repointed it at a surviving
+// row, we leave that pointer alone instead of clobbering it with the latest
+// head. The one residual case — the previous current row still dangles at our
+// loser *and* the head advanced past the immediate winner — is tracked for a
+// fully atomic (RPC/locked) supersession in PREPIO-109.
+async function rollbackLosingRegeneration(
+  deps: Deps,
+  params: {
+    practiceAnswerId: string;
+    losingFeedbackId: string;
+    previousCurrentFeedbackId: string;
+  },
+): Promise<void> {
+  // Re-read the previous current row: only when it still dangles at the loser do
+  // we need to repoint it, because deleting the loser would otherwise cascade
+  // its `superseded_by` to NULL (ON DELETE SET NULL) and resurrect it as a
+  // second head, colliding on the partial unique index.
+  const previousResult = await deps.supabase
+    .from("answer_feedback")
+    .select<FeedbackRow>("id, superseded_by")
+    .eq("id", params.previousCurrentFeedbackId)
+    .maybeSingle();
+  if (previousResult.error) {
+    deps.log?.("answer_feedback_rollback_previous_read_failed", {
+      message: previousResult.error.message,
+    });
+  }
+
+  if (previousResult.data?.superseded_by === params.losingFeedbackId) {
+    // Find the row that actually holds the current slot so the previous current
+    // row points at a surviving winner rather than the row we are about to drop.
+    const winnerResult = await deps.supabase
+      .from("answer_feedback")
+      .select<FeedbackRow>("id")
+      .eq("practice_answer_id", params.practiceAnswerId)
+      .is("superseded_by", null)
+      .maybeSingle();
+    if (winnerResult.error) {
+      deps.log?.("answer_feedback_rollback_winner_read_failed", {
+        message: winnerResult.error.message,
+      });
+    }
+
+    const winnerId = winnerResult.data?.id ?? null;
+    // Repoint before deleting so the cascade above can never fire on the loser.
+    if (winnerId && winnerId !== params.losingFeedbackId) {
+      const repointResult = await deps.supabase
+        .from("answer_feedback")
+        .update<FeedbackRow>({ superseded_by: winnerId })
+        .eq("id", params.previousCurrentFeedbackId);
+      if (repointResult.error) {
+        deps.log?.("answer_feedback_rollback_repoint_failed", {
+          message: repointResult.error.message,
+        });
+      }
+    }
+  }
+
+  const deleteResult = await deps.supabase
+    .from("answer_feedback")
+    .delete<FeedbackRow>()
+    .eq("id", params.losingFeedbackId);
+  if (deleteResult.error) {
+    deps.log?.("answer_feedback_rollback_delete_failed", {
+      message: deleteResult.error.message,
+    });
+  }
+}
+
 export async function generateAnswerFeedback(
   deps: Deps,
   req: GenerateAnswerFeedbackRequest,
@@ -391,6 +475,11 @@ export async function generateAnswerFeedback(
         message: markCurrentResult.error.message,
       });
       if (isUniqueViolation(markCurrentResult.error)) {
+        await rollbackLosingRegeneration(deps, {
+          practiceAnswerId,
+          losingFeedbackId: newFeedbackId,
+          previousCurrentFeedbackId: currentFeedbackId,
+        });
         return { ok: false, status: 409, error: "feedback_already_exists" };
       }
       return { ok: false, status: 500, error: "internal_error" };
