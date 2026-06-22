@@ -338,7 +338,7 @@ const Home = () => {
     persistDraft(step);
     navigate("/auth", {
       state: createAuthReturnState({
-        pathname: "/",
+        pathname: "/new-interview",
         draftStorageKey: RESEARCH_DRAFT_STORAGE_KEY,
         intent: "research",
         source: "research_home",

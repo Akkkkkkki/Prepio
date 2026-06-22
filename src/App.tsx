@@ -11,6 +11,7 @@ import { createAuthReturnState } from "./lib/researchDraft";
 
 const queryClient = new QueryClient();
 const Home = lazy(() => import("./pages/Home"));
+const Interviews = lazy(() => import("./pages/Interviews"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Practice = lazy(() => import("./pages/Practice"));
 const History = lazy(() => import("./pages/History"));
@@ -66,6 +67,15 @@ const RouteElement = ({ children }: ProtectedRouteProps) => (
   <Suspense fallback={<RouteFallback />}>{children}</Suspense>
 );
 
+const RootRoute = () => {
+  const { user, loading } = useAuthContext();
+
+  if (loading) return <RouteFallback />;
+  if (user) return <Navigate to="/interviews" replace />;
+
+  return <Home />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -78,8 +88,28 @@ const App = () => (
           <OfflineBanner />
           <Routes>
             <Route path="/auth" element={<RouteElement><Auth /></RouteElement>} />
-            <Route path="/" element={<RouteElement><Home /></RouteElement>} />
+            <Route path="/" element={<RouteElement><RootRoute /></RouteElement>} />
             <Route path="/pricing" element={<RouteElement><Pricing /></RouteElement>} />
+            <Route
+              path="/interviews"
+              element={
+                <ProtectedRoute>
+                  <RouteElement>
+                    <Interviews />
+                  </RouteElement>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/new-interview"
+              element={
+                <ProtectedRoute>
+                  <RouteElement>
+                    <Home />
+                  </RouteElement>
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/dashboard"
               element={

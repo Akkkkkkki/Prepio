@@ -185,6 +185,21 @@ describe("Practice mobile layout", () => {
     });
   });
 
+  it("sends the no-search fallback to the new-interview flow", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+          <Route path="/new-interview" element={<div>New interview target</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Start New Search" }));
+
+    expect(await screen.findByText("New interview target")).toBeInTheDocument();
+  });
+
   it("starts with notes expanded and preserves them across coach sheet open/close", async () => {
     const { container } = render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>

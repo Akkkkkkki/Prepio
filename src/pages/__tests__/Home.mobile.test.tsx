@@ -358,7 +358,7 @@ describe("Home flow", () => {
       resumeLabel: "Research",
       source: "research_home",
       draftStorageKey: RESEARCH_DRAFT_STORAGE_KEY,
-      from: { pathname: "/" },
+      from: { pathname: "/new-interview" },
     });
   });
 

@@ -44,7 +44,7 @@ const Auth = () => {
   const resumeTarget = getAuthResumeLabel(authState);
   const redirectPath = authState?.from
     ? `${authState.from.pathname}${authState.from.search || ""}`
-    : "/dashboard";
+    : "/interviews";
   const preferredEmail = signInData.email.trim() || signUpData.email.trim();
 
   // Listen for Supabase PASSWORD_RECOVERY event to enter the set-new-password view
@@ -235,7 +235,7 @@ const Auth = () => {
 
       setIsRecoverySession(false);
       setSuccess("Password updated. You're now signed in.");
-      navigate("/dashboard", { replace: true });
+      navigate("/interviews", { replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Couldn't update your password.");
     } finally {

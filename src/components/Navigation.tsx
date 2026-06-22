@@ -253,8 +253,8 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                             <AlertCircle className="h-4 w-4 text-red-600" />
                             <span className="text-sm text-red-800">{historyError}</span>
                           </div>
-                          <Button variant="outline" size="sm" onClick={() => navigate("/")}>
-                            Start research from Home
+                          <Button variant="outline" size="sm" onClick={() => navigate("/new-interview")}>
+                            Start a new interview
                           </Button>
                         </div>
                       ) : searchHistory.length === 0 ? (
@@ -262,11 +262,11 @@ const Navigation = ({ showHistory = true, showSearchSelector = true }: Navigatio
                           <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
                           <p className="text-sm text-muted-foreground">No research history yet</p>
                           <p className="text-xs text-muted-foreground">
-                            Start from Home and every research run will appear here.
+                            Start a new interview and every research run will appear here.
                           </p>
                           <div className="flex justify-center">
-                            <Button size="sm" onClick={() => navigate("/")}>
-                              Start research
+                            <Button size="sm" onClick={() => navigate("/new-interview")}>
+                              Start a new interview
                             </Button>
                           </div>
                         </div>

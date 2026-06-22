@@ -96,6 +96,21 @@ export interface PracticeHistoryOverviewStats {
   needsWorkCount: number;
 }
 
+export type InterviewSummaryState = "plan_ready" | "in_progress" | "processing" | "failed";
+
+export interface InterviewSummary {
+  id: string;
+  company: string;
+  role: string | null;
+  status: string;
+  createdAt: string;
+  totalQuestions: number;
+  practicedQuestions: number;
+  progressPercent: number;
+  needsWorkCount: number;
+  state: InterviewSummaryState;
+}
+
 type PracticeAnswerWithQuestion = {
   question_id: string;
   created_at: string;
@@ -185,6 +200,91 @@ export const dedupePracticeAnswersBySessionQuestion = <T extends PracticeAnswerW
   return Array.from(latestBySessionQuestion.values()).sort(
     (left, right) => getTimestamp(left.created_at) - getTimestamp(right.created_at)
   );
+};
+
+interface BuildInterviewSummariesInput {
+  searches: Array<Pick<Tables<"searches">, "id" | "company" | "role" | "status" | "created_at">>;
+  questions: Array<Pick<Tables<"interview_questions">, "id" | "search_id">>;
+  sessions: Array<Pick<Tables<"practice_sessions">, "id" | "search_id">>;
+  answers: Array<
+    Pick<Tables<"practice_answers">, "session_id" | "question_id" | "self_rating" | "created_at">
+  >;
+  flags: Array<Pick<Tables<"user_question_flags">, "question_id" | "flag_type">>;
+}
+
+export const buildInterviewSummaries = ({
+  searches,
+  questions,
+  sessions,
+  answers,
+  flags,
+}: BuildInterviewSummariesInput): InterviewSummary[] => {
+  const searchIdBySessionId = new Map(sessions.map((session) => [session.id, session.search_id]));
+  const questionsBySearchId = new Map<string, Set<string>>();
+
+  questions.forEach((question) => {
+    const questionIds = questionsBySearchId.get(question.search_id) ?? new Set<string>();
+    questionIds.add(question.id);
+    questionsBySearchId.set(question.search_id, questionIds);
+  });
+
+  const latestAnswers = dedupePracticeAnswersByQuestion(
+    answers.map((answer) => ({
+      ...answer,
+      search_id: searchIdBySessionId.get(answer.session_id) ?? null,
+    }))
+  );
+  const latestAnswersBySearchId = new Map<string, typeof latestAnswers>();
+
+  latestAnswers.forEach((answer) => {
+    if (!answer.search_id) return;
+    const searchAnswers = latestAnswersBySearchId.get(answer.search_id) ?? [];
+    searchAnswers.push(answer);
+    latestAnswersBySearchId.set(answer.search_id, searchAnswers);
+  });
+
+  const explicitlyNeedsWork = new Set(
+    flags.filter((flag) => flag.flag_type === "needs_work").map((flag) => flag.question_id)
+  );
+
+  return searches.map((search) => {
+    const questionIds = questionsBySearchId.get(search.id) ?? new Set<string>();
+    const searchAnswers = (latestAnswersBySearchId.get(search.id) ?? []).filter((answer) =>
+      questionIds.has(answer.question_id)
+    );
+    const practicedQuestionIds = new Set(searchAnswers.map((answer) => answer.question_id));
+    const lowRatedQuestionIds = new Set(
+      searchAnswers
+        .filter((answer) => answer.self_rating !== null && answer.self_rating <= 2)
+        .map((answer) => answer.question_id)
+    );
+    const needsWorkQuestionIds = new Set(
+      Array.from(questionIds).filter(
+        (questionId) => explicitlyNeedsWork.has(questionId) || lowRatedQuestionIds.has(questionId)
+      )
+    );
+    const totalQuestions = questionIds.size;
+    const practicedQuestions = practicedQuestionIds.size;
+    const progressPercent =
+      totalQuestions > 0 ? Math.round((practicedQuestions / totalQuestions) * 100) : 0;
+
+    let state: InterviewSummaryState = practicedQuestions > 0 ? "in_progress" : "plan_ready";
+    if (search.status === "failed") state = "failed";
+    if (search.status === "pending" || search.status === "processing") state = "processing";
+
+    return {
+      id: search.id,
+      company: search.company,
+      role: search.role,
+      status: search.status,
+      createdAt: search.created_at,
+      totalQuestions,
+      practicedQuestions,
+      progressPercent,
+      needsWorkCount: needsWorkQuestionIds.size,
+      state,
+    };
+  });
 };
 
 const getCurrentUser = async () => {
@@ -553,6 +653,76 @@ export const searchService = {
       return { searches, success: true };
     } catch (error) {
       console.error("Error getting search history:", error);
+      return { error, success: false };
+    }
+  },
+
+  async getInterviewSummaries() {
+    try {
+      const user = await getCurrentUser();
+      const { data: searches, error: searchesError } = await supabase
+        .from("searches")
+        .select("id, company, role, status, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (searchesError) throw searchesError;
+      if (!searches?.length) {
+        return { interviews: [], success: true };
+      }
+
+      const searchIds = searches.map((search) => search.id);
+      const [questionsResult, sessionsResult] = await Promise.all([
+        supabase
+          .from("interview_questions")
+          .select("id, search_id")
+          .in("search_id", searchIds),
+        supabase
+          .from("practice_sessions")
+          .select("id, search_id")
+          .eq("user_id", user.id)
+          .in("search_id", searchIds),
+      ]);
+
+      if (questionsResult.error) throw questionsResult.error;
+      if (sessionsResult.error) throw sessionsResult.error;
+
+      const questions = questionsResult.data ?? [];
+      const sessions = sessionsResult.data ?? [];
+      const sessionIds = sessions.map((session) => session.id);
+      const questionIds = questions.map((question) => question.id);
+
+      const [answersResult, flagsResult] = await Promise.all([
+        sessionIds.length > 0
+          ? supabase
+              .from("practice_answers")
+              .select("session_id, question_id, self_rating, created_at")
+              .in("session_id", sessionIds)
+          : Promise.resolve({ data: [], error: null }),
+        questionIds.length > 0
+          ? supabase
+              .from("user_question_flags")
+              .select("question_id, flag_type")
+              .eq("user_id", user.id)
+              .in("question_id", questionIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (answersResult.error) throw answersResult.error;
+      if (flagsResult.error) throw flagsResult.error;
+
+      return {
+        interviews: buildInterviewSummaries({
+          searches,
+          questions,
+          sessions,
+          answers: answersResult.data ?? [],
+          flags: flagsResult.data ?? [],
+        }),
+        success: true,
+      };
+    } catch (error) {
+      console.error("Error getting interview summaries:", error);
       return { error, success: false };
     }
   },

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
@@ -34,6 +34,7 @@ const renderNavigation = (path = "/", searchParams = "") =>
   render(
     <MemoryRouter initialEntries={[`${path}${searchParams}`]}>
       <Routes>
+        <Route path="/new-interview" element={<div>New interview target</div>} />
         <Route path="*" element={<Navigation />} />
       </Routes>
     </MemoryRouter>,
@@ -178,5 +179,14 @@ describe("Navigation component", () => {
     await waitFor(() => {
       expect(screen.getByText("Prepio")).toBeInTheDocument();
     });
+  });
+
+  it("sends empty-history research actions to the new-interview flow", async () => {
+    renderNavigation();
+
+    fireEvent.click(await screen.findByRole("button", { name: /History/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start a new interview" }));
+
+    expect(await screen.findByText("New interview target")).toBeInTheDocument();
   });
 });
