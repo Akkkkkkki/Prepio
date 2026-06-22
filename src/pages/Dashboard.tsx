@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams, useParams, Link } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,6 @@ import {
   TrendingUp,
   ChevronDown,
   ChevronUp,
-  Lightbulb,
   ExternalLink,
 } from "lucide-react";
 import { searchService } from "@/services/searchService";
@@ -538,99 +537,6 @@ function HighLeverageQuestionsCard({ stages }: { stages: InterviewStage[] }) {
   );
 }
 
-type GuidanceKey = "practice-first" | "senior-level" | "positioning";
-
-interface GuidanceContext {
-  company?: string;
-  role?: string | null;
-  prepPriorities: PrepPriority[];
-  assessmentSignals: AssessmentSignal[];
-}
-
-interface GuidancePreset {
-  key: GuidanceKey;
-  label: string;
-  build: (ctx: GuidanceContext) => string;
-}
-
-// Preset, deterministic pointers derived from the research plan. Templated
-// guidance — not an LLM chat — so we surface only the fixed prompts and keep
-// the copy honest about that.
-const DASHBOARD_GUIDANCE_PRESETS: GuidancePreset[] = [
-  {
-    key: "practice-first",
-    label: "What to practice first",
-    build: ({ prepPriorities, assessmentSignals }) =>
-      `Practice ${
-        prepPriorities[0]?.label || assessmentSignals[0]?.name || "the first selected stage"
-      } first. It is the clearest path from this research plan into a useful practice session.`,
-  },
-  {
-    key: "senior-level",
-    label: "Most senior-level questions",
-    build: ({ assessmentSignals, company }) =>
-      `Lean into ${
-        assessmentSignals[0]?.name || "decision quality"
-      }. Senior answers should show tradeoffs, constraints, and measurable impact for ${
-        company || "this company"
-      }.`,
-  },
-  {
-    key: "positioning",
-    label: "How to position my background",
-    build: ({ assessmentSignals, prepPriorities, role }) =>
-      `Position your background around ${
-        assessmentSignals[0]?.name ||
-        prepPriorities[0]?.label ||
-        "the highest-priority interview signal"
-      }${
-        role ? ` for the ${role} role` : ""
-      }. Use one concrete story, then explain why your decision was right for the context.`,
-  },
-];
-
-function PrepAskPanel(ctx: GuidanceContext) {
-  const [activeKey, setActiveKey] = useState<GuidanceKey>(DASHBOARD_GUIDANCE_PRESETS[0].key);
-
-  const response = useMemo(() => {
-    const preset =
-      DASHBOARD_GUIDANCE_PRESETS.find((item) => item.key === activeKey) ??
-      DASHBOARD_GUIDANCE_PRESETS[0];
-    return preset.build(ctx);
-  }, [activeKey, ctx]);
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Lightbulb className="h-4 w-4 text-primary" />
-          Quick guidance
-        </CardTitle>
-        <CardDescription>Preset pointers pulled from this research plan — pick one.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-2">
-          {DASHBOARD_GUIDANCE_PRESETS.map((item) => (
-            <Button
-              key={item.key}
-              type="button"
-              variant={item.key === activeKey ? "default" : "outline"}
-              size="sm"
-              aria-pressed={item.key === activeKey}
-              onClick={() => setActiveKey(item.key)}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </div>
-        <div className="rounded-xl bg-muted/40 p-3 text-sm leading-6" aria-live="polite">
-          {response}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function EvidenceSourcesCard({ evidence }: { evidence: EvidenceItem[] }) {
   if (!evidence?.length) return null;
 
@@ -755,10 +661,12 @@ function StageRoadmapCard({
   stages,
   onToggle,
   isMobile,
+  topStageId,
 }: {
   stages: InterviewStage[];
   onToggle: (id: string) => void;
   isMobile: boolean;
+  topStageId: string | null;
 }) {
   if (isMobile) {
     return (
@@ -777,6 +685,7 @@ function StageRoadmapCard({
                 questionCount={stage.questions?.length || 0}
                 selected={stage.selected}
                 onToggle={onToggle}
+                isStartHere={stage.id === topStageId}
               />
             ))}
           </div>
@@ -812,6 +721,11 @@ function StageRoadmapCard({
                 <AccordionTrigger className="py-0 hover:no-underline">
                   <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 pr-4">
                     <Badge variant="outline" className="text-[10px]">Stage {index + 1}</Badge>
+                    {stage.id === topStageId && (
+                      <Badge className="bg-primary text-[10px] text-primary-foreground">
+                        Start here · highest-leverage round
+                      </Badge>
+                    )}
                     <h3 className="min-w-0 text-sm font-semibold">{stage.name}</h3>
                     {stage.confidence && (
                       <Badge className={`text-[10px] ${confidenceColor(stage.confidence)}`}>
@@ -997,6 +911,9 @@ const Dashboard = () => {
     .reduce((acc, s) => acc + (s.questions?.length || 0), 0);
   const selectedStageCount = stages.filter(s => s.selected).length;
   const topFocus = prepPlan?.prep_priorities?.find((priority) => priority.priority === "high")?.label || null;
+  // The first stage by order_index with prep_priority === 'high'. Stages are
+  // already sorted by order_index in loadSearchData, so a straight find is enough.
+  const topStageId = stages.find(s => s.prep_priority === "high")?.id || null;
 
   const startPractice = () => {
     if (isOffline) return;
@@ -1194,15 +1111,13 @@ const Dashboard = () => {
 
       <PrepPriorityStrip priorities={prepPriorities} />
 
-      <PrepAskPanel
-        company={searchData?.company}
-        role={searchData?.role}
-        prepPriorities={prepPriorities}
-        assessmentSignals={assessmentSignals}
-      />
-
       {/* Stage roadmap — the practice plan */}
-      <StageRoadmapCard stages={stages} onToggle={handleStageToggle} isMobile={isMobile} />
+      <StageRoadmapCard
+        stages={stages}
+        onToggle={handleStageToggle}
+        isMobile={isMobile}
+        topStageId={topStageId}
+      />
 
       <HighLeverageQuestionsCard stages={stages} />
 

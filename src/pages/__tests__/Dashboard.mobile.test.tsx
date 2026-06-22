@@ -196,6 +196,137 @@ describe("Dashboard mobile layout", () => {
     expect(count.parentElement?.className).toContain("flex-wrap");
   });
 
+  it("does not render the removed Quick guidance preset panel on the Plan", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Stage roadmap")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Quick guidance" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "What to practice first" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("marks the highest-leverage stage with a 'Start here' rationale on both surfaces", async () => {
+    const buildResults = () => ({
+      success: true,
+      search: {
+        id: "search-1",
+        company: "OpenAI",
+        role: "Research Engineer",
+        country: "United Kingdom",
+        status: "completed",
+        banner_dismissed: true,
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+      stages: [
+        {
+          id: "stage-1",
+          name: "Initial Screening",
+          order_index: 0,
+          search_id: "search-1",
+          created_at: "2026-03-31T00:00:00.000Z",
+          prep_priority: "medium",
+          questions: [
+            { id: "q-1", question: "Tell me about yourself.", created_at: "2026-03-31T00:00:00.000Z" },
+          ],
+        },
+        {
+          id: "stage-2",
+          name: "Technical Panel",
+          order_index: 1,
+          search_id: "search-1",
+          created_at: "2026-03-31T00:00:00.000Z",
+          prep_priority: "high",
+          questions: [
+            { id: "q-2", question: "How would you evaluate model quality?", created_at: "2026-03-31T00:00:00.000Z" },
+          ],
+        },
+      ],
+      prepPlan: null,
+    });
+
+    mockUseIsMobile.mockReturnValue(false);
+    mockGetSearchResults.mockResolvedValue(buildResults());
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const desktopBadge = await screen.findByText("Start here · highest-leverage round");
+    // The badge must sit alongside the Technical Panel row, not the Initial Screening row.
+    expect(desktopBadge.closest("button")?.textContent).toContain("Technical Panel");
+    expect(desktopBadge.closest("button")?.textContent).not.toContain("Initial Screening");
+
+    unmount();
+    mockUseIsMobile.mockReturnValue(true);
+    mockGetSearchResults.mockResolvedValue(buildResults());
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const mobileBadges = await screen.findAllByText("Start here · highest-leverage round");
+    expect(mobileBadges).toHaveLength(1);
+  });
+
+  it("omits the 'Start here' marker when no stage is high-priority", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    mockGetSearchResults.mockResolvedValue({
+      success: true,
+      search: {
+        id: "search-1",
+        company: "OpenAI",
+        role: "Research Engineer",
+        country: "United Kingdom",
+        status: "completed",
+        banner_dismissed: true,
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+      stages: [
+        {
+          id: "stage-1",
+          name: "Initial Screening",
+          order_index: 0,
+          search_id: "search-1",
+          created_at: "2026-03-31T00:00:00.000Z",
+          questions: [
+            { id: "q-1", question: "Tell me about yourself.", created_at: "2026-03-31T00:00:00.000Z" },
+          ],
+        },
+      ],
+      prepPlan: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Stage roadmap")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Start here · highest-leverage round/),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders PrepSummaryHero on mobile with headline and exactly one practice CTA in the sticky bar", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
