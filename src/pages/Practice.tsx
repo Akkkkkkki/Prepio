@@ -252,7 +252,7 @@ const Practice = () => {
   const [rememberDefaults, setRememberDefaults] = useState(true);
   const [shouldShowSwipeHint, setShouldShowSwipeHint] = useState(false);
   const [isVerticalScrollGuarded, setIsVerticalScrollGuarded] = useState(false);
-  const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'draft' | 'serverSaved'>('idle');
   const [showCheckmark, setShowCheckmark] = useState(false);
   const [isCoachSheetOpen, setIsCoachSheetOpen] = useState(false);
   const [isNotesExpanded, setIsNotesExpanded] = useState(false);
@@ -855,7 +855,7 @@ const getInterviewerFocus = (
       if (typeof window !== "undefined") {
         sessionStorage.setItem(getAutosaveKey(currentQuestion.id), currentAnswer);
       }
-      setAutosaveState('saved');
+      setAutosaveState('draft');
     }, AUTOSAVE_DELAY_MS);
 
     return () => {
@@ -1389,7 +1389,7 @@ const getInterviewerFocus = (
         setQuestionTimers(prev => new Map(prev).set(questionId, timeSpent));
 
         clearAutosavedAnswer(questionId);
-        setAutosaveState('saved');
+        setAutosaveState('serverSaved');
         setShowCheckmark(true);
         clearRecording();
         
@@ -1517,7 +1517,13 @@ const getInterviewerFocus = (
       : { label: 'Mic idle', variant: 'outline' as const };
 
   const autosaveStatusCopy =
-    autosaveState === 'saving' ? 'Saving…' : autosaveState === 'saved' ? 'Saved locally' : 'Autosave ready';
+    autosaveState === 'saving'
+      ? 'Saving draft…'
+      : autosaveState === 'draft'
+        ? 'Draft kept in this tab'
+        : autosaveState === 'serverSaved'
+          ? 'Answer saved'
+          : 'Autosave ready';
 
   const hasTypedAnswer = Boolean(currentAnswer.trim());
   const canSubmitAnswer = hasTypedAnswer || hasRecording;
@@ -1701,7 +1707,7 @@ const getInterviewerFocus = (
                   </Button>
                   <Button 
                     variant="outline" 
-                    onClick={() => navigate('/')}
+                    onClick={() => navigate('/new-interview')}
                     className="w-full"
                   >
                     Start New Search
@@ -1767,7 +1773,7 @@ const getInterviewerFocus = (
                   </Button>
                   <Button 
                     variant="outline" 
-                    onClick={() => navigate('/')}
+                    onClick={() => navigate('/new-interview')}
                     className="w-full"
                   >
                     Start New Search
@@ -1804,7 +1810,7 @@ const getInterviewerFocus = (
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={() => navigate('/')}
+                  onClick={() => navigate('/new-interview')}
                   className="w-full"
                 >
                   Start New Search
@@ -2724,7 +2730,7 @@ const getInterviewerFocus = (
                     <p className="text-sm font-medium">Quick notes</p>
                     <p className="text-xs text-muted-foreground">Saved on this device while you practice.</p>
                   </div>
-                  <span className={cn("text-xs", autosaveState === 'saved' ? "text-green-600" : "text-muted-foreground")}>
+                  <span className={cn("text-xs", autosaveState === 'serverSaved' ? "text-green-600" : "text-muted-foreground")}>
                     {autosaveStatusCopy}
                   </span>
                 </div>
@@ -3107,7 +3113,7 @@ const getInterviewerFocus = (
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <span className={`text-xs ${autosaveState === 'saved' ? 'text-green-600' : 'text-muted-foreground'}`}>
+                      <span className={`text-xs ${autosaveState === 'serverSaved' ? 'text-green-600' : 'text-muted-foreground'}`}>
                         {autosaveStatusCopy}
                       </span>
                     </div>

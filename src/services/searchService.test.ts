@@ -20,6 +20,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import {
+  buildInterviewSummaries,
   dedupePracticeAnswersByQuestion,
   dedupePracticeAnswersBySessionQuestion,
   searchService,
@@ -178,6 +179,127 @@ describe("practice history answer dedupe helpers", () => {
         answer_time_seconds: 65,
       },
     ]);
+  });
+
+  it("builds interview-card progress from answers, flags, and low self-ratings", () => {
+    const summaries = buildInterviewSummaries({
+      searches: [
+        {
+          id: "search-1",
+          company: "Stripe",
+          role: "Senior Product Manager",
+          status: "completed",
+          created_at: "2026-06-20T10:00:00.000Z",
+        },
+      ],
+      questions: [
+        { id: "question-1", search_id: "search-1" },
+        { id: "question-2", search_id: "search-1" },
+        { id: "question-3", search_id: "search-1" },
+      ],
+      sessions: [
+        { id: "session-1", search_id: "search-1" },
+        { id: "session-2", search_id: "search-1" },
+      ],
+      answers: [
+        {
+          session_id: "session-1",
+          question_id: "question-1",
+          self_rating: 4,
+          created_at: "2026-06-20T10:10:00.000Z",
+        },
+        {
+          session_id: "session-1",
+          question_id: "question-2",
+          self_rating: 2,
+          created_at: "2026-06-20T10:15:00.000Z",
+        },
+        {
+          session_id: "session-2",
+          question_id: "question-2",
+          self_rating: 3,
+          created_at: "2026-06-20T11:00:00.000Z",
+        },
+      ],
+      flags: [
+        { question_id: "question-1", flag_type: "needs_work" },
+        { question_id: "question-2", flag_type: "needs_work" },
+      ],
+    });
+
+    expect(summaries).toEqual([
+      expect.objectContaining({
+        id: "search-1",
+        totalQuestions: 3,
+        practicedQuestions: 2,
+        progressPercent: 67,
+        needsWorkCount: 2,
+        state: "in_progress",
+      }),
+    ]);
+  });
+
+  it("loads interview summaries from user-scoped searches, sessions, and flags", async () => {
+    const searchesChain = createSelectChain({
+      data: [
+        {
+          id: "search-1",
+          company: "Stripe",
+          role: "Senior Product Manager",
+          status: "completed",
+          created_at: "2026-06-20T10:00:00.000Z",
+        },
+      ],
+      error: null,
+    });
+    const questionsChain = createSelectChain({
+      data: [{ id: "question-1", search_id: "search-1" }],
+      error: null,
+    });
+    const sessionsChain = createSelectChain({
+      data: [{ id: "session-1", search_id: "search-1" }],
+      error: null,
+    });
+    const answersChain = createSelectChain({
+      data: [
+        {
+          session_id: "session-1",
+          question_id: "question-1",
+          self_rating: 2,
+          created_at: "2026-06-20T11:00:00.000Z",
+        },
+      ],
+      error: null,
+    });
+    const flagsChain = createSelectChain({
+      data: [],
+      error: null,
+    });
+
+    mockSupabase.from
+      .mockReturnValueOnce(searchesChain)
+      .mockReturnValueOnce(questionsChain)
+      .mockReturnValueOnce(sessionsChain)
+      .mockReturnValueOnce(answersChain)
+      .mockReturnValueOnce(flagsChain);
+
+    const result = await searchService.getInterviewSummaries();
+
+    expect(searchesChain.eq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(sessionsChain.eq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(flagsChain.eq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(result).toEqual({
+      success: true,
+      interviews: [
+        expect.objectContaining({
+          id: "search-1",
+          practicedQuestions: 1,
+          progressPercent: 100,
+          needsWorkCount: 1,
+          state: "in_progress",
+        }),
+      ],
+    });
   });
 
   it("creates a lightweight research preview without requiring a signed-in user", async () => {
