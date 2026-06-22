@@ -501,3 +501,142 @@ describe("Practice keyboard navigation", () => {
     );
   });
 });
+
+describe("Practice autosave label", () => {
+  // Mirrors AUTOSAVE_DELAY_MS in src/pages/Practice.tsx; keep a small overshoot.
+  const AUTOSAVE_DELAY_OVERSHOOT_MS = 5500;
+  let mathRandomSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    mathRandomSpy = vi.spyOn(Math, "random").mockReturnValue(0.99);
+    vi.clearAllMocks();
+    MockResizeObserver.reset();
+    capturedSwipeConfigs.length = 0;
+    localStorage.removeItem(BREATHING_DISMISSED_KEY);
+    sessionStorage.clear();
+    mockUseIsMobile.mockReturnValue(false);
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn() },
+    });
+    mockGetQuestionFlags.mockResolvedValue({ success: true, flags: {} });
+    mockGetEntitlement.mockResolvedValue({
+      tier: "free",
+      cadence: null,
+      currentPeriodEnd: null,
+      status: "none",
+    });
+    mockCreatePracticeSession.mockResolvedValue({
+      success: true,
+      session: { id: "session-1", user_id: "user-1", search_id: "search-1", started_at: "2026-03-31T00:00:00.000Z" },
+    });
+    mockSavePracticeAnswer.mockResolvedValue({ success: true, answer: { id: "answer-1" } });
+    mockCompletePracticeSession.mockResolvedValue({
+      success: true,
+      session: { id: "session-1", user_id: "user-1", search_id: "search-1", started_at: "2026-03-31T00:00:00.000Z", completed_at: "2026-03-31T00:05:00.000Z", session_notes: null },
+    });
+    mockGetSearchResults.mockResolvedValue({
+      success: true,
+      search: { id: "search-1", company: "OpenAI", role: "Research Engineer", status: "completed" },
+      stages: [
+        {
+          id: "stage-1", name: "Technical Interview", duration: "45 minutes", interviewer: "Hiring manager",
+          content: "Systems depth.", guidance: "Prioritize impact.", order_index: 0, search_id: "search-1",
+          created_at: "2026-03-31T00:00:00.000Z",
+          questions: [
+            { id: "q-1", question: "Describe your system design approach.", created_at: "2026-03-31T00:00:00.000Z", difficulty: "Medium" },
+            { id: "q-2", question: "How do you evaluate ML models in production?", created_at: "2026-03-31T00:00:00.000Z", difficulty: "Hard" },
+          ],
+        },
+      ],
+    });
+  });
+
+  afterEach(() => {
+    mathRandomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  const startSession = async () => {
+    fireEvent.click(await screen.findByText("Quick Start"));
+    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
+    return screen.findByPlaceholderText("Capture bullet points or timing cues…");
+  };
+
+  it("shows a draft-kept label (no green) after the debounce on the typed answer", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const textarea = await startSession();
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fireEvent.change(textarea, { target: { value: "Lead with impact." } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_OVERSHOOT_MS);
+    });
+
+    const label = await screen.findByText("Draft kept in this tab");
+    expect(label).toBeInTheDocument();
+    expect(label.className).toContain("text-muted-foreground");
+    expect(label.className).not.toContain("text-green-600");
+    expect(screen.queryByText("Saved locally")).not.toBeInTheDocument();
+  });
+
+  it("shows an Answer-saved label (green) after Save & Continue, never 'Saved locally'", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const textarea = await startSession();
+
+    fireEvent.change(textarea, { target: { value: "Tied model choice to revenue." } });
+    fireEvent.click(screen.getByRole("button", { name: /save & continue/i }));
+
+    await waitFor(() => expect(mockSavePracticeAnswer).toHaveBeenCalled());
+
+    const label = await screen.findByText("Answer saved");
+    expect(label).toBeInTheDocument();
+    expect(label.className).toContain("text-green-600");
+    expect(screen.queryByText("Saved locally")).not.toBeInTheDocument();
+  });
+
+  it("resets the autosave label off the draft state when skipping to the next question", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const textarea = await startSession();
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fireEvent.change(textarea, { target: { value: "Partial draft." } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_OVERSHOOT_MS);
+    });
+
+    expect(await screen.findByText("Draft kept in this tab")).toBeInTheDocument();
+
+    vi.useRealTimers();
+    fireEvent.click(screen.getByRole("button", { name: /skip/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("How do you evaluate ML models in production?")).toBeInTheDocument()
+    );
+    expect(screen.queryByText("Draft kept in this tab")).not.toBeInTheDocument();
+    expect(screen.queryByText("Saved locally")).not.toBeInTheDocument();
+  });
+});
