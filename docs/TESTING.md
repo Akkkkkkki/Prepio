@@ -51,6 +51,15 @@ Local handler coverage now exists in `supabase/functions/answer-feedback/handler
 - feedback includes the right question, answer, search, role, company, and candidate context
 - empty or partial answers fail gracefully
 - regenerated feedback does not duplicate history/session UI
+- regenerated feedback is committed through the atomic `create_answer_feedback_atomic` RPC so concurrent stale writers fail without leaving partial supersession chains
+
+When a local or hosted non-production Postgres connection is available, run:
+
+```bash
+DATABASE_URL=postgres://... npm run test:answer-feedback-rpc-db
+```
+
+The DB-backed check applies the RPC against fixture practice data inside a rolled-back transaction and verifies first generation, regeneration, stale-head rejection, and RPC execute privileges. Without `DATABASE_URL`, the script skips so `npm test` remains local-only.
 
 Before shipping the hosted feature, run a Supabase Edge Function smoke check against a non-production project with a paid test user and a free test user. The local suite mocks Supabase and the model call; it cannot prove deployed environment variables, JWT auth wiring, or PostgREST behavior.
 

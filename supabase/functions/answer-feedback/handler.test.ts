@@ -119,20 +119,71 @@ function buildDb(overrides: Partial<FakeDb> = {}): FakeDb {
 }
 
 interface FakeSupabaseFailures {
-  insertAnswerFeedback?: SupabaseError;
-  markCurrentAnswerFeedback?: SupabaseError;
-  // Row that a concurrent regeneration commits as current right before this
-  // request's mark-current step, simulating the row that won the race.
-  concurrentWinner?: FeedbackRow;
-  // Hook fired when this request's mark-current step fails, letting a test mutate
-  // the shared db to model concurrent regenerations that interleave with the
-  // losing request's rollback (e.g. advancing the chain head past the immediate
-  // winner).
-  onMarkCurrentFailure?: (db: FakeDb) => void;
+  rpcAnswerFeedback?: SupabaseError;
 }
 
-function buildFakeSupabase(db: FakeDb, failures: FakeSupabaseFailures = {}): SupabaseLike {
+interface FakeRpcCall {
+  fn: string;
+  args: Record<string, unknown>;
+}
+
+interface FakeSupabaseClient extends SupabaseLike {
+  rpcCalls: FakeRpcCall[];
+}
+
+function buildFakeSupabase(db: FakeDb, failures: FakeSupabaseFailures = {}): FakeSupabaseClient {
+  const rpcCalls: FakeRpcCall[] = [];
   return {
+    rpcCalls,
+    async rpc<T>(fn: string, args: Record<string, unknown>) {
+      rpcCalls.push({ fn, args });
+      if (fn !== "create_answer_feedback_atomic") {
+        return { data: null, error: { message: `unexpected rpc ${fn}` } };
+      }
+      if (failures.rpcAnswerFeedback) {
+        return { data: null, error: failures.rpcAnswerFeedback };
+      }
+
+      const current = db.answer_feedback.find(
+        (row) =>
+          row.practice_answer_id === args.p_practice_answer_id && row.superseded_by === null,
+      );
+      if ((args.p_expected_current_feedback_id ?? null) !== (current?.id ?? null)) {
+        return {
+          data: null,
+          error: {
+            code: "23505",
+            message: "current answer feedback changed before atomic insert",
+          },
+        };
+      }
+
+      const row = {
+        id: args.p_feedback_id,
+        user_id: args.p_user_id,
+        practice_answer_id: args.p_practice_answer_id,
+        practice_session_id: args.p_practice_session_id,
+        question_id: args.p_question_id,
+        strengths: args.p_strengths,
+        improvements: args.p_improvements,
+        star_breakdown: args.p_star_breakdown,
+        next_action: args.p_next_action,
+        model: args.p_model,
+        generation_metadata: args.p_generation_metadata,
+        superseded_by: null,
+      } as FeedbackRow;
+
+      if (current) {
+        row.superseded_by = current.id;
+        db.answer_feedback.push(row);
+        current.superseded_by = row.id;
+        row.superseded_by = null;
+      } else {
+        db.answer_feedback.push(row);
+      }
+
+      return { data: row as T, error: null };
+    },
     from(table: string) {
       return {
         select<T>(_columns: string) {
@@ -166,9 +217,6 @@ function buildFakeSupabase(db: FakeDb, failures: FakeSupabaseFailures = {}): Sup
             select(_columns?: string) {
               return {
                 async single() {
-                  if (table === "answer_feedback" && failures.insertAnswerFeedback) {
-                    return { data: null, error: failures.insertAnswerFeedback };
-                  }
                   (db[table as keyof FakeDb] as unknown[]).push(row);
                   return { data: row as T, error: null };
                 },
@@ -179,17 +227,6 @@ function buildFakeSupabase(db: FakeDb, failures: FakeSupabaseFailures = {}): Sup
         update<T>(patch: Record<string, unknown>) {
           return {
             async eq(column: string, value: unknown) {
-              if (
-                table === "answer_feedback" &&
-                patch.superseded_by === null &&
-                failures.markCurrentAnswerFeedback
-              ) {
-                if (failures.concurrentWinner) {
-                  db.answer_feedback.push(failures.concurrentWinner);
-                }
-                failures.onMarkCurrentFailure?.(db);
-                return { data: null, error: failures.markCurrentAnswerFeedback };
-              }
               const rows = db[table as keyof FakeDb] as unknown[];
               const row = rows.find((candidate) => {
                 return (candidate as Record<string, unknown>)[column] === value;
@@ -474,6 +511,62 @@ describe("generateAnswerFeedback", () => {
     ).toHaveLength(1);
   });
 
+  it("persists regenerated feedback through the atomic answer-feedback RPC", async () => {
+    const db = buildDb({
+      answer_feedback: [
+        {
+          id: "feedback-old",
+          user_id: USER_ID,
+          practice_answer_id: ANSWER_ID,
+          practice_session_id: SESSION_ID,
+          question_id: QUESTION_ID,
+          strengths: [{ text: "Old strength" }],
+          improvements: [],
+          star_breakdown: feedback.starBreakdown,
+          next_action: feedback.nextAction,
+          model: "gpt-old",
+          generation_metadata: {},
+          superseded_by: null,
+        },
+      ],
+    });
+    const model = buildModel();
+    const supabase = buildFakeSupabase(db);
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase,
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID, regenerate: true },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(supabase.rpcCalls).toHaveLength(1);
+    expect(supabase.rpcCalls[0]).toMatchObject({
+      fn: "create_answer_feedback_atomic",
+      args: {
+        p_feedback_id: result.feedbackId,
+        p_user_id: USER_ID,
+        p_practice_answer_id: ANSWER_ID,
+        p_practice_session_id: SESSION_ID,
+        p_question_id: QUESTION_ID,
+        p_strengths: feedback.strengths,
+        p_improvements: feedback.improvements,
+        p_star_breakdown: feedback.starBreakdown,
+        p_next_action: feedback.nextAction,
+        p_model: "gpt-test",
+        p_expected_current_feedback_id: "feedback-old",
+      },
+    });
+    expect(db.answer_feedback.find((row) => row.id === "feedback-old")?.superseded_by).toBe(
+      result.feedbackId,
+    );
+    expect(db.answer_feedback.find((row) => row.id === result.feedbackId)?.superseded_by).toBeNull();
+  });
+
   it("refuses to create duplicate latest feedback without explicit regeneration", async () => {
     const db = buildDb({
       answer_feedback: [
@@ -516,7 +609,7 @@ describe("generateAnswerFeedback", () => {
     const result = await generateAnswerFeedback(
       {
         supabase: buildFakeSupabase(db, {
-          insertAnswerFeedback: {
+          rpcAnswerFeedback: {
             code: "23505",
             message: "duplicate key value violates unique constraint idx_answer_feedback_current",
           },
@@ -530,7 +623,43 @@ describe("generateAnswerFeedback", () => {
     expect(result).toEqual({ ok: false, status: 409, error: "feedback_already_exists" });
   });
 
-  it("rolls back the losing row and repoints the chain on a regeneration race", async () => {
+  it("maps a stale first-generation atomic RPC head check to feedback already exists", async () => {
+    const db = buildDb();
+    const concurrentCurrent: FeedbackRow = {
+      id: "feedback-concurrent",
+      user_id: USER_ID,
+      practice_answer_id: ANSWER_ID,
+      practice_session_id: SESSION_ID,
+      question_id: QUESTION_ID,
+      strengths: [{ text: "Concurrent first feedback" }],
+      improvements: [],
+      star_breakdown: feedback.starBreakdown,
+      next_action: feedback.nextAction,
+      model: "gpt-concurrent",
+      generation_metadata: {},
+      superseded_by: null,
+    };
+    const model = {
+      generate: vi.fn(async (_input: FeedbackModelInput) => {
+        db.answer_feedback.push(concurrentCurrent);
+        return { feedback, model: "gpt-test" };
+      }),
+    };
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db),
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID },
+    );
+
+    expect(result).toEqual({ ok: false, status: 409, error: "feedback_already_exists" });
+    expect(db.answer_feedback.map((row) => row.id)).toEqual(["feedback-concurrent"]);
+  });
+
+  it("maps a stale regeneration atomic RPC head check to feedback already exists", async () => {
     const previousCurrent: FeedbackRow = {
       id: "feedback-current",
       user_id: USER_ID,
@@ -552,17 +681,17 @@ describe("generateAnswerFeedback", () => {
       model: "gpt-winner",
     };
     const db = buildDb({ answer_feedback: [previousCurrent] });
-    const model = buildModel();
+    const model = {
+      generate: vi.fn(async (_input: FeedbackModelInput) => {
+        previousCurrent.superseded_by = concurrentWinner.id;
+        db.answer_feedback.push(concurrentWinner);
+        return { feedback, model: "gpt-test" };
+      }),
+    };
 
     const result = await generateAnswerFeedback(
       {
-        supabase: buildFakeSupabase(db, {
-          markCurrentAnswerFeedback: {
-            code: "23505",
-            message: "duplicate key value violates unique constraint idx_answer_feedback_current",
-          },
-          concurrentWinner,
-        }),
+        supabase: buildFakeSupabase(db),
         getEntitlement: async () => PAID,
         model,
       },
@@ -571,24 +700,15 @@ describe("generateAnswerFeedback", () => {
 
     expect(result).toEqual({ ok: false, status: 409, error: "feedback_already_exists" });
 
-    // The row this request optimistically inserted must be removed so it does
-    // not linger in history; only the previous current row and the winner stay.
+    // The losing request never writes a partial feedback row; only the
+    // concurrently committed chain remains.
     const ids = db.answer_feedback.map((row) => row.id).sort();
     expect(ids).toEqual(["feedback-current", "feedback-winner"]);
-
-    // The previous current row must now point at the genuine winner rather than
-    // dangling at the discarded row.
     const previous = db.answer_feedback.find((row) => row.id === "feedback-current");
     expect(previous?.superseded_by).toBe("feedback-winner");
   });
 
-  it("preserves the immediate winner when a newer regeneration advances the chain mid-rollback", async () => {
-    // Models PREPIO-109 / the Codex review case: while this request loses the
-    // mark-current race, a further regeneration completes and advances the head
-    // from the immediate winner to a newer row, repointing the previous current
-    // row at the immediate winner. The rollback must delete only the losing row
-    // and leave `old -> winner -> third` intact rather than rewriting it to
-    // `old -> third` and orphaning the immediate winner.
+  it("preserves the concurrent chain when another regeneration advances before the atomic RPC", async () => {
     const previousCurrent: FeedbackRow = {
       id: "feedback-current",
       user_id: USER_ID,
@@ -604,36 +724,30 @@ describe("generateAnswerFeedback", () => {
       superseded_by: null,
     };
     const db = buildDb({ answer_feedback: [previousCurrent] });
-    const model = buildModel();
+    const model = {
+      generate: vi.fn(async (_input: FeedbackModelInput) => {
+        db.answer_feedback.push({
+          ...previousCurrent,
+          id: "feedback-winner",
+          strengths: [{ text: "Immediate winner" }],
+          model: "gpt-winner",
+          superseded_by: "feedback-third",
+        });
+        db.answer_feedback.push({
+          ...previousCurrent,
+          id: "feedback-third",
+          strengths: [{ text: "Latest head" }],
+          model: "gpt-third",
+          superseded_by: null,
+        });
+        previousCurrent.superseded_by = "feedback-winner";
+        return { feedback, model: "gpt-test" };
+      }),
+    };
 
     const result = await generateAnswerFeedback(
       {
-        supabase: buildFakeSupabase(db, {
-          markCurrentAnswerFeedback: {
-            code: "23505",
-            message: "duplicate key value violates unique constraint idx_answer_feedback_current",
-          },
-          onMarkCurrentFailure: (current) => {
-            // The immediate winner already superseded by an even newer head, and
-            // the previous current row has been repointed at that winner.
-            current.answer_feedback.push({
-              ...previousCurrent,
-              id: "feedback-winner",
-              strengths: [{ text: "Immediate winner" }],
-              model: "gpt-winner",
-              superseded_by: "feedback-third",
-            });
-            current.answer_feedback.push({
-              ...previousCurrent,
-              id: "feedback-third",
-              strengths: [{ text: "Latest head" }],
-              model: "gpt-third",
-              superseded_by: null,
-            });
-            const previous = current.answer_feedback.find((row) => row.id === "feedback-current");
-            if (previous) previous.superseded_by = "feedback-winner";
-          },
-        }),
+        supabase: buildFakeSupabase(db),
         getEntitlement: async () => PAID,
         model,
       },
@@ -642,12 +756,10 @@ describe("generateAnswerFeedback", () => {
 
     expect(result).toEqual({ ok: false, status: 409, error: "feedback_already_exists" });
 
-    // Only this request's losing row is removed; the winner and newer head stay.
+    // The losing request never inserts an orphaned row, and the concurrent
+    // `old -> winner -> third` chain remains intact.
     const ids = db.answer_feedback.map((row) => row.id).sort();
     expect(ids).toEqual(["feedback-current", "feedback-third", "feedback-winner"]);
-
-    // The previous current row keeps pointing at the immediate winner instead of
-    // being clobbered with the advanced head, so the chain stays unbroken.
     const previous = db.answer_feedback.find((row) => row.id === "feedback-current");
     expect(previous?.superseded_by).toBe("feedback-winner");
 
