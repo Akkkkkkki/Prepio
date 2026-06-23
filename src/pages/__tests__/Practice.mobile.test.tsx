@@ -487,6 +487,61 @@ describe("Practice keyboard navigation", () => {
     expect(await screen.findByText(initialQuestionText)).toBeInTheDocument();
   });
 
+  it("auto-starts direct practice entries across all stages without a setup gate", async () => {
+    mockGetSearchResults.mockResolvedValueOnce({
+      success: true,
+      search: { id: "search-1", company: "OpenAI", role: "Research Engineer", status: "completed" },
+      stages: [
+        {
+          id: "stage-1",
+          name: "Technical Interview",
+          duration: "45 minutes",
+          interviewer: "Hiring manager",
+          content: "Systems depth.",
+          guidance: "Prioritize impact.",
+          order_index: 0,
+          search_id: "search-1",
+          created_at: "2026-03-31T00:00:00.000Z",
+          questions: [
+            { id: "q-1", question: "Describe your system design approach.", created_at: "2026-03-31T00:00:00.000Z", difficulty: "Medium" },
+          ],
+        },
+        {
+          id: "stage-2",
+          name: "Hiring Manager",
+          duration: "30 minutes",
+          interviewer: "Manager",
+          content: "Scope and operating style.",
+          guidance: "Tie decisions to impact.",
+          order_index: 1,
+          search_id: "search-1",
+          created_at: "2026-03-31T00:00:00.000Z",
+          questions: [
+            { id: "q-2", question: "How do you evaluate ML models in production?", created_at: "2026-03-31T00:00:00.000Z", difficulty: "Hard" },
+          ],
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Question 1 of 2")).toBeInTheDocument();
+    expect(mockCreatePracticeSession).toHaveBeenCalledWith("search-1");
+    expect(screen.queryByText("Ready to practice?")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Change setup" }));
+
+    expect(await screen.findByText("Ready to practice?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Customize/ }));
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+  });
+
   it("debounces the aria-live question announcement so rapid navigation doesn't flood screen readers", async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>

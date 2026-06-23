@@ -184,6 +184,24 @@ interface PracticeSession {
   session_notes?: string | null;
 }
 
+const buildPracticeParams = (
+  searchId: string,
+  stages: InterviewStage[],
+  focusMode?: string | null,
+) => {
+  const selectedStageIds = stages.filter(stage => stage.selected).map(stage => stage.id);
+  const params: Record<string, string> = { searchId };
+
+  if (selectedStageIds.length !== stages.length) {
+    params.stages = selectedStageIds.join(',');
+  }
+  if (focusMode) {
+    params.focus = focusMode;
+  }
+
+  return params;
+};
+
 const Practice = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -191,7 +209,9 @@ const Practice = () => {
   const { isOffline } = useNetworkStatus();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchId = searchParams.get('searchId');
-  const urlStageIds = searchParams.get('stages')?.split(',') || [];
+  const stagesParam = searchParams.get('stages');
+  const hasExplicitStageSelection = stagesParam !== null;
+  const urlStageIds = stagesParam?.split(',').filter(Boolean) || [];
   const focusMode = searchParams.get("focus");
   const swipeHintStorageKey = useMemo(
     () => `${SWIPE_HINT_STORAGE_PREFIX}:${searchId ?? 'global'}`,
@@ -262,6 +282,7 @@ const Practice = () => {
   const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hydratedAnswersRef = useRef<Set<string>>(new Set());
   const answeredIdsRef = useRef<Set<string>>(new Set());
+  const hasAutoStartedRef = useRef(false);
 
   const getAutosaveKey = (questionId: string) =>
     `${ANSWER_AUTOSAVE_PREFIX}:${questionId}`;
@@ -581,6 +602,10 @@ const getInterviewerFocus = (
     loadPracticeDefaults();
   }, []);
 
+  useEffect(() => {
+    hasAutoStartedRef.current = false;
+  }, [searchId]);
+
   // Load search data and set up stages
   useEffect(() => {
     const loadSearchData = async () => {
@@ -613,18 +638,12 @@ const getInterviewerFocus = (
               .sort((a, b) => a.order_index - b.order_index)
               .map(stage => ({
                 ...stage,
-                selected: urlStageIds.length > 0 ? urlStageIds.includes(stage.id) : true // Default to all selected if no URL stages
+                selected: hasExplicitStageSelection ? urlStageIds.includes(stage.id) : true
               }));
             
             setAllStages(transformedStages);
-            
+
             // Note: Enhanced questions now integrated into regular questions
-            
-            // Update URL if no stages were specified (select all by default)
-            if (urlStageIds.length === 0) {
-              const allStageIds = transformedStages.map(stage => stage.id);
-              setSearchParams({ searchId, stages: allStageIds.join(',') });
-            }
           }
         } else {
           setError(result.error?.message || "Failed to load search data");
@@ -638,8 +657,8 @@ const getInterviewerFocus = (
     };
 
     loadSearchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- urlStageIds is derived from searchParams; adding it would cause a redundant fetch since this effect writes to the same source
-  }, [searchId, setSearchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- URL stage params should be read only when the selected search changes
+  }, [searchId]);
 
   useEffect(() => {
     setShowNeedsWorkOnly(focusMode === "needs_work");
@@ -921,10 +940,8 @@ const getInterviewerFocus = (
     );
     setAllStages(updatedStages);
     
-    // Update URL with new stage selection
-    const selectedStageIds = updatedStages.filter(stage => stage.selected).map(stage => stage.id);
-    if (selectedStageIds.length > 0) {
-      setSearchParams({ searchId: searchId!, stages: selectedStageIds.join(',') });
+    if (searchId) {
+      setSearchParams(buildPracticeParams(searchId, updatedStages, focusMode));
     }
   };
 
@@ -1078,6 +1095,7 @@ const getInterviewerFocus = (
     stages = allStages,
     nextSampleSize = sampleSize,
     nextPreset = selectedPreset,
+    skipBreathing = false,
   }: {
     categories?: string[];
     difficulties?: string[];
@@ -1086,6 +1104,7 @@ const getInterviewerFocus = (
     stages?: InterviewStage[];
     nextSampleSize?: number;
     nextPreset?: string | null;
+    skipBreathing?: boolean;
   } = {}) => {
     if (isOffline) {
       return false;
@@ -1106,15 +1125,7 @@ const getInterviewerFocus = (
     }
 
     if (searchId) {
-      const selectedStageIds = stages.filter(stage => stage.selected).map(stage => stage.id);
-      const nextParams: Record<string, string> = {
-        searchId,
-        stages: selectedStageIds.join(','),
-      };
-      if (focusMode) {
-        nextParams.focus = focusMode;
-      }
-      setSearchParams(nextParams);
+      setSearchParams(buildPracticeParams(searchId, stages, focusMode));
     }
 
     persistPracticeDefaults({
@@ -1134,7 +1145,7 @@ const getInterviewerFocus = (
     setSelectedPreset(nextPreset);
     setUseSampling(true);
     const breathingDismissed = localStorage.getItem(BREATHING_DISMISSED_KEY) === "true";
-    setSessionState(breathingDismissed ? 'inProgress' : 'breathing');
+    setSessionState(skipBreathing || breathingDismissed ? 'inProgress' : 'breathing');
     setCurrentIndex(0);
     setIsCoachSheetOpen(false);
     setIsNotesExpanded(true);
@@ -1168,7 +1179,7 @@ const getInterviewerFocus = (
     await startPracticeSession();
   };
 
-  const handleBeginQuickStart = async () => {
+  const handleBeginQuickStart = async ({ skipBreathing = false }: { skipBreathing?: boolean } = {}) => {
     const selectedStages = allStages.some(stage => stage.selected)
       ? allStages
       : allStages.map(stage => ({ ...stage, selected: true }));
@@ -1179,13 +1190,31 @@ const getInterviewerFocus = (
       favoritesOnly: practicePresets.quick.config.favoritesOnly,
       stages: selectedStages,
       nextSampleSize: practicePresets.quick.config.sampleSize,
-      nextPreset: 'quick'
+      nextPreset: 'quick',
+      skipBreathing,
     });
 
     if (!didBegin) return;
 
     await startPracticeSession();
   };
+
+  useEffect(() => {
+    if (
+      hasAutoStartedRef.current ||
+      hasExplicitStageSelection ||
+      sessionState !== 'setup' ||
+      allStages.length === 0 ||
+      !searchId ||
+      isOffline
+    ) {
+      return;
+    }
+
+    hasAutoStartedRef.current = true;
+    void handleBeginQuickStart({ skipBreathing: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- direct entry should auto-start once after stages load
+  }, [allStages, hasExplicitStageSelection, isOffline, searchId, sessionState]);
 
   const handleStartNewSession = () => {
     setSessionState('setup');
@@ -2088,7 +2117,7 @@ const getInterviewerFocus = (
             )}
 
             <Button
-              onClick={mobileSetupMode === 'quick' ? handleBeginQuickStart : handleBeginSession}
+              onClick={mobileSetupMode === 'quick' ? () => void handleBeginQuickStart() : handleBeginSession}
               disabled={isOffline || (mobileSetupMode === 'custom' && selectedStagesCount === 0)}
               className="h-12 w-full rounded-2xl text-base"
             >
@@ -2145,7 +2174,7 @@ const getInterviewerFocus = (
             <CardContent className="space-y-5">
               <button
                 type="button"
-                onClick={handleBeginQuickStart}
+                onClick={() => void handleBeginQuickStart()}
                 disabled={isOffline}
                 className="motion-surface w-full rounded-2xl border border-primary bg-primary/5 p-5 text-left transition hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -2797,14 +2826,20 @@ const getInterviewerFocus = (
       <div className="container mx-auto max-w-6xl px-4 py-6 pb-32 lg:py-8 lg:pb-40">
         <div className="space-y-3 mb-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
-            >
-              <ChevronLeft className="h-4 w-4 mr-2" />
-              Back to dashboard
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Back to dashboard
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleStartNewSession}>
+                <Settings className="h-4 w-4 mr-2" />
+                Change setup
+              </Button>
+            </div>
             <div className="text-sm text-muted-foreground sm:text-right">
               {searchData?.company && `${searchData.company}`}
               {searchData?.role && ` • ${searchData.role}`}
