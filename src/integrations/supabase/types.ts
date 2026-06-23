@@ -690,6 +690,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_answer_feedback_atomic: {
+        Args: {
+          p_expected_current_feedback_id: string | null
+          p_feedback_id: string
+          p_generation_metadata: Json
+          p_improvements: Json
+          p_model: string | null
+          p_next_action: Json
+          p_practice_answer_id: string
+          p_practice_session_id: string
+          p_question_id: string
+          p_star_breakdown: Json
+          p_strengths: Json
+          p_user_id: string
+        }
+        Returns: Database["public"]["Tables"]["answer_feedback"]["Row"]
+      }
       update_search_progress: {
         Args: {
           error_msg?: string

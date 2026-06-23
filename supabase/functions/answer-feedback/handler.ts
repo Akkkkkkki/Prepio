@@ -40,6 +40,7 @@ interface TableBuilder {
 
 export interface SupabaseLike {
   from: (table: string) => TableBuilder;
+  rpc: <T>(fn: string, args: Record<string, unknown>) => Promise<QueryResult<T>>;
 }
 
 export interface PracticeAnswerRow {
@@ -222,85 +223,6 @@ async function readSingle<T>(
   return query.maybeSingle();
 }
 
-// A regeneration request can pass the initial existence check, insert its new
-// row, and supersede the previous current row, only to lose the race for the
-// `idx_answer_feedback_current` slot at the mark-current step. By that point it
-// has already written two rows: the freshly inserted (now orphaned) row and the
-// previous current row whose `superseded_by` may now dangle at the loser. Undo
-// both so the supersession chain stays consistent before reporting the conflict.
-//
-// Concurrency note: because these steps are separate statements (no surrounding
-// transaction), a *newer* regeneration can advance the chain head while we roll
-// back. We therefore only repoint the previous current row when it still points
-// at the row we are discarding; if a winner already repointed it at a surviving
-// row, we leave that pointer alone instead of clobbering it with the latest
-// head. The one residual case — the previous current row still dangles at our
-// loser *and* the head advanced past the immediate winner — is tracked for a
-// fully atomic (RPC/locked) supersession in PREPIO-109.
-async function rollbackLosingRegeneration(
-  deps: Deps,
-  params: {
-    practiceAnswerId: string;
-    losingFeedbackId: string;
-    previousCurrentFeedbackId: string;
-  },
-): Promise<void> {
-  // Re-read the previous current row: only when it still dangles at the loser do
-  // we need to repoint it, because deleting the loser would otherwise cascade
-  // its `superseded_by` to NULL (ON DELETE SET NULL) and resurrect it as a
-  // second head, colliding on the partial unique index.
-  const previousResult = await deps.supabase
-    .from("answer_feedback")
-    .select<FeedbackRow>("id, superseded_by")
-    .eq("id", params.previousCurrentFeedbackId)
-    .maybeSingle();
-  if (previousResult.error) {
-    deps.log?.("answer_feedback_rollback_previous_read_failed", {
-      message: previousResult.error.message,
-    });
-  }
-
-  if (previousResult.data?.superseded_by === params.losingFeedbackId) {
-    // Find the row that actually holds the current slot so the previous current
-    // row points at a surviving winner rather than the row we are about to drop.
-    const winnerResult = await deps.supabase
-      .from("answer_feedback")
-      .select<FeedbackRow>("id")
-      .eq("practice_answer_id", params.practiceAnswerId)
-      .is("superseded_by", null)
-      .maybeSingle();
-    if (winnerResult.error) {
-      deps.log?.("answer_feedback_rollback_winner_read_failed", {
-        message: winnerResult.error.message,
-      });
-    }
-
-    const winnerId = winnerResult.data?.id ?? null;
-    // Repoint before deleting so the cascade above can never fire on the loser.
-    if (winnerId && winnerId !== params.losingFeedbackId) {
-      const repointResult = await deps.supabase
-        .from("answer_feedback")
-        .update<FeedbackRow>({ superseded_by: winnerId })
-        .eq("id", params.previousCurrentFeedbackId);
-      if (repointResult.error) {
-        deps.log?.("answer_feedback_rollback_repoint_failed", {
-          message: repointResult.error.message,
-        });
-      }
-    }
-  }
-
-  const deleteResult = await deps.supabase
-    .from("answer_feedback")
-    .delete<FeedbackRow>()
-    .eq("id", params.losingFeedbackId);
-  if (deleteResult.error) {
-    deps.log?.("answer_feedback_rollback_delete_failed", {
-      message: deleteResult.error.message,
-    });
-  }
-}
-
 export async function generateAnswerFeedback(
   deps: Deps,
   req: GenerateAnswerFeedbackRequest,
@@ -428,68 +350,36 @@ export async function generateAnswerFeedback(
     input_snapshot: modelInput,
   };
 
-  const insertResult = await deps.supabase
-    .from("answer_feedback")
-    .insert<FeedbackRow>({
-      id: newFeedbackId,
-      user_id: req.userId,
-      practice_answer_id: practiceAnswerId,
-      practice_session_id: answer.session_id,
-      question_id: answer.question_id,
-      ...dbFeedback,
-      model: modelResult.model,
-      generation_metadata: metadata,
-      superseded_by: currentFeedbackId,
-    })
-    .select("id, user_id, practice_answer_id, practice_session_id, question_id, strengths, improvements, star_breakdown, next_action, model, generation_metadata, superseded_by")
-    .single();
+  const rpcResult = await deps.supabase.rpc<FeedbackRow>("create_answer_feedback_atomic", {
+    p_feedback_id: newFeedbackId,
+    p_user_id: req.userId,
+    p_practice_answer_id: practiceAnswerId,
+    p_practice_session_id: answer.session_id,
+    p_question_id: answer.question_id,
+    p_strengths: dbFeedback.strengths,
+    p_improvements: dbFeedback.improvements,
+    p_star_breakdown: dbFeedback.star_breakdown,
+    p_next_action: dbFeedback.next_action,
+    p_model: modelResult.model,
+    p_generation_metadata: metadata,
+    p_expected_current_feedback_id: currentFeedbackId,
+  });
 
-  if (insertResult.error || !insertResult.data) {
-    deps.log?.("answer_feedback_insert_failed", {
-      code: insertResult.error?.code,
-      message: insertResult.error?.message,
+  if (rpcResult.error || !rpcResult.data) {
+    deps.log?.("answer_feedback_atomic_insert_failed", {
+      code: rpcResult.error?.code,
+      message: rpcResult.error?.message,
     });
-    if (isUniqueViolation(insertResult.error)) {
+    if (isUniqueViolation(rpcResult.error)) {
       return { ok: false, status: 409, error: "feedback_already_exists" };
     }
     return { ok: false, status: 500, error: "internal_error" };
   }
 
-  if (currentFeedbackId) {
-    const supersedeResult = await deps.supabase
-      .from("answer_feedback")
-      .update<FeedbackRow>({ superseded_by: newFeedbackId })
-      .eq("id", currentFeedbackId);
-    if (supersedeResult.error) {
-      deps.log?.("answer_feedback_supersede_failed", { message: supersedeResult.error.message });
-      return { ok: false, status: 500, error: "internal_error" };
-    }
-
-    const markCurrentResult = await deps.supabase
-      .from("answer_feedback")
-      .update<FeedbackRow>({ superseded_by: null })
-      .eq("id", newFeedbackId);
-    if (markCurrentResult.error) {
-      deps.log?.("answer_feedback_mark_current_failed", {
-        code: markCurrentResult.error.code,
-        message: markCurrentResult.error.message,
-      });
-      if (isUniqueViolation(markCurrentResult.error)) {
-        await rollbackLosingRegeneration(deps, {
-          practiceAnswerId,
-          losingFeedbackId: newFeedbackId,
-          previousCurrentFeedbackId: currentFeedbackId,
-        });
-        return { ok: false, status: 409, error: "feedback_already_exists" };
-      }
-      return { ok: false, status: 500, error: "internal_error" };
-    }
-  }
-
   deps.log?.("answer_feedback_generated", {
     userId: req.userId,
     practiceAnswerId,
-    feedbackId: newFeedbackId,
+    feedbackId: rpcResult.data.id,
     regenerated: Boolean(currentFeedbackId),
   });
 

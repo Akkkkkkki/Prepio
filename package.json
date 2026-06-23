@@ -12,6 +12,7 @@
     "test": "vitest run && npm run test:legacy-schema && npm run test:answer-feedback-schema",
     "test:legacy-schema": "bash scripts/check-legacy-schema.sh",
     "test:answer-feedback-schema": "bash scripts/check-answer-feedback-schema.sh",
+    "test:answer-feedback-rpc-db": "bash scripts/check-answer-feedback-rpc-db.sh",
     "test:e2e": "playwright test",
     "preview": "vite preview",
     "# Remote Development (Recommended)": "",

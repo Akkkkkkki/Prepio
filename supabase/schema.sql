@@ -258,6 +258,78 @@ CREATE TABLE IF NOT EXISTS "public"."answer_feedback" (
 ALTER TABLE "public"."answer_feedback" OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."create_answer_feedback_atomic"("p_feedback_id" "uuid", "p_user_id" "uuid", "p_practice_answer_id" "uuid", "p_practice_session_id" "uuid", "p_question_id" "uuid", "p_strengths" "jsonb", "p_improvements" "jsonb", "p_star_breakdown" "jsonb", "p_next_action" "jsonb", "p_model" "text", "p_generation_metadata" "jsonb", "p_expected_current_feedback_id" "uuid") RETURNS "public"."answer_feedback"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+  v_current_id UUID;
+  v_inserted public.answer_feedback;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_practice_answer_id::TEXT, 0));
+
+  SELECT id
+    INTO v_current_id
+    FROM public.answer_feedback
+   WHERE practice_answer_id = p_practice_answer_id
+     AND superseded_by IS NULL
+   LIMIT 1
+   FOR UPDATE;
+
+  IF v_current_id IS DISTINCT FROM p_expected_current_feedback_id THEN
+    RAISE EXCEPTION
+      USING ERRCODE = '23505',
+            MESSAGE = 'current answer feedback changed before atomic insert';
+  END IF;
+
+  INSERT INTO public.answer_feedback (
+    id,
+    user_id,
+    practice_answer_id,
+    practice_session_id,
+    question_id,
+    strengths,
+    improvements,
+    star_breakdown,
+    next_action,
+    model,
+    generation_metadata,
+    superseded_by
+  ) VALUES (
+    p_feedback_id,
+    p_user_id,
+    p_practice_answer_id,
+    p_practice_session_id,
+    p_question_id,
+    p_strengths,
+    p_improvements,
+    p_star_breakdown,
+    p_next_action,
+    p_model,
+    p_generation_metadata,
+    v_current_id
+  )
+  RETURNING * INTO v_inserted;
+
+  IF v_current_id IS NOT NULL THEN
+    UPDATE public.answer_feedback
+       SET superseded_by = p_feedback_id
+     WHERE id = v_current_id;
+
+    UPDATE public.answer_feedback
+       SET superseded_by = NULL
+     WHERE id = p_feedback_id
+     RETURNING * INTO v_inserted;
+  END IF;
+
+  RETURN v_inserted;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."create_answer_feedback_atomic"("p_feedback_id" "uuid", "p_user_id" "uuid", "p_practice_answer_id" "uuid", "p_practice_session_id" "uuid", "p_question_id" "uuid", "p_strengths" "jsonb", "p_improvements" "jsonb", "p_star_breakdown" "jsonb", "p_next_action" "jsonb", "p_model" "text", "p_generation_metadata" "jsonb", "p_expected_current_feedback_id" "uuid") OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."practice_sessions" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid" NOT NULL,
@@ -842,6 +914,12 @@ GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
 
+
+
+REVOKE ALL ON FUNCTION "public"."create_answer_feedback_atomic"("p_feedback_id" "uuid", "p_user_id" "uuid", "p_practice_answer_id" "uuid", "p_practice_session_id" "uuid", "p_question_id" "uuid", "p_strengths" "jsonb", "p_improvements" "jsonb", "p_star_breakdown" "jsonb", "p_next_action" "jsonb", "p_model" "text", "p_generation_metadata" "jsonb", "p_expected_current_feedback_id" "uuid") FROM PUBLIC;
+REVOKE ALL ON FUNCTION "public"."create_answer_feedback_atomic"("p_feedback_id" "uuid", "p_user_id" "uuid", "p_practice_answer_id" "uuid", "p_practice_session_id" "uuid", "p_question_id" "uuid", "p_strengths" "jsonb", "p_improvements" "jsonb", "p_star_breakdown" "jsonb", "p_next_action" "jsonb", "p_model" "text", "p_generation_metadata" "jsonb", "p_expected_current_feedback_id" "uuid") FROM "anon";
+REVOKE ALL ON FUNCTION "public"."create_answer_feedback_atomic"("p_feedback_id" "uuid", "p_user_id" "uuid", "p_practice_answer_id" "uuid", "p_practice_session_id" "uuid", "p_question_id" "uuid", "p_strengths" "jsonb", "p_improvements" "jsonb", "p_star_breakdown" "jsonb", "p_next_action" "jsonb", "p_model" "text", "p_generation_metadata" "jsonb", "p_expected_current_feedback_id" "uuid") FROM "authenticated";
+GRANT ALL ON FUNCTION "public"."create_answer_feedback_atomic"("p_feedback_id" "uuid", "p_user_id" "uuid", "p_practice_answer_id" "uuid", "p_practice_session_id" "uuid", "p_question_id" "uuid", "p_strengths" "jsonb", "p_improvements" "jsonb", "p_star_breakdown" "jsonb", "p_next_action" "jsonb", "p_model" "text", "p_generation_metadata" "jsonb", "p_expected_current_feedback_id" "uuid") TO "service_role";
 
 
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "anon";
