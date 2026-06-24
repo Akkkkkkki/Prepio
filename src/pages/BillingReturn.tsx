@@ -77,7 +77,7 @@ const BillingReturn = () => {
 
   return (
     <div id="main-content" className="min-h-screen bg-background">
-      <Navigation showSearchSelector={false} />
+      <Navigation />
       <main className="container mx-auto flex min-h-[calc(100vh-4rem)] max-w-2xl items-center px-4 py-12">
         <section className="w-full space-y-6 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
