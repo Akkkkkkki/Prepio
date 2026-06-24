@@ -248,7 +248,7 @@ const History = () => {
   if (isLoadingSessions && sessions.length === 0) {
     return (
       <div id="main-content" className="min-h-screen bg-background">
-        <Navigation showSearchSelector={false} />
+        <Navigation />
         <div className="container mx-auto max-w-4xl px-4 py-8">
           <div className="space-y-6">
             <div className="space-y-3">
@@ -266,7 +266,7 @@ const History = () => {
 
   return (
     <div id="main-content" className="min-h-screen bg-background">
-      <Navigation showSearchSelector={false} />
+      <Navigation />
       <div className="container mx-auto max-w-6xl px-4 py-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">

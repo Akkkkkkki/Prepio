@@ -252,7 +252,7 @@ const Pricing = () => {
 
   return (
     <div id="main-content" className="min-h-screen bg-background">
-      {user ? <Navigation showSearchSelector={false} /> : <PublicHeader actions={headerActions} />}
+      {user ? <Navigation /> : <PublicHeader actions={headerActions} />}
 
       <main className="container mx-auto max-w-6xl px-4 py-8 md:py-12">
         <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
