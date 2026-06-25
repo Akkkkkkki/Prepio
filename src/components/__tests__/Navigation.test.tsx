@@ -7,6 +7,7 @@ import Navigation from "../Navigation";
 const mockSignOut = vi.fn();
 const mockCanInstall = vi.fn();
 const mockPromptInstall = vi.fn();
+const mockGetSearchHistory = vi.fn();
 
 vi.mock("@/components/AuthProvider", () => ({
   useAuthContext: () => ({
@@ -20,6 +21,12 @@ vi.mock("@/hooks/useInstallPrompt", () => ({
     canInstall: mockCanInstall(),
     promptInstall: mockPromptInstall,
   }),
+}));
+
+vi.mock("@/services/searchService", () => ({
+  searchService: {
+    getSearchHistory: (...args: unknown[]) => mockGetSearchHistory(...args),
+  },
 }));
 
 const renderNavigation = (path = "/", searchParams = "") =>
@@ -91,9 +98,10 @@ describe("Navigation component", () => {
     });
   });
 
-  it("does not call the search service", () => {
+  it("does not load search history from the navbar", () => {
     renderNavigation();
 
     expect(screen.getByText("Prepio")).toBeInTheDocument();
+    expect(mockGetSearchHistory).not.toHaveBeenCalled();
   });
 });
