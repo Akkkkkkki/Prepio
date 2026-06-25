@@ -214,6 +214,23 @@ describe("Dashboard mobile layout", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("points the desktop breadcrumb back to Your interviews", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const interviewsLink = await screen.findByRole("link", { name: "Your interviews" });
+    expect(interviewsLink).toHaveAttribute("href", "/interviews");
+    expect(screen.queryByRole("link", { name: "Home" })).not.toBeInTheDocument();
+    expect(screen.getByText("OpenAI Prep Plan")).toBeInTheDocument();
+  });
+
   it("marks the highest-leverage stage with a 'Start here' rationale on both surfaces", async () => {
     const buildResults = () => ({
       success: true,

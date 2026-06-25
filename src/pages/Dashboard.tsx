@@ -1017,7 +1017,7 @@ const Dashboard = () => {
       <header className="space-y-2">
         {!isMobile && (
           <nav className="mb-3 text-sm text-muted-foreground">
-            <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
+            <Link to="/interviews" className="hover:text-foreground transition-colors">Your interviews</Link>
             <span className="mx-2">›</span>
             <span className="text-foreground">{searchData?.company || 'Company'} Prep Plan</span>
           </nav>
