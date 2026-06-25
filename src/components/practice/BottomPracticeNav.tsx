@@ -25,7 +25,7 @@ export const BottomPracticeNav = ({
   isPrimaryLoading,
 }: BottomPracticeNavProps) => (
   <div
-    className="bottom-practice-nav sticky bottom-0 z-40 mt-6 flex w-full max-w-2xl items-center gap-3 rounded-3xl border bg-background/95 px-4 py-3 shadow-lg backdrop-blur motion-fade-in md:bottom-4 md:rounded-full"
+    className="bottom-practice-nav sticky bottom-0 z-40 mt-6 flex w-full max-w-2xl items-center gap-3 rounded-[20px] border bg-background/95 px-4 py-3 shadow-lg backdrop-blur motion-fade-in md:bottom-4 md:rounded-full"
     style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
   >
     <div className="flex flex-1 items-center justify-center overflow-x-auto px-2">

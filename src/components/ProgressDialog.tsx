@@ -233,7 +233,7 @@ const ProgressDialog = ({
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-medium">{stage.label}</p>
                         {isCurrent && (
-                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-primary">
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                             Current
                           </span>
                         )}

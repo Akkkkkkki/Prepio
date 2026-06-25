@@ -41,13 +41,13 @@ export const MobileStageCard = ({
   return (
     <div
       className={cn(
-        "rounded-[28px] border bg-card p-4 shadow-sm transition-colors",
+        "rounded-[20px] border bg-card p-4 shadow-sm transition-colors",
         selected ? "border-primary/30 bg-primary/5" : "border-border"
       )}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <Badge variant="outline" className="shrink-0 text-[11px] uppercase tracking-[0.14em]">
+          <Badge variant="outline" className="shrink-0 text-[11px]">
             Stage {index + 1}
           </Badge>
           <span className="whitespace-nowrap text-xs text-muted-foreground">
@@ -115,9 +115,9 @@ export const MobileStageCard = ({
           </AccordionTrigger>
 
           <AccordionContent className="pt-4">
-            <div className="space-y-4 rounded-[22px] bg-muted/30 p-4">
+            <div className="space-y-4 rounded-[20px] bg-muted/30 p-4">
               <div className="space-y-2">
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                <p className="text-xs font-medium text-muted-foreground">
                   Content
                 </p>
                 <p className="break-words text-sm leading-6 text-foreground/85">
@@ -126,7 +126,7 @@ export const MobileStageCard = ({
               </div>
 
               <div className="space-y-2">
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                <p className="text-xs font-medium text-muted-foreground">
                   Guidance
                 </p>
                 <p className="break-words text-sm leading-6 text-foreground/85">
@@ -135,7 +135,7 @@ export const MobileStageCard = ({
               </div>
 
               <div className="space-y-2">
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                <p className="text-xs font-medium text-muted-foreground">
                   Question preview
                 </p>
                 {previewQuestions.length > 0 ? (

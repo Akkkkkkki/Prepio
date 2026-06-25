@@ -76,7 +76,7 @@ const OverviewStatsSkeleton = () => (
 const SessionListSkeleton = () => (
   <div className="space-y-4">
     {Array.from({ length: 3 }).map((_, index) => (
-      <Card key={index} className="rounded-3xl border-border/70 shadow-sm">
+      <Card key={index} className="rounded-[20px] border-border/70 shadow-sm">
         <CardContent className="space-y-4 p-5">
           <Skeleton className="h-4 w-40" />
           <Skeleton className="h-6 w-60" />
@@ -307,7 +307,7 @@ const History = () => {
             </CardContent>
           </Card>
         ) : sessions.length === 0 ? (
-          <Card className="mx-auto mt-8 max-w-2xl rounded-3xl border-dashed text-center">
+          <Card className="mx-auto mt-8 max-w-2xl rounded-[20px] border-dashed text-center">
             <CardHeader>
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
                 <ClipboardList className="h-7 w-7 text-muted-foreground" />
@@ -334,7 +334,7 @@ const History = () => {
               <OverviewStats stats={displayedStats} />
             )}
             {filteredSessions.length === 0 ? (
-              <Card className="rounded-3xl border-dashed">
+              <Card className="rounded-[20px] border-dashed">
                 <CardHeader>
                   <CardTitle>No sessions for this research yet</CardTitle>
                   <CardDescription>

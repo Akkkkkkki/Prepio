@@ -210,7 +210,7 @@ export const SessionList = ({
           <AccordionItem
             key={session.id}
             value={session.id}
-            className="overflow-hidden rounded-3xl border border-border/70 bg-card px-5 shadow-sm"
+            className="overflow-hidden rounded-[20px] border border-border/70 bg-card px-5 shadow-sm"
           >
             <AccordionTrigger className="py-5 text-left hover:no-underline">
               <div className="flex flex-1 flex-col gap-4 pr-4">
@@ -264,7 +264,7 @@ export const SessionList = ({
             <AccordionContent className="pb-5">
               <div className="space-y-4 border-t pt-5">
                 <div className="rounded-2xl border bg-muted/20 p-4">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Session notes
                   </p>
                   <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground">
@@ -296,7 +296,7 @@ export const SessionList = ({
                           <div key={answer.id} className="rounded-2xl border bg-background p-4">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                               <div className="space-y-2">
-                                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                                <p className="text-xs font-medium text-muted-foreground">
                                   Question {index + 1}
                                 </p>
                                 <h3 className="text-base font-medium leading-6">
@@ -314,7 +314,7 @@ export const SessionList = ({
                             </div>
 
                             <div className="mt-4 rounded-2xl bg-muted/40 p-4">
-                              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                              <p className="text-xs font-medium text-muted-foreground">
                                 Your answer
                               </p>
                               <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground">

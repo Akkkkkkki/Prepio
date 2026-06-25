@@ -1891,8 +1891,8 @@ const getInterviewerFocus = (
 
         <div className="px-4 py-5 pb-8">
           <div className="space-y-5">
-            <section className="rounded-[28px] border bg-muted/30 p-5 shadow-sm">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <section className="rounded-[20px] border bg-muted/30 p-5 shadow-sm">
+              <p className="text-xs font-medium text-muted-foreground">
                 Practice summary
               </p>
               <div className="mt-3 space-y-1">
@@ -1916,7 +1916,7 @@ const getInterviewerFocus = (
                 type="button"
                 onClick={() => setMobileSetupMode('quick')}
                 className={cn(
-                  "w-full rounded-[24px] border p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+                  "w-full rounded-[20px] border p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
                   mobileSetupMode === 'quick'
                     ? "border-primary bg-primary/5"
                     : "border-border bg-background"
@@ -1946,7 +1946,7 @@ const getInterviewerFocus = (
                 type="button"
                 onClick={() => setMobileSetupMode('custom')}
                 className={cn(
-                  "w-full rounded-[24px] border p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+                  "w-full rounded-[20px] border p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
                   mobileSetupMode === 'custom'
                     ? "border-primary bg-primary/5"
                     : "border-border bg-background"
@@ -1974,7 +1974,7 @@ const getInterviewerFocus = (
             </section>
 
             {mobileSetupMode === 'custom' && (
-              <section className="space-y-5 rounded-[28px] border bg-background p-5 shadow-sm">
+              <section className="space-y-5 rounded-[20px] border bg-background p-5 shadow-sm">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium">Question count</label>
@@ -2518,7 +2518,7 @@ const getInterviewerFocus = (
             <QuestionFrame
               animateIn={false}
               className={cn(
-                "rounded-[30px] border bg-card p-5 shadow-sm",
+                "rounded-[20px] border bg-card p-5 shadow-sm",
                 swipeDirection === 'left'
                   ? 'transform -translate-x-2'
                   : swipeDirection === 'right'
@@ -2549,13 +2549,13 @@ const getInterviewerFocus = (
                   )}
                 </div>
 
-                <div className="flex items-center justify-between rounded-[24px] bg-muted/30 px-4 py-3">
+                <div className="flex items-center justify-between rounded-[20px] bg-muted/30 px-4 py-3">
                   <div className="flex items-center gap-2 font-mono text-sm text-foreground">
                     <Timer className="h-4 w-4 text-muted-foreground" />
                     {formatTime(currentQuestionTime)}
                   </div>
                   <div className="text-right">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    <p className="text-xs font-medium text-muted-foreground">
                       Recommended
                     </p>
                     <p className="text-sm font-medium text-foreground">{RECOMMENDED_ANSWER_TIME_COPY}</p>
@@ -2594,8 +2594,8 @@ const getInterviewerFocus = (
             </QuestionFrame>
 
             {!isNotesExpanded && hasTypedAnswer && (
-              <div className="rounded-[24px] border bg-muted/20 p-4">
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <div className="rounded-[20px] border bg-muted/20 p-4">
+                <p className="text-xs font-medium text-muted-foreground">
                   Note preview
                 </p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{notePreview}</p>
@@ -2614,13 +2614,13 @@ const getInterviewerFocus = (
             style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
           >
             {(isRecording || isRecordingPaused) ? (
-              <div className="rounded-[28px] border border-destructive/20 bg-destructive/5 p-4">
+              <div className="rounded-[20px] border border-destructive/20 bg-destructive/5 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium">Recording</p>
                     <p className="mt-1 text-2xl font-semibold">{formatTime(recordingTime)}</p>
                   </div>
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-destructive">
+                  <div className="flex items-center gap-2 text-xs font-medium text-destructive">
                     <span className={cn("h-2.5 w-2.5 rounded-full", isRecording ? "animate-pulse bg-destructive" : "bg-amber-500")} />
                     {isRecording ? "Live" : "Paused"}
                   </div>
@@ -2655,7 +2655,7 @@ const getInterviewerFocus = (
                 </div>
               </div>
             ) : (
-              <div className="rounded-[28px] border bg-card/90 p-3 shadow-sm">
+              <div className="rounded-[20px] border bg-card/90 p-3 shadow-sm">
                 <div className="grid grid-cols-[1fr_auto] gap-3">
                   <Button
                     onClick={hasRecording ? playRecording : startRecording}
@@ -2724,7 +2724,7 @@ const getInterviewerFocus = (
             )}
 
             {isNotesExpanded && (
-              <div className="rounded-[28px] border bg-card p-4 shadow-sm">
+              <div className="rounded-[20px] border bg-card p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium">Quick notes</p>
@@ -2813,7 +2813,7 @@ const getInterviewerFocus = (
           <div className="rounded-2xl border bg-muted/30 p-4 shadow-sm">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="flex-1">
-                <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                <div className="flex items-center justify-between text-xs font-medium text-muted-foreground mb-2">
                   <span>Session progress</span>
                   <span>
                     Q{currentIndex + 1}/{questions.length || 1}

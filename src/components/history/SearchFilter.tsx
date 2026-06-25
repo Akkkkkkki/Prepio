@@ -65,7 +65,7 @@ export const SearchFilter = ({ sessions, value, onChange }: SearchFilterProps) =
 
   return (
     <div className="w-full max-w-sm space-y-2">
-      <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+      <p className="text-xs font-medium text-muted-foreground">
         Filter by research
       </p>
       <Select value={value} onValueChange={onChange}>

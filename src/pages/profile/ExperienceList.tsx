@@ -58,7 +58,7 @@ const ExperienceList = ({ experiences, onChange }: ExperienceListProps) => {
       }
     >
       {experiences.length === 0 ? (
-        <div className="rounded-3xl border border-dashed p-5 text-sm text-muted-foreground">
+        <div className="rounded-[20px] border border-dashed p-5 text-sm text-muted-foreground">
           Add the roles and bullet points you want to lead with in your profile.
         </div>
       ) : (
@@ -66,7 +66,7 @@ const ExperienceList = ({ experiences, onChange }: ExperienceListProps) => {
           {experiences.map((experience, index) => (
             <div
               key={experience.id}
-              className="flex flex-col gap-4 rounded-3xl border border-border/70 p-5 md:flex-row md:items-start md:justify-between"
+              className="flex flex-col gap-4 rounded-[20px] border border-border/70 p-5 md:flex-row md:items-start md:justify-between"
             >
               <div className="space-y-1">
                 <p className="font-medium">{experience.title || "Untitled role"}</p>
