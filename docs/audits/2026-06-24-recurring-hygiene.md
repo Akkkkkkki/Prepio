@@ -22,7 +22,7 @@ Headline status:
 
 1. **`npm audit` is still clean** (0 vulnerabilities, fifth run in a
    row).
-2. **Test count grew by 22.** 310 → 332 tests across 40 → 42 files,
+2. **Test count grew by 19.** 310 → 329 tests across 40 → 42 files,
    all passing. Concentration is on the new `Interviews` page,
    `answer-feedback` handler atomic-RPC mocking, and a mobile-Auth
    redirect-target test (`/dashboard` → `/interviews`).
@@ -59,10 +59,10 @@ baseline holds.
 - `npm run lint`: 15 problems (7 errors, 8 warnings). Identical to
   2026-06-20 baseline; same files, same lines.
 - `npm run typecheck`: pass.
-- `npm run build`: pass (Vite + PWA, 52 precache entries, ~2.16 MiB —
-  two entries more than 2026-06-20 because of the new `Interviews`
+- `npm run build`: pass (Vite + PWA, 59 precache entries, 2216.01 KiB —
+  nine entries more than 2026-06-20 because of the new `Interviews`
   page + `Calendar`/etc. test asset).
-- `npm test`: pass (42 test files, 332 tests; +22 vs. 2026-06-20's
+- `npm test`: pass (42 test files, 329 tests; +19 vs. 2026-06-20's
   310). Includes vitest + `check-legacy-schema.sh` +
   `check-answer-feedback-schema.sh`.
 - `npm audit`: **0 vulnerabilities.**
