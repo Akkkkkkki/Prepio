@@ -247,7 +247,7 @@ const ProgressDialog = ({
           </div>
 
           <div className="rounded-2xl border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
-            Safe to leave this screen. Research keeps running, and you can reopen the latest status from the dashboard whenever you want.
+            Safe to leave this screen. Research keeps running, and you can reopen the latest status from Your interviews whenever you want.
           </div>
 
           {isStalled && (
