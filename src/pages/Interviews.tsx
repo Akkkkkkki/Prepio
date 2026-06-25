@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { badgeToneClassName } from "@/lib/designTokens";
 import {
   searchService,
   type InterviewSummary,
@@ -25,7 +26,7 @@ const stateLabels: Record<InterviewSummaryState, string> = {
 const InterviewsSkeleton = () => (
   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
     {Array.from({ length: 3 }).map((_, index) => (
-      <Skeleton key={index} className="h-64 rounded-3xl" />
+      <Skeleton key={index} className="h-64 rounded-[20px]" />
     ))}
   </div>
 );
@@ -46,13 +47,13 @@ const InterviewCard = ({ interview }: { interview: InterviewSummary }) => {
   const identity = [interview.company, interview.role].filter(Boolean).join(" · ");
 
   return (
-    <Card className="flex h-full flex-col rounded-3xl border-border/70 shadow-sm">
+    <Card className="flex h-full flex-col rounded-[20px] border-border/70 shadow-sm">
       <CardHeader className="space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="rounded-2xl bg-primary/10 p-3 text-primary">
             <BriefcaseBusiness className="h-5 w-5" aria-hidden="true" />
           </div>
-          <Badge variant="secondary">{stateLabels[interview.state]}</Badge>
+          <Badge className={badgeToneClassName.neutral}>{stateLabels[interview.state]}</Badge>
         </div>
         <CardTitle className="text-xl leading-7">{identity}</CardTitle>
       </CardHeader>
@@ -159,7 +160,7 @@ const Interviews = () => {
         {isLoading ? (
           <InterviewsSkeleton />
         ) : interviews.length === 0 && !error ? (
-          <Card className="mx-auto max-w-xl rounded-3xl border-border/70 text-center shadow-sm">
+          <Card className="mx-auto max-w-xl rounded-[20px] border-border/70 text-center shadow-sm">
             <CardHeader className="space-y-4">
               <div className="mx-auto rounded-2xl bg-primary/10 p-4 text-primary">
                 <BriefcaseBusiness className="h-7 w-7" aria-hidden="true" />

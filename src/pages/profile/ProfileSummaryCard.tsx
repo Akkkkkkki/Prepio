@@ -142,7 +142,7 @@ const ProfileSummaryCard = ({
         </div>
       </div>
 
-      <div className="space-y-4 rounded-3xl border border-border/70 bg-background/90 p-5">
+      <div className="space-y-4 rounded-[20px] border border-border/70 bg-background/90 p-5">
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-medium">Profile completeness</p>

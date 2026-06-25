@@ -47,8 +47,17 @@ that move toward this shape, not away from it.
 
 ## Visual System
 
-Target a restrained token set (to be locked under PREPIO-106): a 2-step corner-radius scale,
-one accent, ≤2 badge styles, and uppercase tracked labels only where they earn hierarchy.
+Use a restrained token set:
+
+- **Radii:** product surfaces use `rounded-xl` for normal cards and `rounded-[20px]`
+  for prominent panels. Avoid `rounded-3xl` and `rounded-[24px]` on new work.
+- **Badges:** use only neutral metadata badges and primary accent badges. Do not
+  encode confidence, level, priority, industry, and status as separate colour systems.
+- **Accent:** reserve primary blue for the next action, selected state, or highest-signal
+  metadata; keep supporting information neutral.
+- **Labels:** use sentence-case micro-labels by default. Uppercase tracked labels are
+  reserved for rare navigational or mode-setting chrome.
+
 The 2026-06-21 review found four radius sizes, five badge colours, and uppercase
 micro-labels on nearly every block — together they read as "heavy" before a word is read.
 Calm the surface; don't nest cards inside cards.

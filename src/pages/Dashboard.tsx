@@ -30,6 +30,7 @@ import { searchService } from "@/services/searchService";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMobileFooterHeight } from "@/hooks/useMobileFooterHeight";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { accentLabelClassName, badgeToneClassName, sectionLabelClassName } from "@/lib/designTokens";
 import type {
   PrepPlanRow,
   StagePlan,
@@ -90,15 +91,13 @@ const MOBILE_FOOTER_FALLBACK_PX = 112;
 // ── Helpers ──────────────────────────────────────────────────
 
 const confidenceColor = (c?: Confidence | null) => {
-  if (c === "high") return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
-  if (c === "medium") return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
-  return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+  if (c === "high" || c === "medium") return badgeToneClassName.accent;
+  return badgeToneClassName.neutral;
 };
 
 const priorityColor = (p?: Priority | null) => {
-  if (p === "high") return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-  if (p === "medium") return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
-  return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
+  if (p === "high") return badgeToneClassName.accent;
+  return badgeToneClassName.neutral;
 };
 
 const priorityIcon = (p?: Priority | null) => {
@@ -113,28 +112,27 @@ const priorityIcon = (p?: Priority | null) => {
 const evidenceSourceMeta = (
   sourceType: EvidenceSourceType,
 ): { label: string; firstParty: boolean; badgeClass: string } => {
-  const firstPartyBadge = "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
   switch (sourceType) {
     case "official_company":
-      return { label: "Company source", firstParty: true, badgeClass: firstPartyBadge };
+      return { label: "Company source", firstParty: true, badgeClass: badgeToneClassName.accent };
     case "official_job":
-      return { label: "Job description", firstParty: true, badgeClass: firstPartyBadge };
+      return { label: "Job description", firstParty: true, badgeClass: badgeToneClassName.accent };
     case "user_note":
-      return { label: "Your note", firstParty: true, badgeClass: firstPartyBadge };
+      return { label: "Your note", firstParty: true, badgeClass: badgeToneClassName.accent };
     case "cv":
-      return { label: "Your CV", firstParty: true, badgeClass: firstPartyBadge };
+      return { label: "Your CV", firstParty: true, badgeClass: badgeToneClassName.accent };
     case "public_report":
       return {
         label: "Community report",
         firstParty: false,
-        badgeClass: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+        badgeClass: badgeToneClassName.neutral,
       };
     case "market_heuristic":
     default:
       return {
         label: "Role norm",
         firstParty: false,
-        badgeClass: "bg-muted text-muted-foreground",
+        badgeClass: badgeToneClassName.neutral,
       };
   }
 };
@@ -175,14 +173,14 @@ const DashboardSkeleton = ({ isMobile }: { isMobile: boolean }) => (
           <Skeleton className="h-4 w-56 max-w-full" />
         </div>
         <div className={isMobile ? "grid grid-cols-2 gap-3" : "grid gap-4 md:grid-cols-3"}>
-          <Skeleton className="h-24 rounded-3xl" />
-          <Skeleton className="h-24 rounded-3xl" />
-          {!isMobile && <Skeleton className="h-24 rounded-3xl" />}
+          <Skeleton className="h-24 rounded-[20px]" />
+          <Skeleton className="h-24 rounded-[20px]" />
+          {!isMobile && <Skeleton className="h-24 rounded-[20px]" />}
         </div>
         <div className="space-y-3">
           <Skeleton className="h-6 w-48" />
-          <Skeleton className="h-36 rounded-3xl" />
-          <Skeleton className="h-36 rounded-3xl" />
+          <Skeleton className="h-36 rounded-[20px]" />
+          <Skeleton className="h-36 rounded-[20px]" />
         </div>
       </div>
     </div>
@@ -230,7 +228,7 @@ function AssessmentSignalsCard({ signals }: { signals: AssessmentSignal[] }) {
 
     return (
       <div className="space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+        <p className={sectionLabelClassName}>{label}</p>
         {items.map((signal, index) => {
           const accentClass =
             signal.importance === "high"
@@ -280,7 +278,7 @@ function PrepPrioritiesCard({ priorities }: { priorities: PrepPriority[] }) {
     if (!items.length) return null;
     return (
       <div className="space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+        <p className={sectionLabelClassName}>{label}</p>
         {items.map((p, i) => (
           <div key={i} className="rounded-xl border bg-muted/20 p-3">
             <div className="flex items-center gap-2">
@@ -349,7 +347,7 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
         <div className="flex items-start gap-3">
           <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${iconClassName}`} />
           <div className="space-y-1">
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+            <p className={sectionLabelClassName}>{label}</p>
             <p className="text-xs text-muted-foreground">{subtitle}</p>
           </div>
         </div>
@@ -453,7 +451,7 @@ function PrepSummaryHero({
     <Card className="motion-surface border-primary/20 bg-primary/5">
       <CardContent className="flex flex-col gap-4 py-5 md:flex-row md:items-center md:justify-between md:py-6">
         <div className="min-w-0 space-y-1.5 border-l-4 border-primary/70 pl-4">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
+          <p className={accentLabelClassName}>
             {company ? `${company} · prep summary` : "Prep summary"}
           </p>
           <p className="text-base font-semibold leading-6 text-foreground md:text-lg">
@@ -554,7 +552,7 @@ function EvidenceSourcesCard({ evidence }: { evidence: EvidenceItem[] }) {
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className={`text-[10px] ${meta.badgeClass}`}>{meta.label}</Badge>
                 {meta.firstParty && (
-                  <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  <span className="text-xs font-medium text-muted-foreground">
                     First-party
                   </span>
                 )}
@@ -755,7 +753,7 @@ function StageRoadmapCard({
                 <div className="space-y-4 rounded-xl bg-muted/20 p-4">
                   {stage.what_it_tests && stage.what_it_tests.length > 0 && (
                     <div className="space-y-1.5">
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      <p className={sectionLabelClassName}>
                         Tests
                       </p>
                       <p className="text-sm text-foreground/85">{stage.what_it_tests.join(", ")}</p>
@@ -764,7 +762,7 @@ function StageRoadmapCard({
 
                   {stage.why_likely && (
                     <div className="space-y-1.5">
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      <p className={sectionLabelClassName}>
                         Why likely
                       </p>
                       <p className="text-sm text-foreground/85">{stage.why_likely}</p>
@@ -773,7 +771,7 @@ function StageRoadmapCard({
 
                   {stage.question_themes && stage.question_themes.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      <p className={sectionLabelClassName}>
                         Question themes
                       </p>
                       <div className="flex flex-wrap gap-1">
@@ -786,7 +784,7 @@ function StageRoadmapCard({
 
                   {stage.prep_actions && stage.prep_actions.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      <p className={sectionLabelClassName}>
                         Prep actions
                       </p>
                       <ul className="space-y-1">
@@ -1026,7 +1024,7 @@ const Dashboard = () => {
         )}
         <div className="space-y-1">
           {isMobile && (
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
+            <p className={accentLabelClassName}>
               Prep plan
             </p>
           )}

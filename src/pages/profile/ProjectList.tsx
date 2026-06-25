@@ -50,7 +50,7 @@ const ProjectList = ({ onChange, projects }: ProjectListProps) => {
       }
     >
       {projects.length === 0 ? (
-        <div className="rounded-3xl border border-dashed p-5 text-sm text-muted-foreground">
+        <div className="rounded-[20px] border border-dashed p-5 text-sm text-muted-foreground">
           Add side projects, launches, migrations, or internal initiatives worth surfacing.
         </div>
       ) : (
@@ -58,7 +58,7 @@ const ProjectList = ({ onChange, projects }: ProjectListProps) => {
           {projects.map((project, index) => (
             <div
               key={project.id}
-              className="flex flex-col gap-4 rounded-3xl border border-border/70 p-5 md:flex-row md:items-start md:justify-between"
+              className="flex flex-col gap-4 rounded-[20px] border border-border/70 p-5 md:flex-row md:items-start md:justify-between"
             >
               <div className="space-y-1">
                 <p className="font-medium">{project.title || "Untitled project"}</p>

@@ -2,13 +2,13 @@ import { AlertTriangle, CheckCircle2, Sparkles } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { badgeToneClassName } from "@/lib/designTokens";
 import { cn } from "@/lib/utils";
 import type { ResearchPreview } from "@/types/researchPreview";
 
 const confidenceClass = (confidence: string) => {
-  if (confidence === "high") return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
-  if (confidence === "medium") return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300";
-  return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300";
+  if (confidence === "high" || confidence === "medium") return badgeToneClassName.accent;
+  return badgeToneClassName.neutral;
 };
 
 const importanceClass = (importance: string) => {
@@ -28,7 +28,7 @@ export const InterviewBriefPreview = ({ preview }: { preview: ResearchPreview })
           {preview.confidence} confidence
         </Badge>
         {preview.status === "cached" && (
-          <Badge variant="secondary" className="text-[10px] font-medium">
+          <Badge className={cn("text-[10px] font-medium", badgeToneClassName.neutral)}>
             Cached
           </Badge>
         )}
@@ -44,7 +44,7 @@ export const InterviewBriefPreview = ({ preview }: { preview: ResearchPreview })
       </div>
     </CardHeader>
     <CardContent className="space-y-5">
-      <div className="rounded-2xl border bg-muted/20 p-4">
+      <div className="rounded-xl border bg-muted/20 p-4">
         <div className="flex items-start gap-3">
           <Sparkles className="mt-0.5 h-5 w-5 text-primary" />
           <div>
@@ -61,7 +61,7 @@ export const InterviewBriefPreview = ({ preview }: { preview: ResearchPreview })
         <h3 className="text-base font-semibold">Likely rounds</h3>
         <div className="grid gap-3 md:grid-cols-3">
           {preview.stages.map((stage) => (
-            <div key={stage.name} className="rounded-2xl border bg-background p-4">
+            <div key={stage.name} className="rounded-xl border bg-background p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold">{stage.name}</p>
                 <Badge className={cn("text-[10px]", confidenceClass(stage.confidence))}>
@@ -80,11 +80,11 @@ export const InterviewBriefPreview = ({ preview }: { preview: ResearchPreview })
           {preview.assessmentSignals.map((signal) => (
             <div
               key={signal.name}
-              className={cn("rounded-r-2xl border-l-2 bg-muted/20 px-4 py-3", importanceClass(signal.importance))}
+              className={cn("rounded-r-xl border-l-2 bg-muted/20 px-4 py-3", importanceClass(signal.importance))}
             >
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm font-semibold">{signal.name}</p>
-                <Badge variant="outline" className="text-[10px]">
+                <Badge className={cn("text-[10px]", badgeToneClassName.neutral)}>
                   {signal.importance}
                 </Badge>
               </div>
@@ -98,12 +98,12 @@ export const InterviewBriefPreview = ({ preview }: { preview: ResearchPreview })
         <h3 className="text-base font-semibold">Highest-leverage questions</h3>
         <div className="space-y-3">
           {preview.questions.slice(0, 5).map((question) => (
-            <div key={question.question} className="rounded-2xl border bg-background p-4">
+            <div key={question.question} className="rounded-xl border bg-background p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge className={cn("text-[10px]", badgeToneClassName.neutral)}>
                   {question.stage}
                 </Badge>
-                <Badge variant="outline" className="text-[10px]">
+                <Badge className={cn("text-[10px]", badgeToneClassName.neutral)}>
                   {question.difficulty}
                 </Badge>
               </div>
@@ -118,7 +118,7 @@ export const InterviewBriefPreview = ({ preview }: { preview: ResearchPreview })
       </section>
 
       {preview.confidence === "low" && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
           <div className="flex gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <p>Public signal is limited. Use this as a starting map, then add the job description after signup for sharper tailoring.</p>
@@ -133,4 +133,3 @@ export const InterviewBriefPreview = ({ preview }: { preview: ResearchPreview })
     </CardContent>
   </Card>
 );
-

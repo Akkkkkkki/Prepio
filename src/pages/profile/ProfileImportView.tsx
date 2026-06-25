@@ -143,7 +143,7 @@ const ProfileImportView = ({ workspace }: ProfileImportViewProps) => {
         icon={<Upload className="h-5 w-5 text-primary" />}
       >
         <div className="space-y-4">
-          <div className="rounded-3xl border-2 border-dashed p-6 text-center">
+          <div className="rounded-[20px] border-2 border-dashed p-6 text-center">
             <Upload className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
               Upload a PDF or DOCX, or paste CV text below.

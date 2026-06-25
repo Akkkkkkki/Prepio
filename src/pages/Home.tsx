@@ -760,7 +760,7 @@ const Home = () => {
         return (
           <section className="space-y-5">
             <div className="space-y-2">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="text-xs font-medium text-muted-foreground">
                 {mobileStepCopy.eyebrow}
               </p>
               <h2 className="text-2xl font-semibold tracking-tight">{mobileStepCopy.title}</h2>
@@ -781,7 +781,7 @@ const Home = () => {
             </div>
 
             <div className="space-y-3">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="text-xs font-medium text-muted-foreground">
                 Suggested companies
               </p>
               <div className="flex flex-wrap gap-2">
@@ -805,7 +805,7 @@ const Home = () => {
         return (
           <section className="space-y-5">
             <div className="space-y-2">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="text-xs font-medium text-muted-foreground">
                 {mobileStepCopy.eyebrow}
               </p>
               <h2 className="text-2xl font-semibold tracking-tight">{mobileStepCopy.title}</h2>
@@ -860,7 +860,7 @@ const Home = () => {
               </div>
             </div>
 
-            <div className="rounded-[24px] border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
+            <div className="rounded-[20px] border bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">
               Everything on this step is optional. Skip it if you want broad company prep first.
             </div>
           </section>
@@ -870,7 +870,7 @@ const Home = () => {
         return (
           <section className="space-y-5">
             <div className="space-y-2">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="text-xs font-medium text-muted-foreground">
                 {mobileStepCopy.eyebrow}
               </p>
               <h2 className="text-2xl font-semibold tracking-tight">{mobileStepCopy.title}</h2>
@@ -886,7 +886,7 @@ const Home = () => {
               ]}
               className="space-y-3"
             >
-              <AccordionItem value="resume" className="rounded-[24px] border bg-muted/20 px-4">
+              <AccordionItem value="resume" className="rounded-[20px] border bg-muted/20 px-4">
                 <AccordionTrigger className="py-4 text-left text-sm hover:no-underline">
                   <div>
                     <p className="font-medium text-foreground">CV / Resume</p>
@@ -898,7 +898,7 @@ const Home = () => {
                 <AccordionContent className="space-y-4 pb-4">
                   {renderProfileResumeNote("h-10")}
 
-                  <div className="rounded-[24px] border-2 border-dashed border-border bg-background p-5">
+                  <div className="rounded-[20px] border-2 border-dashed border-border bg-background p-5">
                     <div className="flex flex-col items-center gap-4 text-center">
                       <Upload className="h-8 w-8 text-muted-foreground" />
                       <div className="space-y-2">
@@ -936,12 +936,12 @@ const Home = () => {
                     value={formData.cv}
                     onChange={(e) => setFormData((prev) => ({ ...prev, cv: e.target.value }))}
                     rows={7}
-                    className="min-h-[180px] resize-none rounded-[24px] border bg-background p-4 text-base"
+                    className="min-h-[180px] resize-none rounded-[20px] border bg-background p-4 text-base"
                   />
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="role-links" className="rounded-[24px] border bg-muted/20 px-4">
+              <AccordionItem value="role-links" className="rounded-[20px] border bg-muted/20 px-4">
                 <AccordionTrigger className="py-4 text-left text-sm hover:no-underline">
                   <div>
                     <p className="font-medium text-foreground">Job link or description</p>
@@ -957,7 +957,7 @@ const Home = () => {
                     value={formData.roleLinks}
                     onChange={(e) => setFormData((prev) => ({ ...prev, roleLinks: e.target.value }))}
                     rows={3}
-                    className="min-h-[100px] resize-none rounded-[24px] border bg-background p-4 text-base"
+                    className="min-h-[100px] resize-none rounded-[20px] border bg-background p-4 text-base"
                   />
                   <Textarea
                     id="job-description-mobile"
@@ -965,12 +965,12 @@ const Home = () => {
                     value={formData.jobDescription}
                     onChange={(e) => setFormData((prev) => ({ ...prev, jobDescription: e.target.value }))}
                     rows={4}
-                    className="min-h-[140px] resize-none rounded-[24px] border bg-background p-4 text-base"
+                    className="min-h-[140px] resize-none rounded-[20px] border bg-background p-4 text-base"
                   />
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="user-note" className="rounded-[24px] border bg-muted/20 px-4">
+              <AccordionItem value="user-note" className="rounded-[20px] border bg-muted/20 px-4">
                 <AccordionTrigger className="py-4 text-left text-sm hover:no-underline">
                   <div>
                     <p className="font-medium text-foreground">Notes for the research</p>
@@ -986,7 +986,7 @@ const Home = () => {
                     value={formData.userNote}
                     onChange={(e) => setFormData((prev) => ({ ...prev, userNote: e.target.value }))}
                     rows={5}
-                    className="min-h-[160px] resize-none rounded-[24px] border bg-background p-4 text-base"
+                    className="min-h-[160px] resize-none rounded-[20px] border bg-background p-4 text-base"
                   />
                 </AccordionContent>
               </AccordionItem>
@@ -1242,7 +1242,7 @@ const Home = () => {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
         <Card className="border shadow-sm">
           <CardHeader className="space-y-4">
-            <div className="w-fit rounded-full border px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="w-fit rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">
               Research-first interview prep
             </div>
             <div className="space-y-3">
@@ -1295,7 +1295,7 @@ const Home = () => {
               <div className="flex h-12 w-12 items-center justify-center rounded-full border bg-background">
                 <Search className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
               </div>
-              <p className="mt-5 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="mt-5 text-xs font-medium text-muted-foreground">
                 Tailored preview
               </p>
               <CardTitle className="mt-3 max-w-md text-2xl tracking-tight">
@@ -1311,7 +1311,7 @@ const Home = () => {
           <Card className="border bg-muted/20 shadow-sm">
             <CardHeader className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="w-fit rounded-full border bg-background px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                <div className="w-fit rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
                   Static example
                 </div>
                 <Badge variant="outline" className="bg-background text-[10px] font-medium">
@@ -1363,7 +1363,7 @@ const Home = () => {
         )}
       </div>
 
-      <section className="rounded-[32px] border bg-card p-6 shadow-sm">
+      <section className="rounded-[20px] border bg-card p-6 shadow-sm">
         <div className="mb-5">
           <h2 className="text-lg font-semibold tracking-tight">How it works</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -1374,7 +1374,7 @@ const Home = () => {
         <div className="grid gap-4 md:grid-cols-3">
           {GUEST_HOME_STEPS.map((step, index) => (
             <div key={step.title} className="rounded-2xl border bg-muted/20 p-4">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="text-xs font-medium text-muted-foreground">
                 0{index + 1}
               </p>
               <p className="mt-3 text-base font-semibold">{step.title}</p>
@@ -1434,7 +1434,7 @@ const Home = () => {
                 </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 rounded-[24px] border bg-muted/20 p-2">
+              <div className="grid grid-cols-3 gap-2 rounded-[20px] border bg-muted/20 p-2">
                 {MOBILE_STEP_ORDER.map((step, index) => {
                   const isComplete = index < currentStepIndex;
                   const isCurrent = step === mobileStep;
@@ -1471,13 +1471,13 @@ const Home = () => {
               </div>
 
               {error && (
-                <Alert variant="destructive" className="rounded-[24px]">
+                <Alert variant="destructive" className="rounded-[20px]">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
               {isOffline && (
-                  <Alert className="rounded-[24px] border-amber-300 bg-amber-50 text-amber-950">
+                  <Alert className="rounded-[20px] border-amber-300 bg-amber-50 text-amber-950">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
                       You&apos;re offline. Keep editing, reconnect before you start research, and
@@ -1488,7 +1488,7 @@ const Home = () => {
             </div>
 
             <form onSubmit={handleFormSubmit}>
-              <Card className="overflow-hidden rounded-[32px] border shadow-sm">
+              <Card className="overflow-hidden rounded-[20px] border shadow-sm">
                 <CardContent className="p-5">{renderMobileStepContent()}</CardContent>
               </Card>
             </form>
@@ -1499,7 +1499,7 @@ const Home = () => {
               data-mobile-home-footer
             >
               <div className="mx-auto max-w-md space-y-3" style={{ paddingBottom: mobileFooterPadding }}>
-                <div className="flex items-center justify-between text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
                   <span>{mobileStepCopy.eyebrow}</span>
                   <span>{formData.company.trim() || "Company not set"}</span>
                 </div>

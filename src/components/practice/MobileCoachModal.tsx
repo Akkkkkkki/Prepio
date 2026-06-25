@@ -33,7 +33,7 @@ export const MobileCoachModal = ({
       >
         <div className="border-b bg-background/98 px-5 py-4 backdrop-blur">
           <SheetHeader className="space-y-2 pr-10 text-left">
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               Answer guide
             </p>
             <SheetTitle className="text-xl">What strong answers show</SheetTitle>

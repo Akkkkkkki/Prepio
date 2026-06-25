@@ -46,7 +46,7 @@ export const OverviewStats = ({ stats }: OverviewStatsProps) => {
       {statItems.map((item) => (
         <Card key={item.label} className="rounded-2xl border-border/70 shadow-sm">
           <CardContent className="p-5">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               {item.label}
             </p>
             <p className="mt-3 text-3xl font-semibold tracking-tight">{item.value}</p>
