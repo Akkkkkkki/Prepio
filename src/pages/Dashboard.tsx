@@ -742,6 +742,27 @@ function StageRoadmapCard({
                     </div>
                   )}
 
+                  {(stage.questions?.length ?? 0) > 0 && (
+                    <div className="space-y-2">
+                      <p className={sectionLabelClassName}>
+                        Question preview
+                      </p>
+                      <ul className="space-y-1">
+                        {stage.questions.slice(0, 3).map((q) => (
+                          <li key={q.id} className="flex items-start gap-1.5 text-sm text-foreground/85">
+                            <ArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-primary" />
+                            <span className="break-words">{q.question}</span>
+                          </li>
+                        ))}
+                        {stage.questions.length > 3 && (
+                          <li className="text-xs text-muted-foreground">
+                            +{stage.questions.length - 3} more question{stage.questions.length - 3 === 1 ? "" : "s"}
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
                 </div>
               </AccordionContent>
             </AccordionItem>

@@ -235,6 +235,28 @@ describe("Dashboard mobile layout", () => {
     expect(await screen.findByText("Sharpen technical tradeoffs")).toBeInTheDocument();
   });
 
+  it("previews question text inside each desktop stage accordion so the Plan still shows what was generated", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const trigger = await screen.findByRole("button", { name: /Technical Panel/ });
+    fireEvent.click(trigger);
+
+    expect(
+      await screen.findByText("How would you evaluate model quality?"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Describe a time you shipped under pressure."),
+    ).toBeInTheDocument();
+  });
+
   it("points the desktop breadcrumb back to Your interviews", async () => {
     mockUseIsMobile.mockReturnValue(false);
 
