@@ -137,11 +137,16 @@ describe("ProgressDialog", () => {
     expect(screen.getByText("Preparing practice")).toBeInTheDocument();
   });
 
-  it("shows safe-to-leave message", () => {
+  it("points safe-to-leave copy to Your interviews instead of dashboard", () => {
     mockSearchProgressData.mockReturnValue(null);
 
     render(<ProgressDialog {...defaultProps} />);
 
-    expect(screen.getByText(/Safe to leave this screen/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Safe to leave this screen. Research keeps running, and you can reopen the latest status from Your interviews whenever you want.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/dashboard/i)).not.toBeInTheDocument();
   });
 });

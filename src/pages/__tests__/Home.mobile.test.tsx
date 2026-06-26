@@ -562,6 +562,21 @@ describe("Home flow", () => {
     });
 
     expect(await screen.findByText("Progress dialog for OpenAI")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Research Started!",
+          description:
+            "Your research is queued. You can leave this screen and keep an eye on progress from Your interviews.",
+        }),
+      );
+    });
+    expect(mockToast).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Research Started!",
+        description: expect.stringMatching(/dashboard/i),
+      }),
+    );
     expect(window.sessionStorage.getItem(RESEARCH_DRAFT_STORAGE_KEY)).toBeNull();
   });
 
