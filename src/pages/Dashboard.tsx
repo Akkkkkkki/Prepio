@@ -479,62 +479,6 @@ function PrepSummaryHero({
   );
 }
 
-function PrepPriorityStrip({ priorities }: { priorities: PrepPriority[] }) {
-  const visible = priorities.slice(0, 3);
-  if (!visible.length) return null;
-
-  return (
-    <section className="space-y-3">
-      <div>
-        <h2 className="text-base font-semibold">Top prep priorities</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Start here before reviewing every question.</p>
-      </div>
-      <div className="grid gap-3 md:grid-cols-3">
-        {visible.map((priority) => (
-          <div key={priority.label} className="rounded-2xl border bg-card p-4">
-            <div className="flex items-center gap-2">
-              {priorityIcon(priority.priority)}
-              <Badge className={`text-[10px] ${priorityColor(priority.priority)}`}>
-                {priority.priority}
-              </Badge>
-            </div>
-            <p className="mt-3 text-sm font-semibold">{priority.label}</p>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">{priority.whyItMatters}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function HighLeverageQuestionsCard({ stages }: { stages: InterviewStage[] }) {
-  const questions = stages
-    .flatMap((stage) => (stage.questions || []).slice(0, 2).map((question) => ({
-      ...question,
-      stageName: stage.name,
-    })))
-    .slice(0, 5);
-
-  if (!questions.length) return null;
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Highest-leverage questions</CardTitle>
-        <CardDescription>Practice these first if you only have one short session.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {questions.map((question) => (
-          <div key={question.id} className="rounded-2xl border bg-muted/20 p-4">
-            <Badge variant="secondary" className="text-[10px]">{question.stageName}</Badge>
-            <p className="mt-2 text-sm font-medium leading-6">{question.question}</p>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
 function EvidenceSourcesCard({ evidence }: { evidence: EvidenceItem[] }) {
   if (!evidence?.length) return null;
 
@@ -622,7 +566,7 @@ function DeepDiveSection({
       >
         <div>
           <p className="text-sm font-semibold">
-            {expanded ? "Hide deep dive" : "Deep dive — why this plan"}
+            {expanded ? "Hide why this plan" : "Why this plan"}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">{itemLabels}</p>
         </div>
@@ -794,6 +738,27 @@ function StageRoadmapCard({
                             {action}
                           </li>
                         ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {(stage.questions?.length ?? 0) > 0 && (
+                    <div className="space-y-2">
+                      <p className={sectionLabelClassName}>
+                        Question preview
+                      </p>
+                      <ul className="space-y-1">
+                        {stage.questions.slice(0, 3).map((q) => (
+                          <li key={q.id} className="flex items-start gap-1.5 text-sm text-foreground/85">
+                            <ArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-primary" />
+                            <span className="break-words">{q.question}</span>
+                          </li>
+                        ))}
+                        {stage.questions.length > 3 && (
+                          <li className="text-xs text-muted-foreground">
+                            +{stage.questions.length - 3} more question{stage.questions.length - 3 === 1 ? "" : "s"}
+                          </li>
+                        )}
                       </ul>
                     </div>
                   )}
@@ -1077,8 +1042,6 @@ const Dashboard = () => {
         isMobile={isMobile}
       />
 
-      <PrepPriorityStrip priorities={prepPriorities} />
-
       {/* Stage roadmap — the practice plan */}
       <StageRoadmapCard
         stages={stages}
@@ -1087,9 +1050,7 @@ const Dashboard = () => {
         topStageId={topStageId}
       />
 
-      <HighLeverageQuestionsCard stages={stages} />
-
-      {/* Deep dive — secondary info collapsed by default */}
+      {/* Why this plan — secondary info collapsed by default */}
       <DeepDiveSection
         assessmentSignals={assessmentSignals}
         prepPriorities={prepPriorities}

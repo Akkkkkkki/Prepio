@@ -214,6 +214,49 @@ describe("Dashboard mobile layout", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("does not render the duplicated priority strip or leverage-questions card; priorities still reachable inside Why this plan", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Stage roadmap")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Top prep priorities" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Highest-leverage questions" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Why this plan/ }));
+    expect(await screen.findByText("Sharpen technical tradeoffs")).toBeInTheDocument();
+  });
+
+  it("previews question text inside each desktop stage accordion so the Plan still shows what was generated", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const trigger = await screen.findByRole("button", { name: /Technical Panel/ });
+    fireEvent.click(trigger);
+
+    expect(
+      await screen.findByText("How would you evaluate model quality?"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Describe a time you shipped under pressure."),
+    ).toBeInTheDocument();
+  });
+
   it("points the desktop breadcrumb back to Your interviews", async () => {
     mockUseIsMobile.mockReturnValue(false);
 
@@ -374,7 +417,7 @@ describe("Dashboard mobile layout", () => {
     expect(screen.getByRole("button", { name: /Start practice.*3/ })).toBeInTheDocument();
     expect(screen.getByText("Ready")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Deep dive — why this plan/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Why this plan/ }));
 
     expect(await screen.findByText("Key assessment signals")).toBeInTheDocument();
     expect(screen.getByText("Prep priorities")).toBeInTheDocument();
@@ -475,7 +518,7 @@ describe("Dashboard mobile layout", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: /Deep dive — why this plan/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Why this plan/ }));
 
     expect(await screen.findByText("The evidence this plan was built from")).toBeInTheDocument();
     expect(screen.getByText("Job description")).toBeInTheDocument();
