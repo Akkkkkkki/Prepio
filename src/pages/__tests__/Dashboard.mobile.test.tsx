@@ -235,6 +235,84 @@ describe("Dashboard mobile layout", () => {
     expect(await screen.findByText("Sharpen technical tradeoffs")).toBeInTheDocument();
   });
 
+  it("shows candidate gap analysis with profile CTAs for story gaps", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    mockGetSearchResults.mockResolvedValue({
+      success: true,
+      search: {
+        id: "search-1",
+        company: "OpenAI",
+        role: "Research Engineer",
+        country: "United Kingdom",
+        status: "completed",
+        banner_dismissed: true,
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+      stages: [
+        {
+          id: "stage-1",
+          name: "Initial Screening",
+          duration: "30 minutes",
+          interviewer: "Recruiter",
+          content: "Introductions and fit check.",
+          guidance: "Keep it concise.",
+          order_index: 0,
+          search_id: "search-1",
+          created_at: "2026-03-31T00:00:00.000Z",
+          questions: [
+            { id: "q-1", question: "Tell me about yourself.", created_at: "2026-03-31T00:00:00.000Z" },
+          ],
+        },
+      ],
+      prepPlan: {
+        id: "plan-1",
+        search_id: "search-1",
+        summary: {
+          company: "OpenAI",
+          roleName: "Research Engineer",
+          industryFocus: "tech",
+          level: "senior_ic",
+          overallConfidence: "high",
+          weakSignalCase: false,
+        },
+        assessment_signals: [],
+        stage_roadmap: [],
+        prep_priorities: [],
+        candidate_positioning: {
+          strengthsToLeanOn: ["Evaluation depth"],
+          weakSpotsToAddress: ["Product tradeoffs"],
+          storyCoverageGaps: ["cross-functional influence"],
+          mismatchRisks: ["Legacy field that should not drive this panel"],
+        },
+        practice_sequence: [],
+        question_plan: { coreMustPractice: [], likelyFollowUps: [], extraDepth: [] },
+        internal_evidence_log: [],
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Gap analysis" })).toBeInTheDocument();
+    expect(screen.getByText("Lean on")).toBeInTheDocument();
+    expect(screen.getByText("Shore up")).toBeInTheDocument();
+    expect(screen.getByText("Story gaps")).toBeInTheDocument();
+    const storyLink = screen.getByRole("link", {
+      name: "Add a story about cross-functional influence to your profile",
+    });
+    expect(storyLink).toHaveAttribute(
+      "href",
+      "/profile?storyGap=cross-functional%20influence#profile-experience",
+    );
+    expect(screen.queryByText("Legacy field that should not drive this panel")).not.toBeInTheDocument();
+  });
+
   it("previews question text inside each desktop stage accordion so the Plan still shows what was generated", async () => {
     mockUseIsMobile.mockReturnValue(false);
 

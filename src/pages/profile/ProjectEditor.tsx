@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -233,6 +234,29 @@ const ProjectEditor = ({
                     rows={3}
                     placeholder="Describe the project in terms of context, action, and result."
                   />
+                  <label className="flex items-start gap-3 rounded-xl border border-dashed p-3">
+                    <Checkbox
+                      checked={bullet.starStory}
+                      onCheckedChange={(checked) =>
+                        onChange(
+                          createEmptyProject({
+                            ...project,
+                            bullets: updateArrayItem(
+                              project.bullets,
+                              index,
+                              createEmptyProfileBullet({ ...bullet, starStory: checked === true }),
+                            ),
+                          }),
+                        )
+                      }
+                    />
+                    <span>
+                      <span className="block text-sm font-medium">STAR story</span>
+                      <span className="block text-xs text-muted-foreground">
+                        Use this as a structured Situation, Task, Action, Result example in practice.
+                      </span>
+                    </span>
+                  </label>
                 </div>
               ))}
             </div>

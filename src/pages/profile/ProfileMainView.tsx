@@ -630,7 +630,9 @@ const ProfileMainView = ({ workspace }: ProfileMainViewProps) => {
 
       <div className="space-y-6">
         {PROFILE_MAIN_SECTION_ORDER.map((section) => (
-          <div key={section}>{sections[section]}</div>
+          <div key={section} id={section === "experience" ? "profile-experience" : undefined}>
+            {sections[section]}
+          </div>
         ))}
       </div>
     </div>

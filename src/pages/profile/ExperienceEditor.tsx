@@ -206,6 +206,29 @@ const ExperienceEditor = ({
                     rows={3}
                     placeholder="Led the team, changed the system, and quantified the outcome."
                   />
+                  <label className="flex items-start gap-3 rounded-xl border border-dashed p-3">
+                    <Checkbox
+                      checked={bullet.starStory}
+                      onCheckedChange={(checked) =>
+                        onChange(
+                          createEmptyExperience({
+                            ...experience,
+                            bullets: updateArrayItem(
+                              experience.bullets,
+                              index,
+                              createEmptyProfileBullet({ ...bullet, starStory: checked === true }),
+                            ),
+                          }),
+                        )
+                      }
+                    />
+                    <span>
+                      <span className="block text-sm font-medium">STAR story</span>
+                      <span className="block text-xs text-muted-foreground">
+                        Use this as a structured Situation, Task, Action, Result example in practice.
+                      </span>
+                    </span>
+                  </label>
                 </div>
               ))}
             </div>

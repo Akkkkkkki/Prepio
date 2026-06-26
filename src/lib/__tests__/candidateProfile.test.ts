@@ -8,6 +8,7 @@ import {
   createEmptyExperience,
   createEmptyProject,
   createEmptySkillGroup,
+  getCandidateProfileUnlock,
   getDefaultMergeAction,
   prepareProfileImportAutoApply,
   mergeImportedProfile,
@@ -175,6 +176,79 @@ describe("candidateProfile helpers", () => {
 
     expect(computeCandidateProfileCompletion(empty)).toBe(0);
     expect(computeCandidateProfileCompletion(complete)).toBe(100);
+  });
+
+  it("returns the highest-value missing profile unlock without changing completion math", () => {
+    const profile = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff Engineer",
+      summary: "Built core systems",
+      location: "London",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "Staff Engineer",
+          bullets: [
+            { text: "Shipped platform work" },
+            { text: "Led interviews", starStory: true },
+          ],
+        }),
+      ],
+      projects: [createEmptyProject({ title: "Migration", bullets: [{ text: "Moved services" }] })],
+      skills: [createEmptySkillGroup({ name: "Core", skills: ["React", "TypeScript", "SQL", "AWS", "Leadership"] })],
+      education: [{ id: "edu-1", degree: "BSc", institution: "UCL", year: "2018", description: "" }],
+      certifications: [{ id: "cert-1", name: "AWS", issuer: "Amazon", year: "2024" }],
+      links: [{ id: "link-1", label: "LinkedIn", url: "https://linkedin.com/in/test" }],
+    });
+
+    expect(profile.completionScore).toBe(100);
+    expect(getCandidateProfileUnlock(profile)).toMatchObject({
+      key: "star_stories",
+      copy: "Flag 2 STAR stories to get them matched to your practice questions",
+    });
+  });
+
+  it("falls through profile unlocks from metrics to target roles", () => {
+    const profile = normalizeCandidateProfile({
+      userId: "user-1",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "Staff Engineer",
+          bullets: [
+            { text: "Shipped platform work", starStory: true },
+            { text: "Led interviews", starStory: true },
+          ],
+        }),
+      ],
+    });
+
+    expect(getCandidateProfileUnlock(profile)?.key).toBe("quantified_bullets");
+
+    const quantified = normalizeCandidateProfile({
+      ...profile,
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "Staff Engineer",
+          bullets: [
+            { text: "Reduced latency by 35%", starStory: true },
+            { text: "Led 8 interviewers", starStory: true },
+          ],
+        }),
+      ],
+    });
+
+    expect(getCandidateProfileUnlock(quantified)).toMatchObject({
+      key: "target_roles",
+      to: "/profile/preferences",
+    });
+
+    const ready = normalizeCandidateProfile({
+      ...quantified,
+      preferences: { ...quantified.preferences, targetRoles: ["Staff Engineer"] },
+    });
+    expect(getCandidateProfileUnlock(ready)).toBeNull();
   });
 
   it("auto-applies new imported content into an empty profile", () => {

@@ -106,6 +106,9 @@ const priorityIcon = (p?: Priority | null) => {
   return <Shield className="h-3.5 w-3.5" />;
 };
 
+const profileStoryGapHref = (gap: string) =>
+  `/profile?storyGap=${encodeURIComponent(gap)}#profile-experience`;
+
 // Maps an evidence source to a human label and trust framing. First-party means
 // the user or the employer supplied it directly (their note, CV, the job post, or
 // the company's own materials) — as opposed to a community report or a role norm.
@@ -318,12 +321,10 @@ function PrepPrioritiesCard({ priorities }: { priorities: PrepPriority[] }) {
 }
 
 function CandidatePositioningCard({ positioning }: { positioning: CandidatePositioning | null }) {
-  const [expanded, setExpanded] = useState(true);
   if (!positioning) return null;
   const hasContent = positioning.strengthsToLeanOn?.length > 0 ||
     positioning.weakSpotsToAddress?.length > 0 ||
-    positioning.storyCoverageGaps?.length > 0 ||
-    positioning.mismatchRisks?.length > 0;
+    positioning.storyCoverageGaps?.length > 0;
   if (!hasContent) return null;
 
   const renderList = ({
@@ -333,6 +334,7 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
     icon: Icon,
     iconClassName,
     sectionClassName,
+    withStoryGapCta = false,
   }: {
     items: string[] | undefined;
     label: string;
@@ -340,6 +342,7 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
     icon: typeof CheckCircle2;
     iconClassName: string;
     sectionClassName: string;
+    withStoryGapCta?: boolean;
   }) => {
     if (!items?.length) return null;
     return (
@@ -353,7 +356,17 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
         </div>
         <ul className="space-y-1">
           {items.map((item, i) => (
-            <li key={i} className="text-sm text-foreground/85">{item}</li>
+            <li key={i} className="space-y-2 rounded-lg bg-background/50 p-2 text-sm text-foreground/85">
+              <p>{item}</p>
+              {withStoryGapCta ? (
+                <Button asChild variant="outline" size="sm" className="h-8">
+                  <Link to={profileStoryGapHref(item)}>
+                    Add a story about {item} to your profile
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+              ) : null}
+            </li>
           ))}
         </ul>
       </div>
@@ -363,58 +376,36 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-base">Your positioning</CardTitle>
-            <CardDescription>How your background maps to the assessment</CardDescription>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setExpanded(!expanded)}
-            aria-expanded={expanded}
-            aria-label={expanded ? "Collapse positioning details" : "Expand positioning details"}
-          >
-            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </Button>
-        </div>
+        <CardTitle className="text-base">Gap analysis</CardTitle>
+        <CardDescription>How your profile maps to this assessment</CardDescription>
       </CardHeader>
-      {expanded && (
-        <CardContent className="space-y-4">
-          {renderList({
-            items: positioning.strengthsToLeanOn,
-            label: "Lean on",
-            subtitle: "Highlight these in your answers",
-            icon: CheckCircle2,
-            iconClassName: "text-green-600",
-            sectionClassName: "bg-green-50 dark:bg-green-950/40",
-          })}
-          {renderList({
-            items: positioning.weakSpotsToAddress,
-            label: "Address",
-            subtitle: "Prepare responses for these gaps",
-            icon: AlertTriangle,
-            iconClassName: "text-amber-600",
-            sectionClassName: "bg-amber-50 dark:bg-amber-950/40",
-          })}
-          {renderList({
-            items: positioning.storyCoverageGaps,
-            label: "Story gaps",
-            subtitle: "Find examples to cover these",
-            icon: Search,
-            iconClassName: "text-blue-600",
-            sectionClassName: "bg-blue-50 dark:bg-blue-950/40",
-          })}
-          {renderList({
-            items: positioning.mismatchRisks,
-            label: "Mismatch risks",
-            subtitle: "Be ready if these come up",
-            icon: AlertCircle,
-            iconClassName: "text-red-600",
-            sectionClassName: "bg-red-50 dark:bg-red-950/40",
-          })}
-        </CardContent>
-      )}
+      <CardContent className="grid gap-4 lg:grid-cols-3">
+        {renderList({
+          items: positioning.strengthsToLeanOn,
+          label: "Lean on",
+          subtitle: "Highlight these in your answers",
+          icon: CheckCircle2,
+          iconClassName: "text-green-600",
+          sectionClassName: "bg-green-50 dark:bg-green-950/40",
+        })}
+        {renderList({
+          items: positioning.weakSpotsToAddress,
+          label: "Shore up",
+          subtitle: "Prepare responses for these gaps",
+          icon: AlertTriangle,
+          iconClassName: "text-amber-600",
+          sectionClassName: "bg-amber-50 dark:bg-amber-950/40",
+        })}
+        {renderList({
+          items: positioning.storyCoverageGaps,
+          label: "Story gaps",
+          subtitle: "Add profile stories for uncovered dimensions",
+          icon: Search,
+          iconClassName: "text-blue-600",
+          sectionClassName: "bg-blue-50 dark:bg-blue-950/40",
+          withStoryGapCta: true,
+        })}
+      </CardContent>
     </Card>
   );
 }
@@ -525,34 +516,23 @@ function EvidenceSourcesCard({ evidence }: { evidence: EvidenceItem[] }) {
 function DeepDiveSection({
   assessmentSignals,
   prepPriorities,
-  candidatePositioning,
   evidence,
   isMobile,
 }: {
   assessmentSignals: AssessmentSignal[];
   prepPriorities: PrepPriority[];
-  candidatePositioning: CandidatePositioning | null;
   evidence: EvidenceItem[];
   isMobile: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
-  const hasPositioning = Boolean(
-    candidatePositioning && (
-      candidatePositioning.strengthsToLeanOn?.length ||
-      candidatePositioning.weakSpotsToAddress?.length ||
-      candidatePositioning.storyCoverageGaps?.length ||
-      candidatePositioning.mismatchRisks?.length
-    )
-  );
   const hasEvidence = evidence.length > 0;
-  const hasAnything = assessmentSignals.length > 0 || prepPriorities.length > 0 || hasPositioning || hasEvidence;
+  const hasAnything = assessmentSignals.length > 0 || prepPriorities.length > 0 || hasEvidence;
   if (!hasAnything) return null;
 
   const itemLabels = [
     assessmentSignals.length > 0 ? "Assessment signals" : null,
     prepPriorities.length > 0 ? "Prep priorities" : null,
-    hasPositioning ? "Your positioning" : null,
     hasEvidence ? "Sources" : null,
   ].filter(Boolean).join(" · ");
 
@@ -578,9 +558,6 @@ function DeepDiveSection({
       </button>
       {expanded && (
         <div className="space-y-4 motion-fade-in">
-          {candidatePositioning && (
-            <CandidatePositioningCard positioning={candidatePositioning} />
-          )}
           {isMobile ? (
             <div className="space-y-4">
               <PrepPrioritiesCard priorities={prepPriorities} />
@@ -1042,6 +1019,8 @@ const Dashboard = () => {
         isMobile={isMobile}
       />
 
+      <CandidatePositioningCard positioning={candidatePositioning} />
+
       {/* Stage roadmap — the practice plan */}
       <StageRoadmapCard
         stages={stages}
@@ -1054,7 +1033,6 @@ const Dashboard = () => {
       <DeepDiveSection
         assessmentSignals={assessmentSignals}
         prepPriorities={prepPriorities}
-        candidatePositioning={candidatePositioning}
         evidence={evidenceLog}
         isMobile={isMobile}
       />

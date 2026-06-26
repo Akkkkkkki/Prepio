@@ -98,6 +98,18 @@ export interface CandidateProfile {
   updatedAt?: string;
 }
 
+export type CandidateProfileUnlockKey =
+  | "star_stories"
+  | "quantified_bullets"
+  | "target_roles";
+
+export interface CandidateProfileUnlock {
+  key: CandidateProfileUnlockKey;
+  copy: string;
+  payoff: string;
+  to: string;
+}
+
 export type ProfileImportSuggestionKind =
   | "new"
   | "possible_duplicate"
@@ -467,6 +479,57 @@ export const computeCandidateProfileCompletion = (profile: CandidateProfile) => 
       : 0);
 
   return Math.min(100, score);
+};
+
+const getProfileBullets = (profile: CandidateProfile) => [
+  ...profile.experiences.flatMap((experience) => experience.bullets),
+  ...profile.projects.flatMap((project) => project.bullets),
+];
+
+const QUANTIFIED_BULLET_PATTERN = /(?:\d+(?:[.,]\d+)?|[%$])/;
+
+export const getCandidateProfileUnlock = (
+  profile: CandidateProfile,
+): CandidateProfileUnlock | null => {
+  const bullets = getProfileBullets(profile).filter((bullet) => bullet.text.trim());
+  const starStoryCount = bullets.filter((bullet) => bullet.starStory).length;
+  if (starStoryCount < 2) {
+    return {
+      key: "star_stories",
+      copy: "Flag 2 STAR stories to get them matched to your practice questions",
+      payoff: "Practice questions can pull from the examples you want to reuse.",
+      to: "/profile#profile-experience",
+    };
+  }
+
+  const quantifiedBulletCount = bullets.filter((bullet) =>
+    QUANTIFIED_BULLET_PATTERN.test(bullet.text),
+  ).length;
+  if (quantifiedBulletCount === 0) {
+    return {
+      key: "quantified_bullets",
+      copy: "Add metrics to 3 bullets - sharper research signal",
+      payoff: "Research gets stronger evidence about your scale and impact.",
+      to: "/profile#profile-experience",
+    };
+  }
+
+  const preferencesEmpty =
+    profile.preferences.targetRoles.length === 0 &&
+    profile.preferences.targetIndustries.length === 0 &&
+    profile.preferences.locations.length === 0 &&
+    profile.preferences.workModes.length === 0 &&
+    !profile.preferences.notes.trim();
+  if (preferencesEmpty) {
+    return {
+      key: "target_roles",
+      copy: "Set target roles to pre-fill new research",
+      payoff: "New interview research starts with the roles you are aiming for.",
+      to: "/profile/preferences",
+    };
+  }
+
+  return null;
 };
 
 export const candidateProfileFromLegacyParsedData = (
