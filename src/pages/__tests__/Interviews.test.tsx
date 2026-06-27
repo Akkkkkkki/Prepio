@@ -69,6 +69,10 @@ describe("Interviews home", () => {
     expect(screen.getByText("In progress")).toBeInTheDocument();
     expect(screen.getByText("6 of 14 practiced · 43%")).toBeInTheDocument();
     expect(screen.getByText("3 questions still need work")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Practice these/ })).toHaveAttribute(
+      "href",
+      "/practice?searchId=search-1&focus=needs_work",
+    );
     expect(screen.getByRole("link", { name: "Continue practice" })).toHaveAttribute(
       "href",
       "/practice?searchId=search-1",
@@ -77,6 +81,32 @@ describe("Interviews home", () => {
       "href",
       "/dashboard?searchId=search-1",
     );
+  });
+
+  it("omits the needs-work CTA when there is no needs-work backlog", async () => {
+    mockGetInterviewSummaries.mockResolvedValue({
+      success: true,
+      interviews: [
+        {
+          id: "search-2",
+          company: "Linear",
+          role: "Staff Engineer",
+          status: "completed",
+          createdAt: "2026-06-22T10:00:00.000Z",
+          totalQuestions: 10,
+          practicedQuestions: 10,
+          progressPercent: 100,
+          needsWorkCount: 0,
+          state: "in_progress",
+        },
+      ],
+    });
+
+    renderInterviews();
+
+    expect(await screen.findByText("10 of 10 practiced · 100%")).toBeInTheDocument();
+    expect(screen.queryByText(/still need/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Practice these/ })).not.toBeInTheDocument();
   });
 
   it("shows a recoverable error instead of an empty interview list", async () => {
