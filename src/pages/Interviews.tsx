@@ -67,9 +67,23 @@ const InterviewCard = ({ interview }: { interview: InterviewSummary }) => {
               <Progress value={interview.progressPercent} />
             </div>
             {interview.needsWorkCount > 0 && (
-              <p className="text-sm text-amber-700 dark:text-amber-300">
-                {interview.needsWorkCount} {interview.needsWorkCount === 1 ? "question still needs" : "questions still need"} work
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  {interview.needsWorkCount}{" "}
+                  {interview.needsWorkCount === 1 ? "question still needs" : "questions still need"} work
+                </p>
+                <Button
+                  asChild
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+                >
+                  <Link to={`/practice?searchId=${interview.id}&focus=needs_work`}>
+                    Practice these
+                    <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
+                  </Link>
+                </Button>
+              </div>
             )}
           </>
         ) : (

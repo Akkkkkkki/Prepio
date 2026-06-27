@@ -226,6 +226,9 @@ const Practice = () => {
   
   // Question flags (Epic 1.3)
   const [questionFlags, setQuestionFlags] = useState<Record<string, { flag_type: string; id: string }>>({});
+  // Questions whose latest answer scored a self-rating ≤ 2 — treated as needs-work
+  // alongside explicit flags, matching how interview-card counts are computed.
+  const [lowRatedQuestionIds, setLowRatedQuestionIds] = useState<Set<string>>(new Set());
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showNeedsWorkOnly, setShowNeedsWorkOnly] = useState(focusMode === "needs_work");
   
@@ -623,7 +626,14 @@ const getInterviewerFocus = (
             // Update URL if no stages were specified (select all by default)
             if (urlStageIds.length === 0) {
               const allStageIds = transformedStages.map(stage => stage.id);
-              setSearchParams({ searchId, stages: allStageIds.join(',') });
+              const nextParams: Record<string, string> = {
+                searchId,
+                stages: allStageIds.join(','),
+              };
+              if (focusMode) {
+                nextParams.focus = focusMode;
+              }
+              setSearchParams(nextParams);
             }
           }
         } else {
@@ -670,6 +680,24 @@ const getInterviewerFocus = (
       loadFlags();
     }
   }, [allStages]); // Only reload flags when stages change
+
+  // Load latest-answer self-ratings for this interview, so needs-work filtering
+  // matches the count surfaced on the interview card.
+  useEffect(() => {
+    if (!searchId) return;
+    let cancelled = false;
+    const load = async () => {
+      const result = await searchService.getLowRatedQuestionIds(searchId);
+      if (cancelled) return;
+      if (result.success && result.ids) {
+        setLowRatedQuestionIds(new Set(result.ids));
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchId]);
 
   // Load practice session when stages are selected
   useEffect(() => {
@@ -743,7 +771,9 @@ const getInterviewerFocus = (
 
         if (showNeedsWorkOnly) {
           filteredQuestions = filteredQuestions.filter(
-            (question) => questionFlags[question.id]?.flag_type === "needs_work",
+            (question) =>
+              questionFlags[question.id]?.flag_type === "needs_work" ||
+              lowRatedQuestionIds.has(question.id),
           );
         }
         
@@ -787,6 +817,7 @@ const getInterviewerFocus = (
     appliedCategories,
     appliedDifficulties,
     appliedShuffle,
+    lowRatedQuestionIds,
     questionFlags,
     searchId,
     showFavoritesOnly,
@@ -924,7 +955,14 @@ const getInterviewerFocus = (
     // Update URL with new stage selection
     const selectedStageIds = updatedStages.filter(stage => stage.selected).map(stage => stage.id);
     if (selectedStageIds.length > 0) {
-      setSearchParams({ searchId: searchId!, stages: selectedStageIds.join(',') });
+      const nextParams: Record<string, string> = {
+        searchId: searchId!,
+        stages: selectedStageIds.join(','),
+      };
+      if (focusMode) {
+        nextParams.focus = focusMode;
+      }
+      setSearchParams(nextParams);
     }
   };
 

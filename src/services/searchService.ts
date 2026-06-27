@@ -1736,6 +1736,56 @@ export const searchService = {
     }
   },
 
+  async getLowRatedQuestionIds(searchId: string) {
+    try {
+      const user = await getCurrentUser();
+      const { data: sessions, error: sessionsError } = await supabase
+        .from("practice_sessions")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("search_id", searchId);
+      if (sessionsError) throw sessionsError;
+      const sessionIds = (sessions ?? []).map((session) => session.id);
+      if (sessionIds.length === 0) {
+        return { ids: [] as string[], success: true };
+      }
+
+      const { data: answers, error: answersError } = await supabase
+        .from("practice_answers")
+        .select("question_id, self_rating, created_at")
+        .in("session_id", sessionIds);
+      if (answersError) throw answersError;
+
+      // Mirror buildInterviewSummaries: a question counts as low-rated only via its
+      // latest answer, so a follow-up self-rating > 2 clears the prior "needs work".
+      const latestByQuestion = new Map<
+        string,
+        { selfRating: number | null; createdAt: string }
+      >();
+      (answers ?? []).forEach((answer) => {
+        const prev = latestByQuestion.get(answer.question_id);
+        if (!prev || answer.created_at > prev.createdAt) {
+          latestByQuestion.set(answer.question_id, {
+            selfRating: answer.self_rating,
+            createdAt: answer.created_at,
+          });
+        }
+      });
+
+      const ids: string[] = [];
+      latestByQuestion.forEach((entry, questionId) => {
+        if (entry.selfRating !== null && entry.selfRating <= 2) {
+          ids.push(questionId);
+        }
+      });
+
+      return { ids, success: true };
+    } catch (error) {
+      console.error("Error loading low-rated question ids:", error);
+      return { error, success: false };
+    }
+  },
+
   async getQuestionFlags(questionIds: string[]) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();

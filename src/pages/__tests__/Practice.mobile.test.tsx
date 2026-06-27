@@ -1,12 +1,18 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import Practice from "../Practice";
+
+const UrlSpy = () => {
+  const location = useLocation();
+  return <div data-testid="url-spy" data-search={location.search} />;
+};
 import { BREATHING_DISMISSED_KEY } from "@/components/practice/BreathingBreak";
 
 const capturedSwipeConfigs: Array<Record<string, unknown>> = [];
 const mockGetSearchResults = vi.fn();
 const mockGetQuestionFlags = vi.fn();
+const mockGetLowRatedQuestionIds = vi.fn();
 const mockCreatePracticeSession = vi.fn();
 const mockSavePracticeAnswer = vi.fn();
 const mockCompletePracticeSession = vi.fn();
@@ -68,6 +74,7 @@ vi.mock("@/services/searchService", () => ({
   searchService: {
     getSearchResults: (...args: unknown[]) => mockGetSearchResults(...args),
     getQuestionFlags: (...args: unknown[]) => mockGetQuestionFlags(...args),
+    getLowRatedQuestionIds: (...args: unknown[]) => mockGetLowRatedQuestionIds(...args),
     createPracticeSession: (...args: unknown[]) => mockCreatePracticeSession(...args),
     savePracticeAnswer: (...args: unknown[]) => mockSavePracticeAnswer(...args),
     completePracticeSession: (...args: unknown[]) => mockCompletePracticeSession(...args),
@@ -104,6 +111,7 @@ describe("Practice mobile layout", () => {
       },
     });
     mockGetQuestionFlags.mockResolvedValue({ success: true, flags: {} });
+    mockGetLowRatedQuestionIds.mockResolvedValue({ success: true, ids: [] });
     mockGetEntitlement.mockResolvedValue({
       tier: "free",
       cadence: null,
@@ -514,6 +522,171 @@ describe("Practice keyboard navigation", () => {
       () => expect(screen.getByText("Question 2 of 2")).toBeInTheDocument(),
       { timeout: 1500 },
     );
+  });
+});
+
+describe("Practice needs-work focus mode", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    MockResizeObserver.reset();
+    capturedSwipeConfigs.length = 0;
+    localStorage.removeItem(BREATHING_DISMISSED_KEY);
+    mockUseIsMobile.mockReturnValue(false);
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn() },
+    });
+    mockGetQuestionFlags.mockResolvedValue({ success: true, flags: {} });
+    mockGetLowRatedQuestionIds.mockResolvedValue({ success: true, ids: [] });
+    mockGetEntitlement.mockResolvedValue({
+      tier: "free",
+      cadence: null,
+      currentPeriodEnd: null,
+      status: "none",
+    });
+    mockCreatePracticeSession.mockResolvedValue({
+      success: true,
+      session: {
+        id: "session-1",
+        user_id: "user-1",
+        search_id: "search-1",
+        started_at: "2026-03-31T00:00:00.000Z",
+      },
+    });
+    mockSavePracticeAnswer.mockResolvedValue({ success: true, answer: { id: "answer-1" } });
+    mockCompletePracticeSession.mockResolvedValue({
+      success: true,
+      session: {
+        id: "session-1",
+        user_id: "user-1",
+        search_id: "search-1",
+        started_at: "2026-03-31T00:00:00.000Z",
+        completed_at: "2026-03-31T00:05:00.000Z",
+        session_notes: null,
+      },
+    });
+  });
+
+  it("keeps focus=needs_work in the URL after stage normalization fills in 'stages'", async () => {
+    mockGetSearchResults.mockResolvedValue({
+      success: true,
+      search: { id: "search-1", company: "OpenAI", role: "Research Engineer", status: "completed" },
+      stages: [
+        {
+          id: "stage-1",
+          name: "Technical Interview",
+          duration: "45 minutes",
+          interviewer: "Hiring manager",
+          content: "Systems depth.",
+          guidance: "Prioritize impact.",
+          order_index: 0,
+          search_id: "search-1",
+          created_at: "2026-03-31T00:00:00.000Z",
+          questions: [
+            { id: "q-1", question: "Q1.", created_at: "2026-03-31T00:00:00.000Z", difficulty: "Medium" },
+          ],
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&focus=needs_work"]}>
+        <Routes>
+          <Route
+            path="/practice"
+            element={
+              <>
+                <Practice />
+                <UrlSpy />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const spy = await screen.findByTestId("url-spy");
+
+    await waitFor(() => {
+      const search = spy.getAttribute("data-search") ?? "";
+      expect(search).toContain("stages=stage-1");
+      expect(search).toContain("focus=needs_work");
+    });
+  });
+
+  it("treats low-rated answers as needs-work alongside explicit flags", async () => {
+    mockGetSearchResults.mockResolvedValue({
+      success: true,
+      search: {
+        id: "search-1",
+        company: "OpenAI",
+        role: "Research Engineer",
+        status: "completed",
+      },
+      stages: [
+        {
+          id: "stage-1",
+          name: "Technical Interview",
+          duration: "45 minutes",
+          interviewer: "Hiring manager",
+          content: "Systems depth and product judgment.",
+          guidance: "Prioritize impact, tradeoffs, and metrics.",
+          order_index: 0,
+          search_id: "search-1",
+          created_at: "2026-03-31T00:00:00.000Z",
+          questions: [
+            {
+              id: "question-flagged",
+              question: "Explicit needs-work question.",
+              created_at: "2026-03-31T00:00:00.000Z",
+              difficulty: "Hard",
+            },
+            {
+              id: "question-low-rated",
+              question: "Low self-rated question.",
+              created_at: "2026-03-31T00:00:00.000Z",
+              difficulty: "Hard",
+            },
+            {
+              id: "question-clean",
+              question: "Healthy question, no needs-work signal.",
+              created_at: "2026-03-31T00:00:00.000Z",
+              difficulty: "Hard",
+            },
+          ],
+        },
+      ],
+    });
+    mockGetQuestionFlags.mockResolvedValue({
+      success: true,
+      flags: {
+        "question-flagged": { flag_type: "needs_work", id: "flag-1" },
+      },
+    });
+    mockGetLowRatedQuestionIds.mockResolvedValue({
+      success: true,
+      ids: ["question-low-rated"],
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={["/practice?searchId=search-1&stages=stage-1&focus=needs_work"]}
+      >
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByText("Quick Start"));
+    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
+
+    expect(await screen.findByText("Question 1 of 2")).toBeInTheDocument();
+
+    // Both the explicitly-flagged and the low-rated questions are reachable; the
+    // healthy one is filtered out.
+    expect(screen.getByText(/Explicit needs-work question\.|Low self-rated question\./)).toBeInTheDocument();
+    expect(screen.queryByText("Healthy question, no needs-work signal.")).not.toBeInTheDocument();
   });
 });
 
