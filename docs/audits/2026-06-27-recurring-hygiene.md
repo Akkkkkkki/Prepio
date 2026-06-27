@@ -47,11 +47,19 @@ Headline status:
    Every merge is UI / state / docs / tests; nothing crosses the
    trust boundary, so no SECURITY DEFINER or service-role review is
    owed this run.
-4. **Dependabot pile crept back up** — 6 → 7 open PRs after #146
-   opened on 2026-06-22 (React 18→19 group upgrade). Same four
-   PREPIO-9x tickets (-91, -92, -94, -96) still sit untouched in
-   **Quality & Maintenance**; PREPIO-110 (stale bot PR cleanup) is
-   also untouched.
+4. **Dependabot pile is still 7, not 6 → 7.** The 2026-06-24 audit
+   counted "one open PR pile reduced from 7 to 6" and listed
+   PREPIO-93 (React 19) as "partially-resolved-by-Dependabot-
+   superseding-itself" — but #146 (the React group bump) has been
+   open continuously since 2026-06-14 and was last touched
+   2026-06-22, so PREPIO-93 was never resolved. Correcting the
+   ledger: the pile is 7 (#143, #144, #146, #148, #159, #170,
+   #171) and has been 7 since 2026-06-21. Same four PREPIO-9x
+   tickets (-91, -92, -94, -96) still sit untouched in **Quality
+   & Maintenance** — and **PREPIO-93 should be reopened** if it
+   was closed on the back of the 2026-06-24 "resolved" note.
+   PREPIO-110 (stale bot PR cleanup) is also untouched. Thanks to
+   the Codex review on this PR for catching the chronology bug.
 5. **Stale bot-PR pile grew further** — 11 → 16. The 2026-06-24
    count only included `github-actions[bot]` and the
    `cursor/missing-test-coverage-...` branch-name pattern; the full
@@ -89,10 +97,11 @@ touched in this run. No small lint fix made — the baseline holds.
   329). Includes vitest + `check-legacy-schema.sh` +
   `check-answer-feedback-schema.sh`.
 - `npm audit`: **0 vulnerabilities.**
-- `npm outdated`: 60 packages have a newer minor/major available; six
-  Dependabot PRs already wrap up the obvious upgrade waves, with #146
-  (React 18→19) as the new addition. None of the remaining drift maps
-  to an active security advisory.
+- `npm outdated`: 60 packages have a newer minor/major available;
+  the seven open Dependabot PRs already wrap up the obvious upgrade
+  waves (including #146 for the React group, open since
+  2026-06-14). None of the remaining drift maps to an active
+  security advisory.
 
 ## Review focus this run
 
@@ -158,26 +167,32 @@ audit.
     Maintenance**; update its description to reflect the corrected
     count (and the four-week age on #84).
 
-- [ ] **Dependabot pile crept 6 → 7; React 18→19 group upgrade is
-  the new entry** — re-flagged
+- [ ] **2026-06-24 audit prematurely closed PREPIO-93; #146 is
+  still open** — correcting the prior audit
   - Evidence:
     [#146](https://github.com/akkkkkkki/prepio/pull/146) (chore(deps):
-    bump the react group across 1 directory with 4 updates, opened
-    2026-06-22) joins the still-open #143, #144, #148, #159, #170,
-    #171.
-  - Risk: React 18→19 is a major upgrade with breaking renderer
-    changes — not a routine bump. Hidden in the Dependabot pile it
-    will sit unmerged and rot until someone decides whether the
-    project is ready. Same risk profile as the date-fns v4 upgrade
-    that took three audits to land.
-  - Recommended fix: Split — close #146 as "we'll decide React 18→19
-    separately" and file a Linear issue for the React 19 decision so
-    Dependabot stops re-opening it after the upgrade window closes.
-    The other six (#143/#144/#170 actions, #148/#159 dev-deps, #171
-    radix-ui) can land per the original PREPIO-91 / -92 / -94 plan.
-  - Owner / next step: PO decides on React 19 timing (block on
-    PREPIO-99 epic completion first, or punt — either is fine, just
-    not "Dependabot decides for us by leaving the PR open").
+    bump the react group across 1 directory with 4 updates) was
+    created 2026-06-14 and last updated 2026-06-22; it is still
+    open against `main`. The 2026-06-24 audit summary point 4
+    listed PREPIO-93 (React 19 upgrade) as
+    "partially-resolved-by-Dependabot-superseding-itself," which
+    appears to have been based on a misread of the Dependabot
+    activity feed — nothing actually superseded #146.
+  - Risk: If [PREPIO-93](https://linear.app/qiuyue/issue/PREPIO-93)
+    was closed in Linear on the back of the 2026-06-24 note, the
+    React 19 decision has fallen off the deferred-work ledger.
+    Same failure mode that bit us on date-fns v4: PR sits, no one
+    decides, Dependabot eventually closes it stale, opens a fresh
+    one next month.
+  - Recommended fix: Reopen PREPIO-93 if it was closed (or confirm
+    it's still open). Either land #146 with the planned smoke test,
+    explicitly close it as "deferred to Qx", or punt the decision
+    onto the Q3 majors ticket described in *Low / clean-up* below.
+    No action needed inside this repo — Linear hygiene only.
+  - Owner / next step: PO reopens PREPIO-93 if necessary and
+    decides #146 disposition. Thanks to the Codex review on this
+    PR for catching the chronology bug — the original draft of
+    this audit perpetuated it.
 
 ### Low / clean-up
 
@@ -244,6 +259,9 @@ re-discover):
   majors. Current PR set: #143 (upload-artifact 7.0.1), #144
   (setup-node 6.4.0), #170 (checkout 7.0.0). Unchanged for three
   audits.
+- [PREPIO-93](https://linear.app/qiuyue/issue/PREPIO-93) — React 19
+  scoped upgrade (#146 still open, contra the 2026-06-24 audit's
+  "resolved" note). Reopen if closed; otherwise unchanged.
 - [PREPIO-94](https://linear.app/qiuyue/issue/PREPIO-94) — Radix-UI
   27-package bump (#171). Unchanged for three audits.
 - [PREPIO-96](https://linear.app/qiuyue/issue/PREPIO-96) —
@@ -254,11 +272,10 @@ re-discover):
 
 ## Questions for product owner
 
-- **React 18→19 upgrade (#146)** — defer until after PREPIO-99
-  ships, take it now, or punt for the cycle? New question this run.
-  Same pattern that bit us on date-fns v4: if no one decides,
-  Dependabot opens it, closes it stale, and re-opens it next month
-  ad infinitum.
+- **PREPIO-93 status after the 2026-06-24 audit** — was PREPIO-93
+  closed on the back of that audit's "partially-resolved" line?
+  If so, please reopen it: #146 is still open and the React 19
+  decision is still owed.
 - **Is the Lovable.dev component tagger (`lovable-tagger`) still in
   use?** Fifth run asking. One-line cleanup blocked on this.
 - **Dependabot cadence — keep monthly, or tighten to weekly?**
