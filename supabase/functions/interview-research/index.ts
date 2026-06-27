@@ -257,7 +257,14 @@ async function emitResearchYield(
 
 // ── PHASE 1: Concurrent Data Gathering ──────────────────────
 
-async function gatherCompanyData(company: string, role?: string, country?: string, searchId?: string) {
+async function gatherCompanyData(
+  company: string,
+  role?: string,
+  country?: string,
+  searchId?: string,
+  level?: Level,
+  userNote?: string,
+) {
   try {
     console.log("📊 Gathering company research data...");
     const controller = new AbortController();
@@ -268,7 +275,7 @@ async function gatherCompanyData(company: string, role?: string, country?: strin
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
       },
-      body: JSON.stringify({ company, role, country, searchId }),
+      body: JSON.stringify({ company, role, country, searchId, level, userNote }),
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
@@ -1001,7 +1008,14 @@ async function processInterviewResearch(
     await tracker.updateStep('DATA_GATHERING_START');
 
     const settled = await Promise.allSettled([
-      gatherCompanyData(requestData.company, requestData.role, requestData.country, searchId),
+      gatherCompanyData(
+        requestData.company,
+        requestData.role,
+        requestData.country,
+        searchId,
+        level,
+        requestData.userNote,
+      ),
       gatherJobData(requestData.roleLinks || [], searchId, requestData.company, requestData.role),
       gatherCVData(cvText, userId),
     ]);

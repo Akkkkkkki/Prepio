@@ -1,19 +1,21 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
-import { extractInterviewReviewUrls, TavilySearchRequest } from "../_shared/tavily-client.ts";
-import { searchWithFallback } from "../_shared/duckduckgo-fallback.ts";
+import { extractInterviewReviewUrls, searchTavily, TavilySearchRequest } from "../_shared/tavily-client.ts";
 import { callOpenAI, parseJsonResponse, OpenAIRequest } from "../_shared/openai-client.ts";
 import { SearchLogger } from "../_shared/logger.ts";
-import { RESEARCH_CONFIG, getAllSearchQueries, getOpenAIModel } from "../_shared/config.ts";
+import { RESEARCH_CONFIG, getCompanyTicker, getOpenAIModel } from "../_shared/config.ts";
 import { UrlDeduplicationService } from "../_shared/url-deduplication.ts";
 import { authorizeRequest, ensureServiceCaller } from "../_shared/auth.ts";
 import { buildCorsHeaders } from "../_shared/cors.ts";
-import { buildSearchPayloads } from "./result-aggregation.ts";
+import { buildSearchPayloads, type SearchPayload } from "./result-aggregation.ts";
+import { buildResearchQueryPlan, type ResearchLevel } from "./query-planner.ts";
 
 interface CompanyResearchRequest {
   company: string;
   role?: string;
   country?: string;
+  level?: ResearchLevel;
+  userNote?: string;
   searchId: string;
 }
 
@@ -66,6 +68,8 @@ async function searchCompanyInfo(
   company: string,
   role?: string,
   country?: string,
+  level?: ResearchLevel,
+  userNote?: string,
   searchId?: string,
   userId?: string,
   supabase?: any,
@@ -147,8 +151,9 @@ async function searchCompanyInfo(
           console.log('No reusable URLs found, proceeding with fresh search');
         }
       } catch (error) {
-        console.warn('URL deduplication failed, proceeding with fresh search:', error.message);
-        logger?.log('URL_DEDUPLICATION_FAILED', 'FALLBACK', { error: error.message });
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.warn('URL deduplication failed, proceeding with fresh search:', errorMsg);
+        logger?.log('URL_DEDUPLICATION_FAILED', 'FALLBACK', { error: errorMsg });
       }
 
       // Store combinedResults for later use in response
@@ -179,11 +184,27 @@ async function searchCompanyInfo(
         searchResults = built.searchPayloads;
         validFreshResults = built.validFreshResults;
       } else {
-        // Capped at 6 so the first round-robin sweep of getAllSearchQueries
-        // covers Glassdoor + Blind + Reddit + technical + international +
-        // general (one each) under the 15s function timeout — rather than
-        // front-loading Glassdoor templates. Searches run concurrently below.
-        const searchQueries = getAllSearchQueries(company, role, country).slice(0, 6);
+        const queryPlan = buildResearchQueryPlan({
+          company,
+          role,
+          country,
+          level,
+          userNote,
+          ticker: getCompanyTicker(company),
+          // Keep today under the existing 15s synchronous budget: 6 searches
+          // is one fifth of the configured per-run credit cap and matches the
+          // previous discovery breadth.
+          maxQueries: Math.min(6, RESEARCH_CONFIG.tavily.maxCreditsPerSearch),
+        });
+        const searchQueries = queryPlan.queries;
+
+        logger?.log('QUERY_PLAN', 'DISCOVERY', {
+          roleFamily: queryPlan.roleFamily,
+          signals: queryPlan.signals,
+          queries: queryPlan.queries,
+          includeDomains: queryPlan.includeDomains,
+          budget: queryPlan.budget,
+        });
 
         logger?.logPhaseTransition('CACHE_CHECK', 'DISCOVERY', {
           queriesCount: searchQueries.length,
@@ -194,29 +215,61 @@ async function searchCompanyInfo(
         // Phase 1: Discovery - collect URLs with comprehensive search for quality forum content
         const searchPromises = searchQueries.map(async (query, index) => {
           const startTime = Date.now();
-          logger?.log('TAVILY_SEARCH_START', 'DISCOVERY', { query, index: index + 1, total: searchQueries.length });
+          logger?.log('TAVILY_SEARCH_START', 'DISCOVERY', {
+            query: query.query,
+            source: query.source,
+            index: index + 1,
+            total: searchQueries.length,
+            roleFamily: queryPlan.roleFamily,
+          });
 
           const request: TavilySearchRequest = {
-            query: query.trim(),
+            query: query.query,
             searchDepth: 'basic', // Reduced depth for speed
             maxResults: 3, // Reduced from default to prevent timeout
             includeAnswer: true,
-            includeRawContent: false, // Disabled for speed
-            includeDomains: RESEARCH_CONFIG.search.allowedDomains,
+            includeRawContent: true,
+            includeDomains: queryPlan.includeDomains,
             timeRange: RESEARCH_CONFIG.tavily.timeRange
           };
 
           try {
-            // Use search with fallback
-            const result = await searchWithFallback(tavilyApiKey, query.trim(), request.maxResults, searchId, userId, supabase);
+            const result = await searchTavily(tavilyApiKey, request, searchId, userId, supabase);
             const duration = Date.now() - startTime;
 
-            logger?.logTavilySearch(query, 'DISCOVERY_SUCCESS', request, result, undefined, duration);
-            return result;
+            logger?.logTavilySearch(query.query, 'DISCOVERY_SUCCESS', request, result, undefined, duration);
+            if (!result?.results?.length) {
+              logger?.log('TAVILY_SEARCH_EMPTY', 'DISCOVERY', {
+                query: query.query,
+                source: query.source,
+                fallbackEngaged: false,
+                reason: 'duckduckgo_instant_answer_fallback_removed',
+              });
+            }
+            if (!result) return null;
+            const payload: SearchPayload = {
+              query: result.query,
+              answer: result.answer ?? "",
+              results: result.results.map((item) => ({
+                title: item.title,
+                url: item.url,
+                content: item.content,
+                raw_content: item.raw_content ?? null,
+                score: item.score,
+                published_date: item.published_date ?? null,
+              })),
+            };
+            return payload;
           } catch (error) {
             const duration = Date.now() - startTime;
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-            logger?.logTavilySearch(query, 'DISCOVERY_ERROR', request, undefined, errorMsg, duration);
+            logger?.logTavilySearch(query.query, 'DISCOVERY_ERROR', request, undefined, errorMsg, duration);
+            logger?.log('TAVILY_SEARCH_FALLBACK_UNAVAILABLE', 'DISCOVERY', {
+              query: query.query,
+              source: query.source,
+              fallbackEngaged: false,
+              reason: 'duckduckgo_instant_answer_fallback_removed',
+            }, errorMsg);
             return null;
           }
         });
@@ -529,7 +582,7 @@ serve(async (req) => {
   }
 
   try {
-    const { company, role, country, searchId } = await req.json() as CompanyResearchRequest;
+    const { company, role, country, level, userNote, searchId } = await req.json() as CompanyResearchRequest;
 
     if (!company || !searchId) {
       throw new Error("Missing required parameters: company and searchId");
@@ -537,7 +590,7 @@ serve(async (req) => {
 
     // Initialize logger
     const logger = new SearchLogger(searchId, 'company-research');
-    logger.log('REQUEST_INPUT', 'VALIDATION', { company, role, country, searchId });
+    logger.log('REQUEST_INPUT', 'VALIDATION', { company, role, country, level, hasUserNote: !!userNote, searchId });
 
     // Get OpenAI API key
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
@@ -560,7 +613,7 @@ serve(async (req) => {
     // allowed community domain.
     logger.log('STEP_START', 'RESEARCH', { step: 1, description: 'Conducting retrieval-grounded research' });
     console.log("Conducting retrieval-grounded research (Tavily)...");
-    const researchData = await searchCompanyInfo(company, role, country, searchId, userId, supabase, logger);
+    const researchData = await searchCompanyInfo(company, role, country, level, userNote, searchId, userId, supabase, logger);
 
     // Step 2: Analyze research data using AI
     logger.log('STEP_START', 'ANALYSIS', { step: 2, description: 'Analyzing company data' });
