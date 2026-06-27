@@ -13,6 +13,18 @@ describe("classifyRoleFamily", () => {
     expect(classifyRoleFamily("Associate", "Preparing for a case interview with Bain")).toBe("consulting");
     expect(classifyRoleFamily("Associate", "Need valuation and LBO modeling practice")).toBe("finance");
   });
+
+  it("does not treat non-finance analyst roles as finance", () => {
+    expect(classifyRoleFamily("Data Analyst")).toBe("other");
+    expect(classifyRoleFamily("Security Analyst")).toBe("tech");
+    expect(classifyRoleFamily("Product Analyst")).toBe("other");
+  });
+
+  it("still classifies qualified finance analyst roles as finance", () => {
+    expect(classifyRoleFamily("Equity Research Analyst")).toBe("finance");
+    expect(classifyRoleFamily("Credit Risk Analyst")).toBe("finance");
+    expect(classifyRoleFamily("Investment Banking Analyst")).toBe("finance");
+  });
 });
 
 describe("buildResearchQueryPlan", () => {

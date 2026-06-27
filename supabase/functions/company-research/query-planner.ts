@@ -82,7 +82,11 @@ const ROLE_KEYWORDS: Record<ResearchRoleFamily, RegExp[]> = {
     /\b(consultant|consulting|case interview|case study|strategy|associate consultant|business analyst|engagement manager|mckinsey|bain|bcg)\b/i,
   ],
   finance: [
-    /\b(finance|financial|investment banking|banker|trader|equity research|private equity|hedge fund|asset management|quant|analyst|investment banking associate|finance associate|valuation|lbo|dcf|financial modeling)\b/i,
+    /\b(finance|financial|investment banking|banker|trader|equity research|private equity|hedge fund|asset management|quant|investment banking associate|finance associate|valuation|lbo|dcf|financial modeling)\b/i,
+    // "analyst" alone is ambiguous (data/security/product analyst); only treat it
+    // as finance when a finance qualifier sits next to it.
+    /\b(?:equity|credit|risk|investment|financial|finance|fixed.?income|treasury|m&a|sell.?side|buy.?side|quant(?:itative)?)\s+analyst\b/i,
+    /\banalyst\b.*\b(?:investment banking|equity research|finance|financial)\b/i,
   ],
   other: [],
 };
