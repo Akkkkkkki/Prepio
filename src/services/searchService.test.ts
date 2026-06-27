@@ -302,6 +302,63 @@ describe("practice history answer dedupe helpers", () => {
     });
   });
 
+  it("collects question ids whose latest answer scored 2 or less", async () => {
+    const sessionsChain = createSelectChain({
+      data: [{ id: "session-1" }, { id: "session-2" }],
+      error: null,
+    });
+    const answersChain = createSelectChain({
+      data: [
+        // question-1: latest is 4 → cleared
+        {
+          question_id: "question-1",
+          self_rating: 1,
+          created_at: "2026-06-20T10:00:00.000Z",
+        },
+        {
+          question_id: "question-1",
+          self_rating: 4,
+          created_at: "2026-06-21T10:00:00.000Z",
+        },
+        // question-2: latest is 2 → low-rated
+        {
+          question_id: "question-2",
+          self_rating: 2,
+          created_at: "2026-06-21T09:00:00.000Z",
+        },
+        // question-3: never rated → skipped
+        {
+          question_id: "question-3",
+          self_rating: null,
+          created_at: "2026-06-21T09:30:00.000Z",
+        },
+      ],
+      error: null,
+    });
+
+    mockSupabase.from
+      .mockReturnValueOnce(sessionsChain)
+      .mockReturnValueOnce(answersChain);
+
+    const result = await searchService.getLowRatedQuestionIds("search-1");
+
+    expect(sessionsChain.eq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(sessionsChain.eq).toHaveBeenCalledWith("search_id", "search-1");
+    expect(result).toEqual({ ids: ["question-2"], success: true });
+  });
+
+  it("returns an empty id set when the interview has no practice sessions yet", async () => {
+    const sessionsChain = createSelectChain({ data: [], error: null });
+
+    mockSupabase.from.mockReturnValueOnce(sessionsChain);
+
+    const result = await searchService.getLowRatedQuestionIds("search-empty");
+
+    expect(result).toEqual({ ids: [], success: true });
+    // No second query — we short-circuited before hitting practice_answers.
+    expect(mockSupabase.from).toHaveBeenCalledTimes(1);
+  });
+
   it("creates a lightweight research preview without requiring a signed-in user", async () => {
     mockSupabase.functions.invoke.mockResolvedValue({
       data: {
