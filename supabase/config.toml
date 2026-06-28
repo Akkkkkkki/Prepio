@@ -30,5 +30,8 @@ verify_jwt = false
 [functions.create-portal-session]
 verify_jwt = false
 
+[functions.delete-account]
+verify_jwt = false
+
 [functions.answer-feedback]
 verify_jwt = false

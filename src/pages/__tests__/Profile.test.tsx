@@ -28,6 +28,9 @@ const mockExtractResumeText = vi.fn();
 const mockUseAuth = vi.fn();
 const mockGetEntitlement = vi.fn();
 const mockCreatePortalSession = vi.fn();
+const mockUpdateAccountEmail = vi.fn();
+const mockUpdateAccountPassword = vi.fn();
+const mockDeleteAccount = vi.fn();
 
 vi.mock("@/components/Navigation", () => ({
   default: () => <div>Navigation</div>,
@@ -75,6 +78,23 @@ vi.mock("@/services/billing", () => ({
   createPortalSession: (...args: unknown[]) => mockCreatePortalSession(...args),
 }));
 
+vi.mock("@/services/account", () => ({
+  AccountError: class AccountError extends Error {
+    code: string;
+    status?: number;
+
+    constructor(code: string, message?: string, status?: number) {
+      super(message ?? code);
+      this.name = "AccountError";
+      this.code = code;
+      this.status = status;
+    }
+  },
+  updateAccountEmail: (...args: unknown[]) => mockUpdateAccountEmail(...args),
+  updateAccountPassword: (...args: unknown[]) => mockUpdateAccountPassword(...args),
+  deleteAccount: (...args: unknown[]) => mockDeleteAccount(...args),
+}));
+
 vi.mock("@/lib/resumeUpload", () => ({
   ACCEPTED_RESUME_TYPES:
     "application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.pdf,.docx",
@@ -110,6 +130,9 @@ describe("Profile page", () => {
     mockUpdateProfile.mockResolvedValue({ success: true, profile: { level: "mid" } });
     mockGetEntitlement.mockResolvedValue(FREE_ENTITLEMENT);
     mockCreatePortalSession.mockResolvedValue({ url: "https://billing.example/portal" });
+    mockUpdateAccountEmail.mockResolvedValue(undefined);
+    mockUpdateAccountPassword.mockResolvedValue(undefined);
+    mockDeleteAccount.mockResolvedValue(undefined);
   });
 
   it("shows loading state then renders the main profile view without import controls", async () => {
@@ -207,6 +230,48 @@ describe("Profile page", () => {
     expect(screen.getByRole("button", { name: "Update profile from pasted CV" })).toBeInTheDocument();
     expect(screen.queryByText("Research defaults")).not.toBeInTheDocument();
     expect(screen.queryByText("About")).not.toBeInTheDocument();
+  });
+
+  it("renders the account surface separately from profile editing", async () => {
+    renderProfile("/profile/account");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Account" })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("heading", { name: "Sign-in details" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Export profile" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Delete account" })).toBeInTheDocument();
+    expect(screen.queryByText("Research defaults")).not.toBeInTheDocument();
+    expect(screen.queryByText("About")).not.toBeInTheDocument();
+  });
+
+  it("updates account email and password from the account surface", async () => {
+    renderProfile("/profile/account");
+
+    const emailInput = await screen.findByLabelText("Email");
+    fireEvent.change(emailInput, { target: { value: "new@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Change email" }));
+
+    await waitFor(() => {
+      expect(mockUpdateAccountEmail).toHaveBeenCalledWith("new@example.com");
+    });
+    expect(
+      await screen.findByText("Check both email inboxes to confirm the account email change."),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("New password"), {
+      target: { value: "better-password" },
+    });
+    fireEvent.change(screen.getByLabelText("Confirm password"), {
+      target: { value: "better-password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Change password" }));
+
+    await waitFor(() => {
+      expect(mockUpdateAccountPassword).toHaveBeenCalledWith("better-password");
+    });
+    expect(await screen.findByText("Password updated.")).toBeInTheDocument();
   });
 
   it("shows CV privacy/trust copy near the import upload trigger", async () => {

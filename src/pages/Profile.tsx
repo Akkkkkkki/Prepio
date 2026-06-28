@@ -23,12 +23,13 @@ import { ACCEPTED_RESUME_TYPES } from "@/lib/resumeUpload";
 import { cn } from "@/lib/utils";
 
 import ProfileImportView from "./profile/ProfileImportView";
+import ProfileAccountView from "./profile/ProfileAccountView";
 import ProfileMainView from "./profile/ProfileMainView";
 import ProfilePreferencesView from "./profile/ProfilePreferencesView";
 import { PROFILE_CV_UPLOAD_ID } from "./profile/profileUtils";
 import { useProfileWorkspace } from "./profile/useProfileWorkspace";
 
-type ProfileSurface = "main" | "preferences" | "import";
+type ProfileSurface = "main" | "preferences" | "import" | "account";
 
 const profileNavItems: Array<{
   href: string;
@@ -38,11 +39,16 @@ const profileNavItems: Array<{
   { href: "/profile", key: "main", label: "Profile" },
   { href: "/profile/preferences", key: "preferences", label: "Preferences" },
   { href: "/profile/import", key: "import", label: "Import CV" },
+  { href: "/profile/account", key: "account", label: "Account" },
 ];
 
 const getProfileSurface = (pathname: string): ProfileSurface => {
   if (pathname.startsWith("/profile/import")) {
     return "import";
+  }
+
+  if (pathname.startsWith("/profile/account")) {
+    return "account";
   }
 
   if (pathname.startsWith("/profile/preferences")) {
@@ -155,6 +161,8 @@ const Profile = () => {
           ) : null}
 
           {currentSurface === "import" ? <ProfileImportView workspace={workspace} /> : null}
+
+          {currentSurface === "account" ? <ProfileAccountView workspace={workspace} /> : null}
 
           {currentSurface === "main" ? <ProfileMainView workspace={workspace} /> : null}
         </div>
