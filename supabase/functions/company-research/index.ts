@@ -58,9 +58,89 @@ interface CompanyInsights {
   };
 }
 
-interface CompanyResearchOutput {
-  company_insights: CompanyInsights;
-  raw_research_data: any[];
+interface CacheTelemetry {
+  reusable_urls_found: number;
+  cached_content_reused: number;
+  fresh_urls_cached: number;
+  skipped_fresh_searches: number;
+  fresh_searches_performed: number;
+  credits_saved: number;
+  cache_optimization_active: boolean;
+}
+
+const TAVILY_SEARCH_CREDIT_COST = 1;
+const TAVILY_SOURCE_REUSE_CREDIT_COST = 1;
+
+async function cacheFreshSearchResults(
+  urlDeduplication: UrlDeduplicationService,
+  freshResults: SearchPayload[],
+  company: string,
+  role?: string,
+  country?: string,
+  logger?: SearchLogger,
+): Promise<number> {
+  const byUrl = new Map<string, SearchPayload["results"][number]>();
+
+  for (const payload of freshResults) {
+    for (const result of payload.results || []) {
+      if (!result.url || byUrl.has(result.url)) continue;
+      byUrl.set(result.url, result);
+    }
+  }
+
+  const candidates = Array.from(byUrl.values()).slice(0, 20);
+  if (candidates.length === 0) return 0;
+
+  const writes = await Promise.allSettled(
+    candidates.map(async (result) => {
+      const content = String(result.raw_content || result.content || "").trim();
+      if (!content) return false;
+
+      const contentType = urlDeduplication.classifyContentType(
+        result.url,
+        result.title,
+        content,
+      );
+      const qualityScore = urlDeduplication.assessContentQuality(
+        content,
+        result.title,
+        result.url,
+        contentType,
+      );
+
+      const id = await urlDeduplication.storeScrapedUrl(
+        result.url,
+        company,
+        role,
+        country,
+        {
+          title: result.title,
+          content_summary: result.content?.slice(0, 500),
+          content_type: contentType,
+          quality_score: qualityScore,
+          extraction_method: 'search_result',
+          full_content: content,
+          ai_summary: result.content,
+          extracted_questions: urlDeduplication.extractQuestions(content),
+          extracted_insights: urlDeduplication.extractInsights(content),
+          content_source: 'tavily_search',
+        },
+      );
+
+      return !!id;
+    }),
+  );
+
+  const cachedCount = writes.filter((write) => write.status === 'fulfilled' && write.value).length;
+  const failedCount = writes.length - cachedCount;
+
+  logger?.log('CACHE_WRITE_COMPLETE', 'PHASE1', {
+    candidateUrls: candidates.length,
+    freshUrlsCached: cachedCount,
+    failedWrites: failedCount,
+  });
+
+  return cachedCount;
 }
 
 // Enhanced company research with URL extraction and deep content analysis
@@ -164,6 +244,20 @@ async function searchCompanyInfo(
         shouldSkipFreshSearch: combinedResults.shouldSkipFreshSearch
       });
 
+      const queryPlan = buildResearchQueryPlan({
+        company,
+        role,
+        country,
+        level,
+        userNote,
+        ticker: getCompanyTicker(company),
+        // Keep today under the existing 15s synchronous budget: 6 searches
+        // is one fifth of the configured per-run credit cap and matches the
+        // previous discovery breadth.
+        maxQueries: Math.min(6, RESEARCH_CONFIG.tavily.maxCreditsPerSearch),
+      });
+      const searchQueries = queryPlan.queries;
+
       let searchResults: any[] = [];
       let validFreshResults: any[] = [];
 
@@ -184,20 +278,6 @@ async function searchCompanyInfo(
         searchResults = built.searchPayloads;
         validFreshResults = built.validFreshResults;
       } else {
-        const queryPlan = buildResearchQueryPlan({
-          company,
-          role,
-          country,
-          level,
-          userNote,
-          ticker: getCompanyTicker(company),
-          // Keep today under the existing 15s synchronous budget: 6 searches
-          // is one fifth of the configured per-run credit cap and matches the
-          // previous discovery breadth.
-          maxQueries: Math.min(6, RESEARCH_CONFIG.tavily.maxCreditsPerSearch),
-        });
-        const searchQueries = queryPlan.queries;
-
         logger?.log('QUERY_PLAN', 'DISCOVERY', {
           roleFamily: queryPlan.roleFamily,
           signals: queryPlan.signals,
@@ -292,6 +372,37 @@ async function searchCompanyInfo(
         });
       }
 
+      const freshUrlsCached = await cacheFreshSearchResults(
+        urlDeduplication,
+        validFreshResults,
+        company,
+        role,
+        country,
+        logger,
+      );
+      const skippedFreshSearches = combinedResults.shouldSkipFreshSearch ? searchQueries.length : 0;
+      const creditsSaved =
+        (combinedResults.cachedResults.length * TAVILY_SOURCE_REUSE_CREDIT_COST) +
+        (skippedFreshSearches * TAVILY_SEARCH_CREDIT_COST);
+      const cacheTelemetry: CacheTelemetry = {
+        reusable_urls_found: combinedResults.reusableUrls.length,
+        cached_content_reused: combinedResults.cachedResults.length,
+        fresh_urls_cached: freshUrlsCached,
+        skipped_fresh_searches: skippedFreshSearches,
+        fresh_searches_performed: combinedResults.shouldSkipFreshSearch ? 0 : searchQueries.length,
+        credits_saved: creditsSaved,
+        cache_optimization_active: true,
+      };
+
+      logger?.log('CACHE_REUSE_SUMMARY', 'COMPANY_INFO', cacheTelemetry);
+      console.log(`[research_cache] ${JSON.stringify({
+        event: 'research_cache',
+        search_id: searchId,
+        company,
+        role,
+        ...cacheTelemetry,
+      })}`);
+
       // Phase 2: Extract URLs for deep content extraction
       logger?.logPhaseTransition('DISCOVERY', 'EXTRACTION', { urlsFound: 0 });
       const interviewUrls = extractInterviewReviewUrls(searchResults);
@@ -312,7 +423,8 @@ async function searchCompanyInfo(
       const result = {
         search_results: searchResults,
         extracted_content: extractedContent,
-        total_urls_extracted: interviewUrls.length
+        total_urls_extracted: interviewUrls.length,
+        cache_telemetry: cacheTelemetry,
       };
 
       logger?.log('SEARCH_COMPLETE', 'COMPANY_INFO', result);
@@ -627,13 +739,11 @@ serve(async (req) => {
       logger
     );
 
-    // Step 3: Skip caching temporarily to avoid timeout issues
-    console.log("Skipping research caching to avoid timeouts...");
-
-    const researchOutput: CompanyResearchOutput = {
-      company_insights: companyInsights,
-      raw_research_data: researchData || []
-    };
+    const cacheTelemetry = researchData?.cache_telemetry as CacheTelemetry | undefined;
+    console.log("Research cache telemetry", cacheTelemetry || {
+      cache_optimization_active: false,
+      reason: "Research data unavailable",
+    });
 
     console.log("Company research completed successfully");
 
@@ -645,11 +755,14 @@ serve(async (req) => {
       extracted_urls: researchData ? researchData.total_urls_extracted || 0 : 0,
       deep_extracts: researchData ? researchData.extracted_content?.length || 0 : 0,
       optimization_info: {
-        cached_urls_reused: 0, // Disabled temporarily
-        fresh_searches_performed: 2, // Reduced for speed
-        excluded_domains: 0, // Disabled temporarily
-        cache_optimization_active: false, // Disabled temporarily
-        speed_optimizations: "URL deduplication and extraction disabled for faster response"
+        cached_urls_reused: cacheTelemetry?.cached_content_reused || 0,
+        reusable_urls_found: cacheTelemetry?.reusable_urls_found || 0,
+        fresh_urls_cached: cacheTelemetry?.fresh_urls_cached || 0,
+        fresh_searches_performed: cacheTelemetry?.fresh_searches_performed || 0,
+        skipped_fresh_searches: cacheTelemetry?.skipped_fresh_searches || 0,
+        credits_saved: cacheTelemetry?.credits_saved || 0,
+        excluded_domains: 0,
+        cache_optimization_active: cacheTelemetry?.cache_optimization_active || false,
       }
     };
 

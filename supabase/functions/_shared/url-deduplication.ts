@@ -38,6 +38,36 @@ export interface UrlDeduplicationResult {
   total_cached_urls: number;
 }
 
+function normalizeUrlForCache(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    parsed.hostname = parsed.hostname.toLowerCase();
+    if (parsed.pathname.endsWith("/") && parsed.pathname !== "/") {
+      parsed.pathname = parsed.pathname.slice(0, -1);
+    }
+    return parsed.toString();
+  } catch {
+    return url.trim();
+  }
+}
+
+function getDomain(url: string): string | null {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 // URL and Content Management Class
 export class UrlDeduplicationService {
   constructor(private supabase: any) {}
@@ -63,39 +93,28 @@ export class UrlDeduplicationService {
     }
   ): Promise<string | null> {
     try {
+      const normalizedUrl = normalizeUrlForCache(url);
+      const urlHash = await sha256Hex(normalizedUrl);
+      const content = metadata.full_content || metadata.content_summary || null;
+
       const { data, error } = await this.supabase
         .schema('ops')
         .from('scraped_urls')
-        .insert({
-          url,
+        .upsert({
+          url: normalizedUrl,
+          url_hash: urlHash,
           company_name: company,
           role_title: role,
-          country: country,
+          domain: getDomain(normalizedUrl),
           title: metadata.title,
-          content_summary: metadata.content_summary,
-          content_type: metadata.content_type,
           content_quality_score: metadata.quality_score,
-          extraction_method: metadata.extraction_method,
-          times_reused: 0,
-          // Consolidated content fields
-          full_content: metadata.full_content,
-          ai_summary: metadata.ai_summary,
-          structured_data: metadata.structured_data || {},
-          extracted_questions: metadata.extracted_questions || [],
-          extracted_insights: metadata.extracted_insights || [],
-          content_source: metadata.content_source || 'tavily_search',
-          processing_status: 'raw',
-          language: 'en'
-        })
+          full_content: content,
+          ai_summary: metadata.ai_summary || metadata.content_summary,
+        }, { onConflict: 'url_hash,company_name' })
         .select('id')
         .single();
 
       if (error) {
-        // Handle duplicate URL case
-        if (error.code === '23505') {
-          console.log(`URL already exists: ${url}`);
-          return null;
-        }
         throw error;
       }
 
@@ -125,14 +144,7 @@ export class UrlDeduplicationService {
         .from('scraped_urls')
         .update({
           full_content: content.full_content,
-          raw_html: content.raw_html,
-          structured_data: content.structured_data,
-          extracted_questions: content.extracted_questions,
-          extracted_insights: content.extracted_insights,
-          content_source: content.content_source,
           ai_summary: content.ai_summary,
-          processing_status: 'processed',
-          word_count: content.full_content.split(/\s+/).length
         })
         .eq('id', urlId);
 
@@ -224,7 +236,7 @@ export class UrlDeduplicationService {
       const { data, error } = await this.supabase
         .schema('ops')
         .from('scraped_urls')
-        .select('url, title, full_content, ai_summary')
+        .select('id, url, title, full_content, ai_summary, content_quality_score')
         .in('url', limitedUrls)
         .eq('company_name', company)
         .not('full_content', 'is', null)
@@ -235,18 +247,53 @@ export class UrlDeduplicationService {
         return [];
       }
 
-      return (data || [])
+      const rows = (data || [])
         .filter((item: any) => item.full_content)
         .map((item: any) => ({
+          id: item.id,
           url: item.url,
           content: item.full_content,
           title: item.title || '',
-          ai_summary: item.ai_summary
+          ai_summary: item.ai_summary,
+          quality_score: item.content_quality_score
         }));
+
+      await Promise.allSettled(rows.map((item: any) => this.incrementUrlReuse(item.id)));
+
+      return rows.map(({ id, quality_score, ...item }: any) => item);
     } catch (error) {
       console.error('Error getting existing content:', error);
       return [];
     }
+  }
+
+  async storeScrapedContent(
+    urlId: string,
+    content: {
+      full_content: string;
+      raw_html?: string;
+      structured_data?: any;
+      extracted_questions?: string[];
+      extracted_insights?: string[];
+      content_source: string;
+      ai_summary?: string;
+    }
+  ): Promise<boolean> {
+    return this.updateScrapedUrlContent(urlId, content);
+  }
+
+  async trackUrlUsage(
+    searchId: string,
+    urlId: string,
+    usageType: 'fresh_scrape' | 'cache_reuse',
+    qualityScore: number,
+  ): Promise<void> {
+    console.log('URL cache usage tracked', {
+      searchId,
+      urlId,
+      usageType,
+      qualityScore,
+    });
   }
 
   // Enhanced content quality assessment (inspired by Aston AI)
