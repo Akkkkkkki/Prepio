@@ -37,6 +37,7 @@ This tracks product reality against the latest `main` branch.
 - Voice recording, upload to `practice-audio`, non-blocking transcription via `practice-audio-transcribe`, and saved transcript text.
 - Favorites, needs-work, skip tracking, self-ratings, completion summary, dashboard/history surfaces.
 - Mobile practice controls, bottom navigation, swipe handling, and offline guards.
+- Paid AI answer feedback on submitted practice answers, surfaced in Practice, Session Summary, and History, gated by the shared entitlement resolver, with in-place regeneration (PREPIO-11, PREPIO-97, PREPIO-109). Copy is deliberately scannable — capped bullets for strengths and improvements, a compact STAR row, and exactly one next action.
 
 ### Billing
 
@@ -56,26 +57,13 @@ This tracks product reality against the latest `main` branch.
 
 ## Current Priorities
 
-### 1. Paid AI answer feedback
-
-- Add an `answer-feedback` Edge Function.
-- Gate before any OpenAI call through the shared entitlement resolver.
-- Store structured feedback separately from `practice_answers`.
-- Support regeneration without losing history.
-- Show feedback in Practice, History, and Session Summary. The Edge Function,
-  table, entitlement gate, and prompt are built and tested; the client call and
-  render are still stubbed (`SessionSummary.tsx` "Get detailed coaching").
-- Keep feedback concise, direct, and information-dense: capped scannable bullets
-  for strengths/improvements, a compact STAR row, and exactly one next action —
-  optimized for a fast read, not prose.
-
-### 2. Landing and conversion path
+### 1. Landing and conversion path
 
 - Keep research entry prominent.
 - Use guest preview output to explain the value before sign-in.
 - Keep authenticated users one click from research and practice.
 
-### 3. Interview-as-object UX restructure
+### 2. Interview-as-object UX restructure
 
 The 2026-06-21 product UX review
 ([`docs/audits/2026-06-21-ux-review.html`](./audits/2026-06-21-ux-review.html), digest in
@@ -121,10 +109,9 @@ can dead-end on empty states that explain the menu.
 - More normalized relational storage for research artifacts.
 
 The practice-enhancement backlog behind the items above is tracked in the
-**Prepio** Linear team: feedback UI in PREPIO-11 (with PREPIO-32 for the paid
-gate), and PREPIO-41 (rubric self-check), PREPIO-45 (history progress +
-readiness), and PREPIO-47 (follow-up "interviewer mode") under Quality &
-Maintenance.
+**Prepio** Linear team: PREPIO-41 (rubric self-check), PREPIO-45 (history
+progress + readiness), and PREPIO-47 (follow-up "interviewer mode") under
+Quality & Maintenance.
 
 ## Product Decisions
 
