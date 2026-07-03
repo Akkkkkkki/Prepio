@@ -22,7 +22,7 @@ const Auth = lazy(() => import("./pages/Auth"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 interface ProtectedRouteProps {
-  children: JSX.Element;
+  children: React.JSX.Element;
 }
 
 const RouteFallback = () => (
