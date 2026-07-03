@@ -83,4 +83,29 @@ describe("buildResearchQueryPlan", () => {
     expect(plan.queries.map((q) => q.query).join("\n")).toMatch(/manager leadership people management/);
     expect(plan.includeDomains).not.toContain("wallstreetoasis.com");
   });
+
+  it("keeps ambiguous roles in the general research pack", () => {
+    const plan = buildResearchQueryPlan({
+      company: "Stripe",
+      role: "Operations Lead",
+      country: "Ireland",
+      level: "mid",
+      maxQueries: 6,
+    });
+
+    const queries = plan.queries.map((q) => q.query).join("\n");
+
+    expect(plan.roleFamily).toBe("other");
+    expect(plan.includeDomains).toEqual(
+      expect.arrayContaining(["glassdoor.com", "reddit.com", "linkedin.com", "indeed.com"]),
+    );
+    expect(plan.includeDomains).not.toEqual(
+      expect.arrayContaining(["leetcode.com", "wallstreetoasis.com", "caseinterview.com"]),
+    );
+    expect(plan.queries.map((q) => q.source)).toEqual(expect.arrayContaining(["linkedin", "indeed", "general"]));
+    expect(queries).toMatch(/Operations Lead/);
+    expect(queries).toMatch(/Ireland/);
+    expect(queries).toMatch(/mid level/);
+    expect(plan.budget).toEqual({ maxQueries: 6, plannedQueries: 5 });
+  });
 });
