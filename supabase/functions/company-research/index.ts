@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
-import { extractInterviewReviewUrls, searchTavily, TavilySearchRequest } from "../_shared/tavily-client.ts";
+import { extractInterviewReviewUrls, extractTavily, searchTavily, TavilySearchRequest } from "../_shared/tavily-client.ts";
 import { callOpenAI, parseJsonResponse, OpenAIRequest } from "../_shared/openai-client.ts";
 import { SearchLogger } from "../_shared/logger.ts";
 import { RESEARCH_CONFIG, getCompanyTicker, getOpenAIModel } from "../_shared/config.ts";
@@ -9,6 +9,7 @@ import { authorizeRequest, ensureServiceCaller } from "../_shared/auth.ts";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import { buildSearchPayloads, type SearchPayload } from "./result-aggregation.ts";
 import { buildResearchQueryPlan, type ResearchLevel } from "./query-planner.ts";
+import { planDeepExtraction } from "./retrieval-budget.ts";
 
 interface CompanyResearchRequest {
   company: string;
@@ -166,6 +167,7 @@ async function searchCompanyInfo(
 
       let searchResults: any[] = [];
       let validFreshResults: any[] = [];
+      let plannedSearchCredits = 0;
 
       // If we have sufficient cached content, use it and skip fresh searches
       if (combinedResults.shouldSkipFreshSearch) {
@@ -197,6 +199,7 @@ async function searchCompanyInfo(
           maxQueries: Math.min(6, RESEARCH_CONFIG.tavily.maxCreditsPerSearch),
         });
         const searchQueries = queryPlan.queries;
+        plannedSearchCredits = searchQueries.length;
 
         logger?.log('QUERY_PLAN', 'DISCOVERY', {
           roleFamily: queryPlan.roleFamily,
@@ -293,15 +296,74 @@ async function searchCompanyInfo(
       }
 
       // Phase 2: Extract URLs for deep content extraction
-      logger?.logPhaseTransition('DISCOVERY', 'EXTRACTION', { urlsFound: 0 });
       const interviewUrls = extractInterviewReviewUrls(searchResults);
+      logger?.logPhaseTransition('DISCOVERY', 'EXTRACTION', { urlsFound: interviewUrls.length });
       logger?.log('URL_EXTRACTION', 'PHASE2', { totalUrls: interviewUrls.length, urls: interviewUrls.slice(0, 10) });
       console.log(`Phase 2: Extracting content from ${interviewUrls.length} interview review URLs...`);
 
-      // Skip extraction phase temporarily to speed up response
-      console.log(`Phase 2: Skipping URL extraction for faster response (found ${interviewUrls.length} URLs)`);
-      const extractedContent: any[] = [];
-      logger?.log('EXTRACTION_SKIPPED', 'PHASE2', { reason: 'Disabled for speed', urlsFound: interviewUrls.length });
+      const extractionPlan = planDeepExtraction({
+        candidateUrls: interviewUrls,
+        plannedSearches: plannedSearchCredits,
+        maxCredits: RESEARCH_CONFIG.tavily.maxCreditsPerSearch,
+        desiredMinUrls: 3,
+        desiredMaxUrls: 5,
+        enableDeepExtraction: RESEARCH_CONFIG.features.enableDeepExtraction,
+      });
+
+      logger?.log('TAVILY_CREDIT_BUDGET', 'PHASE2', extractionPlan);
+      console.log(`[tavily_credits] ${JSON.stringify({
+        search_id: searchId,
+        phase: 'company_research_retrieval',
+        planned_search_credits: extractionPlan.plannedSearchCredits,
+        planned_extract_credits: extractionPlan.plannedExtractCredits,
+        estimated_credits: extractionPlan.estimatedCredits,
+        max_credits: extractionPlan.maxCredits,
+      })}`);
+
+      let extractedContent: any[] = [];
+      if (extractionPlan.urls.length > 0) {
+        const extractStart = Date.now();
+        logger?.log('TAVILY_EXTRACT_START', 'PHASE2', {
+          urls: extractionPlan.urls,
+          plannedExtractCredits: extractionPlan.plannedExtractCredits,
+          estimatedCredits: extractionPlan.estimatedCredits,
+          maxCredits: extractionPlan.maxCredits,
+        });
+
+        try {
+          extractedContent = await extractTavily(
+            tavilyApiKey,
+            { urls: extractionPlan.urls },
+            searchId,
+            userId,
+            supabase,
+          );
+          logger?.logTavilyExtract(
+            extractionPlan.urls,
+            'EXTRACTION_SUCCESS',
+            extractedContent,
+            undefined,
+            Date.now() - extractStart,
+          );
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          logger?.logTavilyExtract(
+            extractionPlan.urls,
+            'EXTRACTION_ERROR',
+            undefined,
+            errorMsg,
+            Date.now() - extractStart,
+          );
+          extractedContent = [];
+        }
+      } else {
+        logger?.log('EXTRACTION_SKIPPED', 'PHASE2', {
+          reason: extractionPlan.skippedReason,
+          urlsFound: interviewUrls.length,
+          plannedSearchCredits: extractionPlan.plannedSearchCredits,
+          maxCredits: extractionPlan.maxCredits,
+        });
+      }
 
       logger?.logPhaseTransition('EXTRACTION', 'RESULT_AGGREGATION', {
         searchResults: searchResults.length,
@@ -312,7 +374,10 @@ async function searchCompanyInfo(
       const result = {
         search_results: searchResults,
         extracted_content: extractedContent,
-        total_urls_extracted: interviewUrls.length
+        total_urls_extracted: interviewUrls.length,
+        deep_extraction_urls: extractionPlan.urls,
+        planned_searches: plannedSearchCredits,
+        tavily_credit_budget: extractionPlan,
       };
 
       logger?.log('SEARCH_COMPLETE', 'COMPANY_INFO', result);
@@ -644,12 +709,14 @@ serve(async (req) => {
       research_sources: researchData ? researchData.search_results?.length || 0 : 0,
       extracted_urls: researchData ? researchData.total_urls_extracted || 0 : 0,
       deep_extracts: researchData ? researchData.extracted_content?.length || 0 : 0,
+      tavily_credit_budget: researchData ? researchData.tavily_credit_budget || null : null,
       optimization_info: {
         cached_urls_reused: 0, // Disabled temporarily
-        fresh_searches_performed: 2, // Reduced for speed
+        fresh_searches_performed: researchData ? researchData.planned_searches || 0 : 0,
+        deep_extracts_requested: researchData ? researchData.deep_extraction_urls?.length || 0 : 0,
         excluded_domains: 0, // Disabled temporarily
         cache_optimization_active: false, // Disabled temporarily
-        speed_optimizations: "URL deduplication and extraction disabled for faster response"
+        speed_optimizations: "Retrieval is bounded by the configured Tavily credit cap"
       }
     };
 
