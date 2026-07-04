@@ -161,7 +161,7 @@ If the caller already has an active paid subscription, `create-checkout-session`
 ## Tax
 
 Decision as of 2026-07-04: defer Stripe Tax for v1. Do not enable `automatic_tax`
-speculatively in Checkout or Customer Portal sessions while billing is still in
+speculatively on Checkout Sessions or subscriptions while billing is still in
 go-live mode and paid volume is unknown.
 
 Revisit and enable Stripe Tax at the earliest of:
@@ -173,9 +173,11 @@ Revisit and enable Stripe Tax at the earliest of:
   CA GST/HST/PST.
 
 When the trigger fires, create a follow-up implementation issue to enable
-`automatic_tax: { enabled: true }` on Checkout Sessions and Customer Portal
-sessions, decide whether displayed pricing is tax-inclusive or tax-exclusive,
-and configure Customer Tax ID collection in Stripe.
+`automatic_tax: { enabled: true }` on Checkout Sessions and on existing
+subscriptions (so renewals are taxed too — the Customer Portal session API has
+no `automatic_tax` parameter), decide whether displayed pricing is
+tax-inclusive or tax-exclusive, and configure Customer Tax ID collection in
+Stripe.
 
 ## Test plan
 

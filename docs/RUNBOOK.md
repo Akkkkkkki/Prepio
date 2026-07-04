@@ -234,8 +234,8 @@ Operational check:
   Dashboard during the billing go-live smoke-test pass and the first live-payment
   review.
 - If any tripwire is hit, open a follow-up implementation issue to enable Stripe
-  Tax on Checkout and Customer Portal sessions before accepting more payments in
-  that jurisdiction.
+  Tax on Checkout Sessions and existing subscriptions before accepting more
+  payments in that jurisdiction.
 
 ## Edge Function Auth Posture
 
