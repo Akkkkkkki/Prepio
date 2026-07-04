@@ -5,8 +5,10 @@
 # `npm test` and `npm run test:e2e` are runnable without manual setup.
 #
 # IMPORTANT: the Playwright browser download fetches from cdn.playwright.dev.
-# That host must be in the environment's network allowlist, otherwise the
-# download returns "403 Host not in allowlist" and e2e will be skipped.
+# That host must be reachable from the environment, otherwise the download can
+# fail with "403 Host not in allowlist", a gateway denial, or a generic
+# Playwright download failure. When Chromium is not ready, e2e and live
+# UI/UX review screenshots are not available.
 # Configure the allowlist when creating/editing the environment:
 #   https://code.claude.com/docs/en/claude-code-on-the-web
 set -euo pipefail
@@ -30,7 +32,7 @@ if npx playwright install --with-deps chromium || npx playwright install chromiu
   echo "[session-start] Playwright Chromium ready."
 else
   echo "[session-start] WARNING: Playwright Chromium install failed." >&2
-  echo "[session-start] If you saw '403 Host not in allowlist', add" >&2
-  echo "[session-start] cdn.playwright.dev to the environment network allowlist." >&2
-  echo "[session-start] npm tests still work; only e2e (test:e2e) is affected." >&2
+  echo "[session-start] Ensure cdn.playwright.dev is reachable from this environment" >&2
+  echo "[session-start] or bake Chromium into the base image." >&2
+  echo "[session-start] npm tests still work; e2e and live UI/UX screenshots are unavailable." >&2
 fi
