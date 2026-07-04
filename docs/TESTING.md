@@ -110,7 +110,7 @@ Run these only against Stripe test mode and a non-production Supabase project. D
 
 ## Lint Baseline
 
-`npm run lint` is informational, not a release gate. As of 2026-05-18 it reports **38 problems (20 errors, 18 warnings)**. This section triages what's there so reviewers can tell at a glance whether a new lint hit is signal or noise.
+`npm run lint` is informational, not a release gate. As of 2026-07-04 (after the eslint 10 / eslint-plugin-react-hooks 7 upgrade) it reports **54 problems (46 errors, 8 warnings)**. This section triages what's there so reviewers can tell at a glance whether a new lint hit is signal or noise.
 
 When changing code in a file listed here, do not silently "clean up" the pre-existing failures unless that is the explicit goal of the change — keep diffs scoped.
 
@@ -121,24 +121,26 @@ These come from boilerplate that the shadcn CLI and Tailwind plugin docs generat
 - `@typescript-eslint/no-empty-object-type` (2 errors)
   - `src/components/ui/command.tsx:24` — `interface CommandDialogProps extends DialogProps {}`
   - `src/components/ui/textarea.tsx:5` — `interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}`
-- `react-refresh/only-export-components` (10 warnings) — components that also export a `cva` variants helper or a context. Standard shadcn pattern; only affects HMR fast-refresh, not runtime.
-  - `src/components/AuthProvider.tsx`, `src/components/practice/BreathingBreak.tsx`
+- `react-refresh/only-export-components` (8 warnings) — components that also export a `cva` variants helper or a context. Standard shadcn pattern; only affects HMR fast-refresh, not runtime.
+  - `src/components/AuthProvider.tsx`
   - `src/components/ui/{badge,button,form,navigation-menu,sidebar,sonner,toggle}.tsx`
 - `@typescript-eslint/no-require-imports` (1 error)
   - `tailwind.config.ts:110` — `require("tailwindcss-animate")`. The plugin's documented install.
 
-### Stale — worth fixing, tracked as follow-ups
+### New react-hooks 7 rules — untriaged
 
-- `@typescript-eslint/no-explicit-any` in `src/hooks/useSearchProgress.ts` (12 errors) — the realtime payload mapper casts every column through `any`. The `searches` row type is available from the generated Supabase types; replacing these casts removes a class of bugs around progress polling.
-- `react-hooks/exhaustive-deps` in `src/pages/Practice.tsx` (7 warnings) and `src/pages/Dashboard.tsx` (1 warning) — missing-dep warnings on a 2,900-line file flagged as high-complexity in `CLAUDE.md`. Some are likely real (stale closure risk on `handleSaveAnswer`, `previousQuestion`, `skipQuestion`); they should be addressed when that file is split, not piecemeal.
-- `react-hooks/exhaustive-deps` unused disable in `src/pages/Auth.tsx:60` — one-line cleanup, but `area:auth` is gated, so only fold it into an authorized auth-touching PR.
+eslint-plugin-react-hooks 7 (via the 2026-07-04 lint-and-format dependency
+bump) enables new rules that flag pre-existing code: `set-state-in-effect`
+(20), `immutability` (9), `purity` (8), `refs` (2). These 39 errors are
+untriaged — some may be real fixes, most are established patterns that
+predate the rules. Triage them as a separate chore; do not fix them
+drive-by inside unrelated diffs.
 
 ### Legacy Deno tests — out of scope here
 
-`docs/TESTING.md` already notes the files under `tests/` are legacy and not a release gate. Their `any` usage (5 errors across `tests/integration/test_workflows/`, `tests/unit/test_edge_functions/`) will get rewritten when those suites are replaced, not patched in isolation.
+`docs/TESTING.md` already notes the files under `tests/` are legacy and not a release gate. Their `any` usage (4 errors across `tests/integration/test_workflows/`, `tests/unit/test_edge_functions/`) will get rewritten when those suites are replaced, not patched in isolation.
 
 - `tests/integration/test_workflows/test_07_complete_workflow.ts:79`
 - `tests/unit/test_edge_functions/test_02_interview_research.ts:324`
 - `tests/unit/test_edge_functions/test_03_company_research.ts:299`
 - `tests/unit/test_edge_functions/test_05_cv_analysis.ts:317`
-- `src/hooks/__tests__/useSearchProgress.test.ts:55` — will fall out of the `useSearchProgress.ts` typing follow-up above.

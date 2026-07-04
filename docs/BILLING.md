@@ -160,7 +160,24 @@ If the caller already has an active paid subscription, `create-checkout-session`
 
 ## Tax
 
-Not enabled at v1. Prices are tax-inclusive (or "excluding tax" if we want to add Stripe Tax later). Revisit before the first non-UK/EU marketing push.
+Decision as of 2026-07-04: defer Stripe Tax for v1. Do not enable `automatic_tax`
+speculatively on Checkout Sessions or subscriptions while billing is still in
+go-live mode and paid volume is unknown.
+
+Revisit and enable Stripe Tax at the earliest of:
+
+- monthly recurring revenue reaches about USD 1,000 or equivalent;
+- the first paid customer appears outside the launch home jurisdiction;
+- the first paid customer appears in a jurisdiction with immediate sales-tax,
+  VAT, or GST obligations, including US state sales tax, EU/UK VAT, AU GST, or
+  CA GST/HST/PST.
+
+When the trigger fires, create a follow-up implementation issue to enable
+`automatic_tax: { enabled: true }` on Checkout Sessions and on existing
+subscriptions (so renewals are taxed too — the Customer Portal session API has
+no `automatic_tax` parameter), decide whether displayed pricing is
+tax-inclusive or tax-exclusive, and configure Customer Tax ID collection in
+Stripe.
 
 ## Test plan
 
