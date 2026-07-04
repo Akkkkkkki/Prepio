@@ -99,9 +99,9 @@ describe("buildResearchQueryPlan", () => {
     expect(plan.includeDomains).toEqual(
       expect.arrayContaining(["glassdoor.com", "reddit.com", "linkedin.com", "indeed.com"]),
     );
-    expect(plan.includeDomains).not.toEqual(
-      expect.arrayContaining(["leetcode.com", "wallstreetoasis.com", "caseinterview.com"]),
-    );
+    expect(plan.includeDomains).not.toContain("leetcode.com");
+    expect(plan.includeDomains).not.toContain("wallstreetoasis.com");
+    expect(plan.includeDomains).not.toContain("caseinterview.com");
     expect(plan.queries.map((q) => q.source)).toEqual(expect.arrayContaining(["linkedin", "indeed", "general"]));
     expect(queries).toMatch(/Operations Lead/);
     expect(queries).toMatch(/Ireland/);
