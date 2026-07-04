@@ -215,6 +215,28 @@ where user_id = '<user_id>';
 
 Then compare against `src/shared/entitlement-rules.ts`. The frontend and Edge copies of entitlement rules must stay in lock-step.
 
+## Stripe Tax Tripwire
+
+Stripe Tax is intentionally deferred for billing v1. Revisit the decision in
+[`docs/BILLING.md`](./BILLING.md) before enabling live tax collection.
+
+Tripwires:
+
+- monthly recurring revenue reaches about USD 1,000 or equivalent;
+- the first paid customer appears outside the launch home jurisdiction;
+- the first paid customer appears in a jurisdiction with immediate sales-tax,
+  VAT, or GST obligations, including US state sales tax, EU/UK VAT, AU GST, or
+  CA GST/HST/PST.
+
+Operational check:
+
+- Review Stripe Customer, Subscription, and Checkout location data in the Stripe
+  Dashboard during the billing go-live smoke-test pass and the first live-payment
+  review.
+- If any tripwire is hit, open a follow-up implementation issue to enable Stripe
+  Tax on Checkout and Customer Portal sessions before accepting more payments in
+  that jurisdiction.
+
 ## Edge Function Auth Posture
 
 All Edge Functions run with `verify_jwt = false` (see [`supabase/config.toml`](../supabase/config.toml)) and enforce their own caller checks via [`supabase/functions/_shared/auth.ts`](../supabase/functions/_shared/auth.ts).
