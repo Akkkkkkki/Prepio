@@ -265,6 +265,10 @@ export const SessionSummary = ({
                       )}
                     </div>
                     <Tabs
+                      // Key on feedback presence so an async prefetch that fills
+                      // cached coaching after mount re-runs defaultValue and
+                      // surfaces the feedback tab (Tabs is uncontrolled).
+                      key={feedbackForAnswer(answer.id) ? "with-feedback" : "no-feedback"}
                       defaultValue={feedbackForAnswer(answer.id) ? "feedback" : "answer"}
                       className="mt-3"
                     >
