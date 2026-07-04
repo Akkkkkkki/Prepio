@@ -21,9 +21,10 @@ Headline status:
 1. **`npm audit` is still clean** — 0 vulnerabilities, eighth
    consecutive run. Dependency tree: 248 prod / 577 dev / 78 optional
    / 8 peer.
-2. **React 19 landed clean.** #205 bumped `react` / `react-dom`
-   18.3.1 → 19.2.7 plus peer deps `next-themes` 0.3.0 → 0.4.6 and
-   `vaul` 0.9.3 → 1.1.2. `next-themes` is used only in
+2. **React 19 landed clean, but the initial evidence was wrong —
+   corrected in-post.** #205 bumped `react` / `react-dom` 18.3.1 →
+   19.2.7 plus peer deps `next-themes` 0.3.0 → 0.4.6 and `vaul`
+   0.9.3 → 1.1.2. `next-themes` is used only in
    [`src/components/ui/sonner.tsx`](../../src/components/ui/sonner.tsx)
    (theme lookup); `vaul` only in
    [`src/components/ui/drawer.tsx`](../../src/components/ui/drawer.tsx)
@@ -32,8 +33,14 @@ Headline status:
    [`src/App.tsx:25`](../../src/App.tsx) —
    `children: React.JSX.Element` (React 19 removed the global `JSX`
    namespace). No `ReactDOM.render`, no `React.SFC`, no other React
-   18-only API left in `src/`. **PREPIO-93 is resolved by merge —
-   close as Done.**
+   18-only API left in `src/`. **Codex flagged on PR #213 that the
+   audit's initial `npm run typecheck: pass` line was invalid
+   evidence** (see finding #1 below — the script is a no-op). Re-ran
+   the real project typecheck (`tsc -b`) across the #205 boundary:
+   `348 → 347` errors, i.e. React 19 introduced zero net new type
+   regressions. **PREPIO-93 is still resolved by merge — close as
+   Done** — but on the corrected evidence path, not the misleading
+   one.
 3. **Bundle grew ~49 KiB from the React 19 bump.** PWA precache went
    from 60 entries / 2212.94 KiB on 2026-07-01 → 60 entries / **2262.42
    KiB** today. No new entries, no new large chunks — attributable to
@@ -92,9 +99,24 @@ holds, no secret exposure or drift caught, and the one runtime change
   `tests/**` `no-explicit-any` errors, plus 8
   `react-refresh/only-export-components` warnings across
   `src/components/{AuthProvider,ui/badge,ui/button,ui/form,ui/navigation-menu,ui/sidebar,ui/sonner,ui/toggle}.tsx`.
-- `npm run typecheck` (`tsc --noEmit`): pass. React 19's type change
-  (`JSX.Element` → `React.JSX.Element`) already landed in #205, so
-  no new type errors surfaced.
+- `npm run typecheck` (`tsc --noEmit`): pass (**as a no-op** — see
+  the new Medium finding below). The root
+  [`tsconfig.json`](../../tsconfig.json) has `"files": []` and only
+  project references, so `tsc --noEmit` at the root type-checks zero
+  files (`tsc --noEmit --listFiles` prints no source paths).
+  Codex flagged this on PR #213 and it turned out to be right — the
+  audit's initial "typecheck: pass" line was misleading evidence.
+  **The real project typecheck** (`tsc -b`, or
+  `tsc -p tsconfig.app.json --noEmit`) surfaces **347 pre-existing
+  errors** across ~30 files, dominated by test files
+  (`src/pages/__tests__/Home.mobile.test.tsx` — 40,
+  `Dashboard.mobile.test.tsx` — 38, `Profile.test.tsx` — 35,
+  `Practice.mobile.test.tsx` — 32) and one product file
+  (`src/services/searchService.ts` — 22, mostly `Json`-conversion
+  and RPC-name mismatches). **React 19 did not introduce
+  regressions:** the same real typecheck at `e119be4` (the pre-#205
+  HEAD) also fails, at **348** errors. `348 → 347` across the React
+  19 bump = zero net new type errors from #205.
 - `npm run build`: pass (Vite + PWA, 60 precache entries, **2262.42
   KiB** — ~49 KiB heavier than 2026-07-01's 2212.94 KiB, no entry
   count change; the delta is React 19's runtime).
@@ -160,7 +182,13 @@ Findings:
   commit ("Addresses the Codex review finding on PR #205") landed on
   the same branch before merge.
 
-Verdict: **clean.** Move PREPIO-93 to Done.
+Verdict: **clean, corrected evidence path.** After Codex flagged the
+no-op typecheck on PR #213, I re-ran the real project typecheck (`tsc
+-b`) at both HEAD and the pre-#205 commit `e119be4`: **348 → 347**
+errors across the React 19 bump, i.e. one *fewer* error post-upgrade
+and zero net new regressions. The verdict stands — move PREPIO-93 to
+Done — but the evidence is now the real project typecheck delta, not
+the misleading root `tsc --noEmit` no-op.
 
 ### Secret / client-exposure re-scan
 
@@ -194,6 +222,50 @@ still pass:
 - None.
 
 ### Medium
+
+- [ ] **CI typecheck is a silent no-op** — new, **surfaced by Codex
+  on PR #213**
+  - Evidence:
+    [`.github/workflows/ci.yml:45`](../../.github/workflows/ci.yml)
+    runs `npm run typecheck`, which resolves to `tsc --noEmit` at the
+    root [`tsconfig.json`](../../tsconfig.json). Root config sets
+    `"files": []` with two project references — so `tsc --noEmit`
+    (unlike `tsc -b`) type-checks **zero** source files, exits 0
+    without touching `src/`. Verified locally:
+    `npx tsc --noEmit --listFiles` prints nothing;
+    `npx tsc -p tsconfig.app.json --noEmit` prints **347** errors
+    across ~30 files (top offenders:
+    `src/pages/__tests__/Home.mobile.test.tsx` — 40,
+    `Dashboard.mobile.test.tsx` — 38, `Profile.test.tsx` — 35,
+    `Practice.mobile.test.tsx` — 32,
+    `src/services/searchService.ts` — 22 mostly `Json`-cast and
+    RPC-name mismatches).
+  - Risk: CI has been reporting "typecheck: pass" while masking 347
+    real type errors. Any React 19–introduced regression in `src/`
+    (or any product code TypeScript error) would slip through
+    unnoticed. Cross-check across the #205 boundary shows React 19
+    itself introduced **zero** net new errors (`348 → 347`), so this
+    audit's PREPIO-93 verdict is still safe — but the same evidence
+    is invalid for future upgrades.
+  - Recommended fix: Two-step. (1) Fix the `typecheck` npm script to
+    invoke the real project — `tsc -b` (build referenced projects)
+    or `tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit`.
+    (2) Because that will fail CI on 347 pre-existing errors, land
+    it together with (a) a targeted cleanup pass of the ~22
+    `searchService.ts` errors (real product bugs — `question_type`
+    typo, RPC-name mismatch, `ProfileImport*` cast pattern) and
+    (b) either a broad test-file relaxation (`ts-expect-error`
+    scaffolding, or a `tsconfig.test.json` that loosens
+    `moduleResolution` for tests), matching the existing lint
+    baseline pattern (CI tolerates `--exit-on-fatal-error=1` on
+    lint).
+  - Owner / next step: File a Linear issue against Quality &
+    Maintenance (Chore, `area:infra`) with this whole finding
+    pasted verbatim, cross-linked to PR #213 and this audit doc.
+    Do **not** attempt the fix in this docs-only PR — the moment
+    the script is corrected, CI will red for every open PR until
+    the 347 errors are triaged, which is a multi-hour scope well
+    over the "one small reviewable PR" hygiene-run rule.
 
 - [ ] **Bot-PR pile grew from 18 → 20** — re-flagged, sixth run
   - Evidence: `mcp__github__list_pull_requests --state open` returns
@@ -283,11 +355,15 @@ still pass:
 
 ## Small fixes made in this run
 
-None this run.
+None this run — audit doc + README index entry only. Deliberately
+did **not** fix the `package.json` `typecheck` script in this PR:
+correcting it to `tsc -b` will immediately red CI on 347 pre-existing
+errors, which is a multi-hour cleanup scope far above the hygiene
+runner's "small, reviewable PR" ceiling. Filed as a new Medium
+finding and a Linear deferred item instead.
 
-The audit doc itself plus the README index entry are the only changes
-this run. No application code, no schema, no auth flow, no product
-behaviour touched.
+No application code, no schema, no auth flow, no product behaviour
+touched.
 
 ## Deferred items
 
@@ -316,6 +392,10 @@ Tracked exclusively in Linear (no free-form bullets to re-discover):
   `docs/TESTING.md` lint baseline. Opened 2026-07-04 as PR
   [#212](https://github.com/akkkkkkki/prepio/pull/212); watch for
   merge in the next audit.
+- **New — CI typecheck is a no-op / 347-error backlog** (see the
+  Medium finding above). File under Quality & Maintenance with
+  labels `Chore` + `area:infra`, cross-linked to PR #213 and this
+  audit doc. Surfaced by Codex on PR #213.
 
 ## Questions for product owner
 
@@ -333,18 +413,24 @@ Tracked exclusively in Linear (no free-form bullets to re-discover):
 
 ## Next review focus
 
-1. **Whether the still-open PREPIO-9x tickets and PREPIO-110 move.**
+1. **CI typecheck fix.** If the new Medium finding gets a Linear
+   ticket + PR before the next run, confirm the corrected
+   `typecheck` script lands and CI actually red-flags source-level
+   type regressions. Track the `searchService.ts` cleanup PR
+   separately — the ~22 errors there include one likely-real bug
+   (RPC name `save_resume_version` isn't in the generated union).
+2. **Whether the still-open PREPIO-9x tickets and PREPIO-110 move.**
    Fifth audit asking on -91/-92/-96, fourth on -110. PREPIO-93 and
    PREPIO-94 are now resolved — that's the first real thinning in
    two months.
-2. **If any of the 20 draft bot-PRs (especially #209 PREPIO-48 raw
+3. **If any of the 20 draft bot-PRs (especially #209 PREPIO-48 raw
    content deep extraction, #201 PREPIO-51 URL-dedup, #200 PREPIO-60
    Account/Settings) ships to `main` before the next run**, that
    surface should get a first-pass hygiene review. #209 in
    particular touches the research pipeline (`_shared/`
    duckduckgo shim, Tavily extraction depth) and deserves the same
    attention PREPIO-80 got on 2026-07-01.
-3. **`answer-feedback` once it has production traffic with the
+4. **`answer-feedback` once it has production traffic with the
    atomic RPC.** Still owed from 2026-06-20 / 2026-06-24 / 2026-06-27
    / 2026-07-01 — sanity-check `generation_metadata.input_snapshot`
    payload size and confirm no model-output text accidentally lands
