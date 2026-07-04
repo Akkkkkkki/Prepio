@@ -32,13 +32,18 @@ const Navigation = () => {
   const { signOut } = useAuthContext();
   const { canInstall, promptInstall } = useInstallPrompt();
 
+  // Primary nav stays on the work: the journey from research to practice to
+  // review. Account-level surfaces (profile, billing) step aside into the menu.
   const navigationItems = [
     { path: "/", label: "Home", icon: Home },
     { path: "/dashboard", label: "Dashboard", icon: BarChart3 },
     { path: "/practice", label: "Practice", icon: Play },
     { path: "/history", label: "Practice History", icon: ClipboardList },
-    { path: "/pricing", label: "Pricing", icon: CreditCard },
+  ];
+
+  const accountItems = [
     { path: "/profile", label: "Profile", icon: User },
+    { path: "/pricing", label: "Pricing", icon: CreditCard },
   ];
 
   const handleSignOut = async () => {
@@ -104,6 +109,15 @@ const Navigation = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
+                  {accountItems.map((item) => (
+                    <DropdownMenuItem key={item.path} asChild>
+                      <Link to={getNavigationPath(item.path)}>
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
                   {canInstall && (
                     <>
                       <DropdownMenuItem onClick={handleInstall}>
@@ -143,6 +157,23 @@ const Navigation = () => {
 
                   <div className="space-y-2">
                     {navigationItems.map((item) => (
+                      <Link
+                        key={item.path}
+                        to={getNavigationPath(item.path)}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors w-full ${
+                          isActive(item.path)
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 pt-6 border-t space-y-2">
+                    {accountItems.map((item) => (
                       <Link
                         key={item.path}
                         to={getNavigationPath(item.path)}

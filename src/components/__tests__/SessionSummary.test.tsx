@@ -29,6 +29,14 @@ const renderSummary = (savedAnswers: SavedPracticeAnswerRecord[]) =>
     </MemoryRouter>,
   );
 
+// Coaching lives behind the "AI feedback" tab in each answer card; activate it
+// before asserting on feedback content.
+const openFeedbackTab = () => {
+  const tab = screen.getByRole("tab", { name: /ai feedback/i });
+  fireEvent.mouseDown(tab);
+  fireEvent.click(tab);
+};
+
 describe("SessionSummary rubric self-check", () => {
   it("renders good and weak signals from the saved answer", () => {
     renderSummary([
@@ -138,6 +146,8 @@ describe("SessionSummary rubric self-check", () => {
       },
     ]);
 
+    openFeedbackTab();
+
     expect(screen.getByText("Detailed coaching is paid")).toBeInTheDocument();
     expect(
       screen.getByText(/Free answers stay saved and rateable without generating AI feedback/i),
@@ -166,6 +176,8 @@ describe("SessionSummary rubric self-check", () => {
         />
       </MemoryRouter>,
     );
+
+    openFeedbackTab();
 
     expect(screen.getByRole("button", { name: /get detailed coaching/i })).toBeInTheDocument();
   });
@@ -204,6 +216,8 @@ describe("SessionSummary rubric self-check", () => {
         />
       </MemoryRouter>,
     );
+
+    openFeedbackTab();
 
     fireEvent.click(screen.getByRole("button", { name: /get detailed coaching/i }));
 

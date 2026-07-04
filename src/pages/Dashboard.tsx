@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MobileStageCard } from "@/components/dashboard/MobileStageCard";
+import { StageStepper } from "@/components/dashboard/StageStepper";
 import {
   PlayCircle,
   ArrowRight,
@@ -618,6 +619,7 @@ function StageRoadmapCard({
           <CardDescription>Select stages to include in your practice session</CardDescription>
         </CardHeader>
         <CardContent>
+          <StageStepper stages={stages} topStageId={topStageId} className="mb-4" />
           <div className="space-y-4">
             {stages.map((stage, index) => (
               <MobileStageCard
@@ -643,6 +645,7 @@ function StageRoadmapCard({
         <CardDescription>Select stages to include in your practice session</CardDescription>
       </CardHeader>
       <CardContent>
+        <StageStepper stages={stages} topStageId={topStageId} className="mb-4" />
         <Accordion type="multiple" className="space-y-4">
           {stages.map((stage, index) => (
             <AccordionItem
@@ -999,19 +1002,18 @@ const Dashboard = () => {
           <p className="min-w-0 break-words text-sm leading-6 text-muted-foreground">
             {searchSubtitle}
           </p>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             {searchStatusLabel && <Badge variant="secondary">{searchStatusLabel}</Badge>}
-            {summary?.overallConfidence && (
-              <Badge className={confidenceColor(summary.overallConfidence)}>
-                {summary.overallConfidence} confidence
-              </Badge>
-            )}
-            {summary?.industryFocus && summary.industryFocus !== 'unknown' && (
-              <Badge variant="outline">{summary.industryFocus}</Badge>
-            )}
-            {summary?.level && summary.level !== 'unknown' && (
-              <Badge variant="outline">{summary.level.replace('_', ' ')}</Badge>
-            )}
+            {(() => {
+              const meta = [
+                summary?.overallConfidence ? `${summary.overallConfidence} confidence` : null,
+                summary?.industryFocus && summary.industryFocus !== "unknown" ? summary.industryFocus : null,
+                summary?.level && summary.level !== "unknown" ? summary.level.replace("_", " ") : null,
+              ].filter(Boolean);
+              return meta.length > 0 ? (
+                <span className="text-xs text-muted-foreground">{meta.join(" · ")}</span>
+              ) : null;
+            })()}
           </div>
         </div>
       </header>

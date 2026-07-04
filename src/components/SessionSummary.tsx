@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Star, SkipForward, Loader2, AlertTriangle, Lightbulb } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { SavedPracticeAnswerRecord } from "@/hooks/usePracticeSession";
 import { AnswerFeedbackCard, type AnswerFeedbackAccess } from "@/components/AnswerFeedbackCard";
 import type { AnswerFeedback, AnswerFeedbackErrorCode } from "@/shared/answer-feedback";
@@ -263,89 +264,105 @@ export const SessionSummary = ({
                         </button>
                       )}
                     </div>
-                    {(answer.textAnswer || answer.transcriptText) && (
-                      <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">
-                        {answer.textAnswer || answer.transcriptText}
-                      </p>
-                    )}
-                    {((answer.goodSignals?.length ?? 0) > 0 ||
-                      (answer.weakSignals?.length ?? 0) > 0) && (
-                      <div className="mt-3 space-y-3 rounded-xl border bg-muted/30 p-3">
-                        <div>
-                          <p className="text-sm font-medium">Self-check rubric</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            Tick what your answer actually covered. Use it to anchor your rating.
-                          </p>
-                        </div>
-                        {answer.goodSignals && answer.goodSignals.length > 0 && (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-xs font-medium">
-                              <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
-                              Great answers include
-                            </div>
-                            <ul className="space-y-1.5">
-                              {answer.goodSignals.map((signal, index) => {
-                                const checkboxId = `${answer.id}-good-${index}`;
-                                const isChecked =
-                                  checkedSignals[answer.id]?.has(index) ?? false;
-                                return (
-                                  <li key={checkboxId} className="flex items-start gap-2">
-                                    <Checkbox
-                                      id={checkboxId}
-                                      checked={isChecked}
-                                      onCheckedChange={() => toggleSignal(answer.id, index)}
-                                      className="mt-0.5"
-                                    />
-                                    <label
-                                      htmlFor={checkboxId}
-                                      className={cn(
-                                        "cursor-pointer text-sm leading-5",
-                                        isChecked ? "text-foreground" : "text-muted-foreground",
-                                      )}
-                                    >
-                                      {signal}
-                                    </label>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          </div>
-                        )}
-                        {answer.weakSignals && answer.weakSignals.length > 0 && (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-xs font-medium">
-                              <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-                              Watch out for
-                            </div>
-                            <ul className="space-y-1 text-sm text-muted-foreground">
-                              {answer.weakSignals.map((signal) => (
-                                <li key={signal} className="flex gap-2">
-                                  <span className="text-destructive">•</span>
-                                  <span>{signal}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    <AnswerFeedbackCard
+                    <Tabs
+                      defaultValue={feedbackForAnswer(answer.id) ? "feedback" : "answer"}
                       className="mt-3"
-                      access={answerFeedbackAccess}
-                      feedback={feedbackForAnswer(answer.id)}
-                      status={feedbackStatus[answer.id]?.status ?? "idle"}
-                      errorCode={feedbackStatus[answer.id]?.errorCode}
-                      onGenerate={
-                        onGenerateFeedback
-                          ? () => void handleGenerateFeedback(answer.id, false)
-                          : undefined
-                      }
-                      onRegenerate={
-                        onGenerateFeedback
-                          ? () => void handleGenerateFeedback(answer.id, true)
-                          : undefined
-                      }
-                    />
+                    >
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="answer">Your answer</TabsTrigger>
+                        <TabsTrigger value="feedback">AI feedback</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="answer" className="mt-3 space-y-3">
+                        {(answer.textAnswer || answer.transcriptText) && (
+                          <p className="line-clamp-[8] text-sm text-muted-foreground">
+                            {answer.textAnswer || answer.transcriptText}
+                          </p>
+                        )}
+                        {((answer.goodSignals?.length ?? 0) > 0 ||
+                          (answer.weakSignals?.length ?? 0) > 0) && (
+                          <div className="space-y-3 rounded-xl border bg-muted/30 p-3">
+                            <div>
+                              <p className="text-sm font-medium">Self-check rubric</p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                Tick what your answer actually covered. Use it to anchor your rating.
+                              </p>
+                            </div>
+                            {answer.goodSignals && answer.goodSignals.length > 0 && (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-xs font-medium">
+                                  <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+                                  Great answers include
+                                </div>
+                                <ul className="space-y-1.5">
+                                  {answer.goodSignals.map((signal, index) => {
+                                    const checkboxId = `${answer.id}-good-${index}`;
+                                    const isChecked =
+                                      checkedSignals[answer.id]?.has(index) ?? false;
+                                    return (
+                                      <li key={checkboxId} className="flex items-start gap-2">
+                                        <Checkbox
+                                          id={checkboxId}
+                                          checked={isChecked}
+                                          onCheckedChange={() => toggleSignal(answer.id, index)}
+                                          className="mt-0.5"
+                                        />
+                                        <label
+                                          htmlFor={checkboxId}
+                                          className={cn(
+                                            "cursor-pointer text-sm leading-5",
+                                            isChecked ? "text-foreground" : "text-muted-foreground",
+                                          )}
+                                        >
+                                          {signal}
+                                        </label>
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              </div>
+                            )}
+                            {answer.weakSignals && answer.weakSignals.length > 0 && (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-xs font-medium">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                                  Watch out for
+                                </div>
+                                <ul className="space-y-1 text-sm text-muted-foreground">
+                                  {answer.weakSignals.map((signal) => (
+                                    <li key={signal} className="flex gap-2">
+                                      <span className="text-destructive">•</span>
+                                      <span>{signal}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {!(answer.textAnswer || answer.transcriptText) &&
+                          !((answer.goodSignals?.length ?? 0) > 0 || (answer.weakSignals?.length ?? 0) > 0) && (
+                            <p className="text-sm text-muted-foreground">No answer recorded for this question.</p>
+                          )}
+                      </TabsContent>
+                      <TabsContent value="feedback" className="mt-3">
+                        <AnswerFeedbackCard
+                          access={answerFeedbackAccess}
+                          feedback={feedbackForAnswer(answer.id)}
+                          status={feedbackStatus[answer.id]?.status ?? "idle"}
+                          errorCode={feedbackStatus[answer.id]?.errorCode}
+                          onGenerate={
+                            onGenerateFeedback
+                              ? () => void handleGenerateFeedback(answer.id, false)
+                              : undefined
+                          }
+                          onRegenerate={
+                            onGenerateFeedback
+                              ? () => void handleGenerateFeedback(answer.id, true)
+                              : undefined
+                          }
+                        />
+                      </TabsContent>
+                    </Tabs>
                   </div>
                 );
               })}
