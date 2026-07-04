@@ -110,7 +110,7 @@ Run these only against Stripe test mode and a non-production Supabase project. D
 
 ## Lint Baseline
 
-`npm run lint` is informational, not a release gate. As of 2026-07-04 it reports **15 problems (7 errors, 8 warnings)**. This section triages what's there so reviewers can tell at a glance whether a new lint hit is signal or noise.
+`npm run lint` is informational, not a release gate. As of 2026-07-04 (after the eslint 10 / eslint-plugin-react-hooks 7 upgrade) it reports **54 problems (46 errors, 8 warnings)**. This section triages what's there so reviewers can tell at a glance whether a new lint hit is signal or noise.
 
 When changing code in a file listed here, do not silently "clean up" the pre-existing failures unless that is the explicit goal of the change — keep diffs scoped.
 
@@ -126,6 +126,15 @@ These come from boilerplate that the shadcn CLI and Tailwind plugin docs generat
   - `src/components/ui/{badge,button,form,navigation-menu,sidebar,sonner,toggle}.tsx`
 - `@typescript-eslint/no-require-imports` (1 error)
   - `tailwind.config.ts:110` — `require("tailwindcss-animate")`. The plugin's documented install.
+
+### New react-hooks 7 rules — untriaged
+
+eslint-plugin-react-hooks 7 (via the 2026-07-04 lint-and-format dependency
+bump) enables new rules that flag pre-existing code: `set-state-in-effect`
+(20), `immutability` (9), `purity` (8), `refs` (2). These 39 errors are
+untriaged — some may be real fixes, most are established patterns that
+predate the rules. Triage them as a separate chore; do not fix them
+drive-by inside unrelated diffs.
 
 ### Legacy Deno tests — out of scope here
 
