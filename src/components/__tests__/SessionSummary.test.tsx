@@ -267,4 +267,64 @@ describe("SessionSummary rubric self-check", () => {
       screen.queryByRole("button", { name: /get detailed coaching/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("opens cached feedback when it arrives after the summary mounts", () => {
+    const savedAnswer: SavedPracticeAnswerRecord = {
+      id: "answer-1",
+      questionId: "q-1",
+      question: "Tell me about a hard tradeoff.",
+      stageName: "Behavioral",
+      textAnswer: "I picked the smaller scope to ship on time.",
+      goodSignals: [],
+      weakSignals: [],
+    };
+    const cachedFeedback: AnswerFeedback = {
+      id: "fb-9",
+      practiceAnswerId: "answer-1",
+      model: null,
+      createdAt: null,
+      strengths: [{ text: "Cached coaching loaded" }],
+      improvements: [],
+      starBreakdown: { situation: "", task: "", action: "", result: "" },
+      nextAction: { text: "Lead with the tradeoff." },
+    };
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <SessionSummary
+          {...baseProps}
+          savedAnswers={[savedAnswer]}
+          onRateAnswer={vi.fn().mockResolvedValue(undefined)}
+          answerFeedbackAccess="paid"
+          onGenerateFeedback={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("tab", { name: /your answer/i })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(screen.queryByText("Cached coaching loaded")).not.toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter>
+        <SessionSummary
+          {...baseProps}
+          savedAnswers={[savedAnswer]}
+          onRateAnswer={vi.fn().mockResolvedValue(undefined)}
+          answerFeedbackAccess="paid"
+          onGenerateFeedback={vi.fn()}
+          feedbackByAnswerId={{ "answer-1": cachedFeedback }}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("tab", { name: /ai feedback/i })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(screen.getByText("Cached coaching loaded")).toBeInTheDocument();
+    expect(screen.getByText(/Lead with the tradeoff/i)).toBeInTheDocument();
+  });
 });
