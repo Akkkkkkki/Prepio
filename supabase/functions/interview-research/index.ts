@@ -17,6 +17,7 @@ import {
   formatJobRequirementsBlock,
   type JobRequirementsSource,
 } from "./job-requirements-prompt.ts";
+import { deriveStageConfidenceFromEvidence } from "./stage-confidence.ts";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -787,6 +788,8 @@ async function synthesizePrepPlan(
       validationErrors: validation.errors,
       questionCounts: validation.counts,
     };
+
+    deriveStageConfidenceFromEvidence(plan);
 
     logSynthesisOutcome(plan, validation, repairAttempted);
 
