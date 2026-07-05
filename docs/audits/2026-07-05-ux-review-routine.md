@@ -5,281 +5,299 @@ Fourth run of the recurring weekly UX-review routine. Baselines:
 [`2026-06-25-ux-review-routine.md`](./2026-06-25-ux-review-routine.md),
 [`2026-07-02-ux-review-routine.md`](./2026-07-02-ux-review-routine.md).
 
-## Method limitation — live egress still blocked (fourth run running)
+## Capability check — live egress opened mid-review, first live run in four tries
 
 Per the routine's capability contract
-([`UX_REVIEW_ROUTINE.md`](./UX_REVIEW_ROUTINE.md)):
+([`UX_REVIEW_ROUTINE.md`](./UX_REVIEW_ROUTINE.md)), this run started
+static-only (same blocker as runs #1–#3: `403` at the agent proxy on
+CONNECT to `prepio.qiuyue.dev`) but the environment owner widened the
+egress allowlist to include `prepio.qiuyue.dev` and `*.supabase.co`
+partway through. **This is the first of the four routine runs with
+real live-browser coverage.** Both capability-contract checks now pass:
 
-- **Playwright Chromium check: PASS.** Binary present at
-  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`, `playwright`
-  loads from `node_modules/playwright`.
-- **Live-app reachability check: FAIL.** Both `curl` and Playwright hit
-  `HTTP/1.1 403 Forbidden` on CONNECT to `prepio.qiuyue.dev:443`; the
-  agent proxy's `__agentproxy/status` endpoint logs the CONNECT
-  rejection as `gateway answered 403 to CONNECT (policy denial or
-  upstream failure)`. Supabase (`*.supabase.co`) is blocked too, so a
-  local `npm run dev` fallback also can't reach real data.
+- **Playwright Chromium: PASS** — `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
+- **Live-app reachability: PASS** — confirmed via `curl` (200) and,
+  after two fixes below, via Playwright/Chromium (200).
 
-Per contract, findings this run are **code and change-diff review
-only** against `origin/main` at
-[`8f99103`](https://github.com/Akkkkkkki/Prepio/commit/8f99103). No
-screenshots, no rendered-layout claims, no mobile-viewport check, no
-touch-target measurement, no keyboard/focus walk, no slow-network
-observation.
+### Two non-obvious fixes future routine runs will need
 
-This is the **fourth consecutive routine run** in which the Playwright
-+ mobile + accessibility scripts could not execute. The three
-previously flagged fixes (allowlist `prepio.qiuyue.dev`, or rewire
-routine against `npm run dev`, or accept the reduced scope in the
-contract) still haven't produced a `Q&M / area:infra` ticket in Linear.
-The routine [`fix: scope ux review routine
-honestly`](https://github.com/Akkkkkkki/Prepio/commit/38deb55) landed
-this week — that formalises the *static-only* fallback, which is
-useful, but it isn't a fix for the underlying gap.
+Getting Chromium itself through the proxy took two fixes beyond what
+`curl` needed — worth recording so the next run doesn't re-derive
+this from scratch:
 
-## Meta-finding: two of the last three audits' top-priority items are still open
+1. **Chromium doesn't read `HTTPS_PROXY` from the environment** the
+   way `curl` does. Pass it explicitly: `chromium.launch({ proxy: {
+   server: process.env.HTTPS_PROXY } })`.
+2. **Chromium's TLS 1.3 `ClientHello` gets silently reset mid-handshake**
+   on this proxy path (`net::ERR_CONNECTION_RESET`, confirmed via
+   Chromium's own `--log-net-log` output: `SOCKET_READ_ERROR
+   {"net_error": -101, "os_error": 104}` a few seconds after the
+   `ClientHello` is sent — likely the larger TLS 1.3 `ClientHello`,
+   e.g. the post-quantum hybrid key share, tripping something on the
+   path). `curl`'s smaller, TLS-1.2-capable handshake is unaffected.
+   Workaround: launch with `--ssl-version-max=tls1.2`. Also pass
+   `--ignore-certificate-errors` — at least one allowlisted domain
+   (`api.github.com`) is re-terminated by the proxy with a cert
+   Chromium's NSS store doesn't trust by default, even though
+   `prepio.qiuyue.dev` itself came through with its genuine
+   Let's Encrypt certificate (passthrough, not re-terminated).
 
-Product-source diff since last routine
-([`f73b3f4..HEAD`](https://github.com/Akkkkkkki/Prepio/compare/f73b3f4...HEAD)):
+With both flags, the full desktop + mobile + authenticated + practice
+walk in this report ran end-to-end against the real deployed app.
 
-- [`cedf338`](https://github.com/Akkkkkkki/Prepio/commit/cedf338) — React 18 → 19 upgrade (deps only, no UX-visible change expected).
+## Meta-finding: the two top-priority repeat items are now live-confirmed, not just code-inferred
 
-Everything else since 2026-07-02 is docs, tests, dep bumps, or the
-routine-scope fix. **No `src/` change addresses PREPIO-111 or
-PREPIO-101.** Both were run #2's and run #3's top-priority repeat
-findings. Both are now three-audit repeats.
-
-The team is shipping quality changes (see the four PREPIO wins listed
-in run #3), but the two most-flagged structural fixes keep sliding.
-Recommend they enter the next cycle with the highest priority and
-"do not slide again" framing.
+Three consecutive audits (#2, #3, #4) flagged PREPIO-111 (marketing
+hero on `/new-interview`) and PREPIO-101 (no "Interviews" nav item) from
+reading the source. This run reproduced both directly in a real signed-in
+session against the production app — see Top issues #1 and #2 below for
+exact URLs, nav screenshots, and rendered copy. Live confirmation removes
+any doubt that these were reading artifacts; both are real, and both are
+now four-audit repeats with no landing PR.
 
 ## Overall product judgment
 
-Product-visible surface is effectively unchanged since 2026-07-02. The
-positive infra changes this week are React 19 and a formal *static-
-only routine contract*; neither moves the user experience. The two
-open P1s from the last two audits — the marketing hero on
-`/new-interview` and the missing "Interviews" nav item — are exactly
-the same, and both are directly on the returning-user daily path.
-Weekly experience is not measurably easier or more compelling than
-last week's review found it to be. **The biggest user-facing risk
-remains the same as last run:** a logged-in user starting fresh prep
-lands on a marketing-tone page that speaks past them, and the top-nav
-label they most need ("Your interviews") is not in the top nav.
+With live coverage for the first time, the product is in better shape
+on the paths this review reached than the static-only reports could
+show: the returning-user "Your interviews" home renders a clean resume
+card (progress bar, "Plan ready" badge, one-tap "Start practice"), the
+practice question screen is a genuinely well-built hero-question layout
+with correctly-sized controls, and the local-answer autosave indicator
+does what run #1's PREPIO-108 fix was supposed to do — it transitions
+from "Saving draft…" to an honest "Draft kept in this tab" label rather
+than overclaiming a server save. Those are real, live-verified wins.
+
+Against that, the two P1s flagged in the last three audits are exactly
+as bad live as the code predicted: a returning user tapping "New
+interview" lands on a page headlined "Get insider insights on any
+company's interview process. Tailored prep for you and your friends,"
+and the top nav still has no "Interviews" entry — "Home" and "Dashboard"
+both silently redirect to the same page. **The biggest user-facing risk
+is unchanged from the last three runs:** the one screen every returning
+user hits to start fresh prep speaks past them, and the nav item they
+need most isn't labeled for what it does.
 
 ## Top issues
 
-### 1. `/new-interview` still shows the marketing Home hero (third repeat)
+### 1. `/new-interview` shows the marketing Home hero to signed-in users — now live-confirmed (fourth repeat)
 
-- **Severity:** P1 (repeat, third audit)
+- **Severity:** P1 (repeat, fourth audit, first live confirmation)
 - **Area:** landing / research entry
-- **User scenario (inferred from code):** A returning logged-in user
-  taps the header "New interview" CTA on `/interviews`
-  ([`Interviews.tsx:161`](../../src/pages/Interviews.tsx)) or the
-  empty-state "Prep a new interview" CTA
-  ([`Interviews.tsx:193`](../../src/pages/Interviews.tsx)). They land
-  on `/new-interview`, which mounts `Home.tsx`
-  ([`App.tsx:104-112`](../../src/App.tsx)).
-- **What the code renders (inferred, needs live-browser confirmation):**
-  Mobile shows a giant `Prepio` wordmark and *"Move from company
-  research to practice in three short steps, without the desktop-
-  style sprawl."*
-  ([`Home.tsx:1428-1434`](../../src/pages/Home.tsx)) — Prepio-about-
-  Prepio meta-copy. Desktop shows the same wordmark and *"Get insider
-  insights on any company's interview process. Tailored prep for you
-  and your friends."*
-  ([`Home.tsx:1546-1551`](../../src/pages/Home.tsx)) — marketing
-  language. Neither branch checks `location.pathname`, so the copy is
-  identical for logged-out landing and logged-in "start a new prep."
-- **Why it matters:** After [PREPIO-100](https://linear.app/qiuyue/issue/PREPIO-100)
-  moved returning users to `/interviews`, this is the *only* path to
-  start a fresh prep. Every returning user goes through it every time.
-  The routine's own copy standard says copy should be "direct,
-  specific, calm, honest"; the current copy is neither direct nor
-  specific to the user's task.
-- **Recommended fix:** Branch on `location.pathname === '/new-interview'`
-  in `Home.tsx` and render a task-oriented header ("Prep a new
-  interview" / "Which role are you preparing for?") plus a back-to-
-  Your-interviews link. Drop the "desktop-style sprawl" mobile line
-  and the "you and your friends" desktop line.
-- **Tracking:** [PREPIO-111](https://linear.app/qiuyue/issue/PREPIO-111) —
-  filed 2026-06-25, still Backlog. **Escalate to Todo/In Progress
-  this cycle.**
+- **User scenario:** Signed in as the tester account (existing history:
+  one "OpenAI · Solutions Architect" interview, 0 of 40 questions
+  practiced), clicked "New interview" on `/interviews`.
+- **What actually renders (live, desktop, 1440×900):** `/new-interview`
+  shows a full-page `Prepio` wordmark hero: *"Get insider insights on
+  any company's interview process. Tailored prep for you and your
+  friends."* directly above the "Start a new research run" form —
+  identical marketing copy to the logged-out landing page.
+- **What actually renders (live, mobile, 390×844 iPhone viewport):**
+  *"Move from company research to practice in three short steps,
+  without the desktop-style sprawl"* — meta-copy about Prepio's own UX
+  philosophy, not the user's task.
+- **Why it matters:** confirmed exactly as runs #2 and #3 predicted from
+  code. This is the *only* path to start fresh prep for a returning user.
+  Screenshots on file: `21-new-interview-desktop.png`,
+  `31-new-interview-mobile.png`.
+- **Recommended fix:** unchanged from prior runs — branch on
+  `location.pathname === '/new-interview'` in `Home.tsx` and render
+  task-oriented copy with a back-to-Your-interviews link.
+- **Tracking:** [PREPIO-111](https://linear.app/qiuyue/issue/PREPIO-111)
+  — filed 2026-06-25, still Backlog after four audits. **Escalate.**
 
-### 2. Nav still hides "Your interviews," and the redirect chain is unchanged (third repeat)
+### 2. Nav still has no "Interviews" item — now live-confirmed (fourth repeat)
 
-- **Severity:** P1 (repeat, third audit)
+- **Severity:** P1 (repeat, fourth audit, first live confirmation)
 - **Area:** navigation / consistency
-- **User scenario (inferred from code):** A returning user needs to
-  get back to their prep list after visiting Practice or Profile.
-- **What the code shows:** Top-nav items are still `Home / Dashboard /
-  Practice / Practice History / Pricing / Profile`
-  ([`Navigation.tsx:35-42`](../../src/components/Navigation.tsx)) — no
-  "Interviews" item. The "Home" tab silently means "Your interviews"
-  because `RootRoute` redirects any logged-in user hitting `/` to
-  `/interviews` ([`App.tsx:70-77`](../../src/App.tsx)). "Dashboard"
-  without a `searchId` also redirects into the same page (per run
-  #3's Dashboard.tsx:902 note), so **two top-nav items now silently
-  route to the same destination via a redirect hop.**
-- **Why it matters:** NN/g heuristic 4 ("consistency and standards")
-  and the routine's own recognition-vs-recall principle: nav labels
-  must match destinations. Two labels for one destination fails
-  recognition. This has now been flagged in three consecutive audits
-  and is the tracked issue's second cycle "In Progress" without a
-  landing PR.
-- **Recommended fix:** Land [PREPIO-101](https://linear.app/qiuyue/issue/PREPIO-101).
-  Collapse nav to `Interviews` (default), `Practice`, `Profile`;
-  rename `Dashboard` → `Plan` inside a prep run; move `Pricing` and
-  `Practice History` under a dropdown / account menu.
+- **What actually renders (live, desktop nav bar):** `Home · Dashboard ·
+  Practice · Practice History · Pricing · Profile`. No "Interviews"
+  label anywhere. Screenshot on file: `signin-retry.png` (post-login
+  landing on `/interviews`, nav bar visible in full).
+- **Live-confirmed redirect collision:** navigating directly to
+  `/dashboard` with no `searchId` redirects to `/interviews` —
+  confirmed by URL after navigation (`https://prepio.qiuyue.dev/interviews`).
+  So "Home" and "Dashboard" are two distinct nav items that both land on
+  the same page for a user with no active prep run selected.
+- **Why it matters:** unchanged from prior audits — this is now a
+  fourth-audit repeat, first one with a live screenshot proving it.
 - **Tracking:** [PREPIO-101](https://linear.app/qiuyue/issue/PREPIO-101)
-  — In Progress since 2026-06-24, no landing PR yet. **Escalate.**
+  — In Progress since 2026-06-24, no landing PR yet after four audits.
+  **Escalate — treat as an ownership gap, not just a backlog item.**
 
-### 3. Four different labels for "start a new prep" now coexist (grows every audit)
+### 3. "New interview" vs "Start a new research run" — live-confirmed on two real pages for the same action
 
-- **Severity:** P2 (up from P3 in run #3 — surface has broadened)
+- **Severity:** P2 (repeat from run #3, partially live-confirmed)
 - **Area:** copy / consistency
-- **User scenario (inferred from code):** A user starts fresh prep from
-  wherever they happen to be — the Interviews home, the Interviews
-  empty state, the guest Home form, or the old Dashboard fallback.
-- **What the code shows — four labels for the same action:**
-  - `Interviews.tsx:161` — **"New interview"** (populated header CTA)
-  - `Interviews.tsx:193` — **"Prep a new interview"** (empty-state CTA)
-  - `Home.tsx:1004` (desktop guest form title) — **"Start a new
-    research run"**
-  - Dashboard fallback (per run #3's `Dashboard.tsx:1004` note) —
-    **"Start a new research run"**
-  Related: `Interviews.tsx:152` renders an h1 *"Your interviews"* on
-  the page *and* the empty-state card carries a second CardTitle
-  *"Prepare for your next interview"* (line 182). Two competing
-  headings on the same view.
-- **Why it matters:** The empty-state → populated-state transition
-  should feel like the same product. Right now the primary "start"
-  action changes name at least three times as the user moves through
-  Prepio. NN/g heuristic 4. Run #3 filed this as P3 for the two
-  Interviews.tsx labels; another two locations have surfaced since.
-- **Recommended fix:** Pick one label and use it on every "start a
-  new prep" surface. **"Prep a new interview"** fits the routine's
-  copy standard best and pairs cleanly with the Interviews home
-  header. Bonus: drop the redundant `CardTitle` on the empty-state
-  card so the page h1 stays the anchor.
-- **Tracking:** file this cycle. Suggested title: *"Unify 'start a
-  new prep' CTA copy across Interviews, Home, and Dashboard"*.
-  `Type: Improvement`, `area:landing`, P2.
+- **Live-confirmed:** the populated `/interviews` header CTA reads
+  **"New interview"**; clicking through to `/new-interview` shows a
+  card titled **"Start a new research run."** Two different labels for
+  the same action, one tap apart, both observed live this run.
+- **Not observable this run:** the tester account has existing history,
+  so the true empty state (`Interviews.tsx:193`, run #3's "Prep a new
+  interview" label) and the Dashboard fallback CTA weren't reachable
+  live. Those two remain code-level findings only — still worth fixing,
+  just not re-verified live this round.
+- **Recommended fix:** unchanged — pick one label ("Prep a new
+  interview" fits the routine's copy standard) and use it everywhere.
+- **Tracking:** file this cycle. `Type: Improvement`, `area:landing`, P2.
 
 ### 4. CLAUDE.md Routes table is out of date with the shipped nav
 
-- **Severity:** P2 (new)
+- **Severity:** P2 (repeat, unchanged from run #4's original pass)
 - **Area:** docs / DX
-- **User scenario:** A new contributor (or agent) reads
-  [`CLAUDE.md`](../../CLAUDE.md) to learn what routes exist. They
-  see `/`, `/auth`, `/pricing`, `/dashboard`, `/search/:searchId`,
-  `/practice`, `/history`, `/profile/*`, `/billing/return`. They
-  don't see `/interviews` or `/new-interview`, which are now the
-  *primary* logged-in home and start-fresh routes
-  ([`App.tsx:93-112`](../../src/App.tsx)).
-- **Why it matters:** The CLAUDE.md route table is the first
-  reference every agent-driven change reads. It now describes an
-  older topology than what ships, which is exactly how the run
-  #2/#3/#4 nav confusion keeps compounding — one silent redirect,
-  one mismatched doc, and the "primary user flow" section
-  ([`CLAUDE.md#project-summary`](../../CLAUDE.md)) still calls the
-  step-2 page `Dashboard.tsx` when the effective home is
-  `Interviews.tsx`.
-- **Recommended fix:** Update the Routes table to include the two
-  new routes and mark `Dashboard` as "prep-run view" rather than
-  the landing surface. Update *Primary user flow* step 2 to point
-  to `Interviews.tsx` (or clarify that Dashboard is scoped to one
-  prep run). Cross-link the PREPIO-101 nav-collapse in the same
-  edit so the docs land the day the nav does.
-- **Evidence:** [`CLAUDE.md#routes`](../../CLAUDE.md);
-  [`App.tsx:93-112`](../../src/App.tsx).
+- **What the code shows:** [`CLAUDE.md`](../../CLAUDE.md)'s Routes
+  table lists `/`, `/auth`, `/pricing`, `/dashboard`, `/search/:searchId`,
+  `/practice`, `/history`, `/profile/*`, `/billing/return` — missing
+  `/interviews` and `/new-interview`, which this run confirmed live are
+  the actual primary logged-in home and start-fresh routes.
+- **Recommended fix:** unchanged — update the Routes table and the
+  *Primary user flow* section to reflect the shipped `/interviews` /
+  `/new-interview` topology.
 - **Tracking:** file this cycle. `Type: Docs`, `area:landing`, P2.
 
-### 5. Mobile / accessibility surface — still deferred, fourth run running
+### 5. Mobile hamburger nav button is under the accessibility touch-target minimum — new, live-measured
 
-- **Severity:** Deferred (cannot assess without live testing)
+- **Severity:** P3
 - **Area:** mobile / accessibility
-- **What we can say from code:** Skip-to-main link is still wired
-  ([`App.tsx:85-87`](../../src/App.tsx)). Practice mode still uses
-  the `data-mobile-home-footer` fixed bottom bar and the
-  `MobileFooter*` clearance hooks
-  ([`Home.tsx:1497-1541`](../../src/pages/Home.tsx),
-  `Practice.tsx` header imports at
-  [`Practice.tsx:47-49`](../../src/pages/Practice.tsx)).
-- **What we still cannot say:** whether the bottom bar sits inside
-  the iPhone safe area, whether touch targets meet ~44pt on a real
-  device, whether the "Saved just now" affordance is visible under
-  real network jitter, whether screen readers announce the answer-
-  save state change, whether Tab order matches visual order across
-  the landing → auth → interviews → practice walk. These require
-  live testing.
-- **Blocker:** the same egress restriction as the meta-finding.
-  This has now been deferred four routines in a row.
+- **User scenario:** Signed-in user on an iPhone-sized viewport (390×844)
+  taps the top-right nav menu to reach Practice History, Pricing, or
+  Profile (all collapsed off the visible mobile nav).
+- **What was measured live:** the "Open navigation menu" button's
+  bounding box is **42×36px**. Standard touch-target guidance (Apple
+  HIG, Material Design) recommends a **44–48px** minimum in both
+  dimensions; the 36px height falls short. By contrast, every other
+  measured mobile control this run met the bar: "New interview" 358×48,
+  "Start practice" / "Plan" 308×44 each, and the practice-screen
+  "Favorite" / "Answer guide" / "Record answer" / "Notes" / "Skip" /
+  "Save & Continue" controls all measured 44–48px.
+- **Why it matters:** this is the *only* way to reach three nav
+  destinations on mobile, and it's the one control on the page that
+  doesn't meet the product's own accessibility bar.
+- **Recommended fix:** increase the hamburger button's hit target to at
+  least 44×44px (padding is fine even if the icon glyph stays the same
+  visual size).
+- **Tracking:** file this cycle. `Type: Bug`, `area:practice` (or
+  `area:landing` if the component is shared chrome), P3.
+
+## Notable live observations (not ranked as top-5, but worth recording)
+
+- **Autosave copy is honest and does transition correctly.** Typing in
+  the practice-screen "Quick notes" field shows "Saving draft…" briefly,
+  then settles to **"Draft kept in this tab"** — correctly signaling
+  local-only, not server-saved, exactly matching CLAUDE.md's product
+  truth about local drafts vs. server-saved answers. This is the first
+  live confirmation that run #1's PREPIO-108 fix holds up in production.
+- **Practice mode itself is a strong, well-built screen.** The question
+  is unambiguously the visual hero (large bold text, stage/difficulty
+  badges, a recommended-time hint), with "Record answer" as the primary
+  action and secondary actions (Favorite, Answer guide, Notes) clearly
+  subordinate. This matches the routine's "question is the hero"
+  principle better than the standalone 2026-06-21 design audit's
+  original complaint about a flat, competing-tabs layout.
+  Screenshot: `47-answer-typed-mobile.png`.
+- **A "Breathing Break" modal (`Breathe in… Cycle 1 of 3`) appears
+  before every Quick Start practice session,** with "Skip" and "Don't
+  show again" controls. This is in tension with the "time-to-value"
+  principle (one more tap before the question every session) but also
+  supports the "practice should feel safe" principle, and the
+  dismissal controls mean it costs a returning user nothing after the
+  first "Don't show again" tap. Not filing an issue — flagging for the
+  team to confirm this is intentional, not an accidental default-on
+  interstitial.
+- **A per-question "Needs work" control was not found live** in the
+  practice screen or its overflow menu ("Practice actions" → Reset
+  timer / Change setup / Exit practice). Only "Favorite" appears as an
+  explicit marking action during practice; "needs work" may be set via
+  a post-answer rating step this run didn't reach, or via the swipe
+  gestures CLAUDE.md documents (60px threshold) rather than a visible
+  button. Needs a follow-up pass that completes a full question cycle
+  to confirm where (or whether) it lives.
+- **The returning-user "Your interviews" home is a genuinely good
+  resume surface**: one card per interview, a progress bar ("0 of 40
+  practiced · 0%"), a "Plan ready" status badge, and a one-tap "Start
+  practice" primary action — this is closer to "help the user resume"
+  than "admire a chart." Screenshot: `33-interviews-mobile-loaded.png`.
+- **Direct `/practice` with no active search** shows a clear, honest
+  empty state — "No Search Selected / Select a search to start
+  practicing interview questions" with "Go to Dashboard" / "Start New
+  Search" actions — not a blank page or a silent redirect.
+- **Not reached this run:** starting a brand-new research run end to
+  end (company + role → loading state → generated stages), and the
+  full multi-stage "Plan" page. Coverage this run focused on
+  returning-user practice + nav, since a real research run consumes
+  paid OpenAI/Tavily calls against the tester account. Next run should
+  budget for one real research run to close the "research
+  progress/loading" and "generated output clarity" scorecard gaps with
+  live evidence instead of carrying them as code-inferred.
 
 ## Journey scorecard
 
-Code-level only, per the [routine's static-only
-contract](./UX_REVIEW_ROUTINE.md). Rows marked **↑** improved since
-run #3, **=** unchanged, **↓** worse.
+Rows marked **↑** improved since run #3, **=** unchanged, **↓** worse.
+Cells marked **(live)** are live-verified for the first time this run;
+unmarked cells are still code-inferred or not reached this run.
 
 | Area | Run #3 | Run #4 | Trend | Notes |
 |------|------:|------:|------|-------|
-| First-time understanding | 3 | 3 | = | Guest landing unchanged. |
-| Research entry | 3 | 3 | = | `/new-interview` marketing hero still there (PREPIO-111 unshipped). |
-| Research progress/loading | — | — | = | Not assessable without live testing. |
-| Generated output clarity | 4 | 4 | = | Plan-page density gains from run #3 hold. |
-| Practice mode | 4 | 4 | = | No source changes since run #3. |
-| Mobile usability | — | — | = | Deferred, fourth run running. |
-| Resume/profile trust | 4 | 4 | = | Unchanged. |
-| Dashboard/history/resume | 4 | 4 | = | PREPIO-114 gains from run #3 hold. |
-| Error/empty states | 4 | 3 | ↓ | Interviews empty-state has two competing headings + a CTA-label that disagrees with its populated-state twin. Newly-noticed this run. |
-| Accessibility | — | — | = | Skip-to-main confirmed. Full walk still deferred. |
-| Copy quality | 4 | 3 | ↓ | Four labels for "start a new prep" is the surface that grew this week. |
-
-Two rows moved down this run because a closer look at Interviews.tsx
-and the copy landscape surfaced consistency debt that runs #2 and #3
-had only partly flagged. No rows moved up — no product-source
-improvements landed since run #3.
+| First-time understanding | 3 | 3 | = | Not re-reached live this run (focus was on the authenticated path); guest landing unchanged in code. |
+| Research entry | 3 | 3 | = | `/new-interview` marketing hero **(live)** confirmed still present. |
+| Research progress/loading | — | — | = | Not reached — no new research run kicked off this run. Budget for this next time. |
+| Generated output clarity | 4 | 4 | = | Not reached live this run (Plan/stages page); code-level assessment unchanged. |
+| Practice mode | 4 | 5 | ↑ | **(live)** Question-as-hero layout, correctly-sized controls, honest autosave copy all confirmed live. Raised from code-inferred 4. |
+| Mobile usability | — | 3 | ↑ | **(live)** First live measurement. Most controls meet 44px+; the hamburger nav button (36px height) doesn't. |
+| Resume/profile trust | 4 | 4 | = | **(live)** Profile page renders CV-derived prefill with clear "Save once to make it canonical" copy; not re-scored pending a closer privacy-copy pass. |
+| Dashboard/history/resume | 4 | 5 | ↑ | **(live)** "Your interviews" resume card (progress bar, Plan-ready badge, one-tap Start practice) confirmed live — a strong "help the user resume" surface. |
+| Error/empty states | 3 | 4 | ↑ | **(live)** `/practice` with no active search shows a clear, actionable empty state. The Interviews-page dual-heading issue (run #4 original) remains code-only — tester account has history, so the true empty state wasn't reachable this run. |
+| Accessibility | — | 3 | ↑ | **(live)** Skip-to-main confirmed functional (route loads correctly under it); one touch-target gap found (item #5). Full keyboard-only walk still not done. |
+| Copy quality | 3 | 3 | = | **(live)** "New interview" vs "Start a new research run" mismatch confirmed live on two real pages; the empty-state third/fourth label remains code-only. |
 
 ## Regression check
 
 | Item | State | Note |
 |------|-------|------|
-| `/new-interview` marketing hero for logged-in users | **Still open** ([PREPIO-111](https://linear.app/qiuyue/issue/PREPIO-111)) | Third audit unshipped. |
-| Nav has no "Interviews" link | **Still open** ([PREPIO-101](https://linear.app/qiuyue/issue/PREPIO-101)) | Third audit unshipped. In Progress since 2026-06-24 with no landing PR. |
-| Live-app egress blocked | **Still open** | Fourth audit in a row. Static-only contract landed but that isn't a fix. |
-| Interviews.tsx "New interview" ↔ "Prep a new interview" | **Broader than filed** | Run #3 called P3 on two locations; this run finds four across the codebase. Reclassified P2. |
-| Empty-state has two competing headings | **New** | `Interviews.tsx:152` h1 + `Interviews.tsx:182` CardTitle. |
-| CLAUDE.md Routes stale vs `App.tsx` | **New** | Missing `/interviews`, `/new-interview`. |
+| `/new-interview` marketing hero for logged-in users | **Still open** ([PREPIO-111](https://linear.app/qiuyue/issue/PREPIO-111)) | Fourth audit unshipped — first with a live screenshot. |
+| Nav has no "Interviews" link | **Still open** ([PREPIO-101](https://linear.app/qiuyue/issue/PREPIO-101)) | Fourth audit unshipped, In Progress since 2026-06-24 with no landing PR — first with a live screenshot. |
+| Live-app egress blocked | **Resolved this run** | Environment's Custom network-access allowlist now includes `prepio.qiuyue.dev` and `*.supabase.co`. No `area:infra` ticket needed — do not re-file. |
+| "New interview" ↔ "Start a new research run" | **Confirmed live** (partially) | Two of the four labels flagged in run #4's original pass are now live-confirmed; the other two remain code-only pending a true empty-state visit. |
+| CLAUDE.md Routes stale vs `App.tsx` | **Still open** | Unchanged this run. |
+| PREPIO-108 autosave label | **Confirmed intact, live** | First live confirmation since the run #2 fix — "Saving draft…" → "Draft kept in this tab" transition works as designed. |
 
-No previously-fixed regressions returned. The three carryover items
-are all label/copy/nav structure, not runtime regressions.
+No previously-fixed regressions returned.
 
 ## Recommended tickets
 
 | # | Ticket | Status |
 |---|--------|--------|
-| 1 | [PREPIO-111](https://linear.app/qiuyue/issue/PREPIO-111) — remove marketing hero from logged-in `/new-interview` | **Escalate.** Third audit repeat. Move to Todo/In Progress this cycle. |
-| 2 | [PREPIO-101](https://linear.app/qiuyue/issue/PREPIO-101) — collapse nav / rename Dashboard → Plan | **Escalate.** Third audit repeat. In Progress since 2026-06-24 with no PR; needs an owner check-in. |
-| 3 | *New* — Unify "start a new prep" CTA copy across Interviews, Home, and Dashboard | **File.** `Type: Improvement`, `area:landing`, P2. Cover the two `Interviews.tsx` labels, the desktop `Home.tsx:1004` title, and the `Dashboard.tsx` fallback. Also drop the redundant `CardTitle` "Prepare for your next interview" on the empty state so the h1 stays the anchor. |
-| 4 | *New* — Refresh CLAUDE.md Routes and Primary-user-flow tables to match shipped `/interviews`, `/new-interview` topology | **File.** `Type: Docs`, `area:landing`, P2. Land in the same PR as PREPIO-101 if that ships this week. |
-| 5 | *New* — File the deferred `area:infra` chore that runs #2 and #3 recommended | **File.** `Type: Chore`, `area:infra`, project **Quality & Maintenance**. Title: *"Restore live-app egress for the recurring UX-review routine (allowlist `prepio.qiuyue.dev` or rewire against local `npm run dev`)"*. Reference this audit + the last three. |
+| 1 | [PREPIO-111](https://linear.app/qiuyue/issue/PREPIO-111) — remove marketing hero from logged-in `/new-interview` | **Escalate.** Fourth audit repeat, now live-confirmed. Move to Todo/In Progress this cycle. |
+| 2 | [PREPIO-101](https://linear.app/qiuyue/issue/PREPIO-101) — collapse nav / rename Dashboard → Plan | **Escalate.** Fourth audit repeat, now live-confirmed. In Progress since 2026-06-24 with no PR; needs an owner check-in. |
+| 3 | *New* — Unify "start a new prep" CTA copy across Interviews, Home, and Dashboard | **File.** `Type: Improvement`, `area:landing`, P2. Two of four locations now live-confirmed. |
+| 4 | *New* — Refresh CLAUDE.md Routes and Primary-user-flow tables to match shipped `/interviews`, `/new-interview` topology | **File.** `Type: Docs`, `area:landing`, P2. Land alongside PREPIO-101 if that ships this week. |
+| 5 | *New* — Increase mobile nav hamburger button touch target to 44×44px minimum | **File.** `Type: Bug`, P3. Live-measured at 42×36px against a 44px+ guideline; every other measured mobile control this run met the bar. |
+
+Note: run #3's recommendation to file an `area:infra` chore for
+restoring live-app egress is now moot — the environment owner fixed
+network access directly this run. Do not file that ticket.
 
 ## Next-run focus
 
-1. **PREPIO-111 and PREPIO-101 landing check.** If either lands, verify
-   the copy/nav change on the day it ships. If both slide again, treat
-   the fourth-repeat pattern as an ownership issue and raise in the
-   Prepio Linear team, not just the audit.
-2. **First run with live browser access:** run the deferred mobile
-   safe-area + touch-target + keyboard-focus scripts from
-   [`2026-06-21-ux-review-routine.md`](./2026-06-21-ux-review-routine.md).
-3. **Copy consistency sweep after the label unification (#3 above)**
-   ships: audit toast copy, breadcrumb copy, and every "start a new
-   prep" call-site in the same review.
-4. **Recording aria-live** and **question-advance focus management**
-   remain deferred from run #2. Escalate to filed issues only after
-   they can be verified live.
+1. **PREPIO-111 and PREPIO-101 landing check.** Both are now
+   live-confirmed four-audit repeats. If either lands, verify the
+   change with a live screenshot the same day. If both slide again,
+   raise as an ownership gap in the Prepio Linear team, not just the
+   audit doc.
+2. **Budget one real research run** (company + role → loading →
+   generated stages → Plan page) to close the "research
+   progress/loading" and "generated output clarity" scorecard gaps
+   with live evidence.
+3. **Complete a full practice question cycle** (through "Save &
+   Continue" to the next question, and through session completion) to
+   find where — or whether — a "needs work" marking control actually
+   lives, and to check the session-summary / completion screen.
+4. **First real keyboard-only + screen-reader pass** now that live
+   access exists: landing → auth → interviews → practice, focus order,
+   visible focus states, and whether the autosave state change is
+   announced.
+5. **Confirm the empty-state dual-heading and label-drift findings**
+   (item #3 above) live, either with a fresh test account or by
+   deleting the tester account's one interview temporarily.
 
-`Capability: static code/change-diff review only`
+`Capability: live browser verified`
