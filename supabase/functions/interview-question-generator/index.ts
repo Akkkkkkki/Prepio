@@ -5,7 +5,7 @@
 // Functions" for context. If you're auditing this directory and considering
 // deletion, the decision is tracked in PREPIO-87.
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
 import { getOpenAIModel } from "../_shared/config.ts";
 import { authorizeRequest, ensureServiceCaller } from "../_shared/auth.ts";
 import { buildCorsHeaders } from "../_shared/cors.ts";

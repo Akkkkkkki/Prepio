@@ -5,15 +5,15 @@ import path from "node:path";
 const repoRoot = process.cwd();
 const supabaseImportPattern = /https:\/\/esm\.sh\/@supabase\/supabase-js@([^"'?]+)/g;
 
-function packageSupabaseVersion(): string {
-  const packageJson = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
-  const declaredVersion = packageJson.dependencies?.["@supabase/supabase-js"];
+function lockedSupabaseVersion(): string {
+  const packageLock = JSON.parse(readFileSync(path.join(repoRoot, "package-lock.json"), "utf8"));
+  const lockedVersion = packageLock.packages?.["node_modules/@supabase/supabase-js"]?.version;
 
-  if (typeof declaredVersion !== "string") {
-    throw new Error("package.json is missing @supabase/supabase-js in dependencies");
+  if (typeof lockedVersion !== "string") {
+    throw new Error("package-lock.json is missing node_modules/@supabase/supabase-js");
   }
 
-  return declaredVersion.replace(/^[^\d]*/, "");
+  return lockedVersion;
 }
 
 function collectTypescriptFiles(dir: string): string[] {
@@ -30,8 +30,8 @@ function collectTypescriptFiles(dir: string): string[] {
 }
 
 describe("Supabase CDN import versions", () => {
-  it("keeps Deno Supabase imports aligned with package.json", () => {
-    const expectedVersion = packageSupabaseVersion();
+  it("keeps Deno Supabase imports aligned with the locked npm version", () => {
+    const expectedVersion = lockedSupabaseVersion();
     const scannedFiles = [
       path.join(repoRoot, "supabase", "functions"),
       path.join(repoRoot, "tests"),
