@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
 import { extractInterviewReviewUrls, searchTavily, TavilySearchRequest } from "../_shared/tavily-client.ts";
 import { callOpenAI, parseJsonResponse, OpenAIRequest } from "../_shared/openai-client.ts";
 import { SearchLogger } from "../_shared/logger.ts";
