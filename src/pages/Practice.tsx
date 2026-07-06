@@ -57,6 +57,7 @@ import { QuestionInsightsPanel } from "@/components/practice/QuestionInsightsPan
 import { MobileCoachModal } from "@/components/practice/MobileCoachModal";
 import { CompletionCheckmark } from "@/components/practice/CompletionCheckmark";
 import { BreathingBreak, BREATHING_DISMISSED_KEY } from "@/components/practice/BreathingBreak";
+import { FollowUpDrill } from "@/components/practice/FollowUpDrill";
 import type { SavedPracticeAnswerRecord } from "@/hooks/usePracticeSession";
 import { cn } from "@/lib/utils";
 
@@ -113,6 +114,7 @@ type PracticeDefaults = {
   difficulties: string[];
   shuffle: boolean;
   favoritesOnly: boolean;
+  interviewerMode?: boolean;
 };
 
 interface EnhancedQuestion {
@@ -241,6 +243,14 @@ const Practice = () => {
   const [tempCategories, setTempCategories] = useState<string[]>([]);
   const [tempDifficulties, setTempDifficulties] = useState<string[]>([]);
   const [tempShuffle, setTempShuffle] = useState<boolean>(false);
+  const [tempInterviewerMode, setTempInterviewerMode] = useState<boolean>(false);
+  const [appliedInterviewerMode, setAppliedInterviewerMode] = useState<boolean>(false);
+  // Set right after a save in interviewer mode; the advance (or session
+  // finalization) is held until the follow-up is dismissed.
+  const [pendingFollowUp, setPendingFollowUp] = useState<{
+    prompt: string;
+    isLastQuestion: boolean;
+  } | null>(null);
   
   // Session sampling
   const [sampleSize, setSampleSize] = useState<number>(10);
@@ -444,6 +454,9 @@ const Practice = () => {
         if (typeof parsed.favoritesOnly === "boolean") {
           setTempShowFavoritesOnly(parsed.favoritesOnly);
         }
+        if (typeof parsed.interviewerMode === "boolean") {
+          setTempInterviewerMode(parsed.interviewerMode);
+        }
         const isQuickDefault =
           parsed.sampleSize === practicePresets.quick.config.sampleSize &&
           parsed.categories.length === 0 &&
@@ -472,7 +485,8 @@ const Practice = () => {
       categories: tempCategories,
       difficulties: tempDifficulties,
       shuffle: tempShuffle,
-      favoritesOnly: tempShowFavoritesOnly
+      favoritesOnly: tempShowFavoritesOnly,
+      interviewerMode: tempInterviewerMode
     };
 
     try {
@@ -1113,6 +1127,7 @@ const getInterviewerFocus = (
     difficulties = tempDifficulties,
     shuffle = tempShuffle,
     favoritesOnly = tempShowFavoritesOnly,
+    interviewerMode = tempInterviewerMode,
     stages = allStages,
     nextSampleSize = sampleSize,
     nextPreset = selectedPreset,
@@ -1121,6 +1136,7 @@ const getInterviewerFocus = (
     difficulties?: string[];
     shuffle?: boolean;
     favoritesOnly?: boolean;
+    interviewerMode?: boolean;
     stages?: InterviewStage[];
     nextSampleSize?: number;
     nextPreset?: string | null;
@@ -1135,6 +1151,8 @@ const getInterviewerFocus = (
     setAppliedDifficulties(difficulties);
     setAppliedShuffle(shuffle);
     setShowFavoritesOnly(favoritesOnly);
+    setAppliedInterviewerMode(interviewerMode);
+    setPendingFollowUp(null);
 
     const hasSelectedStages = stages.some(stage => stage.selected);
     if (!hasSelectedStages) {
@@ -1160,7 +1178,8 @@ const getInterviewerFocus = (
       categories,
       difficulties,
       shuffle,
-      favoritesOnly
+      favoritesOnly,
+      interviewerMode
     });
     if (typeof window !== "undefined") {
       sessionStorage.removeItem(swipeHintStorageKey);
@@ -1431,8 +1450,16 @@ const getInterviewerFocus = (
         setShowCheckmark(true);
         clearRecording();
         
-        // Check if this is the last question
-        if (currentIndex >= questions.length - 1) {
+        const isLastQuestion = currentIndex >= questions.length - 1;
+        const followUp = appliedInterviewerMode
+          ? currentQuestion.follow_up_questions?.find((item) => item && item.trim())
+          : undefined;
+
+        if (followUp) {
+          // Interviewer mode: hold the advance (or finalization) until the
+          // follow-up drill is dismissed.
+          setPendingFollowUp({ prompt: followUp.trim(), isLastQuestion });
+        } else if (isLastQuestion) {
           await finalizeSession();
         } else {
           // Auto-advance to next question
@@ -1452,6 +1479,23 @@ const getInterviewerFocus = (
 
   const nextQuestion = () => {
     if (currentIndex < questions.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+    }
+  };
+
+  const handleFollowUpContinue = async () => {
+    if (!pendingFollowUp) return;
+    const { isLastQuestion } = pendingFollowUp;
+    setPendingFollowUp(null);
+
+    if (isLastQuestion) {
+      setIsSaving(true);
+      try {
+        await finalizeSession();
+      } finally {
+        setIsSaving(false);
+      }
+    } else {
       setCurrentIndex(prev => prev + 1);
     }
   };
@@ -1576,6 +1620,7 @@ const getInterviewerFocus = (
     isOffline || !canSubmitAnswer || isSaving || isRecording || isRecordingPaused;
   const isSkipDisabled =
     isSaving || isRecording || isRecordingPaused || (isOffline && isFinalQuestion);
+  const hasPendingFollowUp = pendingFollowUp !== null;
   const skipActionLabel = currentIndex >= questions.length - 1
     ? hasUnsavedCurrentResponse ? 'Finish & Save' : 'Finish'
     : 'Skip';
@@ -1632,6 +1677,7 @@ const getInterviewerFocus = (
     if (sessionState !== 'inProgress') return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (hasPendingFollowUp) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable)) {
         return;
@@ -1659,7 +1705,8 @@ const getInterviewerFocus = (
     currentIndex,
     previousQuestion,
     isPrimaryDisabled,
-    isSkipDisabled
+    isSkipDisabled,
+    hasPendingFollowUp
   ]);
 
   // Swipe configuration
@@ -2111,6 +2158,17 @@ const getInterviewerFocus = (
                     </button>
                     <button
                       type="button"
+                      onClick={() => setTempInterviewerMode(prev => !prev)}
+                      className={cn(
+                        "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition",
+                        tempInterviewerMode ? "border-primary bg-primary/5" : "border-border bg-background"
+                      )}
+                    >
+                      <span>Interviewer follow-ups</span>
+                      <span className="text-muted-foreground">{tempInterviewerMode ? "On" : "Off"}</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setRememberDefaults(prev => !prev)}
                       className={cn(
                         "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition",
@@ -2121,6 +2179,9 @@ const getInterviewerFocus = (
                       <span className="text-muted-foreground">{rememberDefaults ? "On" : "Off"}</span>
                     </button>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    With interviewer follow-ups on, saving an answer surfaces one of that question's follow-ups before you move on.
+                  </p>
                 </div>
               </section>
             )}
@@ -2341,6 +2402,17 @@ const getInterviewerFocus = (
                         </button>
                         <button
                           type="button"
+                          onClick={() => setTempInterviewerMode(prev => !prev)}
+                          className={cn(
+                            "flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition",
+                            tempInterviewerMode ? "border-primary bg-primary/5" : "border-border bg-background",
+                          )}
+                        >
+                          <span>Interviewer follow-ups</span>
+                          <span className="text-muted-foreground">{tempInterviewerMode ? "On" : "Off"}</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => setRememberDefaults(prev => !prev)}
                           className={cn(
                             "flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition",
@@ -2351,6 +2423,9 @@ const getInterviewerFocus = (
                           <span className="text-muted-foreground">{rememberDefaults ? "On" : "Off"}</span>
                         </button>
                       </div>
+                      <p className="text-xs text-muted-foreground">
+                        With interviewer follow-ups on, saving an answer surfaces one of that question's follow-ups before you move on.
+                      </p>
                     </div>
 
                     <Button
@@ -2820,6 +2895,13 @@ const getInterviewerFocus = (
           question={currentQuestion.question}
           insights={questionInsights}
         />
+
+        <FollowUpDrill
+          open={hasPendingFollowUp}
+          prompt={pendingFollowUp?.prompt ?? ""}
+          isLastQuestion={pendingFollowUp?.isLastQuestion ?? false}
+          onContinue={handleFollowUpContinue}
+        />
       </div>
     );
   }
@@ -3183,6 +3265,13 @@ const getInterviewerFocus = (
           />
         </div>
       </div>
+
+      <FollowUpDrill
+        open={hasPendingFollowUp}
+        prompt={pendingFollowUp?.prompt ?? ""}
+        isLastQuestion={pendingFollowUp?.isLastQuestion ?? false}
+        onContinue={handleFollowUpContinue}
+      />
     </div>
   );
 };
