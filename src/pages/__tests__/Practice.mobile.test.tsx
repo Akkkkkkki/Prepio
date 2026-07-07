@@ -746,8 +746,10 @@ describe("Practice autosave label", () => {
   });
 
   const startSession = async () => {
-    fireEvent.click(await screen.findByText("Quick Start"));
+    fireEvent.click(await screen.findByRole("button", { name: /quick start/i }));
+    expect(await screen.findByText("Breathe in...")).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
+    expect(await screen.findByText("Describe your system design approach.")).toBeInTheDocument();
     return screen.findByPlaceholderText("Capture bullet points or timing cues…");
   };
 
@@ -818,8 +820,7 @@ describe("Practice autosave label", () => {
 
     expect(await screen.findByText("Draft kept in this tab")).toBeInTheDocument();
 
-    vi.useRealTimers();
-    fireEvent.click(screen.getByRole("button", { name: /skip/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /skip/i }));
 
     await waitFor(() =>
       expect(screen.getByText("How do you evaluate ML models in production?")).toBeInTheDocument()
