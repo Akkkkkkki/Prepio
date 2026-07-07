@@ -17,6 +17,10 @@ import {
   formatJobRequirementsBlock,
   type JobRequirementsSource,
 } from "./job-requirements-prompt.ts";
+import {
+  applyEvidenceSufficiencyGate,
+  type EvidenceSufficiencyStats,
+} from "./evidence-sufficiency.ts";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -41,6 +45,11 @@ interface RawResearchData {
   company_research_raw?: any;
   job_analysis_raw?: any;
   cv_analysis_raw?: any;
+}
+
+interface CompanyResearchResult {
+  insights: any;
+  evidenceStats: EvidenceSufficiencyStats;
 }
 
 interface PrepPlanOutput {
@@ -264,7 +273,7 @@ async function gatherCompanyData(
   searchId?: string,
   level?: Level,
   userNote?: string,
-) {
+): Promise<CompanyResearchResult | null> {
   try {
     console.log("📊 Gathering company research data...");
     const controller = new AbortController();
@@ -282,7 +291,12 @@ async function gatherCompanyData(
     if (response.ok) {
       const result = await response.json();
       console.log("✅ Company research complete");
-      return result.company_insights || null;
+      return {
+        insights: result.company_insights || null,
+        evidenceStats: {
+          candidateReportCount: Number.isFinite(result.extracted_urls) ? result.extracted_urls : 0,
+        },
+      };
     }
     console.warn(`⚠️ Company research failed with status ${response.status}`);
     return null;
@@ -728,6 +742,7 @@ async function synthesizePrepPlan(
   jobRequirementsSource: JobRequirementsSource | null,
   cvAnalysis: any,
   openaiApiKey: string,
+  evidenceStats: EvidenceSufficiencyStats,
 ): Promise<PrepPlanOutput | null> {
   try {
     console.log("🔄 Starting assessment-first PrepPlan synthesis...");
@@ -787,6 +802,8 @@ async function synthesizePrepPlan(
       validationErrors: validation.errors,
       questionCounts: validation.counts,
     };
+
+    plan = applyEvidenceSufficiencyGate(plan, evidenceStats);
 
     logSynthesisOutcome(plan, validation, repairAttempted);
 
@@ -1019,7 +1036,9 @@ async function processInterviewResearch(
       gatherJobData(requestData.roleLinks || [], searchId, requestData.company, requestData.role),
       gatherCVData(cvText, userId),
     ]);
-    const companyInsights = settled[0].status === 'fulfilled' ? settled[0].value : null;
+    const companyResearch = settled[0].status === 'fulfilled' ? settled[0].value : null;
+    const companyInsights = companyResearch?.insights ?? null;
+    const evidenceStats = companyResearch?.evidenceStats ?? { candidateReportCount: 0 };
     const jobAnalysis = settled[1].status === 'fulfilled'
       ? (settled[1].value as JobAnalysisResult | null)
       : null;
@@ -1058,6 +1077,7 @@ async function processInterviewResearch(
       jobRequirementsSource,
       cvAnalysis,
       openaiApiKey,
+      evidenceStats,
     );
 
     if (!prepPlan) {

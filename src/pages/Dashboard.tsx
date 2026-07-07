@@ -208,9 +208,9 @@ function WeakSignalNotice() {
     <Alert className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950">
       <AlertTriangle className="h-4 w-4 text-amber-600" />
       <AlertDescription>
-        <strong>Best-guess plan.</strong> Limited employer-specific evidence was available, so this
-        plan leans on role norms. Treat stage order as approximate and focus on cross-stage practice
-        first.
+        <strong>Limited company data.</strong> Fewer real candidate reports were available for this
+        company, so this plan leans on role norms. Treat stage order as approximate and focus on
+        cross-stage practice first.
       </AlertDescription>
     </Alert>
   );

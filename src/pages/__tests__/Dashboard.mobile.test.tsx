@@ -736,7 +736,7 @@ describe("Dashboard mobile layout", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText(/leans on role norms/i)).toBeInTheDocument();
+    expect(await screen.findByText(/fewer real candidate reports were available for this company/i)).toBeInTheDocument();
   });
 
   it("preserves the real failure message when offline", async () => {
