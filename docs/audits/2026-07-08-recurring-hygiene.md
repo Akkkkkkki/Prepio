@@ -99,7 +99,9 @@ Headline status:
    fields, `errorCode` not present on the answer-feedback discriminated
    union). Not runtime bugs — the data is populated at runtime — but
    another reason to fix the typecheck script and drain the backlog.
-   Tracked in the Linear item filed 2026-07-04 (see Deferred items).
+   The 2026-07-04 audit prescribed a Linear ticket for this that
+   **was never filed** — this audit's Deferred items section
+   recommends filing it now with both audits' evidence pasted in.
 4. **Bundle essentially flat.** PWA precache 60 entries / 2264.64 KiB
    today vs 60 entries / 2262.42 KiB on 2026-07-04 (+2.22 KiB). The
    React 19 aggregate settled; no drift from either the Supabase SDK
