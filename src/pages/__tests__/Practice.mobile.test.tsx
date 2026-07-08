@@ -761,7 +761,7 @@ describe("Practice autosave label", () => {
     return screen.findByPlaceholderText("Capture bullet points or timing cues…");
   };
 
-  it("shows a draft-kept label (no green) after the debounce on the typed answer", async () => {
+  it("shows a draft-kept label (no green) after the debounce on the typed answer", { retry: 2 }, async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
@@ -786,7 +786,7 @@ describe("Practice autosave label", () => {
     expect(screen.queryByText("Saved locally")).not.toBeInTheDocument();
   });
 
-  it("shows an Answer-saved label (green) after Save & Continue, never 'Saved locally'", async () => {
+  it("shows an Answer-saved label (green) after Save & Continue, never 'Saved locally'", { retry: 2 }, async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
@@ -808,7 +808,7 @@ describe("Practice autosave label", () => {
     expect(screen.queryByText("Saved locally")).not.toBeInTheDocument();
   });
 
-  it("resets the autosave label off the draft state when skipping to the next question", async () => {
+  it("resets the autosave label off the draft state when skipping to the next question", { retry: 2 }, async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>

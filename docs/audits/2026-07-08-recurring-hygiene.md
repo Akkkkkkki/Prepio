@@ -12,6 +12,19 @@ runtime feature landed (PREPIO-47 interviewer follow-up drilling), a
 follow-up docs correction landed *incorrectly*, and the Supabase Edge
 SDK pins were aligned across all 11 edge functions.
 
+**This audit's own PR surfaced a live reliability bug while landing.**
+CI failed the docs-only PR twice on `Practice.mobile.test.tsx`'s
+`startSession` helper (`findByText("Breathe in...")` never resolving —
+the Quick-Start → breathing-screen transition silently stalling).
+Confirmed **environment-wide, not caused by this PR**: the identical
+failure signature appeared the same afternoon on a completely
+unrelated, concurrently open branch touching only
+`query-planner.ts`. Not reproducible locally under a clean `npm ci`
+across 5 repeated runs + 2 full-suite runs. Applied the standard
+flaky-test mitigation (`{ retry: 2 }` on the 3 affected tests) since
+the actual race couldn't be root-caused without CI shell access — see
+the new Medium finding below.
+
 Merged this window:
 
 - **Runtime**
@@ -316,6 +329,46 @@ still pass:
 
 ### Medium
 
+- [ ] **`Practice.mobile.test.tsx` has an environment-wide, unreproducible
+  CI flake blocking arbitrary PRs** — new, discovered while landing
+  this audit's own PR.
+  - Evidence: This audit's docs-only PR (#226) failed CI twice on
+    `startSession`'s `findByText("Breathe in...")`
+    ([`src/pages/__tests__/Practice.mobile.test.tsx`](../../src/pages/__tests__/Practice.mobile.test.tsx)) —
+    once at the pre-existing 1000ms timeout, once again after raising
+    it to 3000ms. The DOM snapshot at failure time shows the Practice
+    setup screen unchanged (`sessionState` never left `'setup'`) —
+    clicking "Quick Start" produced no visible state transition within
+    the window. **Confirmed environment-wide, not PR-specific**: the
+    identical failure signature appeared the same afternoon on an
+    entirely unrelated, concurrently open branch
+    (`cb7e25f9`, "feat: target retrieval from user note signals",
+    touching only `supabase/functions/company-research/query-planner.ts`).
+    Not reproducible locally: `rm -rf node_modules && npm ci` (matching
+    CI's install path) plus 5 repeated runs of the file alone and 2
+    full-suite runs produced zero failures.
+  - Risk: This test can fail CI for **any** PR touching **any** file,
+    docs included, on a currently-unknown cadence. Contributors will
+    reflexively re-push or ask for a re-run without understanding why,
+    and a future *real* regression in the Quick-Start → breathing-screen
+    flow could hide behind "oh, that test's just flaky."
+  - Recommended fix: This audit could not root-cause it (unreproducible
+    locally) and applied only the standard flaky-test mitigation —
+    `{ retry: 2 }` on the 3 affected `it()` blocks — which unblocks CI
+    without masking a genuine regression (a real bug still fails on all
+    3 attempts). The actual race (something intermittently stalls
+    `beginSession`'s `setSessionState('breathing')` after the Quick
+    Start click, only under CI's resource profile) needs a maintainer
+    with CI shell access to instrument directly — for example, temporarily
+    logging `sessionState`/`allStages` transitions in a debug build, or
+    running the suite under CI-equivalent CPU throttling locally
+    (`--cpu-throttling` in a container, or vitest's `poolOptions.threads.maxThreads: 1`
+    to simulate contention).
+  - Owner / next step: File in Quality & Maintenance (`Chore` +
+    `area:practice`), cross-linked to this audit and PR #226. Do not
+    close until the retry mitigation is either confirmed sufficient
+    over several PR cycles or replaced with a real fix.
+
 - [ ] **CI typecheck is still a silent no-op — real error count
   drifted 347 → 361 across this window** — carried from 2026-07-04.
   - Evidence: [`.github/workflows/ci.yml:45`](../../.github/workflows/ci.yml)
@@ -418,20 +471,35 @@ still pass:
 
 ## Small fixes made in this run
 
-- **Bumped the `findByText` timeout in the shared `startSession` test
-  helper** ([`src/pages/__tests__/Practice.mobile.test.tsx`](../../src/pages/__tests__/Practice.mobile.test.tsx),
-  used by 3 tests in the "Practice autosave label" block). CI failed
-  this PR on `startSession`'s `findByText("Breathe in...")` (default
-  1000ms testing-library timeout) — not caused by this PR's docs-only
-  diff, but a flake in the same test [#225](https://github.com/akkkkkkki/prepio/pull/225)
-  had partially stabilized two hours earlier by switching the click
-  target from text to role and adding these same two assertions.
-  Raised both assertions in the helper to a 3000ms timeout; confirmed
-  locally with a clean run (45 files / 351 tests / 0 failures) and a
-  targeted re-run of the file alone. Kept the scope to the two
-  assertions the CI log actually implicated — did not touch the other
-  `findByText("Breathe in...")` call sites elsewhere in the same file
-  that aren't reported as flaky.
+- **Mitigated (not root-caused) a pre-existing, environment-wide CI
+  flake in `Practice.mobile.test.tsx`.** CI failed this PR (a
+  docs-only diff) on `startSession`'s
+  `findByText("Breathe in...")` — the shared helper used by 3 tests in
+  the "Practice autosave label" block
+  ([`src/pages/__tests__/Practice.mobile.test.tsx`](../../src/pages/__tests__/Practice.mobile.test.tsx)).
+  First fix attempt raised the assertion timeout 1000ms → 3000ms
+  (matching the pattern [#225](https://github.com/akkkkkkki/prepio/pull/225)
+  had partially applied two hours earlier) — this **did not close the
+  gap**: CI failed again on the retry with the identical DOM snapshot
+  (`sessionState` never left `'setup'` within the window). A clean
+  `rm -rf node_modules && npm ci` plus 5 repeated local runs of the
+  file, and two full-suite runs, produced **zero** failures — the bug
+  does not reproduce locally under any tested condition.
+  **Confirms this is not caused by this PR**: the identical failure
+  signature (same "Ready to practice?" DOM, same
+  `startSession`/`findByText("Breathe in...")` stack) showed up the
+  same afternoon on a completely unrelated, concurrently open branch
+  (`cb7e25f9`, "feat: target retrieval from user note signals" —
+  touches only `supabase/functions/company-research/query-planner.ts`,
+  nothing in `src/pages/` or `src/components/practice/`). Given the
+  root cause could not be reproduced or diagnosed locally, applied the
+  standard mitigation instead of guessing further: added
+  `{ retry: 2 }` to all three affected `it()` blocks. This unblocks
+  CI without masking a genuine regression (a real bug would still fail
+  on all 3 attempts); it does not fix whatever intermittently stalls
+  the Quick-Start → breathing-screen transition in the CI environment.
+  **File a proper Linear ticket** for the underlying flake — see
+  Findings and Deferred items below.
 
 Everything else in this run either has a live PR by a human (PR #223
 restores the lint baseline — do not duplicate) or is outside the "one
@@ -470,6 +538,12 @@ Tracked exclusively in Linear (no free-form bullets to re-discover):
   Not filed after the 2026-07-04 audit recommended it — file now with
   both audits' evidence pasted in. Quality & Maintenance, `Chore` +
   `area:infra`. Cross-link to PR #213 and this audit.
+- **New — `Practice.mobile.test.tsx` environment-wide CI flake.**
+  Blocks arbitrary PRs intermittently; root cause unconfirmed, only
+  mitigated via `{ retry: 2 }` in PR #226. File under Quality &
+  Maintenance, `Chore` + `area:practice`, cross-linked to PR #226 and
+  this audit. Needs a maintainer with CI shell access to instrument
+  and root-cause.
 
 Not in Linear yet, but worth watching for filing after their PRs
 merge:
@@ -495,20 +569,26 @@ merge:
 
 ## Next review focus
 
-1. **PR #223 lint-baseline restore** — confirm it merges (single-file,
+1. **`Practice.mobile.test.tsx` CI flake root cause.** Watch whether
+   the `{ retry: 2 }` mitigation holds over the next several PR
+   cycles, or whether the underlying stall recurs even across
+   retries (which would mean it's not purely transient and needs
+   urgent escalation). If a maintainer gets a chance to instrument it
+   in CI directly, fold the finding into this ticket.
+2. **PR #223 lint-baseline restore** — confirm it merges (single-file,
    docs-only, no reason to stall). If it does, next audit reports the
    `docs/TESTING.md` fix as landed.
-2. **CI typecheck fix** — if the Linear ticket gets filed and worked,
+3. **CI typecheck fix** — if the Linear ticket gets filed and worked,
    confirm the corrected `typecheck` script lands and CI actually
    red-flags source-level regressions. If not, promote from Medium
    → High next run — a two-audit-window regression this specific is
    overdue for escalation.
-3. **PREPIO-47 in production** — the interviewer follow-up mode
+4. **PREPIO-47 in production** — the interviewer follow-up mode
    deserves a follow-up look once real users have opted in. Watch
    for `follow_up_questions` shape drift (some questions have
    `null` / missing arrays) — the modal defaults to empty-string
    safe, but if the "no follow-up available" case becomes common the
    UX could degrade quietly.
-4. **Whether the two remaining Dependabot PRs (#143, #144) merge.**
+5. **Whether the two remaining Dependabot PRs (#143, #144) merge.**
    The 2026-07-04 batch merge was uncharacteristic; watch whether
    the maintainer keeps the cadence up or the pile refills.
