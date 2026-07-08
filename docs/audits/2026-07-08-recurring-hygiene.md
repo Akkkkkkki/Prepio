@@ -418,11 +418,25 @@ still pass:
 
 ## Small fixes made in this run
 
-**None.** Every finding in this run either has a live PR by a human
-(PR #223 restores the lint baseline — do not duplicate) or is
-outside the "one small reviewable PR" ceiling (the CI typecheck fix
-needs a coordinated cleanup pass, not a docs-only patch). The audit
-doc + README index entry are the only in-tree changes.
+- **Bumped the `findByText` timeout in the shared `startSession` test
+  helper** ([`src/pages/__tests__/Practice.mobile.test.tsx`](../../src/pages/__tests__/Practice.mobile.test.tsx),
+  used by 3 tests in the "Practice autosave label" block). CI failed
+  this PR on `startSession`'s `findByText("Breathe in...")` (default
+  1000ms testing-library timeout) — not caused by this PR's docs-only
+  diff, but a flake in the same test [#225](https://github.com/akkkkkkki/prepio/pull/225)
+  had partially stabilized two hours earlier by switching the click
+  target from text to role and adding these same two assertions.
+  Raised both assertions in the helper to a 3000ms timeout; confirmed
+  locally with a clean run (45 files / 351 tests / 0 failures) and a
+  targeted re-run of the file alone. Kept the scope to the two
+  assertions the CI log actually implicated — did not touch the other
+  `findByText("Breathe in...")` call sites elsewhere in the same file
+  that aren't reported as flaky.
+
+Everything else in this run either has a live PR by a human (PR #223
+restores the lint baseline — do not duplicate) or is outside the "one
+small reviewable PR" ceiling (the CI typecheck fix needs a coordinated
+cleanup pass, not a docs-only patch).
 
 Explicitly *not* touched this run:
 

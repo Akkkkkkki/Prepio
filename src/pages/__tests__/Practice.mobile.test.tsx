@@ -747,9 +747,17 @@ describe("Practice autosave label", () => {
 
   const startSession = async () => {
     fireEvent.click(await screen.findByRole("button", { name: /quick start/i }));
-    expect(await screen.findByText("Breathe in...")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Breathe in...", {}, { timeout: 3000 })
+    ).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
-    expect(await screen.findByText("Describe your system design approach.")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Describe your system design approach.",
+        {},
+        { timeout: 3000 }
+      )
+    ).toBeInTheDocument();
     return screen.findByPlaceholderText("Capture bullet points or timing cues…");
   };
 
