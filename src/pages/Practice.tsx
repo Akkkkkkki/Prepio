@@ -619,7 +619,7 @@ const getInterviewerFocus = (
           }
           
           if (result.search.status === 'failed') {
-            setError("Research processing failed. Please try starting a new search.");
+            setError("Research processing failed. Please prep a new interview to try again.");
             return;
           }
           
@@ -1795,7 +1795,7 @@ const getInterviewerFocus = (
                     onClick={() => navigate('/new-interview')}
                     className="w-full"
                   >
-                    Start New Search
+                    Prep a new interview
                   </Button>
                 </div>
               </CardContent>
@@ -1861,7 +1861,7 @@ const getInterviewerFocus = (
                     onClick={() => navigate('/new-interview')}
                     className="w-full"
                   >
-                    Start New Search
+                    Prep a new interview
                   </Button>
                 </div>
               </div>
@@ -1898,7 +1898,7 @@ const getInterviewerFocus = (
                   onClick={() => navigate('/new-interview')}
                   className="w-full"
                 >
-                  Start New Search
+                  Prep a new interview
                 </Button>
               </div>
             </CardContent>

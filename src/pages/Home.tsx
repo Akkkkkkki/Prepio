@@ -1001,7 +1001,7 @@ const Home = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-2xl tracking-tight">
           <Search className="h-5 w-5 text-primary" />
-          Start a new research run
+          Prep a new interview
         </CardTitle>
         <CardDescription>
           All you need is the company. Add role, CV, or job description below to sharpen the questions.
