@@ -783,7 +783,7 @@ describe("Dashboard mobile layout", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Start New Search" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Prep a new interview" }));
 
     expect(await screen.findByText("New interview target")).toBeInTheDocument();
   });

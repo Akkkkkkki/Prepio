@@ -213,7 +213,7 @@ describe("Practice mobile layout", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Start New Search" }));
+    fireEvent.click(screen.getByRole("button", { name: "Prep a new interview" }));
 
     expect(await screen.findByText("New interview target")).toBeInTheDocument();
   });

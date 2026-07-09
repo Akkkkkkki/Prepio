@@ -66,6 +66,10 @@ describe("Interviews home", () => {
     renderInterviews();
 
     expect(await screen.findByText("Stripe · Senior Product Manager")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Prep a new interview" })).toHaveAttribute(
+      "href",
+      "/new-interview",
+    );
     expect(screen.getByText("In progress")).toBeInTheDocument();
     expect(screen.getByText("6 of 14 practiced · 43%")).toBeInTheDocument();
     expect(screen.getByText("3 questions still need work")).toBeInTheDocument();

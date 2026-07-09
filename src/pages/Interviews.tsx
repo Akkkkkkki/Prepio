@@ -158,7 +158,7 @@ const Interviews = () => {
             <Button asChild size="lg">
               <Link to="/new-interview">
                 <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                New interview
+                Prep a new interview
               </Link>
             </Button>
           )}
