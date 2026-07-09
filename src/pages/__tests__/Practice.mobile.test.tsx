@@ -19,6 +19,8 @@ const mockCompletePracticeSession = vi.fn();
 const mockSavePracticeSessionNotes = vi.fn();
 const mockGetEntitlement = vi.fn();
 const mockUseIsMobile = vi.fn();
+const mockRemoveQuestionFlag = vi.fn();
+const mockSetQuestionFlag = vi.fn();
 
 class MockResizeObserver {
   static instances: MockResizeObserver[] = [];
@@ -79,8 +81,8 @@ vi.mock("@/services/searchService", () => ({
     savePracticeAnswer: (...args: unknown[]) => mockSavePracticeAnswer(...args),
     completePracticeSession: (...args: unknown[]) => mockCompletePracticeSession(...args),
     savePracticeSessionNotes: (...args: unknown[]) => mockSavePracticeSessionNotes(...args),
-    removeQuestionFlag: vi.fn(),
-    setQuestionFlag: vi.fn(),
+    removeQuestionFlag: (...args: unknown[]) => mockRemoveQuestionFlag(...args),
+    setQuestionFlag: (...args: unknown[]) => mockSetQuestionFlag(...args),
   },
 }));
 
@@ -153,6 +155,14 @@ describe("Practice mobile layout", () => {
         started_at: "2026-03-31T00:00:00.000Z",
         completed_at: "2026-03-31T00:05:00.000Z",
         session_notes: "Needs tighter metrics",
+      },
+    });
+    mockRemoveQuestionFlag.mockResolvedValue({ success: true });
+    mockSetQuestionFlag.mockResolvedValue({
+      success: true,
+      flag: {
+        id: "flag-needs-work",
+        flag_type: "needs_work",
       },
     });
     mockGetSearchResults.mockResolvedValue({
@@ -346,6 +356,31 @@ describe("Practice mobile layout", () => {
         "Microphone access is blocked. Allow microphone access in your browser settings, then try again.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("lets users mark the current in-session question as needs work", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await startPracticeSession();
+
+    const needsWorkButton = await screen.findByRole("button", { name: "Needs work" });
+    expect(needsWorkButton).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(needsWorkButton);
+
+    await waitFor(() => {
+      expect(mockSetQuestionFlag).toHaveBeenCalledWith("question-1", "needs_work");
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "Needs work flagged" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("keeps the user in practice when completion fails on the last answer", async () => {
