@@ -137,7 +137,7 @@ not catch because none of them completed a full practice cycle.
   — In Progress since 2026-06-24, no landing PR after five audits.
   **Escalate: same ownership check as PREPIO-111.**
 
-### 4. **No "Needs work" control anywhere in practice** — new, live-confirmed
+### 4. **No "Needs work" control between questions during the active session** — new, live-confirmed (scope corrected post-review)
 
 - **Severity:** P2
 - **Area:** practice
@@ -152,29 +152,50 @@ not catch because none of them completed a full practice cycle.
   Screenshots: [`assets/2026-07-09/63-question-screen.png`](./assets/2026-07-09/63-question-screen.png)
   and [`assets/2026-07-09/64-typed-answer.png`](./assets/2026-07-09/64-typed-answer.png).
   Clicking `Save & Continue` moves the user straight to Q2/10 — **there
-  is no rating or needs-work step between questions.**
-- **What the routine expects:** the recurring test script explicitly
-  asks the reviewer to *"Mark one question as needs work"* on both
-  desktop and mobile. CLAUDE.md talks about needs-work as a filterable
-  state in the dashboard/history surface. Neither survives contact with
-  the live product.
-- **Why it matters:** the user can currently favorite a question, but
-  cannot flag one to come back to. This weakens the "practice feels
-  like progress" principle — a user who bombed Q3/10 has no way to mark
-  it for a targeted second pass. It also breaks the routine's own
-  test-script assumptions.
+  is no rating or needs-work step between questions during the active
+  session.**
+- **Scope correction (per PR review by chatgpt-codex-connector on
+  PR #229, 2026-07-09):** the *Session Summary* (completion) screen
+  **does** already render a per-answer review section with 5-star ratings
+  and a `Mark as needs work` button — see
+  [`src/components/SessionSummary.tsx:192-263`](../../src/components/SessionSummary.tsx)
+  and the wiring in
+  [`src/pages/Practice.tsx:2453-2537`](../../src/pages/Practice.tsx).
+  This run did not reach the completion screen (only two questions of
+  ten were exercised), so the initial "absent anywhere in practice"
+  framing overclaimed. **The gap is real but narrower:** during the
+  active question-to-question flow, a user has no way to flag a
+  question they want to revisit *inside the same session* — they can
+  only rate/flag it at the end. That still weakens the "practice feels
+  like progress" principle for anyone who wants to jump back to a
+  bombed Q3 later in the same session, but it does not affect
+  post-session filtering in dashboard/history (which the completion
+  state already writes to).
+- **What the routine expects:** the recurring test script asks the
+  reviewer to *"Mark one question as needs work"* on both desktop and
+  mobile. That is possible today via the Session Summary; the routine
+  script should note the completion-state affordance and next runs
+  should complete a full session to exercise it.
+- **Why it still matters:** flagging is a fixup pattern — most useful
+  right when the user knows they didn't nail it, not five minutes later
+  at the end of the session. Adding an in-session toggle is a small
+  ergonomic win, not a missing feature.
 - **Recommended fix (pick one):**
   1. Add a "Needs work" toggle alongside "Favorite" on the question
-     screen (simplest — matches existing patterns).
-  2. Add a lightweight post-answer rating step ("How did that feel?
-     Nailed it / Solid / Needs work") after `Save & Continue` before
-     the next question.
-  3. Or: remove the needs-work language from CLAUDE.md and the routine
-     script if the product decided against this feature.
-- **Tracking:** file this cycle. `Type: Bug` if the intent was that
-  the control ships and it regressed, `Type: Feature` if it never
-  shipped. Assumed Feature until product confirms. Area
-  `area:practice`, P2.
+     screen — matches existing patterns and lets the flag write from
+     the same place as Favorite.
+  2. Add a lightweight post-answer step ("How did that feel? Nailed
+     it / Solid / Needs work") after `Save & Continue` before the next
+     question, mirroring the completion-state 5-star + needs-work UI.
+- **Tracking:** [PREPIO-120](https://linear.app/qiuyue/issue/PREPIO-120)
+  — narrowed from "add needs-work anywhere" to "add in-session
+  needs-work during the question-to-question flow (completion state
+  already covers post-session)". `Type: Feature`, `area:practice`,
+  Medium.
+- **Also update:** the routine's test script should note the
+  Session-Summary affordance so future runs know where to expect the
+  rating/flag controls (and that the "Mark one question as needs work"
+  step lives at the end of a complete session, not per-question).
 
 ### 5. "New interview" vs "Start a new research run" copy — third audit, still not fixed
 
@@ -270,7 +291,7 @@ Cells marked **(live)** are live-verified this run.
 | Research entry | 3 | 3 | = | **(live)** Desktop marketing hero and mobile "desktop-style sprawl" copy unchanged. PREPIO-111 still open. |
 | Research progress/loading | — | — | = | Not reached — no fresh research run kicked off this cycle. Same as run #4; still owed a real end-to-end. |
 | Generated output clarity | 4 | 4 | = | **(live)** Plan page renders cleanly with stage roadmap, prep summary, and prominent Start-practice CTA. Adequate; no regressions. |
-| Practice mode | 5 | 4 | ↓ | **(live)** Question-as-hero layout still excellent, controls sized correctly, autosave honest. **Downgraded from 5 → 4** because no needs-work control (new finding #4). |
+| Practice mode | 5 | 4 | ↓ | **(live)** Question-as-hero layout still excellent, controls sized correctly, autosave honest. **Downgraded from 5 → 4** because the in-session flow lacks a needs-work toggle (finding #4, scope-corrected). The completion state already renders per-answer ratings + needs-work; the gap is question-to-question ergonomics only. |
 | Mobile usability | 3 | 4 | ↑ | **(live)** New `/new-interview` 3-step wizard is a real improvement over the old marketing hero. Hamburger still 42×36 — one open item. |
 | Resume/profile trust | 4 | 4 | = | **(live)** Profile page renders with honest "prefilled from parsed resume — save once to make canonical" copy; last resume version dated 5/17/2026. Privacy copy not re-audited this run. |
 | Dashboard/history/resume | 5 | 5 | = | **(live)** "Your interviews" resume card unchanged and still strong: progress bar, Plan-ready badge, one-tap Start practice. History page shows honest empty state. |
@@ -289,7 +310,7 @@ Cells marked **(live)** are live-verified this run.
 | "New interview" ↔ "Start a new research run" copy | **Still open** | Third audit — file this cycle. |
 | Mobile hamburger 42×36 touch target | **Still open** | Unchanged from run #4 measurement. |
 | PREPIO-108 autosave label | **Confirmed intact** | Second live confirmation. "Saving draft…" → "Draft kept in this tab" works as designed. |
-| **NEW:** No needs-work control in practice | **New finding** | See top issue #4. |
+| **NEW:** No in-session needs-work control between questions | **New finding (scope-corrected)** | See top issue #4. The completion-state Session Summary already renders per-answer 5-star ratings + a `Mark as needs work` toggle ([`SessionSummary.tsx:192-263`](../../src/components/SessionSummary.tsx)); this run didn't reach the completion screen so the initial "absent anywhere" framing overclaimed. Real gap is question-to-question ergonomics only. |
 
 No previously-fixed regressions returned. **One long-standing landing
 finding shipped this week** (proof-of-output on `/`).
@@ -300,7 +321,7 @@ finding shipped this week** (proof-of-output on `/`).
 |---|--------|--------|
 | 1 | [PREPIO-111](https://linear.app/qiuyue/issue/PREPIO-111) — remove marketing hero from logged-in `/new-interview` on **both** desktop and mobile | **Escalate.** Fifth audit repeat. Move to Todo/In Progress this cycle. |
 | 2 | [PREPIO-101](https://linear.app/qiuyue/issue/PREPIO-101) — collapse nav / rename Dashboard → Plan, add "Interviews" | **Escalate.** Fifth audit repeat. In Progress since 2026-06-24 with no PR; ownership check. |
-| 3 | [PREPIO-120](https://linear.app/qiuyue/issue/PREPIO-120) — Add "Needs work" per-question control (or a lightweight post-answer rating step) in practice | **Filed.** `Type: Feature`, `area:practice`, Medium. Confirmed absent live this run. |
+| 3 | [PREPIO-120](https://linear.app/qiuyue/issue/PREPIO-120) — Add in-session "Needs work" toggle on the practice question screen (Session Summary completion state already has ratings + needs-work; gap is between-questions only) | **Filed, scope-corrected after PR review.** `Type: Feature`, `area:practice`, Medium. |
 | 4 | [PREPIO-121](https://linear.app/qiuyue/issue/PREPIO-121) — Unify "start a new prep" CTA copy across Interviews and `/new-interview` | **Filed.** `Type: Improvement`, `area:landing`, Medium. Third audit repeat. |
 | 5 | [PREPIO-122](https://linear.app/qiuyue/issue/PREPIO-122) — Increase mobile nav hamburger button touch target from 42×36 to at least 44×44 | **Filed.** `Type: Bug`, `area:landing` (shared chrome), Low. Live-measured twice now. |
 | 6 | [PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123) — Add `autocomplete` attributes to email + password inputs on `/auth` | **Filed.** `Type: Improvement`, `area:auth`, Low. Small fix, resolves a Chromium verbose warning and helps password managers. |
