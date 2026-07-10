@@ -45,6 +45,7 @@ make test
 - [Research pipeline](docs/RESEARCH_PIPELINE.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Testing](docs/TESTING.md)
+- [Major dependency migration plan](docs/DEPENDENCY_MIGRATIONS.md)
 - [Product strategy](docs/PRODUCT_STRATEGY.md)
 - [Billing contract](docs/BILLING.md)
 - [Runbook](docs/RUNBOOK.md)
