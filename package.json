@@ -8,7 +8,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint . --exit-on-fatal-error",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bash scripts/check-typecheck-baseline.sh",
     "test": "vitest run && npm run test:legacy-schema && npm run test:answer-feedback-schema",
     "test:legacy-schema": "bash scripts/check-legacy-schema.sh",
     "test:answer-feedback-schema": "bash scripts/check-answer-feedback-schema.sh",

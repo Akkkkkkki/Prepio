@@ -108,6 +108,21 @@ Run these only against Stripe test mode and a non-production Supabase project. D
 4. Portal cancellation: open Customer Portal from a paid test user, cancel at period end, verify the webhook sets `cancel_at_period_end`, and verify entitlement remains paid until `current_period_end`.
 5. Cadence change: open Customer Portal from a paid test user, switch cadence, and verify the next webhook updates `billing_subscriptions.cadence` without creating a second local subscription row.
 
+## Typecheck Baseline
+
+`npm run typecheck` runs `scripts/check-typecheck-baseline.sh`, an error-count ratchet over the real project configs. It is a CI gate: the job fails when a change pushes the error count above the recorded baseline.
+
+Before 2026-07-10 the script was `tsc --noEmit` against the root `tsconfig.json`, which has `"files": []` and only project references — it type-checked zero files and always passed. The ratchet replaces that no-op (PREPIO-119).
+
+Baselines as of 2026-07-10 (TypeScript 5.9.3):
+
+- `tsconfig.app.json` — **381** pre-existing errors. New code must not add to this backlog.
+- `tsconfig.node.json` — **0** errors. Kept clean.
+
+To see the actual errors, run `npx tsc -p tsconfig.app.json --noEmit`. If your change fixes some of the backlog, lower `APP_BASELINE` in `scripts/check-typecheck-baseline.sh` in the same PR to lock in the improvement. Never raise a baseline without a written justification in the PR — the count-only ratchet cannot tell you *which* errors are new, so compare `npx tsc` output against `main` when the gate trips.
+
+Burning down the 381-error backlog is follow-up work, tracked separately from this gate.
+
 ## Lint Baseline
 
 `npm run lint` is informational, not a release gate. As of 2026-07-07 (after the eslint 10 / eslint-plugin-react-hooks 7 upgrade) it reports **54 problems (46 errors, 8 warnings)** from a clean `npm ci`. This section triages what's there so reviewers can tell at a glance whether a new lint hit is signal or noise.
