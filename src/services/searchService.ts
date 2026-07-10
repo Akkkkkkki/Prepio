@@ -60,12 +60,29 @@ type PracticeAnswerQuestion = Pick<
   interview_stages: Pick<Tables<"interview_stages">, "name"> | null;
 };
 
+export type PracticeQuestionFlagType = "favorite" | "needs_work" | "skipped";
+
 export interface PracticeQuestionFlag {
-  flag_type: string;
+  flag_type: PracticeQuestionFlagType;
   id: string;
 }
 
-export type PracticeQuestionFlagMap = Record<string, PracticeQuestionFlag>;
+export type PracticeQuestionFlagMap = Record<
+  string,
+  Partial<Record<PracticeQuestionFlagType, PracticeQuestionFlag>>
+>;
+
+export const hasQuestionFlag = (
+  flags: PracticeQuestionFlagMap,
+  questionId: string,
+  flagType: PracticeQuestionFlagType,
+) => Boolean(flags[questionId]?.[flagType]);
+
+export const getQuestionFlagTypes = (
+  flags: PracticeQuestionFlagMap,
+  questionId: string,
+): PracticeQuestionFlagType[] =>
+  (Object.keys(flags[questionId] ?? {}) as PracticeQuestionFlagType[]);
 
 export interface PracticeHistorySession extends Pick<
   Tables<"practice_sessions">,
@@ -1682,7 +1699,7 @@ export const searchService = {
   },
 
   // Question Flag Methods (Epic 1.3)
-  async setQuestionFlag(questionId: string, flagType: 'favorite' | 'needs_work' | 'skipped') {
+  async setQuestionFlag(questionId: string, flagType: PracticeQuestionFlagType) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
@@ -1690,7 +1707,7 @@ export const searchService = {
         throw new Error("No authenticated user");
       }
 
-      // Upsert flag (insert or update if exists)
+      // Upsert flag (insert or update if this flag type already exists)
       const { data, error } = await supabase
         .from("user_question_flags")
         .upsert({
@@ -1699,7 +1716,7 @@ export const searchService = {
           flag_type: flagType,
           updated_at: new Date().toISOString(),
         }, {
-          onConflict: 'user_id,question_id'
+          onConflict: 'user_id,question_id,flag_type'
         })
         .select()
         .single();
@@ -1713,7 +1730,7 @@ export const searchService = {
     }
   },
 
-  async removeQuestionFlag(questionId: string) {
+  async removeQuestionFlag(questionId: string, flagType?: PracticeQuestionFlagType) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
@@ -1721,11 +1738,17 @@ export const searchService = {
         throw new Error("No authenticated user");
       }
 
-      const { error } = await supabase
+      let query = supabase
         .from("user_question_flags")
         .delete()
         .eq("user_id", user.id)
         .eq("question_id", questionId);
+
+      if (flagType) {
+        query = query.eq("flag_type", flagType);
+      }
+
+      const { error } = await query;
 
       if (error) throw error;
 
@@ -1805,9 +1828,13 @@ export const searchService = {
       // Convert to map for easy lookup
       const flagsMap: PracticeQuestionFlagMap = {};
       (data || []).forEach(flag => {
+        const flagType = flag.flag_type as PracticeQuestionFlagType;
         flagsMap[flag.question_id] = {
-          flag_type: flag.flag_type,
-          id: flag.id
+          ...flagsMap[flag.question_id],
+          [flagType]: {
+            flag_type: flagType,
+            id: flag.id
+          }
         };
       });
 

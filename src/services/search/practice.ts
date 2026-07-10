@@ -187,7 +187,7 @@ export const practiceService = {
             updated_at: new Date().toISOString(),
           } as never,
           {
-            onConflict: "user_id,question_id",
+            onConflict: "user_id,question_id,flag_type",
           },
         )
         .select()
@@ -201,14 +201,20 @@ export const practiceService = {
     }
   },
 
-  async removeQuestionFlag(questionId: string) {
+  async removeQuestionFlag(questionId: string, flagType?: "favorite" | "needs_work" | "skipped") {
     try {
       const user = await getCurrentUser();
-      const { error } = await supabase
+      let query = supabase
         .from("user_question_flags")
         .delete()
         .eq("user_id", user.id)
         .eq("question_id", questionId);
+
+      if (flagType) {
+        query = query.eq("flag_type", flagType);
+      }
+
+      const { error } = await query;
 
       if (error) throw error;
       return { success: true };
@@ -233,11 +239,15 @@ export const practiceService = {
 
       if (error) throw error;
 
-      const flagsMap: Record<string, { flag_type: string; id: string }> = {};
+      const flagsMap: Record<string, Partial<Record<"favorite" | "needs_work" | "skipped", { flag_type: string; id: string }>>> = {};
       (data || []).forEach((flag) => {
+        const flagType = flag.flag_type as "favorite" | "needs_work" | "skipped";
         flagsMap[flag.question_id] = {
-          flag_type: flag.flag_type,
-          id: flag.id,
+          ...flagsMap[flag.question_id],
+          [flagType]: {
+            flag_type: flagType,
+            id: flag.id,
+          },
         };
       });
 

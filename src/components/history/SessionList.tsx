@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
-import { searchService } from "@/services/searchService";
+import { getQuestionFlagTypes, hasQuestionFlag, searchService } from "@/services/searchService";
 import type {
   PracticeHistoryAnswerDetail,
   PracticeHistorySession,
@@ -53,11 +53,10 @@ const getSessionMetrics = (
   const totalTimeSeconds = session.practice_answers.reduce((total, answer) => {
     questionIds.add(answer.question_id);
 
-    const questionFlag = questionFlags[answer.question_id]?.flag_type;
-    if (questionFlag === "favorite") {
+    if (hasQuestionFlag(questionFlags, answer.question_id, "favorite")) {
       favoriteIds.add(answer.question_id);
     }
-    if (questionFlag === "needs_work") {
+    if (hasQuestionFlag(questionFlags, answer.question_id, "needs_work")) {
       needsWorkIds.add(answer.question_id);
     }
 
@@ -100,6 +99,12 @@ const renderQuestionFlag = (flagType?: string) => {
 
   return null;
 };
+
+const renderQuestionFlags = (flags: PracticeQuestionFlagMap, questionId: string) =>
+  getQuestionFlagTypes(flags, questionId).flatMap((flagType) => {
+    const flag = renderQuestionFlag(flagType);
+    return flag ? [<span key={flagType}>{flag}</span>] : [];
+  });
 
 export const SessionList = ({
   sessions,
@@ -290,8 +295,6 @@ export const SessionList = ({
                     ) : (
                       detail.answers.map((answer, index) => {
                         const question = answer.interview_questions;
-                        const flagType = detail.flags[answer.question_id]?.flag_type;
-
                         return (
                           <div key={answer.id} className="rounded-2xl border bg-background p-4">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -309,7 +312,7 @@ export const SessionList = ({
                                   <Clock3 className="h-3 w-3" />
                                   {formatDuration(answer.answer_time_seconds ?? 0)}
                                 </Badge>
-                                {renderQuestionFlag(flagType)}
+                                {renderQuestionFlags(detail.flags, answer.question_id)}
                               </div>
                             </div>
 

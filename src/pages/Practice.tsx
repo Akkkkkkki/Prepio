@@ -40,7 +40,12 @@ import {
   FileText,
   Trash2
 } from "lucide-react";
-import { searchService } from "@/services/searchService";
+import {
+  hasQuestionFlag,
+  searchService,
+  type PracticeQuestionFlagMap,
+  type PracticeQuestionFlagType,
+} from "@/services/searchService";
 import { getEntitlement } from "@/services/entitlements";
 import { sessionSampler } from "@/services/sessionSampler";
 import { useAuth } from "@/hooks/useAuth";
@@ -227,7 +232,7 @@ const Practice = () => {
   const [feedbackByAnswerId, setFeedbackByAnswerId] = useState<Record<string, AnswerFeedback>>({});
   
   // Question flags (Epic 1.3)
-  const [questionFlags, setQuestionFlags] = useState<Record<string, { flag_type: string; id: string }>>({});
+  const [questionFlags, setQuestionFlags] = useState<PracticeQuestionFlagMap>({});
   // Questions whose latest answer scored a self-rating ≤ 2 — treated as needs-work
   // alongside explicit flags, matching how interview-card counts are computed.
   const [lowRatedQuestionIds, setLowRatedQuestionIds] = useState<Set<string>>(new Set());
@@ -779,14 +784,14 @@ const getInterviewerFocus = (
         // Filter by favorites only (Epic 1.3) - uses questionFlags from separate effect
         if (showFavoritesOnly) {
           filteredQuestions = filteredQuestions.filter(q => 
-            questionFlags[q.id]?.flag_type === 'favorite'
+            hasQuestionFlag(questionFlags, q.id, 'favorite')
           );
         }
 
         if (showNeedsWorkOnly) {
           filteredQuestions = filteredQuestions.filter(
             (question) =>
-              questionFlags[question.id]?.flag_type === "needs_work" ||
+              hasQuestionFlag(questionFlags, question.id, 'needs_work') ||
               lowRatedQuestionIds.has(question.id),
           );
         }
@@ -1300,21 +1305,27 @@ const getInterviewerFocus = (
   };
 
   // Flag handling functions (Epic 1.3)
-  const handleToggleFlag = async (questionId: string, flagType: 'favorite' | 'needs_work' | 'skipped') => {
+  const handleToggleFlag = async (questionId: string, flagType: PracticeQuestionFlagType) => {
     if (isOffline) {
       return;
     }
 
     try {
-      const currentFlag = questionFlags[questionId];
+      const currentFlag = questionFlags[questionId]?.[flagType];
       
       // If same flag type, remove it (toggle off)
-      if (currentFlag && currentFlag.flag_type === flagType) {
-        const result = await searchService.removeQuestionFlag(questionId);
+      if (currentFlag) {
+        const result = await searchService.removeQuestionFlag(questionId, flagType);
         if (result.success) {
           setQuestionFlags(prev => {
             const newFlags = { ...prev };
-            delete newFlags[questionId];
+            const nextQuestionFlags = { ...newFlags[questionId] };
+            delete nextQuestionFlags[flagType];
+            if (Object.keys(nextQuestionFlags).length > 0) {
+              newFlags[questionId] = nextQuestionFlags;
+            } else {
+              delete newFlags[questionId];
+            }
             return newFlags;
           });
         } else {
@@ -1326,7 +1337,10 @@ const getInterviewerFocus = (
         if (result.success && result.flag) {
           setQuestionFlags(prev => ({
             ...prev,
-            [questionId]: { flag_type: flagType, id: result.flag.id }
+            [questionId]: {
+              ...prev[questionId],
+              [flagType]: { flag_type: flagType, id: result.flag.id }
+            }
           }));
         } else {
           console.error('Failed to set flag:', result.error);
@@ -2455,7 +2469,7 @@ const getInterviewerFocus = (
     const totalTime = Array.from(questionTimers.values()).reduce((sum, time) => sum + time, 0);
     const avgTime = answeredCount > 0 ? Math.floor(totalTime / answeredCount) : 0;
     const skippedCount = questions.length - answeredCount;
-    const favoritedCount = questions.filter(q => questionFlags[q.id]?.flag_type === 'favorite').length;
+    const favoritedCount = questions.filter(q => hasQuestionFlag(questionFlags, q.id, 'favorite')).length;
 
     const handleSaveNotes = async (notes: string) => {
       if (!practiceSession) return false;
@@ -2503,7 +2517,7 @@ const getInterviewerFocus = (
 
     const needsWorkQuestionIds = new Set(
       Object.entries(questionFlags)
-        .filter(([, flag]) => flag.flag_type === 'needs_work')
+        .filter(([, flags]) => Boolean(flags.needs_work))
         .map(([qid]) => qid),
     );
 
@@ -2544,8 +2558,8 @@ const getInterviewerFocus = (
   }
 
   if (isMobile) {
-    const favoriteActive = questionFlags[currentQuestion.id]?.flag_type === 'favorite';
-    const needsWorkActive = questionFlags[currentQuestion.id]?.flag_type === 'needs_work';
+    const favoriteActive = hasQuestionFlag(questionFlags, currentQuestion.id, 'favorite');
+    const needsWorkActive = hasQuestionFlag(questionFlags, currentQuestion.id, 'needs_work');
 
     return (
       <div
@@ -2926,8 +2940,8 @@ const getInterviewerFocus = (
   }
 
   // Active Practice Session - Show questions
-  const favoriteActive = questionFlags[currentQuestion.id]?.flag_type === 'favorite';
-  const needsWorkActive = questionFlags[currentQuestion.id]?.flag_type === 'needs_work';
+  const favoriteActive = hasQuestionFlag(questionFlags, currentQuestion.id, 'favorite');
+  const needsWorkActive = hasQuestionFlag(questionFlags, currentQuestion.id, 'needs_work');
 
   return (
     <div id="main-content" className="min-h-screen bg-background">

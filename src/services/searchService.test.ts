@@ -359,6 +359,71 @@ describe("practice history answer dedupe helpers", () => {
     expect(mockSupabase.from).toHaveBeenCalledTimes(1);
   });
 
+  it("upserts question flags by question and flag type so favorites can coexist with needs-work", async () => {
+    const upsert = vi.fn();
+    const select = vi.fn();
+    const single = vi.fn(async () => ({
+      data: { id: "flag-needs-work", flag_type: "needs_work" },
+      error: null,
+    }));
+
+    select.mockReturnValue({ single });
+    upsert.mockReturnValue({ select });
+    mockSupabase.from.mockReturnValueOnce({ upsert });
+
+    const result = await searchService.setQuestionFlag("question-1", "needs_work");
+
+    expect(result.success).toBe(true);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: "user-1",
+        question_id: "question-1",
+        flag_type: "needs_work",
+      }),
+      { onConflict: "user_id,question_id,flag_type" },
+    );
+  });
+
+  it("removes only the selected question flag type", async () => {
+    const deleteChain = {
+      eq: vi.fn(() => deleteChain),
+      then: (onFulfilled: (value: { error: unknown }) => unknown) =>
+        Promise.resolve({ error: null }).then(onFulfilled),
+    };
+    const deleteFn = vi.fn(() => deleteChain);
+    mockSupabase.from.mockReturnValueOnce({ delete: deleteFn });
+
+    const result = await searchService.removeQuestionFlag("question-1", "needs_work");
+
+    expect(result.success).toBe(true);
+    expect(deleteChain.eq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(deleteChain.eq).toHaveBeenCalledWith("question_id", "question-1");
+    expect(deleteChain.eq).toHaveBeenCalledWith("flag_type", "needs_work");
+  });
+
+  it("loads multiple flag types for the same question", async () => {
+    const flagsChain = createSelectChain({
+      data: [
+        { id: "flag-favorite", question_id: "question-1", flag_type: "favorite" },
+        { id: "flag-needs-work", question_id: "question-1", flag_type: "needs_work" },
+      ],
+      error: null,
+    });
+    mockSupabase.from.mockReturnValueOnce(flagsChain);
+
+    const result = await searchService.getQuestionFlags(["question-1"]);
+
+    expect(result).toEqual({
+      success: true,
+      flags: {
+        "question-1": {
+          favorite: { id: "flag-favorite", flag_type: "favorite" },
+          needs_work: { id: "flag-needs-work", flag_type: "needs_work" },
+        },
+      },
+    });
+  });
+
   it("creates a lightweight research preview without requiring a signed-in user", async () => {
     mockSupabase.functions.invoke.mockResolvedValue({
       data: {

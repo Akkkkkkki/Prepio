@@ -73,6 +73,11 @@ vi.mock("react-swipeable", () => ({
 }));
 
 vi.mock("@/services/searchService", () => ({
+  hasQuestionFlag: (
+    flags: Record<string, Record<string, unknown> | undefined>,
+    questionId: string,
+    flagType: string,
+  ) => Boolean(flags[questionId]?.[flagType]),
   searchService: {
     getSearchResults: (...args: unknown[]) => mockGetSearchResults(...args),
     getQuestionFlags: (...args: unknown[]) => mockGetQuestionFlags(...args),
@@ -378,6 +383,41 @@ describe("Practice mobile layout", () => {
       expect(mockSetQuestionFlag).toHaveBeenCalledWith("question-1", "needs_work");
     });
 
+    expect(
+      await screen.findByRole("button", { name: "Needs work flagged" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("keeps a favorite flag when users also mark the question as needs work", async () => {
+    mockGetQuestionFlags.mockResolvedValue({
+      success: true,
+      flags: {
+        "question-1": {
+          favorite: { flag_type: "favorite", id: "flag-favorite" },
+        },
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await startPracticeSession();
+
+    const favoriteButton = await screen.findByRole("button", { name: "Favorited" });
+    expect(favoriteButton).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Needs work" }));
+
+    await waitFor(() => {
+      expect(mockSetQuestionFlag).toHaveBeenCalledWith("question-1", "needs_work");
+    });
+
+    expect(screen.getByRole("button", { name: "Favorited" })).toHaveAttribute("aria-pressed", "true");
     expect(
       await screen.findByRole("button", { name: "Needs work flagged" }),
     ).toHaveAttribute("aria-pressed", "true");
@@ -695,7 +735,9 @@ describe("Practice needs-work focus mode", () => {
     mockGetQuestionFlags.mockResolvedValue({
       success: true,
       flags: {
-        "question-flagged": { flag_type: "needs_work", id: "flag-1" },
+        "question-flagged": {
+          needs_work: { flag_type: "needs_work", id: "flag-1" },
+        },
       },
     });
     mockGetLowRatedQuestionIds.mockResolvedValue({
