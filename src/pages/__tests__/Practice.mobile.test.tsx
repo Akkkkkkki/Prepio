@@ -114,6 +114,11 @@ vi.mock("react-swipeable", () => ({
 }));
 
 vi.mock("@/services/searchService", () => ({
+  hasQuestionFlag: (
+    flags: Record<string, Record<string, unknown> | undefined>,
+    questionId: string,
+    flagType: string,
+  ) => Boolean(flags[questionId]?.[flagType]),
   searchService: {
     getSearchResults: (...args: unknown[]) => mockGetSearchResults(...args),
     getQuestionFlags: (...args: unknown[]) => mockGetQuestionFlags(...args),
@@ -439,6 +444,45 @@ describe("Practice mobile layout", () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("keeps a favorite flag when users also mark the question as needs work", async () => {
+    mockGetQuestionFlags.mockResolvedValue({
+      success: true,
+      flags: {
+        "question-1": {
+          favorite: { flag_type: "favorite", id: "flag-favorite" },
+        },
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await startPracticeSession();
+
+    const favoriteButton = await screen.findByRole("button", { name: "Favorited" });
+    expect(favoriteButton.getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Needs work" }));
+
+    await waitFor(() => {
+      expect(mockSetQuestionFlag).toHaveBeenCalledWith("question-1", "needs_work");
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Favorited" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(
+      (await screen.findByRole("button", { name: "Needs work flagged" })).getAttribute(
+        "aria-pressed",
+      ),
+    ).toBe("true");
+  });
+
   it("saves recorded audio without waiting for transcription", async () => {
     vi.mocked(navigator.mediaDevices.getUserMedia).mockResolvedValueOnce({
       getAudioTracks: () => [{ stop: vi.fn() }],
@@ -695,7 +739,7 @@ describe("Practice keyboard navigation", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
 
     const needsWorkButton = await screen.findByRole("button", { name: "Mark as needs work" });
-    expect(needsWorkButton).toHaveAttribute("aria-pressed", "false");
+    expect(needsWorkButton.getAttribute("aria-pressed")).toBe("false");
 
     fireEvent.click(needsWorkButton);
 
@@ -704,8 +748,10 @@ describe("Practice keyboard navigation", () => {
     });
 
     expect(
-      await screen.findByRole("button", { name: "Remove needs work" }),
-    ).toHaveAttribute("aria-pressed", "true");
+      (await screen.findByRole("button", { name: "Remove needs work" })).getAttribute(
+        "aria-pressed",
+      ),
+    ).toBe("true");
   });
 });
 
@@ -844,7 +890,9 @@ describe("Practice needs-work focus mode", () => {
     mockGetQuestionFlags.mockResolvedValue({
       success: true,
       flags: {
-        "question-flagged": { flag_type: "needs_work", id: "flag-1" },
+        "question-flagged": {
+          needs_work: { flag_type: "needs_work", id: "flag-1" },
+        },
       },
     });
     mockGetLowRatedQuestionIds.mockResolvedValue({
