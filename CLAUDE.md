@@ -7,10 +7,11 @@ Developer and agent reference for Prepio. Read this first before making changes.
 Prepio is an authenticated interview-prep app. Users research a company/role, review AI-generated interview stages and questions, and practice against them.
 
 Primary user flow:
-1. Create a research run — [`src/pages/Home.tsx`](./src/pages/Home.tsx)
-2. Review generated stages — [`src/pages/Dashboard.tsx`](./src/pages/Dashboard.tsx)
-3. Practice questions — [`src/pages/Practice.tsx`](./src/pages/Practice.tsx)
-4. Manage CV and preferences — [`src/pages/Profile.tsx`](./src/pages/Profile.tsx)
+1. Land on your interviews — [`src/pages/Interviews.tsx`](./src/pages/Interviews.tsx) at `/interviews` (signed-in users hitting `/` are redirected here; guests get the public research entry)
+2. Create a research run — [`src/pages/Home.tsx`](./src/pages/Home.tsx) at `/new-interview` when signed in, or `/` as a guest
+3. Review generated stages — [`src/pages/Dashboard.tsx`](./src/pages/Dashboard.tsx)
+4. Practice questions — [`src/pages/Practice.tsx`](./src/pages/Practice.tsx)
+5. Manage CV and preferences — [`src/pages/Profile.tsx`](./src/pages/Profile.tsx)
 
 ## Current Product Truth
 
@@ -76,22 +77,26 @@ TAVILY_API_KEY=...
 
 | Path | Access | Component |
 |------|--------|-----------|
-| `/` | Public | `Home` |
+| `/` | Public | `Home` for guests; signed-in users redirect to `/interviews` |
 | `/auth` | Public | `Auth` |
 | `/pricing` | Public | `Pricing` |
+| `/interviews` | Protected | `Interviews` |
+| `/new-interview` | Protected | `Home` |
 | `/dashboard` | Protected | `Dashboard` |
 | `/search/:searchId` | Protected | `Dashboard` |
 | `/practice` | Protected | `Practice` |
 | `/history` | Protected | `History` |
 | `/profile/*` | Protected | `Profile` |
 | `/billing/return` | Protected | `BillingReturn` |
+| `*` | Public | `NotFound` |
 
-Protected-route behavior: [`src/App.tsx`](./src/App.tsx).
+Protected-route and `/` redirect behavior: [`src/App.tsx`](./src/App.tsx).
 
 ## Files Worth Reading First
 
 | File | What it does |
 |------|-------------|
+| [`src/pages/Interviews.tsx`](./src/pages/Interviews.tsx) | Signed-in landing surface: interview cards with state and practice CTAs |
 | [`src/pages/Home.tsx`](./src/pages/Home.tsx) | Research entry form, draft persistence, resume upload |
 | [`src/pages/Dashboard.tsx`](./src/pages/Dashboard.tsx) | Research results, stages, question counts |
 | [`src/pages/Practice.tsx`](./src/pages/Practice.tsx) | Practice session UX, mobile layout, gestures |

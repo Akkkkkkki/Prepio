@@ -227,10 +227,10 @@ const History = () => {
   const primaryEmptyLabel = selectedSearchId !== HISTORY_FILTER_ALL
     ? "Open research dashboard"
     : "Go to Dashboard";
-  const secondaryEmptyHref = selectedSearchId !== HISTORY_FILTER_ALL ? practiceEntryHref : "/";
+  const secondaryEmptyHref = selectedSearchId !== HISTORY_FILTER_ALL ? practiceEntryHref : "/new-interview";
   const secondaryEmptyLabel = selectedSearchId !== HISTORY_FILTER_ALL
     ? "Start practice"
-    : "Start new research";
+    : "Prep a new interview";
   const displayedStats = isLoadingStats ? fallbackStats : stats ?? fallbackStats;
 
   const handleFilterChange = (value: string) => {

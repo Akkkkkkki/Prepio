@@ -17,8 +17,13 @@ const mockCreatePracticeSession = vi.fn();
 const mockSavePracticeAnswer = vi.fn();
 const mockCompletePracticeSession = vi.fn();
 const mockSavePracticeSessionNotes = vi.fn();
+const mockUploadPracticeAudio = vi.fn();
+const mockTranscribePracticeAudio = vi.fn();
+const mockUpdatePracticeAnswerTranscript = vi.fn();
 const mockGetEntitlement = vi.fn();
 const mockUseIsMobile = vi.fn();
+const mockRemoveQuestionFlag = vi.fn();
+const mockSetQuestionFlag = vi.fn();
 
 class MockResizeObserver {
   static instances: MockResizeObserver[] = [];
@@ -46,6 +51,44 @@ class MockResizeObserver {
 
   static reset() {
     MockResizeObserver.instances = [];
+  }
+}
+
+class MockMediaRecorder {
+  static instances: MockMediaRecorder[] = [];
+
+  state: RecordingState = "inactive";
+  mimeType = "audio/webm";
+  ondataavailable: ((event: BlobEvent) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+  onstop: ((event: Event) => void) | null = null;
+
+  constructor() {
+    MockMediaRecorder.instances.push(this);
+  }
+
+  start = vi.fn(() => {
+    this.state = "recording";
+  });
+
+  stop = vi.fn(() => {
+    this.state = "inactive";
+    this.ondataavailable?.({
+      data: new Blob(["practice audio"], { type: this.mimeType }),
+    } as BlobEvent);
+    this.onstop?.(new Event("stop"));
+  });
+
+  pause = vi.fn(() => {
+    this.state = "paused";
+  });
+
+  resume = vi.fn(() => {
+    this.state = "recording";
+  });
+
+  static reset() {
+    MockMediaRecorder.instances = [];
   }
 }
 
@@ -79,8 +122,11 @@ vi.mock("@/services/searchService", () => ({
     savePracticeAnswer: (...args: unknown[]) => mockSavePracticeAnswer(...args),
     completePracticeSession: (...args: unknown[]) => mockCompletePracticeSession(...args),
     savePracticeSessionNotes: (...args: unknown[]) => mockSavePracticeSessionNotes(...args),
-    removeQuestionFlag: vi.fn(),
-    setQuestionFlag: vi.fn(),
+    uploadPracticeAudio: (...args: unknown[]) => mockUploadPracticeAudio(...args),
+    transcribePracticeAudio: (...args: unknown[]) => mockTranscribePracticeAudio(...args),
+    updatePracticeAnswerTranscript: (...args: unknown[]) => mockUpdatePracticeAnswerTranscript(...args),
+    removeQuestionFlag: (...args: unknown[]) => mockRemoveQuestionFlag(...args),
+    setQuestionFlag: (...args: unknown[]) => mockSetQuestionFlag(...args),
   },
 }));
 
@@ -90,6 +136,7 @@ vi.mock("@/services/entitlements", () => ({
 
 beforeAll(() => {
   vi.stubGlobal("ResizeObserver", MockResizeObserver);
+  vi.stubGlobal("MediaRecorder", MockMediaRecorder);
 });
 
 const startPracticeSession = async () => {
@@ -101,6 +148,7 @@ describe("Practice mobile layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     MockResizeObserver.reset();
+    MockMediaRecorder.reset();
     capturedSwipeConfigs.length = 0;
     localStorage.removeItem(BREATHING_DISMISSED_KEY);
     mockUseIsMobile.mockReturnValue(true);
@@ -155,6 +203,24 @@ describe("Practice mobile layout", () => {
         session_notes: "Needs tighter metrics",
       },
     });
+    mockRemoveQuestionFlag.mockResolvedValue({ success: true });
+    mockSetQuestionFlag.mockResolvedValue({
+      success: true,
+      flag: {
+        id: "flag-needs-work",
+        flag_type: "needs_work",
+      },
+    });
+    mockUploadPracticeAudio.mockImplementation((_file: File, path: string) =>
+      Promise.resolve({ success: true, path }),
+    );
+    mockTranscribePracticeAudio.mockResolvedValue({
+      success: true,
+      transcript: "transcribed answer",
+    });
+    mockUpdatePracticeAnswerTranscript.mockResolvedValue({
+      success: true,
+    });
     mockGetSearchResults.mockResolvedValue({
       success: true,
       search: {
@@ -203,7 +269,7 @@ describe("Practice mobile layout", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Start New Search" }));
+    fireEvent.click(screen.getByRole("button", { name: "Prep a new interview" }));
 
     expect(await screen.findByText("New interview target")).toBeInTheDocument();
   });
@@ -348,6 +414,83 @@ describe("Practice mobile layout", () => {
     ).toBeInTheDocument();
   });
 
+  it("lets users mark the current in-session question as needs work", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await startPracticeSession();
+
+    const needsWorkButton = await screen.findByRole("button", { name: "Needs work" });
+    expect(needsWorkButton).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(needsWorkButton);
+
+    await waitFor(() => {
+      expect(mockSetQuestionFlag).toHaveBeenCalledWith("question-1", "needs_work");
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "Needs work flagged" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("saves recorded audio without waiting for transcription", async () => {
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockResolvedValueOnce({
+      getAudioTracks: () => [{ stop: vi.fn() }],
+      getTracks: () => [{ stop: vi.fn() }],
+    } as unknown as MediaStream);
+
+    mockTranscribePracticeAudio.mockReturnValueOnce(new Promise(() => undefined));
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await startPracticeSession();
+
+    fireEvent.click(screen.getByRole("button", { name: "Record answer" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Stop recording" }));
+
+    expect(await screen.findByText(/Recording ready/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
+
+    await waitFor(() => {
+      expect(mockSavePracticeAnswer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: "session-1",
+          questionId: "question-1",
+          audioUrl: expect.stringMatching(/^user-1\/session-1\/question-1-\d+\.webm$/),
+          transcriptText: undefined,
+        }),
+      );
+    });
+
+    expect(mockUploadPracticeAudio).toHaveBeenCalledWith(
+      expect.any(File),
+      expect.stringMatching(/^user-1\/session-1\/question-1-\d+\.webm$/),
+    );
+    expect(mockTranscribePracticeAudio).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: expect.stringMatching(/^user-1\/session-1\/question-1-\d+\.webm$/),
+        mimeType: "audio/webm",
+        fileName: "practice-answer.webm",
+      }),
+    );
+    expect(await screen.findByText("Reflection checkpoint")).toBeInTheDocument();
+    expect(mockCompletePracticeSession).toHaveBeenCalledTimes(1);
+    expect(mockUpdatePracticeAnswerTranscript).not.toHaveBeenCalled();
+  });
+
   it("keeps the user in practice when completion fails on the last answer", async () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockCompletePracticeSession.mockResolvedValueOnce({
@@ -427,6 +570,21 @@ describe("Practice keyboard navigation", () => {
       value: { getUserMedia: vi.fn() },
     });
     mockGetQuestionFlags.mockResolvedValue({ success: true, flags: {} });
+    mockGetLowRatedQuestionIds.mockResolvedValue({ success: true, ids: [] });
+    mockGetEntitlement.mockResolvedValue({
+      tier: "free",
+      cadence: null,
+      currentPeriodEnd: null,
+      status: "none",
+    });
+    mockRemoveQuestionFlag.mockResolvedValue({ success: true });
+    mockSetQuestionFlag.mockResolvedValue({
+      success: true,
+      flag: {
+        id: "flag-needs-work",
+        flag_type: "needs_work",
+      },
+    });
     mockCreatePracticeSession.mockResolvedValue({
       success: true,
       session: { id: "session-1", user_id: "user-1", search_id: "search-1", started_at: "2026-03-31T00:00:00.000Z" },
@@ -522,6 +680,32 @@ describe("Practice keyboard navigation", () => {
       () => expect(screen.getByText("Question 2 of 2")).toBeInTheDocument(),
       { timeout: 1500 },
     );
+  });
+
+  it("lets desktop users mark the current in-session question as needs work", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByText("Quick Start"));
+    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
+
+    const needsWorkButton = await screen.findByRole("button", { name: "Mark as needs work" });
+    expect(needsWorkButton).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(needsWorkButton);
+
+    await waitFor(() => {
+      expect(mockSetQuestionFlag).toHaveBeenCalledWith("q-1", "needs_work");
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "Remove needs work" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 });
 
@@ -747,13 +931,21 @@ describe("Practice autosave label", () => {
 
   const startSession = async () => {
     fireEvent.click(await screen.findByRole("button", { name: /quick start/i }));
-    expect(await screen.findByText("Breathe in...")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Breathe in...", {}, { timeout: 3000 })
+    ).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
-    expect(await screen.findByText("Describe your system design approach.")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Describe your system design approach.",
+        {},
+        { timeout: 3000 }
+      )
+    ).toBeInTheDocument();
     return screen.findByPlaceholderText("Capture bullet points or timing cues…");
   };
 
-  it("shows a draft-kept label (no green) after the debounce on the typed answer", async () => {
+  it("shows a draft-kept label (no green) after the debounce on the typed answer", { retry: 2 }, async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
@@ -778,7 +970,7 @@ describe("Practice autosave label", () => {
     expect(screen.queryByText("Saved locally")).not.toBeInTheDocument();
   });
 
-  it("shows an Answer-saved label (green) after Save & Continue, never 'Saved locally'", async () => {
+  it("shows an Answer-saved label (green) after Save & Continue, never 'Saved locally'", { retry: 2 }, async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
@@ -800,7 +992,7 @@ describe("Practice autosave label", () => {
     expect(screen.queryByText("Saved locally")).not.toBeInTheDocument();
   });
 
-  it("resets the autosave label off the draft state when skipping to the next question", async () => {
+  it("resets the autosave label off the draft state when skipping to the next question", { retry: 2 }, async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>

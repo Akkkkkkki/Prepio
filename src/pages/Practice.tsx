@@ -619,7 +619,7 @@ const getInterviewerFocus = (
           }
           
           if (result.search.status === 'failed') {
-            setError("Research processing failed. Please try starting a new search.");
+            setError("Research processing failed. Please prep a new interview to try again.");
             return;
           }
           
@@ -1795,7 +1795,7 @@ const getInterviewerFocus = (
                     onClick={() => navigate('/new-interview')}
                     className="w-full"
                   >
-                    Start New Search
+                    Prep a new interview
                   </Button>
                 </div>
               </CardContent>
@@ -1861,7 +1861,7 @@ const getInterviewerFocus = (
                     onClick={() => navigate('/new-interview')}
                     className="w-full"
                   >
-                    Start New Search
+                    Prep a new interview
                   </Button>
                 </div>
               </div>
@@ -1898,7 +1898,7 @@ const getInterviewerFocus = (
                   onClick={() => navigate('/new-interview')}
                   className="w-full"
                 >
-                  Start New Search
+                  Prep a new interview
                 </Button>
               </div>
             </CardContent>
@@ -2545,6 +2545,7 @@ const getInterviewerFocus = (
 
   if (isMobile) {
     const favoriteActive = questionFlags[currentQuestion.id]?.flag_type === 'favorite';
+    const needsWorkActive = questionFlags[currentQuestion.id]?.flag_type === 'needs_work';
 
     return (
       <div
@@ -2681,6 +2682,7 @@ const getInterviewerFocus = (
                     variant={favoriteActive ? "secondary" : "outline"}
                     onClick={() => handleToggleFlag(currentQuestion.id, 'favorite')}
                     disabled={isOffline}
+                    aria-pressed={favoriteActive}
                     className={cn(
                       "h-11 rounded-full px-4",
                       favoriteActive
@@ -2690,6 +2692,23 @@ const getInterviewerFocus = (
                   >
                     <Star className={cn("h-4 w-4", favoriteActive && "fill-current")} />
                     {favoriteActive ? "Favorited" : "Favorite"}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant={needsWorkActive ? "secondary" : "outline"}
+                    onClick={() => handleToggleFlag(currentQuestion.id, 'needs_work')}
+                    disabled={isOffline}
+                    aria-pressed={needsWorkActive}
+                    className={cn(
+                      "h-11 rounded-full px-4",
+                      needsWorkActive
+                        ? "border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    <AlertCircle className="h-4 w-4" />
+                    {needsWorkActive ? "Needs work flagged" : "Needs work"}
                   </Button>
 
                   {questionInsights && (
@@ -2907,6 +2926,9 @@ const getInterviewerFocus = (
   }
 
   // Active Practice Session - Show questions
+  const favoriteActive = questionFlags[currentQuestion.id]?.flag_type === 'favorite';
+  const needsWorkActive = questionFlags[currentQuestion.id]?.flag_type === 'needs_work';
+
   return (
     <div id="main-content" className="min-h-screen bg-background">
       <Navigation />
@@ -3099,17 +3121,32 @@ const getInterviewerFocus = (
                     size="sm"
                     onClick={() => handleToggleFlag(currentQuestion.id, 'favorite')}
                     disabled={isOffline}
-                    className={`h-7 px-2 ${
-                      questionFlags[currentQuestion.id]?.flag_type === 'favorite'
-                        ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                        : 'text-muted-foreground hover:text-amber-600'
-                    }`}
+                    aria-label={favoriteActive ? "Remove favorite" : "Favorite"}
+                    aria-pressed={favoriteActive}
+                    className={cn(
+                      "h-7 px-2",
+                      favoriteActive
+                        ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                        : "text-muted-foreground hover:text-amber-600"
+                    )}
                   >
-                    <Star
-                      className={`h-3.5 w-3.5 ${
-                        questionFlags[currentQuestion.id]?.flag_type === 'favorite' ? 'fill-current' : ''
-                      }`}
-                    />
+                    <Star className={cn("h-3.5 w-3.5", favoriteActive && "fill-current")} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleToggleFlag(currentQuestion.id, 'needs_work')}
+                    disabled={isOffline}
+                    aria-label={needsWorkActive ? "Remove needs work" : "Mark as needs work"}
+                    aria-pressed={needsWorkActive}
+                    className={cn(
+                      "h-7 px-2",
+                      needsWorkActive
+                        ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                        : "text-muted-foreground hover:text-amber-700"
+                    )}
+                  >
+                    <AlertCircle className="h-3.5 w-3.5" />
                   </Button>
                 </div>
 
