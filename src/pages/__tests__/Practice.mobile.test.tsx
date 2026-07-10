@@ -570,6 +570,21 @@ describe("Practice keyboard navigation", () => {
       value: { getUserMedia: vi.fn() },
     });
     mockGetQuestionFlags.mockResolvedValue({ success: true, flags: {} });
+    mockGetLowRatedQuestionIds.mockResolvedValue({ success: true, ids: [] });
+    mockGetEntitlement.mockResolvedValue({
+      tier: "free",
+      cadence: null,
+      currentPeriodEnd: null,
+      status: "none",
+    });
+    mockRemoveQuestionFlag.mockResolvedValue({ success: true });
+    mockSetQuestionFlag.mockResolvedValue({
+      success: true,
+      flag: {
+        id: "flag-needs-work",
+        flag_type: "needs_work",
+      },
+    });
     mockCreatePracticeSession.mockResolvedValue({
       success: true,
       session: { id: "session-1", user_id: "user-1", search_id: "search-1", started_at: "2026-03-31T00:00:00.000Z" },
@@ -665,6 +680,32 @@ describe("Practice keyboard navigation", () => {
       () => expect(screen.getByText("Question 2 of 2")).toBeInTheDocument(),
       { timeout: 1500 },
     );
+  });
+
+  it("lets desktop users mark the current in-session question as needs work", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByText("Quick Start"));
+    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
+
+    const needsWorkButton = await screen.findByRole("button", { name: "Mark as needs work" });
+    expect(needsWorkButton).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(needsWorkButton);
+
+    await waitFor(() => {
+      expect(mockSetQuestionFlag).toHaveBeenCalledWith("q-1", "needs_work");
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "Remove needs work" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 });
 
