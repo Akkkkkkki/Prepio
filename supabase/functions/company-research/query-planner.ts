@@ -252,20 +252,23 @@ function buildFamilyQueries(input: {
     ],
   };
 
-  const targeted = targetedUserNoteSignals.flatMap((signal): PlannedQuery[] => [
-    {
-      source: "user-note-linkedin",
-      query: `"${company}" ${role} "${signal}" interview site:linkedin.com`,
-    },
-    {
-      source: "user-note-blog",
-      query: `"${company}" ${role} "${signal}" interview blog site:medium.com OR site:substack.com`,
-    },
-    {
-      source: "user-note-talk",
-      query: `"${company}" ${role} "${signal}" interview talk conference site:youtube.com OR site:speakerdeck.com`,
-    },
-  ]);
+  const targetedSignals = targetedUserNoteSignals.map((signal) => `"${signal}"`).join(" ");
+  const targeted: PlannedQuery[] = targetedSignals
+    ? [
+        {
+          source: "user-note-linkedin",
+          query: `"${company}" ${role} ${targetedSignals} interview site:linkedin.com`,
+        },
+        {
+          source: "user-note-blog",
+          query: `"${company}" ${role} ${targetedSignals} interview blog site:medium.com OR site:substack.com`,
+        },
+        {
+          source: "user-note-talk",
+          query: `"${company}" ${role} ${targetedSignals} interview talk conference site:youtube.com OR site:speakerdeck.com`,
+        },
+      ]
+    : [];
 
   const contextual = userNoteSignals
     .filter((signal) => !targetedUserNoteSignals.includes(signal))
@@ -274,7 +277,7 @@ function buildFamilyQueries(input: {
       query: `"${company}" ${role} "${signal}" interview`,
     }));
 
-  return [...common, ...targeted, ...byFamily[roleFamily], ...contextual].map((planned) => ({
+  return [...common, ...byFamily[roleFamily], ...targeted, ...contextual].map((planned) => ({
     ...planned,
     query: cleanQuery(planned.query),
   }));

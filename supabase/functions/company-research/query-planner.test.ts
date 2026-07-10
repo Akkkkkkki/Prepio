@@ -133,4 +133,20 @@ describe("buildResearchQueryPlan", () => {
       expect.arrayContaining(["linkedin.com", "medium.com", "substack.com", "youtube.com"]),
     );
   });
+
+  it("preserves role-family coverage inside the production query budget", () => {
+    const plan = buildResearchQueryPlan({
+      company: "Stripe",
+      role: "Product Manager",
+      userNote: "Meeting Alex Chen from the Payments team; she has recent conference talks and blog posts.",
+      maxQueries: 6,
+    });
+
+    const sources = plan.queries.map((query) => query.source);
+    const targeted = plan.queries.find((query) => query.source === "user-note-linkedin");
+
+    expect(sources).toEqual(expect.arrayContaining(["blind", "leetcode", "levels", "user-note-linkedin"]));
+    expect(targeted?.query).toMatch(/"Alex Chen"/);
+    expect(targeted?.query).toMatch(/"Payments team"/);
+  });
 });
