@@ -466,6 +466,28 @@ describe("generateAnswerFeedback", () => {
     expect(db.answer_feedback).toHaveLength(0);
   });
 
+  it("does not persist feedback when model generation fails", async () => {
+    const db = buildDb();
+    const model = {
+      generate: vi.fn(async (_input: FeedbackModelInput) => {
+        throw new Error("model unavailable");
+      }),
+    };
+
+    const result = await generateAnswerFeedback(
+      {
+        supabase: buildFakeSupabase(db),
+        getEntitlement: async () => PAID,
+        model,
+      },
+      { userId: USER_ID, practiceAnswerId: ANSWER_ID },
+    );
+
+    expect(result).toEqual({ ok: false, status: 502, error: "feedback_generation_failed" });
+    expect(model.generate).toHaveBeenCalledOnce();
+    expect(db.answer_feedback).toHaveLength(0);
+  });
+
   it("regenerates feedback by preserving history and leaving one latest row", async () => {
     const db = buildDb({
       answer_feedback: [

@@ -113,6 +113,78 @@ describe("Interviews home", () => {
     expect(screen.queryByRole("link", { name: /Practice these/ })).not.toBeInTheDocument();
   });
 
+  it("routes plan-ready, processing, and failed interviews to the correct next action", async () => {
+    mockGetInterviewSummaries.mockResolvedValue({
+      success: true,
+      interviews: [
+        {
+          id: "ready-search",
+          company: "Linear",
+          role: "Staff Engineer",
+          status: "completed",
+          createdAt: "2026-06-21T10:00:00.000Z",
+          totalQuestions: 8,
+          practicedQuestions: 0,
+          progressPercent: 0,
+          needsWorkCount: 1,
+          state: "plan_ready",
+        },
+        {
+          id: "processing-search",
+          company: "Anthropic",
+          role: "Product Engineer",
+          status: "processing",
+          createdAt: "2026-06-22T10:00:00.000Z",
+          totalQuestions: 0,
+          practicedQuestions: 0,
+          progressPercent: 0,
+          needsWorkCount: 0,
+          state: "processing",
+        },
+        {
+          id: "failed-search",
+          company: "OpenAI",
+          role: "Engineering Manager",
+          status: "failed",
+          createdAt: "2026-06-23T10:00:00.000Z",
+          totalQuestions: 0,
+          practicedQuestions: 0,
+          progressPercent: 0,
+          needsWorkCount: 0,
+          state: "failed",
+        },
+      ],
+    });
+
+    renderInterviews();
+
+    expect(await screen.findByText("Linear · Staff Engineer")).toBeInTheDocument();
+    expect(screen.getByText("Plan ready")).toBeInTheDocument();
+    expect(screen.getByText("1 question still needs work")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Start practice" })).toHaveAttribute(
+      "href",
+      "/practice?searchId=ready-search",
+    );
+    expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute(
+      "href",
+      "/dashboard?searchId=ready-search",
+    );
+
+    expect(screen.getByText("Research in progress")).toBeInTheDocument();
+    expect(screen.getByText("Your tailored plan is still being prepared.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View progress" })).toHaveAttribute(
+      "href",
+      "/dashboard?searchId=processing-search",
+    );
+
+    expect(screen.getByText("Research needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Open the research run to review the error and try again.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Review research" })).toHaveAttribute(
+      "href",
+      "/dashboard?searchId=failed-search",
+    );
+  });
+
   it("shows a recoverable error instead of an empty interview list", async () => {
     mockGetInterviewSummaries.mockResolvedValue({ success: false });
 

@@ -239,6 +239,73 @@ describe("practice history answer dedupe helpers", () => {
     ]);
   });
 
+  it("prioritizes research status over practice progress when building interview-card states", () => {
+    const summaries = buildInterviewSummaries({
+      searches: [
+        {
+          id: "completed-search",
+          company: "Stripe",
+          role: "Senior Product Manager",
+          status: "completed",
+          created_at: "2026-06-20T10:00:00.000Z",
+        },
+        {
+          id: "processing-search",
+          company: "Linear",
+          role: "Staff Engineer",
+          status: "processing",
+          created_at: "2026-06-21T10:00:00.000Z",
+        },
+        {
+          id: "pending-search",
+          company: "Anthropic",
+          role: "Product Engineer",
+          status: "pending",
+          created_at: "2026-06-22T10:00:00.000Z",
+        },
+        {
+          id: "failed-search",
+          company: "OpenAI",
+          role: "Engineering Manager",
+          status: "failed",
+          created_at: "2026-06-23T10:00:00.000Z",
+        },
+      ],
+      questions: [
+        { id: "completed-question", search_id: "completed-search" },
+        { id: "processing-question", search_id: "processing-search" },
+        { id: "pending-question", search_id: "pending-search" },
+        { id: "failed-question", search_id: "failed-search" },
+      ],
+      sessions: [
+        { id: "processing-session", search_id: "processing-search" },
+        { id: "failed-session", search_id: "failed-search" },
+      ],
+      answers: [
+        {
+          session_id: "processing-session",
+          question_id: "processing-question",
+          self_rating: 4,
+          created_at: "2026-06-21T10:15:00.000Z",
+        },
+        {
+          session_id: "failed-session",
+          question_id: "failed-question",
+          self_rating: 4,
+          created_at: "2026-06-23T10:15:00.000Z",
+        },
+      ],
+      flags: [],
+    });
+
+    expect(Object.fromEntries(summaries.map((summary) => [summary.id, summary.state]))).toEqual({
+      "completed-search": "plan_ready",
+      "processing-search": "processing",
+      "pending-search": "processing",
+      "failed-search": "failed",
+    });
+  });
+
   it("loads interview summaries from user-scoped searches, sessions, and flags", async () => {
     const searchesChain = createSelectChain({
       data: [
@@ -888,6 +955,30 @@ describe("answer feedback service", () => {
     expect(result).toEqual({
       success: false,
       errorCode: "unknown_error",
+    });
+  });
+
+  it("maps the feedback_already_exists race response to its structured error code", async () => {
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: null,
+      error: {
+        context: {
+          clone: () => ({
+            json: async () => ({ error: "feedback_already_exists" }),
+          }),
+          json: async () => ({ error: "feedback_already_exists" }),
+        },
+      },
+    });
+
+    const result = await searchService.generateAnswerFeedback("answer-1", true);
+
+    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("answer-feedback", {
+      body: { practiceAnswerId: "answer-1", regenerate: true },
+    });
+    expect(result).toEqual({
+      success: false,
+      errorCode: "feedback_already_exists",
     });
   });
 

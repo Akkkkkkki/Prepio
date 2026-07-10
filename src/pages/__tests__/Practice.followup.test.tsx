@@ -107,6 +107,12 @@ const renderPractice = () =>
     </MemoryRouter>,
   );
 
+const getStoredPracticeDefaults = () => {
+  const stored = localStorage.getItem(PRACTICE_SETUP_STORAGE_KEY);
+  expect(stored).not.toBeNull();
+  return JSON.parse(stored ?? "{}") as { interviewerMode?: boolean };
+};
+
 const startCustomSession = async ({ interviewerMode }: { interviewerMode: boolean }) => {
   fireEvent.click(
     await screen.findByRole("button", { name: /customize — stages, difficulty, filters/i }),
@@ -166,6 +172,7 @@ describe("Practice interviewer follow-ups", () => {
     renderPractice();
     await startCustomSession({ interviewerMode: true });
 
+    expect(getStoredPracticeDefaults()).toMatchObject({ interviewerMode: true });
     expect(await screen.findByText(QUESTION_ONE)).toBeInTheDocument();
     await answerCurrentQuestion(/save & continue/i);
 
@@ -189,11 +196,45 @@ describe("Practice interviewer follow-ups", () => {
     renderPractice();
     await startCustomSession({ interviewerMode: false });
 
+    expect(getStoredPracticeDefaults()).toMatchObject({ interviewerMode: false });
     expect(await screen.findByText(QUESTION_ONE)).toBeInTheDocument();
     await answerCurrentQuestion(/save & continue/i);
 
     expect(await screen.findByText(QUESTION_TWO)).toBeInTheDocument();
     expect(screen.queryByText("Follow-up from the interviewer")).not.toBeInTheDocument();
+  });
+
+  it("restores remembered interviewer follow-up mode for a later custom session", async () => {
+    localStorage.setItem(
+      PRACTICE_SETUP_STORAGE_KEY,
+      JSON.stringify({
+        sampleSize: 10,
+        categories: [],
+        difficulties: [],
+        shuffle: false,
+        favoritesOnly: false,
+        interviewerMode: true,
+      }),
+    );
+    mockSearchResults([
+      buildQuestion("q-1", QUESTION_ONE, [FOLLOW_UP_TEXT]),
+      buildQuestion("q-2", QUESTION_TWO),
+    ]);
+
+    renderPractice();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /customize — stages, difficulty, filters/i }),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start custom session" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
+
+    expect(await screen.findByText(QUESTION_ONE)).toBeInTheDocument();
+    await answerCurrentQuestion(/save & continue/i);
+
+    expect(await screen.findByText("Follow-up from the interviewer")).toBeInTheDocument();
+    expect(screen.getByText(FOLLOW_UP_TEXT)).toBeInTheDocument();
+    expect(screen.queryByText(QUESTION_TWO)).not.toBeInTheDocument();
   });
 
   it("holds session completion on the last question until the follow-up is dismissed", async () => {
