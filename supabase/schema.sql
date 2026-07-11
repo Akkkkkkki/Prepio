@@ -539,7 +539,7 @@ ALTER TABLE ONLY "public"."user_question_flags"
 
 
 ALTER TABLE ONLY "public"."user_question_flags"
-    ADD CONSTRAINT "user_question_flags_user_id_question_id_key" UNIQUE ("user_id", "question_id");
+    ADD CONSTRAINT "user_question_flags_user_id_question_id_flag_type_key" UNIQUE ("user_id", "question_id", "flag_type");
 
 
 

@@ -21,6 +21,15 @@ vi.mock("@/hooks/useNetworkStatus", () => ({
 }));
 
 vi.mock("@/services/searchService", () => ({
+  getQuestionFlagTypes: (
+    flags: Record<string, Record<string, unknown> | undefined>,
+    questionId: string,
+  ) => Object.keys(flags[questionId] ?? {}),
+  hasQuestionFlag: (
+    flags: Record<string, Record<string, unknown> | undefined>,
+    questionId: string,
+    flagType: string,
+  ) => Boolean(flags[questionId]?.[flagType]),
   searchService: {
     getPracticeSessions: (...args: unknown[]) => mockGetPracticeSessions(...args),
     getPracticeOverviewStats: (...args: unknown[]) => mockGetPracticeOverviewStats(...args),

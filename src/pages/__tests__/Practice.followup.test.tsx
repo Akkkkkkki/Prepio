@@ -44,6 +44,11 @@ vi.mock("react-swipeable", () => ({
 }));
 
 vi.mock("@/services/searchService", () => ({
+  hasQuestionFlag: (
+    flags: Record<string, Record<string, unknown> | undefined>,
+    questionId: string,
+    flagType: string,
+  ) => Boolean(flags[questionId]?.[flagType]),
   searchService: {
     getSearchResults: (...args: unknown[]) => mockGetSearchResults(...args),
     getQuestionFlags: (...args: unknown[]) => mockGetQuestionFlags(...args),
