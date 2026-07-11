@@ -98,6 +98,14 @@ describe("Navigation component", () => {
     });
   });
 
+  it("gives the mobile menu trigger a 44px touch target", () => {
+    renderNavigation();
+
+    const trigger = screen.getByRole("button", { name: /Open navigation menu/i });
+    expect(trigger.className).toContain("h-11");
+    expect(trigger.className).toContain("w-11");
+  });
+
   it("does not load search history from the navbar", () => {
     renderNavigation();
 
