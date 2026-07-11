@@ -695,7 +695,7 @@ describe("Practice keyboard navigation", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
 
     const needsWorkButton = await screen.findByRole("button", { name: "Mark as needs work" });
-    expect(needsWorkButton).toHaveAttribute("aria-pressed", "false");
+    expect(needsWorkButton.getAttribute("aria-pressed")).toBe("false");
 
     fireEvent.click(needsWorkButton);
 
@@ -703,9 +703,8 @@ describe("Practice keyboard navigation", () => {
       expect(mockSetQuestionFlag).toHaveBeenCalledWith("q-1", "needs_work");
     });
 
-    expect(
-      await screen.findByRole("button", { name: "Remove needs work" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    const removeNeedsWorkButton = await screen.findByRole("button", { name: "Remove needs work" });
+    expect(removeNeedsWorkButton.getAttribute("aria-pressed")).toBe("true");
   });
 });
 
