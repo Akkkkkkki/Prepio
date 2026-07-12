@@ -74,6 +74,13 @@ const DOMAIN_PACKS: Record<ResearchRoleFamily | "common", string[]> = {
   ],
 };
 
+const TARGETED_USER_NOTE_DOMAINS = [
+  "medium.com",
+  "substack.com",
+  "youtube.com",
+  "speakerdeck.com",
+];
+
 const ROLE_KEYWORDS: Record<ResearchRoleFamily, RegExp[]> = {
   tech: [
     /\b(engineer|developer|software|frontend|backend|full.?stack|platform|infrastructure|devops|sre|data scientist|machine learning|ml|ai|security|product manager|designer|ux|qa)\b/i,
@@ -122,30 +129,43 @@ function getLevelPhrase(level: ResearchLevel): string {
   return LEVEL_PHRASES[String(level)] ?? String(level).replace(/_/g, " ");
 }
 
-function extractUserNoteSignals(userNote?: string): string[] {
-  if (!userNote) return [];
-  const signals: string[] = [];
+interface ExtractedUserNoteSignals {
+  labels: string[];
+  targeted: string[];
+}
+
+function extractUserNoteSignals(userNote?: string): ExtractedUserNoteSignals {
+  if (!userNote) return { labels: [], targeted: [] };
+  const labels: string[] = [];
+  const targeted: string[] = [];
   const normalized = userNote.trim();
 
-  const teamMatch = normalized.match(/\b(?:team|group|org|department)\s+([A-Z][A-Za-z0-9& -]{1,40})/);
-  if (teamMatch?.[1]) signals.push(teamMatch[1].trim());
-
-  const precedingTeamMatch = normalized.match(/\b([A-Z][A-Za-z0-9& -]{1,40})\s+(?:team|group|org|department)\b/);
-  if (precedingTeamMatch?.[1]) {
-    const teamName = precedingTeamMatch[1]
-      .trim()
-      .replace(/^(Meeting|Meet|Preparing for|Interviewing with|Speaking with|Talking to)\s+(the\s+)?/i, "");
-    signals.push(`${teamName} team`);
+  const teamMatch = normalized.match(
+    /\b([A-Z][A-Za-z0-9&-]*(?:\s+[A-Z][A-Za-z0-9&-]*){0,2})\s+(?:team|group|org|department)\b/,
+  );
+  if (teamMatch?.[1]) {
+    const teamSignal = `${teamMatch[1].trim()} team`;
+    labels.push(teamSignal);
+    targeted.push(teamSignal);
   }
 
-  const interviewerMatch = normalized.match(/\b(?:interviewer|with|meeting)\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,2})/);
-  if (interviewerMatch?.[1]) signals.push(interviewerMatch[1].trim());
+  const interviewerMatch = normalized.match(
+    /\b(?:[Ii]nterviewer|[Ww]ith|[Mm]eeting|[Mm]eet|[Ss]peaking with|[Tt]alking to)\s+(?:the\s+)?([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,2})\b/,
+  );
+  if (interviewerMatch?.[1]) {
+    const interviewerSignal = interviewerMatch[1].trim();
+    labels.push(interviewerSignal);
+    targeted.push(interviewerSignal);
+  }
 
-  if (/\bcase\b/i.test(normalized)) signals.push("case interview");
-  if (/\bsystem design\b/i.test(normalized)) signals.push("system design");
-  if (/\bmodeling|valuation|lbo|dcf\b/i.test(normalized)) signals.push("financial modeling");
+  if (/\bcase\b/i.test(normalized)) labels.push("case interview");
+  if (/\bsystem design\b/i.test(normalized)) labels.push("system design");
+  if (/\bmodeling|valuation|lbo|dcf\b/i.test(normalized)) labels.push("financial modeling");
 
-  return dedupe(signals).slice(0, 3);
+  return {
+    labels: dedupe(labels).slice(0, 4),
+    targeted: dedupe(targeted).slice(0, 2),
+  };
 }
 
 function buildFamilyQueries(input: {
@@ -155,9 +175,10 @@ function buildFamilyQueries(input: {
   ticker: string;
   levelPhrase: string;
   userNoteSignals: string[];
+  targetedUserNoteSignals: string[];
   roleFamily: ResearchRoleFamily;
 }): PlannedQuery[] {
-  const { company, role, country, ticker, levelPhrase, userNoteSignals, roleFamily } = input;
+  const { company, role, country, ticker, levelPhrase, userNoteSignals, targetedUserNoteSignals, roleFamily } = input;
   const location = country ? `${country} ` : "";
   const seniority = levelPhrase ? `${levelPhrase} ` : "";
 
@@ -231,12 +252,32 @@ function buildFamilyQueries(input: {
     ],
   };
 
-  const targeted = userNoteSignals.map((signal): PlannedQuery => ({
-    source: "user-note",
-    query: `"${company}" ${role} "${signal}" interview`,
-  }));
+  const targetedSignals = targetedUserNoteSignals.map((signal) => `"${signal}"`).join(" ");
+  const targeted: PlannedQuery[] = targetedSignals
+    ? [
+        {
+          source: "user-note-linkedin",
+          query: `"${company}" ${role} ${targetedSignals} interview site:linkedin.com`,
+        },
+        {
+          source: "user-note-blog",
+          query: `"${company}" ${role} ${targetedSignals} interview blog site:medium.com OR site:substack.com`,
+        },
+        {
+          source: "user-note-talk",
+          query: `"${company}" ${role} ${targetedSignals} interview talk conference site:youtube.com OR site:speakerdeck.com`,
+        },
+      ]
+    : [];
 
-  return [...common, ...byFamily[roleFamily], ...targeted].map((planned) => ({
+  const contextual = userNoteSignals
+    .filter((signal) => !targetedUserNoteSignals.includes(signal))
+    .map((signal): PlannedQuery => ({
+      source: "user-note",
+      query: `"${company}" ${role} "${signal}" interview`,
+    }));
+
+  return [...common, ...byFamily[roleFamily], ...targeted, ...contextual].map((planned) => ({
     ...planned,
     query: cleanQuery(planned.query),
   }));
@@ -252,7 +293,11 @@ export function buildResearchQueryPlan(input: QueryPlanInput): QueryPlan {
   const roleFamily = classifyRoleFamily(role, input.userNote);
   const userNoteSignals = extractUserNoteSignals(input.userNote);
   const familyDomains = DOMAIN_PACKS[roleFamily];
-  const includeDomains = dedupe([...DOMAIN_PACKS.common, ...familyDomains]);
+  const includeDomains = dedupe([
+    ...DOMAIN_PACKS.common,
+    ...familyDomains,
+    ...(userNoteSignals.targeted.length > 0 ? TARGETED_USER_NOTE_DOMAINS : []),
+  ]);
   const queries = dedupe(
     buildFamilyQueries({
       company,
@@ -260,7 +305,8 @@ export function buildResearchQueryPlan(input: QueryPlanInput): QueryPlan {
       country,
       ticker,
       levelPhrase,
-      userNoteSignals,
+      userNoteSignals: userNoteSignals.labels,
+      targetedUserNoteSignals: userNoteSignals.targeted,
       roleFamily,
     }).map((planned) => JSON.stringify(planned)),
   )
@@ -275,7 +321,7 @@ export function buildResearchQueryPlan(input: QueryPlanInput): QueryPlan {
       role,
       level: levelPhrase || "unknown",
       country: country ?? null,
-      userNote: userNoteSignals,
+      userNote: userNoteSignals.labels,
     },
     budget: {
       maxQueries,
