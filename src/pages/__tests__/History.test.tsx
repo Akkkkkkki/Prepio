@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
@@ -7,6 +7,8 @@ import History from "../History";
 const mockGetPracticeSessions = vi.fn();
 const mockGetPracticeOverviewStats = vi.fn();
 const mockGetQuestionFlags = vi.fn();
+const mockGetSessionDetail = vi.fn();
+const mockGetAnswerFeedbackForAnswers = vi.fn();
 const mockNetworkStatus = {
   isOnline: true,
   isOffline: false,
@@ -34,6 +36,8 @@ vi.mock("@/services/searchService", () => ({
     getPracticeSessions: (...args: unknown[]) => mockGetPracticeSessions(...args),
     getPracticeOverviewStats: (...args: unknown[]) => mockGetPracticeOverviewStats(...args),
     getQuestionFlags: (...args: unknown[]) => mockGetQuestionFlags(...args),
+    getSessionDetail: (...args: unknown[]) => mockGetSessionDetail(...args),
+    getAnswerFeedbackForAnswers: (...args: unknown[]) => mockGetAnswerFeedbackForAnswers(...args),
   },
 }));
 
@@ -55,6 +59,13 @@ describe("History page states", () => {
     mockGetQuestionFlags.mockResolvedValue({
       success: true,
       flags: {},
+    });
+    mockGetSessionDetail.mockResolvedValue({
+      success: false,
+    });
+    mockGetAnswerFeedbackForAnswers.mockResolvedValue({
+      success: true,
+      feedback: {},
     });
   });
 
@@ -206,5 +217,106 @@ describe("History page states", () => {
     expect(screen.getByText("OpenAI")).toBeInTheDocument();
     expect(screen.queryByText("Practice history unavailable")).not.toBeInTheDocument();
     expect(mockGetPracticeSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders coexisting question flags in history summaries and answer details", async () => {
+    const flags = {
+      "question-1": {
+        favorite: { id: "flag-favorite", flag_type: "favorite" },
+        needs_work: { id: "flag-needs-work", flag_type: "needs_work" },
+      },
+    };
+
+    mockGetPracticeOverviewStats.mockResolvedValue({
+      success: false,
+    });
+    mockGetQuestionFlags.mockResolvedValue({
+      success: true,
+      flags,
+    });
+    mockGetPracticeSessions.mockResolvedValue({
+      success: true,
+      sessions: [
+        {
+          id: "session-1",
+          search_id: "search-1",
+          started_at: "2026-03-31T00:00:00.000Z",
+          completed_at: "2026-03-31T00:05:00.000Z",
+          session_notes: "Revisit the tradeoff framing.",
+          searches: {
+            company: "Stripe",
+            role: "Backend Engineer",
+            country: "United Kingdom",
+          },
+          practice_answers: [
+            {
+              id: "answer-1",
+              question_id: "question-1",
+              answer_time_seconds: 95,
+              created_at: "2026-03-31T00:01:00.000Z",
+            },
+          ],
+        },
+      ],
+    });
+    mockGetSessionDetail.mockResolvedValue({
+      success: true,
+      session: {
+        id: "session-1",
+        search_id: "search-1",
+        started_at: "2026-03-31T00:00:00.000Z",
+        completed_at: "2026-03-31T00:05:00.000Z",
+        session_notes: "Revisit the tradeoff framing.",
+        searches: {
+          company: "Stripe",
+          role: "Backend Engineer",
+          country: "United Kingdom",
+        },
+      },
+      answers: [
+        {
+          id: "answer-1",
+          question_id: "question-1",
+          text_answer: "I would describe the migration risks and rollback plan.",
+          answer_time_seconds: 95,
+          created_at: "2026-03-31T00:01:00.000Z",
+          interview_questions: {
+            question: "How would you migrate a critical payments service?",
+            category: "technical",
+            difficulty: "hard",
+            interview_stages: {
+              name: "Systems Design",
+            },
+          },
+        },
+      ],
+      flags,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/history"]}>
+        <Routes>
+          <Route path="/history" element={<History />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Stripe")).toBeInTheDocument();
+    expect(screen.getByText("1 favorite")).toBeInTheDocument();
+    expect(screen.getByText("1 needs work")).toBeInTheDocument();
+
+    const needsWorkStat = screen.getByText("Questions still marked for review").parentElement;
+    expect(needsWorkStat).not.toBeNull();
+    expect(within(needsWorkStat as HTMLElement).getByText("1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Stripe/ }));
+
+    expect(await screen.findByText("How would you migrate a critical payments service?")).toBeInTheDocument();
+    expect(screen.getByText("Favorite")).toBeInTheDocument();
+    expect(screen.getByText("Needs work")).toBeInTheDocument();
+    expect(mockGetSessionDetail).toHaveBeenCalledWith("session-1");
+    await waitFor(() => {
+      expect(mockGetAnswerFeedbackForAnswers).toHaveBeenCalledWith(["answer-1"]);
+    });
   });
 });
