@@ -79,6 +79,29 @@ describe("Auth page", () => {
     });
   });
 
+  it("identifies sign-in and sign-up fields for password managers", async () => {
+    renderAuth();
+
+    expect(screen.getByLabelText("Email").getAttribute("autocomplete")).toBe("username");
+    expect(screen.getByLabelText("Password").getAttribute("autocomplete")).toBe(
+      "current-password",
+    );
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Sign Up" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+
+    const signUpEmail = await screen.findByLabelText("Email");
+    expect(signUpEmail.getAttribute("autocomplete")).toBe("email");
+    expect(screen.getByLabelText("Password").getAttribute("autocomplete")).toBe(
+      "new-password",
+    );
+    expect(screen.getByLabelText("Confirm Password").getAttribute("autocomplete")).toBe(
+      "new-password",
+    );
+  });
+
   it("keeps the redirect banner visible while switching auth recovery states", async () => {
     renderAuth(researchAuthState);
 
