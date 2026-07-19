@@ -207,6 +207,10 @@ function buildFamilyQueries(input: {
         source: "levels",
         query: `"${company}" ${role} ${location}interview 2024 2025 site:levels.fyi`,
       },
+      {
+        source: "1point3acres",
+        query: `"${company}" ${role} ${location}面试 面试经验 面试题 site:1point3acres.com`,
+      },
     ],
     consulting: [
       {
@@ -277,7 +281,12 @@ function buildFamilyQueries(input: {
       query: `"${company}" ${role} "${signal}" interview`,
     }));
 
-  return [...common, ...byFamily[roleFamily], ...targeted, ...contextual].map((planned) => ({
+  // International discovery is a reach expansion. Keep explicit interviewer
+  // and team signals ahead of it when the fixed query budget cannot fit both.
+  const reach = byFamily[roleFamily].filter((planned) => planned.source === "1point3acres");
+  const coreFamily = byFamily[roleFamily].filter((planned) => planned.source !== "1point3acres");
+
+  return [...common, ...coreFamily, ...targeted, ...contextual, ...reach].map((planned) => ({
     ...planned,
     query: cleanQuery(planned.query),
   }));

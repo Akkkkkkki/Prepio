@@ -82,6 +82,12 @@ describe("buildResearchQueryPlan", () => {
     );
     expect(plan.queries.map((q) => q.query).join("\n")).toMatch(/manager leadership people management/);
     expect(plan.includeDomains).not.toContain("wallstreetoasis.com");
+    expect(plan.queries).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        source: "1point3acres",
+        query: expect.stringMatching(/面试.*site:1point3acres\.com/),
+      }),
+    ]));
   });
 
   it("keeps ambiguous roles in the general research pack", () => {
