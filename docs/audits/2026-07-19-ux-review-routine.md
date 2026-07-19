@@ -308,9 +308,15 @@ third on the accumulation.
   This is doing all the conversion work while the CTA below fails.
 - **Profile banner still honest.** *"We prefilled this profile from
   the last parsed resume. Save once to make it your editable
-  canonical version."* Current source still displayed
-  (`Qiuyue_ZHANG_CV_2026_Sharpa.pdf`). Screenshot:
-  [`assets/2026-07-19/13-d-profile.png`](./assets/2026-07-19/13-d-profile.png).
+  canonical version."* Current source still shown alongside the
+  banner (filename intentionally not reproduced here — see the
+  redaction note below). Profile screenshots (desktop `13-d-profile.png`
+  and mobile `36-m-profile.png`) were **redacted from this commit**
+  because they contained the parsed CV's real name, email, phone,
+  LinkedIn URL, location, and source filename — publishing those to
+  the repo would leak the account owner's PII. If the profile
+  surface needs re-audit in run #9, use a scratch tester account
+  with a synthetic CV rather than the shared tester's parsed resume.
 - **Pricing copy unchanged, still plain.** *"Research, prep plans,
   and practice stay free. Paid subscriptions unlock AI feedback on
   saved practice answers, so you can see what to tighten before the
