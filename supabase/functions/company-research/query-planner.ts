@@ -143,8 +143,12 @@ function extractUserNoteSignals(userNote?: string): ExtractedUserNoteSignals {
   const teamMatch = normalized.match(
     /\b([A-Z][A-Za-z0-9&-]*(?:\s+[A-Z][A-Za-z0-9&-]*){0,2})\s+(?:team|group|org|department)\b/,
   );
-  if (teamMatch?.[1]) {
-    const teamSignal = `${teamMatch[1].trim()} team`;
+  const teamFirstMatch = normalized.match(
+    /\b(?:team|group|org|department)\s+([A-Z][A-Za-z0-9&-]*(?:\s+[A-Z][A-Za-z0-9&-]*){0,2})\b/,
+  );
+  const teamName = teamMatch?.[1] ?? teamFirstMatch?.[1];
+  if (teamName) {
+    const teamSignal = `${teamName.trim()} team`;
     labels.push(teamSignal);
     targeted.push(teamSignal);
   }
