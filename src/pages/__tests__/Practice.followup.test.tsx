@@ -135,7 +135,7 @@ const startMobileCustomSession = async ({ interviewerMode }: { interviewerMode: 
 
 const answerCurrentQuestion = async (saveLabel: RegExp) => {
   fireEvent.change(
-    await screen.findByPlaceholderText("Capture bullet points or timing cues…"),
+    await screen.findByPlaceholderText(/capture bullet points or timing cues|jot the beats you want to hit/i),
     { target: { value: "Tied model choice to revenue." } },
   );
   fireEvent.click(screen.getByRole("button", { name: saveLabel }));
