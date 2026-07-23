@@ -55,8 +55,11 @@ counter-vs-History mismatch still stands (fourth week). PREPIO-111
 (`/new-interview` hero) and PREPIO-101 (nav) are unchanged at their ninth
 audit. On the positive side: **Save & Continue is now genuinely
 `disabled` on an empty answer** (verified this run — resolves the run-#7
-counter-honesty concern), and the owed **`aria-pressed` probe landed**,
-confirming a real accessibility bug on the practice flag buttons.
+counter-honesty concern), and the owed **`aria-pressed` probe landed** —
+the live app reads `aria-pressed=false` on the practice flag buttons, but a
+PR review on this report established that `main` already binds it with test
+coverage, so this is a **stale-production-build** signal, not a missing
+fix — the same production-lag theme as the undeployed preview function.
 
 **The single highest-value action this week is deploying `research-preview`.**
 It is the cheapest fix on the board (one command) and unblocks the entire
@@ -109,15 +112,16 @@ logged-out conversion funnel that has been dead for a month.
 - **Recommended fix (unchanged, option 1 preferred):** (1) render in-progress sessions as an *"In progress · resume"* row in `/history`; or (2) relabel the counter from *"practiced"* to *"answered"* with a tooltip.
 - **Tracking:** **Could not file — Linear cap.** GitHub-ready ticket #4 below.
 
-### 5. **P2 (a11y, owed probe now confirmed) — Practice "Favorite" / "Needs work" toggles never update `aria-pressed`**
+### 5. **P1 (reframed by PR review — stale production build) — live app reads `aria-pressed=false` and pre-#231 button copy, but `main` already binds it**
 
-- **Severity:** P2 (accessibility; WCAG 4.1.2)
-- **Area:** practice / accessibility
-- **What happened (live, mobile):** on Q1, `aria-pressed` read `false` on both buttons before and after activation — initial `{favorite:false, needsWork:false}`; after *Favorite* `{false,false}`; after also *Needs work* `{false,false}`. Yet the screenshot shows *Needs work* **visually filled/pressed** and *Favorite* outlined ([`assets/2026-07-23/65-m-both-flags.png`](./assets/2026-07-23/65-m-both-flags.png)). So the visual pressed state is real but `aria-pressed` never mirrors it.
-- **Why it matters:** the flag state is conveyed by color/fill only — invisible to assistive tech, and a "no info by color alone" failure. Practice is a core repeated flow.
-- **Recommended fix:** bind `aria-pressed` to the same per-question boolean that drives the visual fill; add an RTL test asserting each flag flips `aria-pressed` on click.
-- **Secondary observation (needs clean probe):** after clicking *Favorite* then *Needs work*, only *Needs work* was filled — *Favorite* was not. This *may* indicate PR #233's flag-coexistence regressed (Needs work deselecting Favorite), or the Favorite tap missed. Run #10 should click each flag independently with a `waitForResponse` barrier and confirm both can be on simultaneously.
-- **Tracking:** **Could not file — Linear cap.** GitHub-ready ticket #5 below.
+- **Severity:** P1 (reframed up from P2 — this is now evidence of a stale production deploy, not a missing a11y implementation; see the correction note)
+- **Area:** practice / accessibility / **deployment**
+- **What happened (live, mobile):** on Q1, `aria-pressed` read `false` on both buttons before and after activation — initial `{favorite:false, needsWork:false}`; after *Favorite* `{false,false}`; after also *Needs work* `{false,false}`. The screenshot shows *Needs work* **visually filled** and *Favorite* outlined ([`assets/2026-07-23/65-m-both-flags.png`](./assets/2026-07-23/65-m-both-flags.png)).
+- **Correction (raised by the Codex PR review on this report, verified against source):** the current `main` **already** binds `aria-pressed={favoriteActive}` / `aria-pressed={needsWorkActive}` on both the mobile (`src/pages/Practice.tsx:2699,2716`) and desktop (`:3139,3155`) flag controls, and `src/pages/__tests__/Practice.mobile.test.tsx` asserts the attribute flips to `"true"` on click (lines 443–444, 467–468). The binding landed in PR #231 / #233. So the a11y fix is **not** missing from the codebase — filing "implement the binding" would send someone to re-implement existing, tested code. Thanks to the reviewer for catching this.
+- **Why the live app still reads `false` — stale production build:** the live buttons also kept their **inactive copy** after activation — "Needs work" (not the current source's active "Needs work flagged") and "Favorite" (not "Favorited"). Two independent copy mismatches plus `aria-pressed=false` mean production is serving a build that predates PR #231. This corroborates top finding #1: production is lagging `main` — the `research-preview` function was never deployed, and the frontend bundle at `prepio.qiuyue.dev` also appears stale. The a11y bug is real *in production* but already fixed in *source*.
+- **Recommended action (reframed):** do **not** re-implement `aria-pressed`. Instead, confirm what commit `prepio.qiuyue.dev` is actually serving and redeploy the frontend to current `main`; then re-run the live probe to confirm `aria-pressed` tracks state and the "Favorited" / "Needs work flagged" active copy appears. Treat production-vs-`main` staleness as the root issue (same theme as finding #1).
+- **Secondary observation (needs clean probe):** after clicking *Favorite* then *Needs work*, only *Needs work* was filled. On a pre-#233 stale build this is expected (flags were mutually exclusive before the coexist fix), which further supports the stale-build read. Run #10 should re-probe on a confirmed-fresh deploy: click each flag independently with a `waitForResponse` barrier and confirm both can be on simultaneously.
+- **Tracking:** **Could not file — Linear cap.** GitHub-ready ticket #5 below (reframed to a deployment check).
 
 ## Notable live observations (not top-5)
 
@@ -176,8 +180,8 @@ silently blocking all issue intake.
 | Nav has no "Interviews" link + `/dashboard` collision | **Still open** ([PREPIO-101](https://linear.app/qiuyue/issue/PREPIO-101)) | **Ninth audit unshipped.** |
 | `/history` "Go to Dashboard" → `/interviews` | **Still open** (part of PREPIO-101) | Fourth audit. |
 | Password autocomplete missing on `/auth` | **Still open** ([PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123)) | Sixth audit. |
-| Practice flag `aria-pressed` never updates | **Confirmed this run** | Owed probe from run #8 now landed. Could not file (Linear cap). |
-| Flag coexistence (PR #233) | **Uncertain — possible regression** | Needs clean independent-click probe in run #10. |
+| Practice flag `aria-pressed` reads `false` in live app | **Fixed in `main`, stale in production** | Codex PR review verified `main` binds it with test coverage (PR #231/#233); live app serves a pre-#231 build. Reframed to a deploy-parity issue (finding #5). Could not file (Linear cap). |
+| Flag coexistence (PR #233) | **Consistent with stale build** | Live "Favorite then Needs work" showed mutual exclusion — expected on a pre-#233 build. Re-probe after a fresh deploy in run #10. |
 | Save & Continue disabled on empty answer | **Resolved** ✅ | `disabled === true` verified. Run-#7 counter-honesty concern closed. |
 | Mobile hamburger 44×44 | **Holding** ✅ | Verified. |
 | Skip-to-main + focus outline | **Holding** ✅ | Seventh confirmation. |
@@ -211,9 +215,13 @@ is lifted (ticket 2), file these to Linear per CLAUDE.md conventions.
    render in-progress sessions as a resume row in `/history` (preferred),
    or relabel the counter to "answered" with a tooltip.
    *Project: Quality & Maintenance · Type: Bug · area:practice.*
-5. **[P2] Fix `aria-pressed` on the practice Favorite / Needs-work
-   toggles** — bind it to the visual-fill state; add an RTL test per flag.
-   *Project: Quality & Maintenance · Type: Bug · area:practice.*
+5. **[P1] Redeploy the frontend to current `main` and verify production
+   parity** — the live app serves a stale build (reads `aria-pressed=false`
+   and pre-#231 button copy though `main` binds `aria-pressed` with test
+   coverage). Confirm the commit `prepio.qiuyue.dev` is serving, redeploy,
+   then re-probe the flag toggles. Do **not** re-implement `aria-pressed` —
+   it already exists. Pairs with ticket 1 (both are production-lag issues).
+   *Project: Quality & Maintenance · Type: Chore · area:infra.*
 6. **[P3] Add `autocomplete` attributes to `/auth` email + password
    inputs** — existing [PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123),
    already filed; escalate. Sixth audit.
