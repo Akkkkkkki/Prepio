@@ -124,6 +124,15 @@ const startCustomSession = async ({ interviewerMode }: { interviewerMode: boolea
   fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
 };
 
+const startMobileCustomSession = async ({ interviewerMode }: { interviewerMode: boolean }) => {
+  fireEvent.click(await screen.findByRole("button", { name: /custom session/i }));
+  if (interviewerMode) {
+    fireEvent.click(await screen.findByRole("button", { name: /interviewer follow-ups/i }));
+  }
+  fireEvent.click(await screen.findByRole("button", { name: "Start practice" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
+};
+
 const answerCurrentQuestion = async (saveLabel: RegExp) => {
   fireEvent.change(
     await screen.findByPlaceholderText("Capture bullet points or timing cues…"),
@@ -247,6 +256,26 @@ describe("Practice interviewer follow-ups", () => {
     await answerCurrentQuestion(/save & finish/i);
 
     expect(await screen.findByText("Follow-up from the interviewer")).toBeInTheDocument();
+    expect(mockCompletePracticeSession).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Finish session" }));
+
+    await waitFor(() => expect(mockCompletePracticeSession).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Reflection checkpoint")).toBeInTheDocument();
+  });
+
+  it("holds mobile session completion on the last question until the follow-up is dismissed", async () => {
+    mockUseIsMobile.mockReturnValue(true);
+    mockSearchResults([buildQuestion("q-1", QUESTION_ONE, [FOLLOW_UP_TEXT])]);
+
+    renderPractice();
+    await startMobileCustomSession({ interviewerMode: true });
+
+    expect(await screen.findByText(QUESTION_ONE)).toBeInTheDocument();
+    await answerCurrentQuestion(/save & finish/i);
+
+    expect(await screen.findByText("Follow-up from the interviewer")).toBeInTheDocument();
+    expect(screen.getByText(FOLLOW_UP_TEXT)).toBeInTheDocument();
     expect(mockCompletePracticeSession).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Finish session" }));

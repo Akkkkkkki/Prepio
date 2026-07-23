@@ -68,6 +68,26 @@ describe("buildResearchQueryPlan", () => {
     expect(plan.queries.map((q) => q.query).join("\n")).toMatch(/financial modeling|Investment Banking Analyst/);
   });
 
+  it("keeps contextual user notes out of targeted source and domain expansion", () => {
+    const plan = buildResearchQueryPlan({
+      company: "Goldman Sachs",
+      role: "Investment Banking Analyst",
+      userNote: "Focus on DCF, valuation, and financial modeling",
+      maxQueries: 8,
+    });
+
+    const sources = plan.queries.map((query) => query.source);
+
+    expect(plan.signals.userNote).toContain("financial modeling");
+    expect(sources).toContain("user-note");
+    expect(sources).not.toEqual(
+      expect.arrayContaining(["user-note-linkedin", "user-note-blog", "user-note-talk"]),
+    );
+    expect(plan.includeDomains).not.toEqual(
+      expect.arrayContaining(["medium.com", "youtube.com", "speakerdeck.com"]),
+    );
+  });
+
   it("keeps technical queries in the tech pack for engineering roles", () => {
     const plan = buildResearchQueryPlan({
       company: "OpenAI",
