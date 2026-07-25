@@ -78,8 +78,11 @@ Headline status:
 - `npm test`: pass (46 test files, **369 tests**). Vitest +
   `check-legacy-schema.sh` + `check-answer-feedback-schema.sh` all
   green, run *after* the postcss fix.
-- `npm audit`: **11 at entry → 10 after `npm audit fix`** (postcss
-  only; the other two groups need major bumps and were not forced).
+- `npm audit`: **11 at entry → 10 after `npm audit fix`** (the fix
+  cleared the `postcss` High and moved two other build/lint-time
+  transitives — `nanoid`, root `brace-expansion` — within range; the
+  two deferred advisory groups need major bumps and were not forced).
+  See Small fixes for the full lockfile delta.
 
 ## Review focus this run
 
@@ -110,16 +113,32 @@ advisories:
 - *Open redirect via backslash in `<Link>`/`useNavigate`
   (GHSA-wrjc-x8rr-h8h6, a CVE-2025-68470 bypass).* Exploitable only
   when the app passes attacker-controlled input to `navigate()` /
-  `<Link to>`. Prepio's only dynamic redirect target is
-  [`src/pages/Auth.tsx:45`](../../src/pages/Auth.tsx), which builds
-  `redirectPath` from `location.state.from` — an in-memory React
-  Router `Location` set by `ProtectedRoute`
-  ([`src/App.tsx:57`](../../src/App.tsx),
-  `createAuthReturnState({ pathname: location.pathname + location.search })`).
-  That value is the real same-origin route the user was bounced from;
-  it is **not** read from a URL query parameter, so an attacker cannot
-  inject a backslash path via a crafted link. Practical exposure is
-  low.
+  `<Link to>`. Prepio has **two** dynamic redirect targets, both with
+  same-origin protections:
+  1. [`src/pages/Auth.tsx:45`](../../src/pages/Auth.tsx) builds
+     `redirectPath` from `location.state.from` — an in-memory React
+     Router `Location` set by `ProtectedRoute`
+     ([`src/App.tsx:57`](../../src/App.tsx),
+     `createAuthReturnState({ pathname: location.pathname + location.search })`).
+     That value is the real same-origin route the user was bounced
+     from; it is **not** read from a URL query parameter, so an
+     attacker cannot inject a backslash path via a crafted link.
+  2. [`src/pages/BillingReturn.tsx:106`](../../src/pages/BillingReturn.tsx)
+     renders `<Link to={fallbackHref}>` where `fallbackHref` **is**
+     URL-controlled — `safeReturnTo(searchParams.get("returnTo"))`.
+     Unlike Auth, this reads a query parameter, so the guard is what
+     matters: [`safeReturnTo` (lines 22–26)](../../src/pages/BillingReturn.tsx)
+     rejects any value that does not start with `/`, and explicitly
+     rejects the protocol-relative `//` **and the backslash
+     `/\` prefixes** — the exact vector the advisory concerns —
+     falling back to `/profile`. So even on a vulnerable react-router,
+     this target already refuses the backslash open-redirect payload.
+     (Flagged by Codex on the PR — corrects this run's initial claim
+     that Auth.tsx was the sole dynamic target.)
+
+  Practical exposure is low on both paths: Auth doesn't read a URL
+  param at all, and BillingReturn has an explicit same-origin guard
+  covering the advisory's backslash vector.
 - *Arbitrary constructor injection via `deserializeErrors()` in SSR
   hydration (GHSA-337j-9hxr-rhxg).* **Not applicable** — Prepio is a
   client-rendered Vite SPA with no SSR/hydration path.
@@ -203,11 +222,14 @@ Standard cadence — clean, same posture as 2026-07-22.
     `react-router` / `react-router-dom` 6.30.4; range `6.0.0 – 7.17.0`
     with no 6.x fix (`version-6` dist-tag = 6.30.4). Only remediation
     is v6 → v7.
-  - Risk: Open-redirect exposure is **low in Prepio** — the sole
-    dynamic redirect target (`Auth.tsx` `redirectPath`) derives from
-    `location.state.from` set by `ProtectedRoute`, not from a
-    URL-controllable parameter, so backslash injection is not
-    reachable. The SSR-hydration advisory does not apply (SPA, no SSR).
+  - Risk: Open-redirect exposure is **low in Prepio** — both dynamic
+    redirect targets have same-origin protection. `Auth.tsx`
+    `redirectPath` derives from `location.state.from` (not a URL
+    param). `BillingReturn.tsx` `fallbackHref` **is** URL-controlled
+    (`?returnTo=`) but is passed through `safeReturnTo`, which rejects
+    the `//` and `/\` prefixes — the advisory's backslash vector —
+    before it reaches `<Link>`. The SSR-hydration advisory does not
+    apply (SPA, no SSR).
   - Recommended fix: react-router-dom v6 → v7 as focused,
     browser-tested work (auth + billing return navigation are the
     high-value regression scope). Out of hygiene scope.
@@ -258,11 +280,28 @@ Standard cadence — clean, same posture as 2026-07-22.
 ## Small fixes made in this run
 
 - **`npm audit fix` — resolved the `postcss` High advisory
-  (lockfile-only).** Bumped the build-time transitive `postcss 8.5.15
-  → 8.5.23` (GHSA-r28c-9q8g-f849). Only `package-lock.json` changed
-  (`package.json` untouched). Verified `npm audit` 11 → 10, `npm run
-  build` unchanged (2265.65 KiB, 60 precache entries), and `npm test`
-  → 369/369 green after the change. Committed on this run's branch.
+  (lockfile-only).** The fix targeted `postcss` but `npm audit fix`
+  bumped **three** build/lint-time transitives in one pass (recorded
+  here in full after Codex flagged that the delta is wider than
+  "postcss only"; `package.json` untouched — all three moved within
+  existing semver ranges):
+  - `postcss 8.5.15 → 8.5.23` — the advisory fix (GHSA-r28c-9q8g-f849,
+    build-time via Vite/Tailwind).
+  - `nanoid 3.3.12 → 3.3.16` — pulled forward as `postcss`'s direct
+    dependency (`postcss` now requires `nanoid ^3.3.16`). Build-time.
+  - `brace-expansion 5.0.7 → 5.0.8` — the **root** `brace-expansion`
+    (via `eslint@10 → minimatch@10`), a lint-time devDependency. This
+    is a *different* copy from the still-vulnerable `brace-expansion
+    2.1.2` on the `workbox-build` path (the deferred High). The 5.0.8
+    bump also **narrows declared Node support** from `18 || 20 || >=22`
+    to `20 || >=22`; **no impact** — CI/dev run Node 20
+    ([`.github/workflows/ci.yml:21`](../../.github/workflows/ci.yml)),
+    there is no `.nvmrc` or `engines` pin to Node 18, and Node 18 is
+    EOL. It is also a build/lint-time dep, not shipped to the runtime.
+
+  Verified `npm audit` 11 → 10, `npm run build` unchanged (2265.65
+  KiB, 60 precache entries), and `npm test` → 369/369 green after the
+  change. Committed on this run's branch.
 
 Explicitly *not* touched this run:
 
