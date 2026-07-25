@@ -207,6 +207,27 @@ function extractTeamName(normalized: string): string | undefined {
   return candidates[0]?.name;
 }
 
+const INTERVIEWER_PATTERN =
+  /\b(?:[Ii]nterviewer|[Ww]ith|[Mm]eeting|[Mm]eet|[Ss]peaking with|[Tt]alking to)\s+(?:the\s+)?([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,2})\b/g;
+const TRAILING_TEAM_KEYWORD = /^\s+(?:team|group|org|department)\b/;
+
+/**
+ * Skips candidates that a team keyword follows ("with the Data Platform team"), so a team
+ * name is not also quoted as a person in the targeted queries. The check runs on the whole
+ * greedy match rather than as a lookahead: inside the pattern it would let the name
+ * quantifier backtrack and accept a truncated "Core Data" out of "Core Data Platform team".
+ */
+function extractInterviewerName(normalized: string): string | undefined {
+  for (const match of normalized.matchAll(INTERVIEWER_PATTERN)) {
+    const name = (match[1] ?? "").trim();
+    if (!name) continue;
+    const trailing = normalized.slice((match.index ?? 0) + match[0].length);
+    if (TRAILING_TEAM_KEYWORD.test(trailing)) continue;
+    return name;
+  }
+  return undefined;
+}
+
 function extractUserNoteSignals(userNote?: string): ExtractedUserNoteSignals {
   if (!userNote) return { labels: [], targeted: [] };
   const labels: string[] = [];
@@ -220,15 +241,10 @@ function extractUserNoteSignals(userNote?: string): ExtractedUserNoteSignals {
     targeted.push(teamSignal);
   }
 
-  // The trailing lookahead keeps team names ("with the Data Platform team") from being
-  // read as a person and quoted a second time in the targeted queries.
-  const interviewerMatch = normalized.match(
-    /\b(?:[Ii]nterviewer|[Ww]ith|[Mm]eeting|[Mm]eet|[Ss]peaking with|[Tt]alking to)\s+(?:the\s+)?([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,2})\b(?!\s+(?:team|group|org|department)\b)/,
-  );
-  if (interviewerMatch?.[1]) {
-    const interviewerSignal = interviewerMatch[1].trim();
-    labels.push(interviewerSignal);
-    targeted.push(interviewerSignal);
+  const interviewerName = extractInterviewerName(normalized);
+  if (interviewerName) {
+    labels.push(interviewerName);
+    targeted.push(interviewerName);
   }
 
   if (/\bcase\b/i.test(normalized)) labels.push("case interview");

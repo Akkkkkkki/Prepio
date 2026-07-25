@@ -224,6 +224,31 @@ describe("buildResearchQueryPlan", () => {
     );
   });
 
+  it("does not emit a truncated interviewer from a three-word team name", () => {
+    const plan = buildResearchQueryPlan({
+      company: "Stripe",
+      role: "Product Manager",
+      userNote: "Interviewing with the Core Data Platform team",
+      maxQueries: 8,
+    });
+
+    expect(plan.signals.userNote).toEqual(["Core Data Platform team"]);
+    expect(plan.signals.userNote).not.toContain("Core Data");
+  });
+
+  it("still finds a named interviewer mentioned after a team", () => {
+    const plan = buildResearchQueryPlan({
+      company: "Stripe",
+      role: "Product Manager",
+      userNote: "Interviewing with the Data Platform team, meeting Priya Nair",
+      maxQueries: 8,
+    });
+
+    expect(plan.signals.userNote).toEqual(
+      expect.arrayContaining(["Data Platform team", "Priya Nair"]),
+    );
+  });
+
   it("preserves role-family coverage inside the production query budget", () => {
     const plan = buildResearchQueryPlan({
       company: "Stripe",
