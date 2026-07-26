@@ -757,4 +757,35 @@ describe("Home flow", () => {
     expect(outerContainer).not.toBeNull();
     expect(outerContainer.className).not.toMatch(/\bpb-32\b/);
   });
+
+  it("shows a task header and back-to-interviews affordance instead of the marketing hero for signed-in mobile users", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+
+    renderHome();
+
+    expect(
+      await screen.findByRole("heading", { name: "Prep a new interview" }),
+    ).toBeInTheDocument();
+
+    const backLink = screen.getByRole("link", { name: "Your interviews" });
+    expect(backLink).toHaveAttribute("href", "/interviews");
+
+    expect(screen.queryByText(/insider insights/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/for you and your friends/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/desktop-style sprawl/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a breadcrumb back to interviews instead of the marketing hero for signed-in desktop users", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+
+    renderHome();
+
+    const backLink = await screen.findByRole("link", { name: "Your interviews" });
+    expect(backLink).toHaveAttribute("href", "/interviews");
+    expect(screen.getByText("New interview")).toBeInTheDocument();
+
+    expect(screen.queryByText(/insider insights/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/for you and your friends/i)).not.toBeInTheDocument();
+  });
 });
