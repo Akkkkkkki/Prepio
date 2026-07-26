@@ -998,16 +998,7 @@ const Home = () => {
 
   const renderDesktopForm = () => (
     <Card className="max-w-2xl mx-auto shadow-lg">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-2xl tracking-tight">
-          <Search className="h-5 w-5 text-primary" />
-          Prep a new interview
-        </CardTitle>
-        <CardDescription>
-          All you need is the company. Add role, CV, or job description below to sharpen the questions.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         {error && (
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
@@ -1547,13 +1538,20 @@ const Home = () => {
           </div>
         ) : (
           <>
-            <nav className="mx-auto mb-6 max-w-2xl text-sm text-muted-foreground">
-              <Link to="/interviews" className="hover:text-foreground transition-colors">
-                Your interviews
-              </Link>
-              <span className="mx-2">›</span>
-              <span className="text-foreground">New interview</span>
-            </nav>
+            <div className="mx-auto mb-8 max-w-2xl">
+              <nav className="mb-3 text-sm text-muted-foreground">
+                <Link to="/interviews" className="hover:text-foreground transition-colors">
+                  Your interviews
+                </Link>
+                <span className="mx-2">›</span>
+                <span className="text-foreground">New interview</span>
+              </nav>
+              <h1 className="text-3xl font-bold tracking-tight">Prep a new interview</h1>
+              <p className="mt-2 text-muted-foreground">
+                All you need is the company. Add role, CV, or job description below to sharpen the
+                questions.
+              </p>
+            </div>
 
             {renderDesktopForm()}
           </>

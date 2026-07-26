@@ -763,16 +763,18 @@ describe("Home flow", () => {
 
     renderHome();
 
-    expect(
-      await screen.findByRole("heading", { name: "Prep a new interview" }),
-    ).toBeInTheDocument();
+    // Built-in matchers only: tsconfig.app.json does not type the jest-dom
+    // matchers, so asserting via DOM reads keeps this file off the typecheck
+    // baseline (docs/TESTING.md).
+    const heading = await screen.findByRole("heading", { name: "Prep a new interview" });
+    expect(heading.tagName).toBe("H1");
 
     const backLink = screen.getByRole("link", { name: "Your interviews" });
-    expect(backLink).toHaveAttribute("href", "/interviews");
+    expect(backLink.getAttribute("href")).toBe("/interviews");
 
-    expect(screen.queryByText(/insider insights/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/for you and your friends/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/desktop-style sprawl/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/insider insights/i)).toBeNull();
+    expect(screen.queryByText(/for you and your friends/i)).toBeNull();
+    expect(screen.queryByText(/desktop-style sprawl/i)).toBeNull();
   });
 
   it("shows a breadcrumb back to interviews instead of the marketing hero for signed-in desktop users", async () => {
@@ -781,11 +783,16 @@ describe("Home flow", () => {
 
     renderHome();
 
-    const backLink = await screen.findByRole("link", { name: "Your interviews" });
-    expect(backLink).toHaveAttribute("href", "/interviews");
-    expect(screen.getByText("New interview")).toBeInTheDocument();
+    // The page must keep a top-level h1 so the heading hierarchy doesn't start
+    // at the form CardTitle (h3) for screen-reader users.
+    const heading = await screen.findByRole("heading", { name: "Prep a new interview" });
+    expect(heading.tagName).toBe("H1");
 
-    expect(screen.queryByText(/insider insights/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/for you and your friends/i)).not.toBeInTheDocument();
+    const backLink = screen.getByRole("link", { name: "Your interviews" });
+    expect(backLink.getAttribute("href")).toBe("/interviews");
+    expect(screen.queryByText("New interview")).not.toBeNull();
+
+    expect(screen.queryByText(/insider insights/i)).toBeNull();
+    expect(screen.queryByText(/for you and your friends/i)).toBeNull();
   });
 });
