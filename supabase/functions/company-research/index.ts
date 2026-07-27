@@ -7,6 +7,7 @@ import { RESEARCH_CONFIG, getCompanyTicker, getOpenAIModel } from "../_shared/co
 import { UrlDeduplicationService } from "../_shared/url-deduplication.ts";
 import { authorizeRequest, ensureServiceCaller } from "../_shared/auth.ts";
 import { buildCorsHeaders } from "../_shared/cors.ts";
+import { buildResearchFreshness } from "../_shared/research-freshness.ts";
 import { buildSearchPayloads, type SearchPayload } from "./result-aggregation.ts";
 import { buildResearchQueryPlan, type ResearchLevel } from "./query-planner.ts";
 
@@ -626,6 +627,9 @@ serve(async (req) => {
       openaiApiKey,
       logger
     );
+    const researchFreshness = buildResearchFreshness(
+      researchData?.search_results,
+    );
 
     // Step 3: Skip caching temporarily to avoid timeout issues
     console.log("Skipping research caching to avoid timeouts...");
@@ -641,7 +645,8 @@ serve(async (req) => {
       status: "success",
       message: "Company research completed",
       company_insights: companyInsights,
-      research_sources: researchData ? researchData.search_results?.length || 0 : 0,
+      research_sources: researchFreshness.sourceCount,
+      research_freshness: researchFreshness,
       extracted_urls: researchData ? researchData.total_urls_extracted || 0 : 0,
       deep_extracts: researchData ? researchData.extracted_content?.length || 0 : 0,
       optimization_info: {

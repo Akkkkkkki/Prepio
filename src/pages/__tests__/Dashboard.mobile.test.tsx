@@ -462,6 +462,31 @@ describe("Dashboard mobile layout", () => {
           level: "senior_ic",
           overallConfidence: "high",
           weakSignalCase: false,
+          researchFreshness: {
+            sourceCount: 3,
+            datedSourceCount: 2,
+            observedAt: "2026-07-23T12:00:00.000Z",
+            oldestPublishedAt: "2024-05-10",
+            newestPublishedAt: "2025-02-03",
+            sourceDates: [
+              {
+                url: "https://openai.com/careers/research-engineer",
+                publishedAt: "2025-02-03",
+                observedAt: "2026-07-23T12:00:00.000Z",
+              },
+              {
+                url: "https://www.glassdoor.com/openai-interview",
+                publishedAt: "2024-05-10",
+                observedAt: "2026-07-23T12:00:00.000Z",
+              },
+              {
+                url: "https://example.com/undated-report",
+                publishedAt: null,
+                observedAt: "2026-07-23T12:00:00.000Z",
+              },
+            ],
+            summary: "Based on 3 sources; 2 dated reports span 2024–2025.",
+          },
         },
         assessment_signals: [],
         stage_roadmap: [],
@@ -524,6 +549,11 @@ describe("Dashboard mobile layout", () => {
     expect(screen.getByText("Job description")).toBeInTheDocument();
     expect(screen.getByText("Community report")).toBeInTheDocument();
     expect(screen.getAllByText("First-party").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Research freshness")).toBeTruthy();
+    expect(
+      screen.getByText("Based on 3 sources; 2 dated reports span 2024–2025."),
+    ).toBeTruthy();
+    expect(screen.getByText("Sources checked Jul 23, 2026.")).toBeTruthy();
 
     // The javascript: URL on ev-3 is still listed as a source but must not render a link.
     expect(screen.getByText("Role norm for senior ICs")).toBeInTheDocument();

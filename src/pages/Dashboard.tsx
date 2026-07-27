@@ -39,6 +39,7 @@ import type {
   CandidatePositioning,
   EvidenceItem,
   EvidenceSourceType,
+  ResearchFreshness,
   Confidence,
   Priority,
 } from "@/types/prepPlan";
@@ -148,6 +149,18 @@ const isSafeHttpUrl = (url: string | null): url is string => {
   } catch {
     return false;
   }
+};
+
+const formatObservedDate = (value?: string | null) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(parsed);
 };
 
 const formatSearchStatus = (status?: string) => {
@@ -479,8 +492,15 @@ function PrepSummaryHero({
   );
 }
 
-function EvidenceSourcesCard({ evidence }: { evidence: EvidenceItem[] }) {
-  if (!evidence?.length) return null;
+function EvidenceSourcesCard({
+  evidence,
+  freshness,
+}: {
+  evidence: EvidenceItem[];
+  freshness: ResearchFreshness | null;
+}) {
+  if (!evidence?.length && !freshness) return null;
+  const observedDate = formatObservedDate(freshness?.observedAt);
 
   return (
     <Card>
@@ -489,6 +509,19 @@ function EvidenceSourcesCard({ evidence }: { evidence: EvidenceItem[] }) {
         <CardDescription>The evidence this plan was built from</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {freshness && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Research freshness
+            </p>
+            <p className="mt-1 text-sm text-foreground">{freshness.summary}</p>
+            {observedDate && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Sources checked {observedDate}.
+              </p>
+            )}
+          </div>
+        )}
         {evidence.map((item, index) => {
           const meta = evidenceSourceMeta(item.sourceType);
           return (
@@ -527,12 +560,14 @@ function DeepDiveSection({
   prepPriorities,
   candidatePositioning,
   evidence,
+  freshness,
   isMobile,
 }: {
   assessmentSignals: AssessmentSignal[];
   prepPriorities: PrepPriority[];
   candidatePositioning: CandidatePositioning | null;
   evidence: EvidenceItem[];
+  freshness: ResearchFreshness | null;
   isMobile: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -546,14 +581,15 @@ function DeepDiveSection({
     )
   );
   const hasEvidence = evidence.length > 0;
-  const hasAnything = assessmentSignals.length > 0 || prepPriorities.length > 0 || hasPositioning || hasEvidence;
+  const hasFreshness = Boolean(freshness);
+  const hasAnything = assessmentSignals.length > 0 || prepPriorities.length > 0 || hasPositioning || hasEvidence || hasFreshness;
   if (!hasAnything) return null;
 
   const itemLabels = [
     assessmentSignals.length > 0 ? "Assessment signals" : null,
     prepPriorities.length > 0 ? "Prep priorities" : null,
     hasPositioning ? "Your positioning" : null,
-    hasEvidence ? "Sources" : null,
+    hasEvidence || hasFreshness ? "Sources" : null,
   ].filter(Boolean).join(" · ");
 
   return (
@@ -592,7 +628,7 @@ function DeepDiveSection({
               <PrepPrioritiesCard priorities={prepPriorities} />
             </div>
           )}
-          <EvidenceSourcesCard evidence={evidence} />
+          <EvidenceSourcesCard evidence={evidence} freshness={freshness} />
         </div>
       )}
     </section>
@@ -895,6 +931,7 @@ const Dashboard = () => {
   const prepPriorities = (prepPlan?.prep_priorities || []) as PrepPriority[];
   const candidatePositioning = (prepPlan?.candidate_positioning || null) as CandidatePositioning | null;
   const evidenceLog = (prepPlan?.internal_evidence_log || []) as EvidenceItem[];
+  const researchFreshness = summary?.researchFreshness || null;
   const isWeakSignal = summary?.weakSignalCase === true;
 
   // ── Empty state ──
@@ -1056,6 +1093,7 @@ const Dashboard = () => {
         prepPriorities={prepPriorities}
         candidatePositioning={candidatePositioning}
         evidence={evidenceLog}
+        freshness={researchFreshness}
         isMobile={isMobile}
       />
     </>
