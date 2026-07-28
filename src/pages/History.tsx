@@ -15,7 +15,7 @@ import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useAuth } from "@/hooks/useAuth";
 import { getEntitlement } from "@/services/entitlements";
 import type { AnswerFeedbackAccess } from "@/components/AnswerFeedbackCard";
-import { searchService } from "@/services/searchService";
+import { hasQuestionFlag, searchService } from "@/services/searchService";
 import type {
   PracticeHistoryOverviewStats,
   PracticeHistorySession,
@@ -45,7 +45,7 @@ const calculateOverviewStats = (
 
   sessions.forEach((session) => {
     session.practice_answers.forEach((answer) => {
-      if (questionFlags[answer.question_id]?.flag_type === "needs_work") {
+      if (hasQuestionFlag(questionFlags, answer.question_id, "needs_work")) {
         needsWorkQuestionIds.add(answer.question_id);
       }
     });
@@ -227,10 +227,10 @@ const History = () => {
   const primaryEmptyLabel = selectedSearchId !== HISTORY_FILTER_ALL
     ? "Open research dashboard"
     : "Go to Dashboard";
-  const secondaryEmptyHref = selectedSearchId !== HISTORY_FILTER_ALL ? practiceEntryHref : "/";
+  const secondaryEmptyHref = selectedSearchId !== HISTORY_FILTER_ALL ? practiceEntryHref : "/new-interview";
   const secondaryEmptyLabel = selectedSearchId !== HISTORY_FILTER_ALL
     ? "Start practice"
-    : "Start new research";
+    : "Prep a new interview";
   const displayedStats = isLoadingStats ? fallbackStats : stats ?? fallbackStats;
 
   const handleFilterChange = (value: string) => {

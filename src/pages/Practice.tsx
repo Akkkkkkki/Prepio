@@ -40,7 +40,12 @@ import {
   FileText,
   Trash2
 } from "lucide-react";
-import { searchService } from "@/services/searchService";
+import {
+  hasQuestionFlag,
+  searchService,
+  type PracticeQuestionFlagMap,
+  type PracticeQuestionFlagType,
+} from "@/services/searchService";
 import { getEntitlement } from "@/services/entitlements";
 import { sessionSampler } from "@/services/sessionSampler";
 import { useAuth } from "@/hooks/useAuth";
@@ -57,6 +62,7 @@ import { QuestionInsightsPanel } from "@/components/practice/QuestionInsightsPan
 import { MobileCoachModal } from "@/components/practice/MobileCoachModal";
 import { CompletionCheckmark } from "@/components/practice/CompletionCheckmark";
 import { BreathingBreak, BREATHING_DISMISSED_KEY } from "@/components/practice/BreathingBreak";
+import { FollowUpDrill } from "@/components/practice/FollowUpDrill";
 import type { SavedPracticeAnswerRecord } from "@/hooks/usePracticeSession";
 import { cn } from "@/lib/utils";
 
@@ -113,6 +119,7 @@ type PracticeDefaults = {
   difficulties: string[];
   shuffle: boolean;
   favoritesOnly: boolean;
+  interviewerMode?: boolean;
 };
 
 interface EnhancedQuestion {
@@ -225,7 +232,7 @@ const Practice = () => {
   const [feedbackByAnswerId, setFeedbackByAnswerId] = useState<Record<string, AnswerFeedback>>({});
   
   // Question flags (Epic 1.3)
-  const [questionFlags, setQuestionFlags] = useState<Record<string, { flag_type: string; id: string }>>({});
+  const [questionFlags, setQuestionFlags] = useState<PracticeQuestionFlagMap>({});
   // Questions whose latest answer scored a self-rating ≤ 2 — treated as needs-work
   // alongside explicit flags, matching how interview-card counts are computed.
   const [lowRatedQuestionIds, setLowRatedQuestionIds] = useState<Set<string>>(new Set());
@@ -241,6 +248,14 @@ const Practice = () => {
   const [tempCategories, setTempCategories] = useState<string[]>([]);
   const [tempDifficulties, setTempDifficulties] = useState<string[]>([]);
   const [tempShuffle, setTempShuffle] = useState<boolean>(false);
+  const [tempInterviewerMode, setTempInterviewerMode] = useState<boolean>(false);
+  const [appliedInterviewerMode, setAppliedInterviewerMode] = useState<boolean>(false);
+  // Set right after a save in interviewer mode; the advance (or session
+  // finalization) is held until the follow-up is dismissed.
+  const [pendingFollowUp, setPendingFollowUp] = useState<{
+    prompt: string;
+    isLastQuestion: boolean;
+  } | null>(null);
   
   // Session sampling
   const [sampleSize, setSampleSize] = useState<number>(10);
@@ -444,6 +459,9 @@ const Practice = () => {
         if (typeof parsed.favoritesOnly === "boolean") {
           setTempShowFavoritesOnly(parsed.favoritesOnly);
         }
+        if (typeof parsed.interviewerMode === "boolean") {
+          setTempInterviewerMode(parsed.interviewerMode);
+        }
         const isQuickDefault =
           parsed.sampleSize === practicePresets.quick.config.sampleSize &&
           parsed.categories.length === 0 &&
@@ -472,7 +490,8 @@ const Practice = () => {
       categories: tempCategories,
       difficulties: tempDifficulties,
       shuffle: tempShuffle,
-      favoritesOnly: tempShowFavoritesOnly
+      favoritesOnly: tempShowFavoritesOnly,
+      interviewerMode: tempInterviewerMode
     };
 
     try {
@@ -605,7 +624,7 @@ const getInterviewerFocus = (
           }
           
           if (result.search.status === 'failed') {
-            setError("Research processing failed. Please try starting a new search.");
+            setError("Research processing failed. Please prep a new interview to try again.");
             return;
           }
           
@@ -765,14 +784,14 @@ const getInterviewerFocus = (
         // Filter by favorites only (Epic 1.3) - uses questionFlags from separate effect
         if (showFavoritesOnly) {
           filteredQuestions = filteredQuestions.filter(q => 
-            questionFlags[q.id]?.flag_type === 'favorite'
+            hasQuestionFlag(questionFlags, q.id, 'favorite')
           );
         }
 
         if (showNeedsWorkOnly) {
           filteredQuestions = filteredQuestions.filter(
             (question) =>
-              questionFlags[question.id]?.flag_type === "needs_work" ||
+              hasQuestionFlag(questionFlags, question.id, 'needs_work') ||
               lowRatedQuestionIds.has(question.id),
           );
         }
@@ -1113,6 +1132,7 @@ const getInterviewerFocus = (
     difficulties = tempDifficulties,
     shuffle = tempShuffle,
     favoritesOnly = tempShowFavoritesOnly,
+    interviewerMode = tempInterviewerMode,
     stages = allStages,
     nextSampleSize = sampleSize,
     nextPreset = selectedPreset,
@@ -1121,6 +1141,7 @@ const getInterviewerFocus = (
     difficulties?: string[];
     shuffle?: boolean;
     favoritesOnly?: boolean;
+    interviewerMode?: boolean;
     stages?: InterviewStage[];
     nextSampleSize?: number;
     nextPreset?: string | null;
@@ -1135,6 +1156,8 @@ const getInterviewerFocus = (
     setAppliedDifficulties(difficulties);
     setAppliedShuffle(shuffle);
     setShowFavoritesOnly(favoritesOnly);
+    setAppliedInterviewerMode(interviewerMode);
+    setPendingFollowUp(null);
 
     const hasSelectedStages = stages.some(stage => stage.selected);
     if (!hasSelectedStages) {
@@ -1160,7 +1183,8 @@ const getInterviewerFocus = (
       categories,
       difficulties,
       shuffle,
-      favoritesOnly
+      favoritesOnly,
+      interviewerMode
     });
     if (typeof window !== "undefined") {
       sessionStorage.removeItem(swipeHintStorageKey);
@@ -1281,21 +1305,27 @@ const getInterviewerFocus = (
   };
 
   // Flag handling functions (Epic 1.3)
-  const handleToggleFlag = async (questionId: string, flagType: 'favorite' | 'needs_work' | 'skipped') => {
+  const handleToggleFlag = async (questionId: string, flagType: PracticeQuestionFlagType) => {
     if (isOffline) {
       return;
     }
 
     try {
-      const currentFlag = questionFlags[questionId];
+      const currentFlag = questionFlags[questionId]?.[flagType];
       
       // If same flag type, remove it (toggle off)
-      if (currentFlag && currentFlag.flag_type === flagType) {
-        const result = await searchService.removeQuestionFlag(questionId);
+      if (currentFlag) {
+        const result = await searchService.removeQuestionFlag(questionId, flagType);
         if (result.success) {
           setQuestionFlags(prev => {
             const newFlags = { ...prev };
-            delete newFlags[questionId];
+            const nextQuestionFlags = { ...newFlags[questionId] };
+            delete nextQuestionFlags[flagType];
+            if (Object.keys(nextQuestionFlags).length > 0) {
+              newFlags[questionId] = nextQuestionFlags;
+            } else {
+              delete newFlags[questionId];
+            }
             return newFlags;
           });
         } else {
@@ -1307,7 +1337,10 @@ const getInterviewerFocus = (
         if (result.success && result.flag) {
           setQuestionFlags(prev => ({
             ...prev,
-            [questionId]: { flag_type: flagType, id: result.flag.id }
+            [questionId]: {
+              ...prev[questionId],
+              [flagType]: { flag_type: flagType, id: result.flag.id }
+            }
           }));
         } else {
           console.error('Failed to set flag:', result.error);
@@ -1431,8 +1464,16 @@ const getInterviewerFocus = (
         setShowCheckmark(true);
         clearRecording();
         
-        // Check if this is the last question
-        if (currentIndex >= questions.length - 1) {
+        const isLastQuestion = currentIndex >= questions.length - 1;
+        const followUp = appliedInterviewerMode
+          ? currentQuestion.follow_up_questions?.find((item) => item && item.trim())
+          : undefined;
+
+        if (followUp) {
+          // Interviewer mode: hold the advance (or finalization) until the
+          // follow-up drill is dismissed.
+          setPendingFollowUp({ prompt: followUp.trim(), isLastQuestion });
+        } else if (isLastQuestion) {
           await finalizeSession();
         } else {
           // Auto-advance to next question
@@ -1452,6 +1493,23 @@ const getInterviewerFocus = (
 
   const nextQuestion = () => {
     if (currentIndex < questions.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+    }
+  };
+
+  const handleFollowUpContinue = async () => {
+    if (!pendingFollowUp) return;
+    const { isLastQuestion } = pendingFollowUp;
+    setPendingFollowUp(null);
+
+    if (isLastQuestion) {
+      setIsSaving(true);
+      try {
+        await finalizeSession();
+      } finally {
+        setIsSaving(false);
+      }
+    } else {
       setCurrentIndex(prev => prev + 1);
     }
   };
@@ -1576,6 +1634,7 @@ const getInterviewerFocus = (
     isOffline || !canSubmitAnswer || isSaving || isRecording || isRecordingPaused;
   const isSkipDisabled =
     isSaving || isRecording || isRecordingPaused || (isOffline && isFinalQuestion);
+  const hasPendingFollowUp = pendingFollowUp !== null;
   const skipActionLabel = currentIndex >= questions.length - 1
     ? hasUnsavedCurrentResponse ? 'Finish & Save' : 'Finish'
     : 'Skip';
@@ -1632,6 +1691,7 @@ const getInterviewerFocus = (
     if (sessionState !== 'inProgress') return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (hasPendingFollowUp) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable)) {
         return;
@@ -1659,7 +1719,8 @@ const getInterviewerFocus = (
     currentIndex,
     previousQuestion,
     isPrimaryDisabled,
-    isSkipDisabled
+    isSkipDisabled,
+    hasPendingFollowUp
   ]);
 
   // Swipe configuration
@@ -1748,7 +1809,7 @@ const getInterviewerFocus = (
                     onClick={() => navigate('/new-interview')}
                     className="w-full"
                   >
-                    Start New Search
+                    Prep a new interview
                   </Button>
                 </div>
               </CardContent>
@@ -1814,7 +1875,7 @@ const getInterviewerFocus = (
                     onClick={() => navigate('/new-interview')}
                     className="w-full"
                   >
-                    Start New Search
+                    Prep a new interview
                   </Button>
                 </div>
               </div>
@@ -1851,7 +1912,7 @@ const getInterviewerFocus = (
                   onClick={() => navigate('/new-interview')}
                   className="w-full"
                 >
-                  Start New Search
+                  Prep a new interview
                 </Button>
               </div>
             </CardContent>
@@ -2111,6 +2172,17 @@ const getInterviewerFocus = (
                     </button>
                     <button
                       type="button"
+                      onClick={() => setTempInterviewerMode(prev => !prev)}
+                      className={cn(
+                        "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition",
+                        tempInterviewerMode ? "border-primary bg-primary/5" : "border-border bg-background"
+                      )}
+                    >
+                      <span>Interviewer follow-ups</span>
+                      <span className="text-muted-foreground">{tempInterviewerMode ? "On" : "Off"}</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setRememberDefaults(prev => !prev)}
                       className={cn(
                         "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition",
@@ -2121,6 +2193,9 @@ const getInterviewerFocus = (
                       <span className="text-muted-foreground">{rememberDefaults ? "On" : "Off"}</span>
                     </button>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    With interviewer follow-ups on, saving an answer surfaces one of that question's follow-ups before you move on.
+                  </p>
                 </div>
               </section>
             )}
@@ -2341,6 +2416,17 @@ const getInterviewerFocus = (
                         </button>
                         <button
                           type="button"
+                          onClick={() => setTempInterviewerMode(prev => !prev)}
+                          className={cn(
+                            "flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition",
+                            tempInterviewerMode ? "border-primary bg-primary/5" : "border-border bg-background",
+                          )}
+                        >
+                          <span>Interviewer follow-ups</span>
+                          <span className="text-muted-foreground">{tempInterviewerMode ? "On" : "Off"}</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => setRememberDefaults(prev => !prev)}
                           className={cn(
                             "flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition",
@@ -2351,6 +2437,9 @@ const getInterviewerFocus = (
                           <span className="text-muted-foreground">{rememberDefaults ? "On" : "Off"}</span>
                         </button>
                       </div>
+                      <p className="text-xs text-muted-foreground">
+                        With interviewer follow-ups on, saving an answer surfaces one of that question's follow-ups before you move on.
+                      </p>
                     </div>
 
                     <Button
@@ -2380,7 +2469,7 @@ const getInterviewerFocus = (
     const totalTime = Array.from(questionTimers.values()).reduce((sum, time) => sum + time, 0);
     const avgTime = answeredCount > 0 ? Math.floor(totalTime / answeredCount) : 0;
     const skippedCount = questions.length - answeredCount;
-    const favoritedCount = questions.filter(q => questionFlags[q.id]?.flag_type === 'favorite').length;
+    const favoritedCount = questions.filter(q => hasQuestionFlag(questionFlags, q.id, 'favorite')).length;
 
     const handleSaveNotes = async (notes: string) => {
       if (!practiceSession) return false;
@@ -2428,7 +2517,7 @@ const getInterviewerFocus = (
 
     const needsWorkQuestionIds = new Set(
       Object.entries(questionFlags)
-        .filter(([, flag]) => flag.flag_type === 'needs_work')
+        .filter(([, flags]) => Boolean(flags.needs_work))
         .map(([qid]) => qid),
     );
 
@@ -2469,7 +2558,8 @@ const getInterviewerFocus = (
   }
 
   if (isMobile) {
-    const favoriteActive = questionFlags[currentQuestion.id]?.flag_type === 'favorite';
+    const favoriteActive = hasQuestionFlag(questionFlags, currentQuestion.id, 'favorite');
+    const needsWorkActive = hasQuestionFlag(questionFlags, currentQuestion.id, 'needs_work');
 
     return (
       <div
@@ -2606,6 +2696,7 @@ const getInterviewerFocus = (
                     variant={favoriteActive ? "secondary" : "outline"}
                     onClick={() => handleToggleFlag(currentQuestion.id, 'favorite')}
                     disabled={isOffline}
+                    aria-pressed={favoriteActive}
                     className={cn(
                       "h-11 rounded-full px-4",
                       favoriteActive
@@ -2615,6 +2706,23 @@ const getInterviewerFocus = (
                   >
                     <Star className={cn("h-4 w-4", favoriteActive && "fill-current")} />
                     {favoriteActive ? "Favorited" : "Favorite"}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant={needsWorkActive ? "secondary" : "outline"}
+                    onClick={() => handleToggleFlag(currentQuestion.id, 'needs_work')}
+                    disabled={isOffline}
+                    aria-pressed={needsWorkActive}
+                    className={cn(
+                      "h-11 rounded-full px-4",
+                      needsWorkActive
+                        ? "border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    <AlertCircle className="h-4 w-4" />
+                    {needsWorkActive ? "Needs work flagged" : "Needs work"}
                   </Button>
 
                   {questionInsights && (
@@ -2820,11 +2928,21 @@ const getInterviewerFocus = (
           question={currentQuestion.question}
           insights={questionInsights}
         />
+
+        <FollowUpDrill
+          open={hasPendingFollowUp}
+          prompt={pendingFollowUp?.prompt ?? ""}
+          isLastQuestion={pendingFollowUp?.isLastQuestion ?? false}
+          onContinue={handleFollowUpContinue}
+        />
       </div>
     );
   }
 
   // Active Practice Session - Show questions
+  const favoriteActive = hasQuestionFlag(questionFlags, currentQuestion.id, 'favorite');
+  const needsWorkActive = hasQuestionFlag(questionFlags, currentQuestion.id, 'needs_work');
+
   return (
     <div id="main-content" className="min-h-screen bg-background">
       <Navigation />
@@ -3017,17 +3135,32 @@ const getInterviewerFocus = (
                     size="sm"
                     onClick={() => handleToggleFlag(currentQuestion.id, 'favorite')}
                     disabled={isOffline}
-                    className={`h-7 px-2 ${
-                      questionFlags[currentQuestion.id]?.flag_type === 'favorite'
-                        ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                        : 'text-muted-foreground hover:text-amber-600'
-                    }`}
+                    aria-label={favoriteActive ? "Remove favorite" : "Favorite"}
+                    aria-pressed={favoriteActive}
+                    className={cn(
+                      "h-7 px-2",
+                      favoriteActive
+                        ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                        : "text-muted-foreground hover:text-amber-600"
+                    )}
                   >
-                    <Star
-                      className={`h-3.5 w-3.5 ${
-                        questionFlags[currentQuestion.id]?.flag_type === 'favorite' ? 'fill-current' : ''
-                      }`}
-                    />
+                    <Star className={cn("h-3.5 w-3.5", favoriteActive && "fill-current")} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleToggleFlag(currentQuestion.id, 'needs_work')}
+                    disabled={isOffline}
+                    aria-label={needsWorkActive ? "Remove needs work" : "Mark as needs work"}
+                    aria-pressed={needsWorkActive}
+                    className={cn(
+                      "h-7 px-2",
+                      needsWorkActive
+                        ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                        : "text-muted-foreground hover:text-amber-700"
+                    )}
+                  >
+                    <AlertCircle className="h-3.5 w-3.5" />
                   </Button>
                 </div>
 
@@ -3183,6 +3316,13 @@ const getInterviewerFocus = (
           />
         </div>
       </div>
+
+      <FollowUpDrill
+        open={hasPendingFollowUp}
+        prompt={pendingFollowUp?.prompt ?? ""}
+        isLastQuestion={pendingFollowUp?.isLastQuestion ?? false}
+        onContinue={handleFollowUpContinue}
+      />
     </div>
   );
 };

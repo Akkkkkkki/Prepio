@@ -8,7 +8,7 @@
 // Contract: docs/BILLING.md → "Upgrade".
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
 import Stripe from "https://esm.sh/stripe@17.4.0?target=denonext";
 import { authorizeRequest } from "../_shared/auth.ts";
 import type { CadenceLookup } from "../_shared/cadence.ts";

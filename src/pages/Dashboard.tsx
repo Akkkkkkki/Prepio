@@ -933,7 +933,7 @@ const Dashboard = () => {
                 Try Again
               </Button>
               <Button variant="outline" onClick={() => navigate('/new-interview')} className="w-full mt-2">
-                Start New Search
+                Prep a new interview
               </Button>
             </CardContent>
           </Card>

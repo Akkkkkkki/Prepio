@@ -21,6 +21,15 @@ vi.mock("@/hooks/useNetworkStatus", () => ({
 }));
 
 vi.mock("@/services/searchService", () => ({
+  getQuestionFlagTypes: (
+    flags: Record<string, Record<string, unknown> | undefined>,
+    questionId: string,
+  ) => Object.keys(flags[questionId] ?? {}),
+  hasQuestionFlag: (
+    flags: Record<string, Record<string, unknown> | undefined>,
+    questionId: string,
+    flagType: string,
+  ) => Boolean(flags[questionId]?.[flagType]),
   searchService: {
     getPracticeSessions: (...args: unknown[]) => mockGetPracticeSessions(...args),
     getPracticeOverviewStats: (...args: unknown[]) => mockGetPracticeOverviewStats(...args),
@@ -68,7 +77,10 @@ describe("History page states", () => {
       "href",
       "/dashboard",
     );
-    expect(screen.getByRole("link", { name: "Start new research" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Prep a new interview" })).toHaveAttribute(
+      "href",
+      "/new-interview",
+    );
   });
 
   it("keeps error CTAs deterministic when loading fails", async () => {
@@ -89,7 +101,10 @@ describe("History page states", () => {
       "href",
       "/dashboard",
     );
-    expect(screen.getByRole("link", { name: "Start new research" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Prep a new interview" })).toHaveAttribute(
+      "href",
+      "/new-interview",
+    );
   });
 
   it("uses the selected research for filtered empty-state CTAs", async () => {

@@ -138,7 +138,7 @@ const Navigation = () => {
             {/* Mobile Menu */}
             <Sheet>
               <SheetTrigger asChild className="md:hidden">
-                <Button variant="outline" size="sm" aria-label="Open navigation menu">
+                <Button variant="outline" size="icon" aria-label="Open navigation menu">
                   <Menu className="h-4 w-4" />
                 </Button>
               </SheetTrigger>
