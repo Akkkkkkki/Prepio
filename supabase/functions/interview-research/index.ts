@@ -17,7 +17,10 @@ import {
   formatJobRequirementsBlock,
   type JobRequirementsSource,
 } from "./job-requirements-prompt.ts";
-import type { ResearchFreshness } from "../_shared/research-freshness.ts";
+import {
+  mergeResearchFreshness,
+  type ResearchFreshness,
+} from "../_shared/research-freshness.ts";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -309,6 +312,7 @@ async function gatherCompanyData(
 interface JobAnalysisResult {
   requirements: any;
   source: JobRequirementsSource;
+  freshness: ResearchFreshness | null;
 }
 
 async function gatherJobData(
@@ -348,7 +352,11 @@ async function gatherJobData(
       const source: JobRequirementsSource =
         result.requirements_source === "extracted" ? "extracted" : "stub";
       console.log(`✅ Job analysis complete (source=${source})`);
-      return { requirements, source };
+      return {
+        requirements,
+        source,
+        freshness: result.research_freshness || null,
+      };
     }
     console.warn(`⚠️ Job analysis failed with status ${response.status}`);
     return null;
@@ -1076,8 +1084,15 @@ async function processInterviewResearch(
     if (!prepPlan) {
       throw new Error("PrepPlan synthesis failed");
     }
-    if (companyData?.freshness) {
-      prepPlan.summary.researchFreshness = companyData.freshness;
+    // Freshness spans every retrieval path that fed synthesis — company
+    // search and job-description extraction — so a run grounded only in an
+    // extracted posting still reports its sources.
+    const researchFreshness = mergeResearchFreshness([
+      companyData?.freshness,
+      jobAnalysis?.freshness,
+    ]);
+    if (researchFreshness) {
+      prepPlan.summary.researchFreshness = researchFreshness;
     }
 
     await tracker.updateStep('AI_SYNTHESIS_COMPLETE');

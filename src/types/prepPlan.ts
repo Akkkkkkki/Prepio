@@ -112,7 +112,15 @@ export type ResearchSourceDate = {
 export type ResearchFreshness = {
   sourceCount: number;
   datedSourceCount: number;
+  /** When the run assembled this metadata. */
   observedAt: string;
+  /**
+   * Earliest / latest time a source was actually fetched from its origin.
+   * Optional: plans generated before these fields existed only carry
+   * `observedAt`.
+   */
+  oldestObservedAt?: string | null;
+  newestObservedAt?: string | null;
   oldestPublishedAt: string | null;
   newestPublishedAt: string | null;
   sourceDates: ResearchSourceDate[];

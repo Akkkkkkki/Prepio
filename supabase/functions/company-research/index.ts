@@ -137,7 +137,8 @@ async function searchCompanyInfo(
                 content: item.content,
                 raw_content: item.content,
                 score: 0.8 // Default score for cached content
-              }
+              },
+              observed_at: item.observed_at ?? null
             })),
             shouldSkipFreshSearch: cachedContent.length >= 5, // Use cache if we have enough content
             excluded_domains: []

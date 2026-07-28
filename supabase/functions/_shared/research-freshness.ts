@@ -7,7 +7,15 @@ export interface ResearchSourceDate {
 export interface ResearchFreshness {
   sourceCount: number;
   datedSourceCount: number;
+  /** When this run assembled the freshness metadata. */
   observedAt: string;
+  /**
+   * Earliest / latest time any individual source in this run was actually
+   * fetched from its origin. Cached sources carry their original scrape time,
+   * so these are not the run time when the cache was reused.
+   */
+  oldestObservedAt: string | null;
+  newestObservedAt: string | null;
   oldestPublishedAt: string | null;
   newestPublishedAt: string | null;
   sourceDates: ResearchSourceDate[];
@@ -19,6 +27,17 @@ function normalizeObservedAt(value?: string): string {
   return Number.isNaN(parsed.getTime())
     ? new Date().toISOString()
     : parsed.toISOString();
+}
+
+/**
+ * Per-source observation time, if the retrieval path recorded one. Cached
+ * rows carry the timestamp of the original scrape; fresh Tavily results have
+ * none and fall back to the run's observation time.
+ */
+function normalizeSourceObservedAt(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const parsed = new Date(value.trim());
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
 function normalizePublishedAt(value: unknown): string | null {
@@ -78,7 +97,7 @@ export function buildResearchFreshness(
   observedAt?: string,
 ): ResearchFreshness {
   const normalizedObservedAt = normalizeObservedAt(observedAt);
-  const byUrl = new Map<string, string | null>();
+  const byUrl = new Map<string, { publishedAt: string | null; observedAt: string }>();
   const payloads = Array.isArray(searchPayloads) ? searchPayloads : [];
 
   payloads.forEach((payload: unknown) => {
@@ -97,30 +116,92 @@ export function buildResearchFreshness(
       const publishedAt = normalizePublishedAt(
         resultRecord.published_date ?? resultRecord.publishedAt,
       );
-      const existingPublishedAt = byUrl.get(url);
-      if (!byUrl.has(url) || (!existingPublishedAt && publishedAt)) {
-        byUrl.set(url, publishedAt);
+      // A source reused from the scrape cache was never re-fetched in this
+      // run, so it keeps its original observation time rather than "now".
+      const sourceObservedAt = normalizeSourceObservedAt(
+        resultRecord.observed_at ?? resultRecord.observedAt,
+      ) ?? normalizedObservedAt;
+
+      const existing = byUrl.get(url);
+      if (!existing) {
+        byUrl.set(url, { publishedAt, observedAt: sourceObservedAt });
+        return;
       }
+      // Keep the first published date we can find, and the most recent
+      // observation across duplicate hits on the same URL.
+      byUrl.set(url, {
+        publishedAt: existing.publishedAt ?? publishedAt,
+        observedAt: sourceObservedAt > existing.observedAt
+          ? sourceObservedAt
+          : existing.observedAt,
+      });
     });
   });
 
-  const sourceDates = Array.from(byUrl, ([url, publishedAt]) => ({
+  return summarize(Array.from(byUrl, ([url, entry]) => ({
     url,
-    publishedAt,
-    observedAt: normalizedObservedAt,
-  }));
+    publishedAt: entry.publishedAt,
+    observedAt: entry.observedAt,
+  })), normalizedObservedAt);
+}
+
+function summarize(
+  sourceDates: ResearchSourceDate[],
+  runObservedAt: string,
+): ResearchFreshness {
   const publishedDates = sourceDates
     .map((source) => source.publishedAt)
     .filter((date): date is string => Boolean(date))
+    .sort();
+  const observedDates = sourceDates
+    .map((source) => source.observedAt)
     .sort();
 
   return {
     sourceCount: sourceDates.length,
     datedSourceCount: publishedDates.length,
-    observedAt: normalizedObservedAt,
+    observedAt: runObservedAt,
+    oldestObservedAt: observedDates[0] ?? null,
+    newestObservedAt: observedDates.at(-1) ?? null,
     oldestPublishedAt: publishedDates[0] ?? null,
     newestPublishedAt: publishedDates.at(-1) ?? null,
     sourceDates,
     summary: buildSummary(sourceDates.length, publishedDates),
   };
+}
+
+/**
+ * Unions freshness from every retrieval path a run used (company search and
+ * job-description extraction), de-duplicating by source URL so a link that
+ * both paths touched is counted once.
+ */
+export function mergeResearchFreshness(
+  parts: Array<ResearchFreshness | null | undefined>,
+  observedAt?: string,
+): ResearchFreshness | null {
+  const present = parts.filter((part): part is ResearchFreshness => Boolean(part));
+  if (present.length === 0) return null;
+
+  const byUrl = new Map<string, ResearchSourceDate>();
+  present.forEach((part) => {
+    (part.sourceDates ?? []).forEach((source) => {
+      const existing = byUrl.get(source.url);
+      if (!existing) {
+        byUrl.set(source.url, source);
+        return;
+      }
+      byUrl.set(source.url, {
+        url: source.url,
+        publishedAt: existing.publishedAt ?? source.publishedAt,
+        observedAt: source.observedAt > existing.observedAt
+          ? source.observedAt
+          : existing.observedAt,
+      });
+    });
+  });
+
+  const runObservedAt = normalizeObservedAt(
+    observedAt ?? present.map((part) => part.observedAt).sort().at(-1),
+  );
+  return summarize(Array.from(byUrl.values()), runObservedAt);
 }

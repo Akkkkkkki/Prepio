@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
 import { getOpenAIModel } from "../_shared/config.ts";
 import { authorizeRequest, ensureServiceCaller } from "../_shared/auth.ts";
 import { buildCorsHeaders } from "../_shared/cors.ts";
+import { buildResearchFreshness } from "../_shared/research-freshness.ts";
 
 interface JobAnalysisRequest {
   roleLinks: string[];
@@ -339,6 +340,12 @@ serve(async (req) => {
       }
     }
 
+    // Only the extracted path grounds the plan in retrieved job postings; a
+    // stub fallback has no sources to report, even if extraction ran.
+    const researchFreshness = requirementsSource === "extracted"
+      ? buildResearchFreshness([jobData])
+      : null;
+
     return new Response(
       JSON.stringify({
         status: "success",
@@ -346,6 +353,7 @@ serve(async (req) => {
         job_requirements: jobRequirements,
         urls_processed: urlsProcessed,
         requirements_source: requirementsSource,
+        research_freshness: researchFreshness,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

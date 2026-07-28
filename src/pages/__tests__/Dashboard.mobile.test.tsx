@@ -566,6 +566,87 @@ describe("Dashboard mobile layout", () => {
     ).toBe(false);
   });
 
+  it("reports the source-check span rather than the run time when sources were cache-reused", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    mockGetSearchResults.mockResolvedValue({
+      success: true,
+      search: {
+        id: "search-1",
+        company: "OpenAI",
+        role: "Research Engineer",
+        country: "United Kingdom",
+        status: "completed",
+        banner_dismissed: true,
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+      stages: [],
+      prepPlan: {
+        id: "plan-1",
+        search_id: "search-1",
+        summary: {
+          company: "OpenAI",
+          roleName: "Research Engineer",
+          industryFocus: "tech",
+          level: "senior_ic",
+          overallConfidence: "high",
+          weakSignalCase: false,
+          researchFreshness: {
+            sourceCount: 2,
+            datedSourceCount: 0,
+            // The run happened on Jul 23, but one source came from the
+            // scrape cache and was last fetched on Jan 4.
+            observedAt: "2026-07-23T12:00:00.000Z",
+            oldestObservedAt: "2026-01-04T09:30:00.000Z",
+            newestObservedAt: "2026-07-23T12:00:00.000Z",
+            oldestPublishedAt: null,
+            newestPublishedAt: null,
+            sourceDates: [
+              {
+                url: "https://example.com/cached",
+                publishedAt: null,
+                observedAt: "2026-01-04T09:30:00.000Z",
+              },
+              {
+                url: "https://example.com/fresh",
+                publishedAt: null,
+                observedAt: "2026-07-23T12:00:00.000Z",
+              },
+            ],
+            summary: "Based on 2 sources; publication dates were unavailable.",
+          },
+        },
+        assessment_signals: [],
+        stage_roadmap: [],
+        prep_priorities: [],
+        candidate_positioning: {
+          strengthsToLeanOn: [],
+          weakSpotsToAddress: [],
+          storyCoverageGaps: [],
+          mismatchRisks: [],
+        },
+        practice_sequence: [],
+        question_plan: { coreMustPractice: [], likelyFollowUps: [], extraDepth: [] },
+        internal_evidence_log: [],
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Why this plan/ }));
+
+    expect(
+      await screen.findByText("Sources checked between Jan 4, 2026 and Jul 23, 2026."),
+    ).toBeTruthy();
+    expect(screen.queryByText("Sources checked Jul 23, 2026.")).toBeNull();
+  });
+
   it("surfaces stage-level low_confidence_guidance inline on the mobile stage card", async () => {
     mockUseIsMobile.mockReturnValue(true);
     mockGetSearchResults.mockResolvedValue({

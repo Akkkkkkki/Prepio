@@ -211,20 +211,20 @@ export class UrlDeduplicationService {
     company: string,
     role?: string,
     country?: string
-  ): Promise<Array<{ url: string; content: string; title: string; ai_summary?: string }>> {
+  ): Promise<Array<{ url: string; content: string; title: string; ai_summary?: string; observed_at: string | null }>> {
     try {
       // Add safeguards to prevent infinite calls
       if (!urls || urls.length === 0) {
         return [];
       }
-      
+
       // Limit to prevent excessive queries
       const limitedUrls = urls.slice(0, 20);
-      
+
       const { data, error } = await this.supabase
         .schema('ops')
         .from('scraped_urls')
-        .select('url, title, full_content, ai_summary')
+        .select('url, title, full_content, ai_summary, first_scraped_at')
         .in('url', limitedUrls)
         .eq('company_name', company)
         .not('full_content', 'is', null)
@@ -241,7 +241,10 @@ export class UrlDeduplicationService {
           url: item.url,
           content: item.full_content,
           title: item.title || '',
-          ai_summary: item.ai_summary
+          ai_summary: item.ai_summary,
+          // When this URL was actually fetched from its origin. Reusing the
+          // row does not re-check the source, so freshness must not claim it.
+          observed_at: item.first_scraped_at ?? null
         }));
     } catch (error) {
       console.error('Error getting existing content:', error);

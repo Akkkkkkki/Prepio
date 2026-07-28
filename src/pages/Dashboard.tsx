@@ -163,6 +163,26 @@ const formatObservedDate = (value?: string | null) => {
   }).format(parsed);
 };
 
+/**
+ * Sources reused from the scrape cache were never re-fetched during this run,
+ * so their original scrape time is reported rather than the run time. A run
+ * mixing cached and fresh sources shows the span instead of a single date.
+ */
+const formatSourcesCheckedLabel = (freshness?: ResearchFreshness | null) => {
+  if (!freshness) return null;
+  const oldest = formatObservedDate(freshness.oldestObservedAt);
+  const newest = formatObservedDate(freshness.newestObservedAt);
+
+  if (oldest && newest) {
+    return oldest === newest
+      ? `Sources checked ${oldest}.`
+      : `Sources checked between ${oldest} and ${newest}.`;
+  }
+  // Plans written before per-source observation times existed.
+  const runDate = formatObservedDate(freshness.observedAt);
+  return runDate ? `Sources checked ${runDate}.` : null;
+};
+
 const formatSearchStatus = (status?: string) => {
   switch (status) {
     case "completed": return "Ready";
@@ -500,7 +520,7 @@ function EvidenceSourcesCard({
   freshness: ResearchFreshness | null;
 }) {
   if (!evidence?.length && !freshness) return null;
-  const observedDate = formatObservedDate(freshness?.observedAt);
+  const checkedLabel = formatSourcesCheckedLabel(freshness);
 
   return (
     <Card>
@@ -515,10 +535,8 @@ function EvidenceSourcesCard({
               Research freshness
             </p>
             <p className="mt-1 text-sm text-foreground">{freshness.summary}</p>
-            {observedDate && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Sources checked {observedDate}.
-              </p>
+            {checkedLabel && (
+              <p className="mt-1 text-xs text-muted-foreground">{checkedLabel}</p>
             )}
           </div>
         )}
