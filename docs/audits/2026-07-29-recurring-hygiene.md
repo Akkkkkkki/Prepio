@@ -35,8 +35,13 @@ Headline status:
    is unaffected).
 5. **Test count grew 369 → 371** (+2 from #249; 46 test files). All green
    under `npm test`, including the two schema guards.
-6. **Secret / client-exposure re-scan clean** — same posture as every
-   prior audit (details below).
+6. **Secret / client-exposure re-scan: secrets clean; one logging
+   over-claim corrected.** No hardcoded secrets, no server-only env in
+   `src/`, `.env.example` placeholders only. Codex review on PR #259
+   correctly flagged that this run's initial "server logs scrub user
+   content" claim was over-stated: note-derived signals reach
+   service-role edge logs via the `logger.log('QUERY_PLAN', …)` wrapper.
+   Corrected below and logged as a new Low finding.
 
 ## Commands run
 
@@ -90,11 +95,38 @@ Security / reliability assessment — **clean**:
   `` `${teamName.trim()} team` `` signal that joins the existing
   `labels` / `targeted` arrays. As established in prior retro-audits
   (2026-07-01, 2026-07-15), these signals interpolate user-note text into
-  **Tavily search queries only** — no SQL, shell, or model-prompt sink —
-  and remain bounded to 3 × 40-char signals downstream.
-- **No new logging of raw user content.** The diff adds no `console.*`;
-  `userNote` is still never logged in raw form (entry logging remains the
-  `hasUserNote: !!userNote` boolean pattern).
+  **Tavily search queries only** — no SQL, shell, or model-prompt sink.
+- **Signal-count / length bounds (corrected — see note).** An earlier
+  draft of this bullet described the signals as "bounded to 3 × 40-char"
+  — that is **stale** (it was carried forward from the 2026-07-01 note
+  and no longer matches the code). Current bounds in
+  [`extractUserNoteSignals`](../../supabase/functions/company-research/query-planner.ts):
+  `labels` is `dedupe(...).slice(0, 4)` (**up to 4**, not 3) and
+  `targeted` is `.slice(0, 2)`. There is **no per-signal length cap** —
+  the team-name capture uses the unbounded `[A-Za-z0-9&-]*` quantifier
+  (max 3 space-separated words, but each word arbitrarily long), so a
+  note containing one very long capitalized token yields a
+  proportionally long signal, Tavily query, and `QUERY_PLAN` log entry.
+  Not an injection vector (Tavily-query sink only), but a real
+  payload-size characteristic the "3 × 40-char" wording hid.
+  *(Flagged by Codex on PR #259 — correcting this run's initial claim.)*
+- **No new logging of *raw* user content, but derived content does
+  reach service-role logs (corrected — see note).** The diff adds no
+  `console.*`, and the *raw full note* is still never logged (entry
+  logging is the `hasUserNote: !!userNote` boolean). However, the
+  extracted signals **are** logged: `company-research/index.ts` calls
+  `logger.log('QUERY_PLAN', 'DISCOVERY', { signals, queries, … })`, and
+  [`SearchLogger.log`](../../supabase/functions/_shared/logger.ts)
+  writes that `data` object to `console.log`. Since `signals` /
+  `queries` contain the team-/interviewer-name substrings derived from
+  the note, **user-derived content is present in edge-function logs** —
+  the console-only grep below did not catch it because the sink is the
+  `logger.log` wrapper, not a direct `console.*` with a content field
+  name. The exposure is confined to service-role Supabase function logs
+  (not client-reachable); prior audits framed this as acceptable
+  defense-in-depth, but the "logs scrub user content" wording was an
+  over-claim. See the corrected Secret / client-exposure bullet and the
+  new Low finding. *(Flagged by Codex on PR #259.)*
 - **Test coverage lands with the fix.** The +29 test lines cover the
   team-first form and the mixed-form earliest-wins tie-break — the two
   behaviours the diff introduces.
@@ -125,7 +157,8 @@ upgrade.
 
 ### Secret / client-exposure re-scan
 
-Standard cadence — clean, same posture as 2026-07-25.
+Secrets clean; one logging assertion corrected after Codex review (see
+the derived-signals bullet and the new Low finding).
 
 - **No server-only env var referenced from `src/`.** Grep for
   `import.meta.env.SUPABASE_SERVICE_ROLE_KEY`,
@@ -140,11 +173,17 @@ Standard cadence — clean, same posture as 2026-07-25.
 - **No real-key patterns in tracked non-doc files.** A regex scan for
   live `sk-…`, JWT (`eyJ….…`), and `tvly-…` shapes across tracked source
   (excluding `*.md` / `docs/`) returns nothing.
-- **Server logs still scrub user content.** Grep across
-  `supabase/functions/**` for `console.(log|info|warn|error)` touching
+- **Server logs: raw note not logged, but derived signals are
+  (corrected).** A grep across `supabase/functions/**` for
+  `console.(log|info|warn|error)` touching
   `question_text|answer_text|transcript_text|user_note|userNote|user_input`
-  returns zero hits — same clean pattern as every prior audit, and #249
-  added none.
+  returns zero *direct* hits. That grep is **not sufficient** to claim
+  logs are clean: the `SearchLogger.log` wrapper writes its `data`
+  argument to `console.log`, and `company-research/index.ts` passes
+  `{ signals, queries }` (which carry the note-derived team/interviewer
+  substrings) into `logger.log('QUERY_PLAN', …)`. So user-derived
+  content **is** in service-role edge logs. The *raw full note* remains
+  unlogged. Tracked as a new Low finding this run. *(Codex, PR #259.)*
 
 ## Findings
 
@@ -195,6 +234,35 @@ Standard cadence — clean, same posture as 2026-07-25.
 
 ### Low / clean-up
 
+- [ ] **Note-derived signals are written to service-role edge logs via
+  the `SearchLogger.log` wrapper — audit-method gap corrected; low
+  practical risk.**
+  - Evidence:
+    [`company-research/index.ts:201`](../../supabase/functions/company-research/index.ts)
+    calls `logger.log('QUERY_PLAN', 'DISCOVERY', { signals: queryPlan.signals, queries: queryPlan.queries, … })`;
+    [`SearchLogger.log`](../../supabase/functions/_shared/logger.ts)
+    (line ~69) writes its `data` argument to `console.log`. `signals` /
+    `queries` contain the team-/interviewer-name substrings extracted
+    from the user note by `extractUserNoteSignals`. The recurring
+    console-only content grep misses this because the sink is the
+    wrapper, not a direct `console.*`. Surfaced by Codex on PR #259.
+  - Risk: **Low.** Exposure is limited to service-role Supabase
+    function logs (not client-reachable), and only *derived* fragments
+    (bounded to ≤4 labels / ≤2 targeted signals) are logged — the *raw
+    full note* is not. Prior audits (2026-07-01, 2026-07-15) treated
+    signal-level logging as acceptable defense-in-depth. The defect is
+    in the audit *method* (the grep under-scoped), not a new code
+    regression.
+  - Recommended fix: (a) **Audit method** — future secret/logging scans
+    must include logger-wrapper call sites (`logger.log(...)`,
+    `SearchLogger`), not only direct `console.*`. (b) **Optional
+    hardening** — if signal-level content in logs is undesirable, log
+    `signals.length` / `queries.length` counts instead of the values at
+    the `QUERY_PLAN` site. Not applied this run (behaviour change to a
+    logging contract, product-owner call).
+  - Owner / next step: Product-owner decision on whether `QUERY_PLAN`
+    should log signal *values* or only counts. No code change made this
+    run.
 - [ ] **`Practice.mobile.test.tsx` CI flake — remains Low; not
   reproducing.**
   - Evidence: The `{ retry: 2 }` mitigation (PR #226) is still on the
@@ -292,5 +360,8 @@ Tracked in Linear (no free-form bullets to re-discover):
 4. **Whether the Linear free-issue cap is resolved.** Still blocking both
    routines; confirm next run whether the workspace was upgraded or
    triaged.
-</content>
-</invoke>
+5. **Audit-method fix — logger-wrapper coverage.** The recurring
+   secret/logging scan must include `logger.log(...)` / `SearchLogger`
+   call sites, not only direct `console.*` — this run's Codex review
+   showed the console-only grep misses note-derived content that reaches
+   logs through the wrapper.
