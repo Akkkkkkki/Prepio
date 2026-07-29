@@ -134,6 +134,35 @@ describe("buildResearchQueryPlan", () => {
     );
   });
 
+  it("preserves team-first note signals for targeted searches", () => {
+    const plan = buildResearchQueryPlan({
+      company: "Stripe",
+      role: "Product Manager",
+      userNote: "Interviewing with team Payments",
+      maxQueries: 8,
+    });
+
+    expect(plan.signals.userNote).toContain("Payments team");
+    expect(plan.queries.find((query) => query.source === "user-note-linkedin")?.query).toMatch(
+      /"Payments team"/,
+    );
+  });
+
+  it("uses the first team mention when notes contain both supported forms", () => {
+    const plan = buildResearchQueryPlan({
+      company: "Stripe",
+      role: "Product Manager",
+      userNote: "Interviewing with team Payments and the Platform org",
+      maxQueries: 8,
+    });
+
+    expect(plan.signals.userNote).toContain("Payments team");
+    expect(plan.signals.userNote).not.toContain("Platform team");
+    expect(plan.queries.find((query) => query.source === "user-note-linkedin")?.query).toMatch(
+      /"Payments team"/,
+    );
+  });
+
   it("preserves role-family coverage inside the production query budget", () => {
     const plan = buildResearchQueryPlan({
       company: "Stripe",
