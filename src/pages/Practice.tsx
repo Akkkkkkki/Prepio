@@ -280,6 +280,13 @@ const Practice = () => {
   const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hydratedAnswersRef = useRef<Set<string>>(new Set());
   const answeredIdsRef = useRef<Set<string>>(new Set());
+  // One-tap entry: interview cards link to /practice?searchId=… with no
+  // `stages` param, meaning "practice now". Treat that as a Quick Start over
+  // all stages instead of stopping on the setup screen; an explicit `stages=`
+  // entry (a narrowed or shared session) still opens setup. Captured once at
+  // mount because the loader rewrites the URL to include every stage id.
+  const arrivedWithoutStageSelectionRef = useRef(searchParams.get('stages') === null);
+  const hasAutoStartedRef = useRef(false);
 
   const getAutosaveKey = (questionId: string) =>
     `${ANSWER_AUTOSAVE_PREFIX}:${questionId}`;
@@ -1248,6 +1255,22 @@ const getInterviewerFocus = (
 
     await startPracticeSession();
   };
+
+  // Launch straight into practice when the user arrived from an interview card
+  // (no explicit stage selection). Runs once; "Change setup" returns to the
+  // setup screen without re-triggering this.
+  useEffect(() => {
+    if (hasAutoStartedRef.current) return;
+    if (!arrivedWithoutStageSelectionRef.current) return;
+    if (isOffline) return;
+    if (sessionState !== 'setup') return;
+    if (allStages.length === 0) return;
+
+    hasAutoStartedRef.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional load-driven transition: begin the session once stages have loaded; the ref guard prevents cascading re-entry
+    void handleBeginQuickStart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot Quick Start; handleBeginQuickStart closes over setup state we intentionally read only at auto-start time, and the ref guard prevents re-entry
+  }, [allStages, sessionState, isOffline]);
 
   const handleStartNewSession = () => {
     setSessionState('setup');
@@ -2953,14 +2976,20 @@ const getInterviewerFocus = (
       <div className="container mx-auto max-w-6xl px-4 py-6 pb-32 lg:py-8 lg:pb-40">
         <div className="space-y-3 mb-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
-            >
-              <ChevronLeft className="h-4 w-4 mr-2" />
-              Back to dashboard
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Back to dashboard
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleStartNewSession}>
+                <Settings className="h-4 w-4 mr-2" />
+                Change setup
+              </Button>
+            </div>
             <div className="text-sm text-muted-foreground sm:text-right">
               {searchData?.company && `${searchData.company}`}
               {searchData?.role && ` • ${searchData.role}`}

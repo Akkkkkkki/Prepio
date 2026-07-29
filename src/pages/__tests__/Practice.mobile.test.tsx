@@ -1069,3 +1069,112 @@ describe("Practice autosave label", () => {
     expect(screen.queryByText("Saved locally")).not.toBeInTheDocument();
   });
 });
+
+describe("Practice one-tap entry", () => {
+  let mathRandomSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    mathRandomSpy = vi.spyOn(Math, "random").mockReturnValue(0.99);
+    vi.clearAllMocks();
+    MockResizeObserver.reset();
+    capturedSwipeConfigs.length = 0;
+    // Skip the breathing interstitial so the loop renders synchronously.
+    localStorage.setItem(BREATHING_DISMISSED_KEY, "true");
+    mockUseIsMobile.mockReturnValue(false);
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn() },
+    });
+    mockGetQuestionFlags.mockResolvedValue({ success: true, flags: {} });
+    mockGetLowRatedQuestionIds.mockResolvedValue({ success: true, ids: [] });
+    mockGetEntitlement.mockResolvedValue({
+      tier: "free",
+      cadence: null,
+      currentPeriodEnd: null,
+      status: "none",
+    });
+    mockCreatePracticeSession.mockResolvedValue({
+      success: true,
+      session: { id: "session-1", user_id: "user-1", search_id: "search-1", started_at: "2026-03-31T00:00:00.000Z" },
+    });
+    mockGetSearchResults.mockResolvedValue({
+      success: true,
+      search: { id: "search-1", company: "OpenAI", role: "Research Engineer", status: "completed" },
+      stages: [
+        {
+          id: "stage-1", name: "Technical Interview", duration: "45 minutes", interviewer: "Hiring manager",
+          content: "Systems depth.", guidance: "Prioritize impact.", order_index: 0, search_id: "search-1",
+          created_at: "2026-03-31T00:00:00.000Z",
+          questions: [
+            { id: "q-1", question: "Describe your system design approach.", created_at: "2026-03-31T00:00:00.000Z", difficulty: "Medium" },
+          ],
+        },
+      ],
+    });
+  });
+
+  afterEach(() => {
+    localStorage.removeItem(BREATHING_DISMISSED_KEY);
+    mathRandomSpy.mockRestore();
+  });
+
+  it("auto-starts a Quick Start session when a card links in without a stage selection", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // No "Quick Start" / "Start practice" tap — the session begins on its own.
+    await waitFor(() => expect(mockCreatePracticeSession).toHaveBeenCalledWith("search-1"));
+    expect(await screen.findByText("Describe your system design approach.")).toBeTruthy();
+    // The setup preset never blocked entry.
+    expect(screen.queryByText("Quick Start")).toBeNull();
+  });
+
+  it("exposes in-session stage narrowing via Change setup after auto-start", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Change setup" }));
+
+    // Returns to the setup screen so stages can be narrowed before the next rep.
+    expect(await screen.findByText("Quick Start")).toBeTruthy();
+  });
+
+  it("keeps the setup screen for an explicit stages= entry instead of auto-starting", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Quick Start")).toBeTruthy();
+    expect(mockCreatePracticeSession).not.toHaveBeenCalled();
+  });
+
+  it("auto-starts one-tap entry on mobile too", async () => {
+    mockUseIsMobile.mockReturnValue(true);
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(mockCreatePracticeSession).toHaveBeenCalledWith("search-1"));
+    expect(await screen.findByText("Describe your system design approach.")).toBeTruthy();
+    expect(screen.queryByText("Start practice")).toBeNull();
+  });
+});
