@@ -117,6 +117,23 @@ describe("buildSearchPayloads", () => {
     expect(validFreshResults).toEqual([]);
   });
 
+  it("preserves when a cached source was originally observed", () => {
+    const observedAt = "2026-01-04T09:30:00.000Z";
+    const cached = [{
+      ...cachedRow("https://cache.example/observed", "Cached report"),
+      observed_at: observedAt,
+    }];
+
+    const { searchPayloads } = buildSearchPayloads({
+      shouldSkipFresh: true,
+      freshResults: [],
+      cachedResults: cached,
+      company: COMPANY,
+    });
+
+    expect(searchPayloads[0].results[0].observed_at).toBe(observedAt);
+  });
+
   it("returns an empty array when all fresh results failed and no cache exists", () => {
     const { searchPayloads, validFreshResults } = buildSearchPayloads({
       shouldSkipFresh: false,
