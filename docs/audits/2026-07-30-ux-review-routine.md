@@ -34,44 +34,51 @@ cross-checked directly against the production Supabase project
 ## Overall product judgment
 
 **This run turns three separate "still broken" mysteries into one root
-cause: production has been frozen since 2026-05-15.** The production
-Supabase project's applied-migration history ends at
+cause: the production *backend* has been frozen since 2026-05-15.** The
+production Supabase project's applied-migration history ends at
 `20260515171733`, and only the 5 original research edge functions are
-deployed. Seven migrations and five edge functions that shipped to `main`
-over the last ~2.5 months **have never reached production**. That single
-fact explains the guest-preview outage (now five weeks;
-`research-preview` undeployed), and it newly explains two things prior runs
-had half-diagnosed: the practice **Favorite / Needs-work flags are broken
+deployed. Seven newer migration files and **seven of the twelve** edge
+functions that shipped to `main` over the last ~2.5 months **have never
+reached production** — and two *already-applied* migrations were
+re-timestamped in the repo, so the histories are divergent and `db:push`
+needs reconciliation first, not a blind run. That single fact explains the
+guest-preview outage (now five weeks; `research-preview` undeployed), and
+it newly explains the practice **Favorite / Needs-work flags being broken
 in production** — every click returns `400 / 42P10` because the
 `(user_id, question_id, flag_type)` unique constraint from migration
-`20260710203000` was never applied — and run #9's "stale build reads
-`aria-pressed=false`" is actually the flag *write* failing, not just a
-cosmetic bundle lag. **A new, worse discovery: paid checkout is also dead**
-— clicking *Choose monthly* on `/pricing` fails identically because
-`create-checkout-session` is undeployed, so a user who wants to pay
-cannot. At least three fixes already merged to `main` (flags #233,
-`/auth` autocomplete #244, `aria-pressed` #231) are invisible live because
-neither the frontend bundle nor the backend has been deployed in ~2 months.
-**The highest-value action, by a wide margin, is a full production
-deploy-and-verify — it recovers guest conversion, monetization, and a core
-practice interaction at once. It is intentionally not performed by this
+`20260710203000` was never applied; the frontend code and its
+`aria-pressed` binding are correct in `main` (#231/#233), so run #9's
+"aria-pressed=false" is the flag *write* failing, not a stale bundle.
+**A new, worse discovery: paid checkout is dead** — *Choose monthly* on
+`/pricing` fails because `create-checkout-session` is undeployed, and
+`stripe-webhook` is undeployed too, so even a working redirect would never
+sync entitlements. **Correction to the frontend half of the story
+(surfaced by this PR's automated review):** the frontend (Vercel,
+auto-deployed per-branch) tracks `main` and is *not* stale — so the
+marketing hero, missing "Interviews" nav item, and missing `/auth`
+autocomplete are genuinely **unfixed in `main`** (PREPIO-111/101 *In
+Progress*; #244 reviewed as an open bot PR but never merged), i.e. ordinary
+dev work, not deploy lag. **The highest-value action, by a wide margin, is
+a backend deploy-and-verify (after reconciling the migration history) — it
+recovers guest conversion, monetization, transcription, answer feedback,
+and the practice flags at once. It is intentionally not performed by this
 unattended review job.**
 
 ## Top 5 issues
 
-### 1. **P0 (new root cause, supersedes run #9's #1) — Production backend frozen at 2026-05-15: 7 unapplied migrations + 5 undeployed edge functions**
+### 1. **P0 (new root cause, supersedes run #9's #1) — Production backend frozen at 2026-05-15: 7 pending migrations (2 divergently re-timestamped) + 7 undeployed edge functions**
 
 - **Severity:** P0 (breaks guest conversion, monetization, and a core practice action simultaneously; ~2.5-month drift)
 - **Area:** infra / deployment (fans out to landing, billing, practice)
 - **What happened (verified against prod project `vjwrirrqprjzdorignlz`):**
-  - `list_migrations` → newest applied is `20260515171733_security_hardening_and_resume_rpc`. Repo has **7 newer** unapplied: `20260516120000_billing_event_ordering`, `20260516232408_research_preview_cache`, `20260524140500_answer_feedback`, `20260525120000_answer_feedback`, `20260528000000_billing_cancel_ordering`, `20260623210533_answer_feedback_atomic_rpc`, `20260710203000_question_flags_per_type`.
-  - `list_edge_functions` → only `interview-research, cv-analysis, company-research, interview-question-generator, job-analysis` (all last updated ~2026-05-25). **Absent:** `research-preview`, `answer-feedback`, `create-checkout-session`, `create-portal-session`, `practice-audio-transcribe`.
+  - `list_migrations` → newest applied is `20260515171733_security_hardening_and_resume_rpc`. Repo has **7 newer, never-applied** migration files: `20260516120000_billing_event_ordering`, `20260516232408_research_preview_cache`, `20260524140500_answer_feedback`, `20260525120000_answer_feedback`, `20260528000000_billing_cancel_ordering`, `20260623210533_answer_feedback_atomic_rpc`, `20260710203000_question_flags_per_type`. **Divergence caveat (raised in this PR's review — verified):** two *already-applied* migrations were re-timestamped in the repo — `billing_v1` is `20260514000000` locally vs `20260515131539` in prod, and `security_hardening_and_resume_rpc` is `20260515150000` locally vs `20260515171733` in prod. The histories therefore diverge; a blind `npm run db:push` can stop on the unmatched remote version or treat the local security migration as separate. Reconcile the history (e.g. `supabase migration repair`) before pushing.
+  - `list_edge_functions` → only `interview-research, cv-analysis, company-research, interview-question-generator, job-analysis` deployed. The repo has **12** function dirs, so **7 are undeployed** (corrected from 5 during review): `research-preview`, `answer-feedback`, `create-checkout-session`, `create-portal-session`, `practice-audio-transcribe`, **`profile-import`**, **`stripe-webhook`**. `stripe-webhook` is the path that syncs Stripe subscription state, so a working checkout redirect *alone* would still leave paid entitlements never updating.
 - **User-facing breakage confirmed live this run:**
   1. **Guest preview** (`/`, desktop): *Preview my prep* → console `CORS … research-preview … preflight … does not have HTTP ok status` → red banner *"We couldn't build the preview…"*; right column stays *"Your Palantir preview will appear here"* (no fallback). [`02-d-landing-post-preview.png`](./assets/2026-07-30/02-d-landing-post-preview.png). **Fifth consecutive week.**
-  2. **Paid checkout** (`/pricing`, desktop): *Choose monthly* → console `CORS … create-checkout-session … preflight …`; stays on `/pricing`. [`15-d-checkout-attempt.png`](./assets/2026-07-30/15-d-checkout-attempt.png). **New this run.**
+  2. **Paid checkout** (`/pricing`, desktop): *Choose monthly* → console `CORS … create-checkout-session … preflight …`; stays on `/pricing`. [`15-d-checkout-attempt.png`](./assets/2026-07-30/15-d-checkout-attempt.png). **New this run.** And because `stripe-webhook` is also undeployed, deploying only `create-checkout-session` would let a redirect succeed while entitlements silently never update — the smoke test must cover the full webhook round-trip.
   3. **Practice flags** (see issue #2).
-- **Why it matters:** the two revenue-and-growth-critical funnels (guest→signup, free→paid) are both dead in production, plus a core practice action. Every "still not shipped" finding since run #6 has a common cause nobody had named until now.
-- **Recommended fix (maintainer, attended):** (a) pre-check for duplicate `(user_id, question_id, flag_type)` rows before applying `20260710203000`; (b) `npm run db:push`; (c) `npm run functions:deploy`, verifying `verify_jwt=false` on `research-preview`; (d) redeploy the frontend to current `main`; (e) smoke-test each recovered surface; (f) **add a deploy-parity/health check** so drift can't silently persist again.
+- **Why it matters:** the two revenue-and-growth-critical funnels (guest→signup, free→paid) are both dead in production, plus a core practice action. Every "still not shipped" *backend* finding since run #6 has a common cause nobody had named until now.
+- **Recommended fix (maintainer, attended):** (a) reconcile the divergent migration history (`billing_v1` / `security_hardening_and_resume_rpc` version mismatch) and pre-check for duplicate `(user_id, question_id, flag_type)` rows before applying `20260710203000`; (b) `npm run db:push` (7 pending migrations); (c) `npm run functions:deploy` (7 missing functions, verifying `verify_jwt=false` on `research-preview`); (d) smoke-test each recovered surface — including a real Stripe checkout→`stripe-webhook`→entitlement round-trip, not just the redirect; (e) **add a deploy-parity/health check** so drift can't silently persist again. The frontend already tracks `main` via Vercel — no frontend redeploy needed.
 - **Tracking:** **Could not file — Linear at free-issue cap** (run #9 issue, still live; see below). GitHub-ready ticket #1.
 - **Not performed by the review job** — cost-incurring, guest-facing, unattended.
 
@@ -87,7 +94,7 @@ unattended review job.**
   ```
   `aria-pressed` stayed `"false"` on both buttons before *and* after each click; neither flag visually latched. [`62-m-flags.png`](./assets/2026-07-30/62-m-flags.png).
 - **Root cause (verified via `execute_sql` on prod):** `user_question_flags` still carries the **old** `UNIQUE (user_id, question_id)` constraint. Migration `20260710203000_question_flags_per_type.sql` (shipped in PR #233, 2026-07-10, with tests — retro-audited clean per the 2026-07-11 hygiene review) drops it and adds `UNIQUE (user_id, question_id, flag_type)`, which is exactly what the frontend upserts on (`searchService.ts:1719`). The migration was never applied, so the upsert 400s.
-- **Why it matters:** this is the *real* explanation for run #9's `aria-pressed=false` reading — not a cosmetic stale bundle, but the write itself failing. Users think they've favorited/flagged a question; nothing persists, and there is no error surfaced.
+- **Why it matters:** this is the *real* explanation for run #9's `aria-pressed=false` reading — not a cosmetic stale bundle. `main` already binds `aria-pressed={favoriteActive}` / `={needsWorkActive}` and renders the active copy *"Favorited"* / *"Needs work flagged"* (`Practice.tsx:2699/2708/2716/2725`, PR #231/#233), and the frontend serving that code is current — so `false` and the inactive copy live can only mean `favoriteActive`/`needsWorkActive` never flip, because the write itself 400s. Users think they've favorited/flagged a question; nothing persists, and there is no error surfaced.
 - **Recommended fix:** covered by issue #1 step (a)+(b). No code change needed — the code is correct and tested; only the migration must be applied (after the duplicate-row pre-check). Consider surfacing a toast on flag-write failure so a future outage isn't silent.
 - **Tracking:** Could not file (Linear cap). Folded into GitHub-ready ticket #1.
 
@@ -134,7 +141,7 @@ unattended review job.**
 - **Nav has no "Interviews" item** ([PREPIO-101](https://linear.app/qiuyue/issue/PREPIO-101), *In Progress*) — desktop nav verbatim `Prepio · Home · Dashboard · Practice · Practice History · Pricing · Profile`. **Tenth audit.**
 - **`/dashboard` redirect collision** — direct nav to `/dashboard` resolved to `/interviews` (seventh consecutive confirmation). Component of PREPIO-101.
 - **`/history` "Go to Dashboard" CTA** points to `/dashboard` (which redirects to `/interviews`) — fifth consecutive audit. Component of PREPIO-101.
-- **`/auth` autocomplete still `null`** ([PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123), *Backlog*) — both `#signin-email` and `#signin-password` return `null`; Chromium itself logged the *"Input elements should have autocomplete attributes"* warning. **Seventh audit — but note PR #244 already added these to `main` (per the 2026-07-18 hygiene review), so this is another stale-production-build symptom, not an unfixed bug.** Pairs with issue #1.
+- **`/auth` autocomplete still `null`** ([PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123), *Backlog*) — both `#signin-email` and `#signin-password` return `null`; Chromium itself logged the *"Input elements should have autocomplete attributes"* warning. **Seventh audit. Correction to run #9's read (raised in this PR's review, verified against source): PR #244 was only *reviewed* as an open bot PR, never merged — `src/pages/Auth.tsx` in `main` has zero `autoComplete` attributes — so production matches `main`. This is a genuine unfixed bug, not a deploy-lag symptom.**
 - **Mobile-only: still no typed *answer* surface distinct from device-local notes on Q1.** The only textarea on Q1 is *Quick notes* (placeholder *"Jot the beats you want to hit…"*, labeled *"Saved on this device while you practice"*). *Record answer* is the primary answer path. Carried from runs #7–#9; still a product decision worth making.
 
 ## Journey scorecard
@@ -152,20 +159,22 @@ Rows marked **↑** improved since run #9, **=** unchanged, **↓** worse. Cells
 | Resume/profile trust | 4 | 4 | = | Not re-audited in depth (tester PII); `/new-interview` shows *"CV added (6,434 chars)… Last updated 5/17/2026"* — profile memory intact. |
 | Dashboard/history/resume | 3 | 3 | = | **(live)** Counter/History mismatch persists (8% vs empty), fifth week. |
 | Error/empty states | 3 | **2** | ↓ | **(live)** Two silent failures found this run: checkout click does nothing visible, flag click 400s with no user-facing message. Guest-preview error is honest but the right column stays silently pre-click. Down one. |
-| Accessibility | 3 | 3 | = | **(live)** Skip-to-main confirmed; `aria-pressed` reads `false` because the write fails (issue #2); `autocomplete=null` (fixed in `main`, stale in prod). Real keyboard-only + SR pass still owed (eight audits). |
+| Accessibility | 3 | 3 | = | **(live)** Skip-to-main confirmed; `aria-pressed` reads `false` because the flag write fails (the binding *is* present in `main` — issue #2); `autocomplete=null` is unfixed in `main` (#244 never merged). Real keyboard-only + SR pass still owed (eight audits). |
 | Copy quality | 4 | 4 | = | **(live)** Hero, autosave, pricing copy all honest. "Cycle 1 of 3" interstitial still reads as from a different app. |
 
 **Composite trend: −2 (Practice mode and Error/empty states each down one).**
 The drop is not new breakage that landed this week — it's the same
-production freeze finally being *measured* at the flag layer and the
-checkout layer. The code on `main` is fine; production is stale.
+backend freeze finally being *measured* at the flag layer and the
+checkout layer. The flag/checkout code on `main` is correct; the
+production *backend* (Supabase migrations + edge functions) is what's
+frozen. The frontend tracks `main`.
 
 ## Regression check
 
 | Item | State | Note |
 |------|-------|------|
-| **NEW: Production backend frozen at 2026-05-15** | **New root cause** | 7 unapplied migrations + 5 undeployed functions. Unifies findings since run #6. **P0.** |
-| **NEW: Paid checkout dead** (`create-checkout-session` undeployed) | **New** | *Choose monthly* on `/pricing` → CORS/404. Monetization funnel dead. Part of issue #1. |
+| **NEW: Production backend frozen at 2026-05-15** | **New root cause** | 7 pending migrations (+2 already-applied ones divergently re-timestamped) + 7 undeployed functions. Unifies backend findings since run #6. **P0.** |
+| **NEW: Paid checkout dead** (`create-checkout-session` undeployed) | **New** | *Choose monthly* on `/pricing` → CORS/404. `stripe-webhook` also undeployed → entitlements wouldn't sync even after a redirect fix. Monetization funnel dead. Part of issue #1. |
 | **NEW: Practice flags broken** (`user_question_flags` 400 / 42P10) | **New root cause** | Migration `20260710203000` unapplied; every Favorite/Needs-work click fails. Reframes run #9's `aria-pressed=false`. **P1.** |
 | Guest "Preview my prep" broken | **Still broken — fifth consecutive week** | `research-preview` still undeployed (`list_edge_functions` unchanged from run #9). Part of issue #1. |
 | Linear workspace at free-issue cap | **Still blocked** | Confirmed again this run (requestId `a2345d364d2f7ce5`). Creation capped; updates still work. |
@@ -174,15 +183,19 @@ checkout layer. The code on `main` is fine; production is stale.
 | `/new-interview` marketing hero | **Still open** ([PREPIO-111](https://linear.app/qiuyue/issue/PREPIO-111), In Progress) | **Tenth audit unshipped.** |
 | Nav has no "Interviews" link + `/dashboard` collision | **Still open** ([PREPIO-101](https://linear.app/qiuyue/issue/PREPIO-101), In Progress) | **Tenth audit unshipped.** |
 | `/history` "Go to Dashboard" → `/interviews` | **Still open** (part of PREPIO-101) | Fifth audit. |
-| Password autocomplete missing on `/auth` | **Fixed in `main` (#244), stale in production** | [PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123). Seventh audit — reframed to a deploy-parity symptom (issue #1). |
+| Password autocomplete missing on `/auth` | **Unfixed in `main` (#244 never merged) — prod matches `main`** | [PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123). Seventh audit. Correction to run #9: a genuine unfixed bug, **not** a deploy-lag symptom. |
 | Save & Continue disabled on empty answer | **Holding** ✅ | `disabled === true` verified again. |
 | Skip-to-main + landing hero + static example | **Holding** ✅ | Unchanged. |
 | Autosave "Saving draft…" | **Holding** ✅ | Visible on Q1. |
 
 **Zero of the long-running P1/P2 findings shipped. The dominant fact of run
-#10 is that production has not been deployed — frontend or backend — in
-~2.5 months, which now provably breaks guest preview, paid checkout, and
-practice flags, and hides at least three fixes already merged to `main`.**
+#10 is that the production *backend* (Supabase migrations + edge functions)
+has not been deployed in ~2.5 months, which now provably breaks guest
+preview, paid checkout (+ entitlement sync), practice flags, transcription,
+and answer feedback. The frontend tracks `main` via Vercel, so the
+hero / nav / autocomplete repeats are genuine unfixed dev work, not deploy
+lag — a correction to run #9's stale-frontend framing, caught by this PR's
+automated review.**
 
 ## Recommended tickets
 
@@ -191,16 +204,16 @@ and no new issue could be created this run** (issue #5). Once the cap is
 lifted, file these to Linear per CLAUDE.md conventions (Quality &
 Maintenance unless noted).
 
-1. **[P0] Deploy production to parity with `main` (backend + frontend) and add a drift guard.** Apply the 7 pending migrations (`npm run db:push`, after a duplicate-row pre-check for `20260710203000`), deploy the 5 missing edge functions (`npm run functions:deploy`, verify `verify_jwt=false` on `research-preview`), redeploy the frontend, and smoke-test guest preview, checkout, flag toggle (+`aria-pressed`), transcription, and answer feedback. Add a deploy-parity CI check / synthetic health checks so `main`→prod drift can't silently persist again. *Type: Bug · area:infra (touches landing, billing, practice).*
+1. **[P0] Deploy the production *backend* to parity with `main` and add a drift guard.** First reconcile the divergent migration history (`billing_v1` and `security_hardening_and_resume_rpc` are re-timestamped in the repo vs prod) and pre-check for duplicate `(user_id, question_id, flag_type)` rows; then `npm run db:push` (7 pending migrations) and `npm run functions:deploy` (7 missing functions incl. `research-preview`, `stripe-webhook`, `profile-import`; verify `verify_jwt=false` on `research-preview`). Smoke-test guest preview, a real checkout→`stripe-webhook`→entitlement round-trip (not just the redirect), flag toggle (+`aria-pressed`), transcription, and answer feedback. Add a deploy-parity CI check / synthetic health checks so `main`→prod drift can't silently persist again. The frontend already tracks `main` via Vercel — no redeploy needed. *Type: Bug · area:infra (touches landing, billing, practice).*
 2. **[P1] Surface a user-facing error when a practice flag write fails.** Even after the migration lands, a future `user_question_flags` write failure should show a toast, not fail silently with `aria-pressed` stuck. *Type: Improvement · area:practice.*
 3. **[P1] Remove the breathing interstitial from the default practice start** (or invert "Don't show again" + cap the gate at ≤5s and auto-advance). *Type: Bug · area:practice.*
 4. **[P2] Reconcile the Interviews "practiced" counter with History** — render in-progress sessions as a resume row in `/history` (preferred), or relabel the counter to "answered" with a tooltip. *Type: Bug · area:practice.*
 5. **[P1] Lift the Linear free-issue cap** (upgrade / trial / prune) so the audit→backlog workflow can function again. *Type: Chore · area:infra.*
-6. **[P3] Escalate the three "fixed in `main`, stale in prod" tickets** (PREPIO-111 hero, PREPIO-101 nav, PREPIO-123 autocomplete) — several are *already implemented* and only need the ticket-1 deploy to go live. Verify each after the deploy rather than treating them as open dev work. *Existing issues; update, don't re-file.*
+6. **[P3] Keep PREPIO-111 (hero), PREPIO-101 (nav), and PREPIO-123 (autocomplete) as active *dev* work.** Correction to an earlier draft of this report (caught in review): none of the three is fixed in `main` — `Home.tsx` still renders the marketing hero, `Navigation.tsx` still lacks an Interviews item, and `Auth.tsx` still omits `autoComplete` (#244 was never merged). These are ordinary unshipped fixes, **not** post-deploy verification, and the ticket-1 deploy will not change them. *Existing issues; update, don't re-file.*
 
 ## Next-run focus
 
-1. **Verify the production deploy landed** (ticket 1) — re-run: guest-preview OPTIONS→200 + POST; `/pricing` *Choose monthly* → Stripe redirect; practice flag toggle persists and `aria-pressed` flips; `/auth` autocomplete non-null. This one deploy should flip the largest number of red cells the routine has ever tracked at once.
+1. **Verify the backend deploy landed** (ticket 1) — re-run: guest-preview OPTIONS→200 + POST; `/pricing` *Choose monthly* → Stripe redirect **and** a webhook→entitlement update; practice flag toggle persists and `aria-pressed` flips. (The hero, nav, and autocomplete will *not* change from a deploy — they're unfixed in `main` and need dev work, ticket 6.)
 2. **Confirm the Linear cap is lifted and file tickets 1–5.**
 3. **Budget a real authenticated research run end-to-end** — eight audits owed. Rotate to a fresh company (Palantir, Amazon).
 4. **Real keyboard-only + screen-reader pass** — eight audits owed.
