@@ -163,6 +163,21 @@ describe("buildResearchQueryPlan", () => {
     );
   });
 
+  it("uses the suffix-form team mention when it appears before a team-first note", () => {
+    const plan = buildResearchQueryPlan({
+      company: "Stripe",
+      role: "Product Manager",
+      userNote: "Interviewing with the Platform org before team Payments",
+      maxQueries: 8,
+    });
+
+    expect(plan.signals.userNote).toContain("Platform team");
+    expect(plan.signals.userNote).not.toContain("Payments team");
+    expect(plan.queries.find((query) => query.source === "user-note-linkedin")?.query).toMatch(
+      /"Platform team"/,
+    );
+  });
+
   it("preserves role-family coverage inside the production query budget", () => {
     const plan = buildResearchQueryPlan({
       company: "Stripe",
