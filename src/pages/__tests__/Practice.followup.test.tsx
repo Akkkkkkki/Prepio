@@ -271,16 +271,16 @@ describe("Practice interviewer follow-ups", () => {
     renderPractice();
     await startMobileCustomSession({ interviewerMode: true });
 
-    expect(await screen.findByText(QUESTION_ONE)).toBeInTheDocument();
+    expect(await screen.findByText(QUESTION_ONE)).toBeDefined();
     await answerCurrentQuestion(/save & finish/i);
 
-    expect(await screen.findByText("Follow-up from the interviewer")).toBeInTheDocument();
-    expect(screen.getByText(FOLLOW_UP_TEXT)).toBeInTheDocument();
+    expect(await screen.findByText("Follow-up from the interviewer")).toBeDefined();
+    expect(screen.getByText(FOLLOW_UP_TEXT)).toBeDefined();
     expect(mockCompletePracticeSession).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Finish session" }));
 
     await waitFor(() => expect(mockCompletePracticeSession).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText("Reflection checkpoint")).toBeInTheDocument();
+    expect(await screen.findByText("Reflection checkpoint")).toBeDefined();
   });
 });
