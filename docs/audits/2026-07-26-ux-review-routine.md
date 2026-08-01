@@ -11,6 +11,18 @@ Tenth run of the recurring weekly UX-review routine. Baselines:
 [`2026-07-19`](./2026-07-19-ux-review-routine.md),
 [`2026-07-23`](./2026-07-23-ux-review-routine.md).
 
+> **Superseded finding — corrected by [run #11](./2026-07-30-ux-review-routine.md).**
+> This run attributes the `aria-pressed=false` / stale flag-copy symptoms to a
+> **stale production frontend** serving a pre-#231 bundle. Run #11 verified
+> against the production Supabase project and found that is **not** the cause:
+> the frontend tracks `main` via Vercel and is current. The real cause is a
+> **backend** freeze — production migrations stop at `20260515171733`, so
+> migration `20260710203000`'s `(user_id, question_id, flag_type)` unique
+> constraint was never applied and every flag write fails with `400 / 42P10`.
+> The symptoms recorded below are real; the diagnosis of them is not. The rest
+> of this run — the guest-preview P0, the PREPIO-111 backlog correction, and the
+> keyboard/focus a11y probe — is unaffected.
+
 ## Capability check — live browser verified
 
 Both checks required by [`UX_REVIEW_ROUTINE.md`](./UX_REVIEW_ROUTINE.md) passed:
