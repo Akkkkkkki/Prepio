@@ -11,6 +11,18 @@ const getModelFromEnv = (defaultModel: string): string => {
   return defaultModel;
 };
 
+// Parse a boolean feature flag from the environment. Anything unrecognised
+// falls back to the default rather than silently reading as false.
+const getBooleanFromEnv = (name: string, defaultValue: boolean): boolean => {
+  const envValue = Deno.env.get(name)?.trim().toLowerCase();
+  if (!envValue) return defaultValue;
+
+  if (["1", "true", "yes", "on"].includes(envValue)) return true;
+  if (["0", "false", "no", "off"].includes(envValue)) return false;
+
+  return defaultValue;
+};
+
 export const RESEARCH_CONFIG = {
   // OpenAI Configuration - Flexible model selection per use case
   openai: {
@@ -264,6 +276,7 @@ export const RESEARCH_CONFIG = {
     enableInterviewStageExtraction: true, // Extract stages from candidate reports
     enableJsonMode: true,           // Force JSON responses from OpenAI
     enableFallbackResponses: true,  // Provide fallback data when APIs fail
+    profileStoryLinking: getBooleanFromEnv("PROFILE_STORY_LINKING", false), // PREPIO-56: off until the pipeline consumes it
   },
 
   // Development and Testing Configuration
