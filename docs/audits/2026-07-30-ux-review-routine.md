@@ -1,6 +1,6 @@
-# Prepio UI/UX Review — 2026-07-30 (recurring routine, run #10)
+# Prepio UI/UX Review — 2026-07-30 (recurring routine, run #11)
 
-Tenth run of the recurring weekly UX-review routine. Baselines:
+Eleventh run of the recurring weekly UX-review routine. Baselines:
 [`2026-06-21`](./2026-06-21-ux-review-routine.md),
 [`2026-06-25`](./2026-06-25-ux-review-routine.md),
 [`2026-07-02`](./2026-07-02-ux-review-routine.md),
@@ -120,7 +120,7 @@ unattended review job.**
 
 - **Severity:** P1 (blocks the team's entire audit→backlog intake path)
 - **Area:** infra / process
-- **What happened (this run):** filing the run #10 production-parity P0 returned `invalid_request: "You've exceeded the free issue limit for this workspace…"` (requestId `a2345d364d2f7ce5`). Same block run #9 hit. **Note:** *updating* existing issues still works — only creation is capped.
+- **What happened (this run):** filing the run #11 production-parity P0 returned `invalid_request: "You've exceeded the free issue limit for this workspace…"` (requestId `a2345d364d2f7ce5`). Same block run #9 hit. **Note:** *updating* existing issues still works — only creation is capped.
 - **Why it matters:** CLAUDE.md makes Linear the source of truth and directs every >30-min audit finding to be filed there. With creation capped, that workflow is dead — the new P0, the broken-flags P1, the interstitial, and the counter mismatch all have no home. This is the fifth straight review that recommends issues it cannot create.
 - **Recommended fix:** upgrade the Linear workspace / start the free trial / prune archived-duplicate issues to get back under the cap. Until then this report's ticket list is the interim backlog.
 - **Tracking:** self-referential — cannot be filed. GitHub-ready ticket #5.
@@ -148,7 +148,12 @@ unattended review job.**
 
 Rows marked **↑** improved since run #9, **=** unchanged, **↓** worse. Cells marked **(live)** are live-verified this run.
 
-| Area | Run #9 | Run #10 | Trend | Notes |
+Baseline note: this run compares against **run #9**, not run #10. Run #10
+([`2026-07-26`](./2026-07-26-ux-review-routine.md)) was authored concurrently and had
+not landed when these measurements were taken, so its scores were not available as a
+baseline. The trend column therefore spans two runs.
+
+| Area | Run #9 | Run #11 | Trend | Notes |
 |------|------:|------:|------|-------|
 | First-time understanding | 3 | 3 | = | **(live)** Landing hero + static example strong; guest preview broken fifth week (root cause = issue #1). |
 | Research entry | 3 | 3 | = | **(live)** `/new-interview` marketing hero unchanged, tenth audit (PREPIO-111). |
