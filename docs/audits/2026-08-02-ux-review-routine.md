@@ -45,16 +45,21 @@ the **sixth** straight week (`research-preview` CORS/404), the practice
 Favorite/Needs-work flags still `400 / 42P10` on every click (migration
 `20260710203000` unapplied), and paid checkout would still fail after
 sign-in (`create-checkout-session`/`stripe-webhook` undeployed). The one
-piece of forward motion is in *code, not production*: a **PREPIO-111 fix
-that replaces the `/new-interview` marketing hero with a task header is now
-committed on this review branch** (`b9a3a0c`) awaiting merge — but live
-`/new-interview` still reads *"Get insider insights on any company's
-interview process… for you and your friends"* (11th audit), so it hasn't
-reached users yet. A new, sharper read on the broken flags: the failure is
-**not silent — it is misleading**. Clicking *Needs work* renders the button
-in its active dark-green treatment (optimistic UI) while the DB write 400s
-and `aria-pressed` stays `"false"`, so a sighted user is told it worked, a
-screen-reader user is told it didn't, and nothing persists. The
+piece of forward motion is in *code, not production*: the **PREPIO-111 fix
+that replaces the `/new-interview` marketing hero with a task header merged
+to `main` mid-session** (`b9a3a0c`; `origin/main` advanced from `bc34f68`
+to `b9a3a0c` while this review was running). Live `/new-interview` still
+read *"Get insider insights on any company's interview process… for you and
+your friends"* at test time (12:21, before the merge landed — 11th audit),
+so the remaining action for PREPIO-111 is **deploy verification, not
+merging**. On the broken flags, the failure is **silent**: `handleToggleFlag`
+(`Practice.tsx:1336–1347`) only latches the active state *after*
+`result.success`, so on the 400 the button label stays *"Needs work"* and
+`aria-pressed` stays `"false"` (correctly inactive) — the write just fails
+with nothing but a `console.error`, no user-facing toast. (An earlier draft
+mis-read the screenshot's dark-green button as an optimistic "looks like
+success" state; that is a sticky `:hover` artifact of the synthetic tap, not
+a latched active state — corrected per this PR's automated review.) The
 highest-value action remains a single attended backend deploy — it recovers
 guest conversion, monetization, transcription, answer feedback, and the
 practice flags at once. It is intentionally not performed by this
@@ -78,14 +83,15 @@ unattended review job.
 - **Tracking:** assumed still blocked by the Linear free-issue cap (run #9–#11 finding; not re-tested this run). GitHub-ready ticket #1.
 - **Not performed by the review job** — cost-incurring, guest-facing, unattended.
 
-### 2. **P1 (carried, refined) — Practice Favorite / Needs-work still fail on every click (`400 / 42P10`), and the failure now *looks like success***
+### 2. **P1 (carried) — Practice Favorite / Needs-work still fail on every click (`400 / 42P10`), silently — no user-facing error**
 
-- **Severity:** P1 (a labeled core action fails, the UI signals success, curation data is lost, and the a11y state contradicts the visual state)
-- **Area:** practice / accessibility
-- **What happened (live, mobile 390×844, Q1 "How do you handle scope changes in ongoing AI projects?"):** clicking *Favorite* then *Needs work* produced two `POST …/rest/v1/user_question_flags?on_conflict=user_id,question_id,flag_type → 400` with console `Error setting question flag: {code: 42P10, message: "there is no unique or exclusion constraint matching the ON CONFLICT specification"}`. **New this run:** the *Needs work* button nonetheless renders in its **active dark-green treatment** (optimistic toggle) in [`62-m-flags.png`](./assets/2026-08-02/62-m-flags.png), while `aria-pressed` stays `"false"` on both buttons and nothing persists. So the failure is *misleading*, not merely silent.
+- **Severity:** P1 (a labeled core action fails, the user gets no error, curation data is lost)
+- **Area:** practice
+- **What happened (live, mobile 390×844, Q1 "How do you handle scope changes in ongoing AI projects?"):** clicking *Favorite* then *Needs work* produced two `POST …/rest/v1/user_question_flags?on_conflict=user_id,question_id,flag_type → 400` with console `Error setting question flag: {code: 42P10, message: "there is no unique or exclusion constraint matching the ON CONFLICT specification"}`. Both button labels stayed *"Favorite"* / *"Needs work"* and `aria-pressed` stayed `"false"` — i.e. the React state correctly reflects an inactive (failed) flag; nothing persists and the user sees no error. [`62-m-flags.png`](./assets/2026-08-02/62-m-flags.png).
+  - **Screenshot caveat (corrected per this PR's automated review):** the dark-green fill on *Needs work* in that screenshot is **not** an active/latched state — it is the outline button's `hover:bg-accent` treatment left sticky after the synthetic tap (the probe clicked *Favorite* then *Needs work*, so the cursor rested on *Needs work*). `handleToggleFlag` (`Practice.tsx:1336–1347`) updates `questionFlags` **only** after `result.success`, so there is no optimistic latch and no `aria-pressed`/visual mismatch in real use.
 - **Root cause (unchanged, DB-verified prior runs):** `user_question_flags` still carries the old `UNIQUE (user_id, question_id)`; migration `20260710203000_question_flags_per_type` (drops it, adds `(user_id, question_id, flag_type)`) is one of the 7 unapplied migrations from issue #1. `searchService.ts:~1719` upserts on the new tuple, so the upsert 400s.
-- **Why it matters:** a user who taps *Needs work* sees the button light up and believes the question is flagged for another pass; it is not, and their curation is lost with no error. The optimistic visual + `aria-pressed=false` mismatch is also a WCAG 4.1.2 (name/role/value) defect.
-- **Recommended fix:** the write recovers via issue #1's migration. Independently of the deploy, the frontend should (a) surface a toast on flag-write failure, and (b) only latch the active visual state after the write resolves (or roll it back on error) so optimistic UI can't lie. *This half is a code fix that does not depend on the deploy.*
+- **Why it matters:** a user who taps *Needs work* to mark a question for another pass gets no confirmation and no error; the flag never persists and the curation is silently lost.
+- **Recommended fix:** the write recovers via issue #1's migration. Independently of the deploy, the frontend should **surface a toast on flag-write failure** — today `handleToggleFlag` only `console.error`s, so the failure is invisible to the user. (The optimistic-state rollback an earlier draft asked for already exists — the code latches only on success.) Optionally, guard the flag buttons' hover styling behind `@media (hover: hover)` so a mobile tap doesn't leave a sticky accent fill. *These are code fixes that do not depend on the deploy.*
 - **Tracking:** Linear cap (assumed). GitHub-ready ticket #2.
 
 ### 3. **REPEAT P1 (fifth consecutive week) — Practice launches into a "Breathe in… / Cycle 1 of 3" breathing interstitial before Q1**
@@ -129,9 +135,9 @@ unattended review job.
 - **Logged-out checkout routes to `/auth`** — *Choose monthly* on `/pricing` while logged out navigates to `/auth` with **no console error** ([`15-d-checkout-attempt.png`](./assets/2026-08-02/15-d-checkout-attempt.png)) — correct gating. (The undeployed `create-checkout-session` breakage only manifests for an *authenticated* user, per run #11.)
 - **`/dashboard` logged-out → `/auth`** — protected-route redirect correct.
 
-### One bit of forward motion (code, not yet live)
+### One bit of forward motion (merged to `main` mid-session, not yet live)
 
-- **PREPIO-111 fix is committed on this review branch** (`b9a3a0c`, *"Replace marketing hero on signed-in /new-interview with a task header"*): the logged-in `/new-interview` hero becomes *"Prep a new interview"* with a back-to-Your-interviews breadcrumb on both breakpoints. **Not merged, not deployed** — live `/new-interview` still reads the marketing hero *"Prepio · Get insider insights on any company's interview process. Tailored prep for you and your friends"* ([`11-d-new-interview.png`](./assets/2026-08-02/11-d-new-interview.png)), 11th audit. Merging this branch's PR ships it.
+- **PREPIO-111 fix merged to `main` during this review** (`b9a3a0c`, *"Replace marketing hero on signed-in /new-interview with a task header"*): the logged-in `/new-interview` hero becomes *"Prep a new interview"* with a back-to-Your-interviews breadcrumb on both breakpoints. `origin/main` advanced `bc34f68 → b9a3a0c` while this review ran, so it is **merged, not awaiting merge** (correction per this PR's automated review). At test time (12:21, before the merge landed) live `/new-interview` still read the marketing hero *"Prepio · Get insider insights on any company's interview process. Tailored prep for you and your friends"* ([`11-d-new-interview.png`](./assets/2026-08-02/11-d-new-interview.png)), 11th audit. The remaining action is **deploy verification** — confirm Vercel has served `b9a3a0c` to production and the task header now renders live.
 
 ### Tracked repeats confirmed live
 
@@ -146,23 +152,23 @@ Rows marked **↑** improved since run #11, **=** unchanged, **↓** worse. Cell
 | Area | Run #11 | Run #12 | Trend | Notes |
 |------|------:|------:|------|-------|
 | First-time understanding | 3 | 3 | = | **(live)** Landing hero + static example strong; guest preview broken sixth week (issue #1). |
-| Research entry | 3 | 3 | = | **(live)** `/new-interview` marketing hero unchanged live (11th audit); fix committed on-branch but unshipped. |
+| Research entry | 3 | 3 | = | **(live)** `/new-interview` marketing hero still live at test time (11th audit); PREPIO-111 fix merged to `main` mid-session (`b9a3a0c`), awaiting deploy. |
 | Research progress/loading | — | — | = | Not scored — guest preview 404s and no fresh authenticated research run kicked off (practiced the existing OpenAI SA interview). Ninth owed cycle. |
 | Generated output clarity | 4 | 4 | = | **(live)** Q1 (Behavioral Round, Medium) is a clean question-as-hero; 40 questions / 4 stages. |
-| Practice mode | 2 | 2 | = | **(live)** Interstitial still gates Q1 (5th wk) and flags still 400 — now with a *misleading* optimistic visual (issue #2). Save path itself works (201). Held at the run-#11 low. |
-| Mobile usability | 3 | 3 | = | **(live)** Clean question-as-hero, all touch targets ≥44px; undercut by the two broken flag buttons on that same screen. |
+| Practice mode | 2 | 2 | = | **(live)** Interstitial still gates Q1 (5th wk) and flags still 400 — silently, no user-facing error (issue #2). Save path itself works (201). Held at the run-#11 low. |
+| Mobile usability | 3 | 3 | = | **(live)** Clean question-as-hero, all touch targets ≥44px; undercut by the two silently-broken flag buttons on that same screen. |
 | Resume/profile trust | 4 | 4 | = | Not re-audited in depth (tester PII); `/new-interview` shows *"CV added (6,434 chars)… Last updated 5/17/2026 … Personalizes every question"* — profile memory intact. |
 | Dashboard/history/resume | 3 | 3 | = | **(live)** Counter/History mismatch persists (10% vs empty), sixth week. |
-| Error/empty states | 2 | 2 | = | **(live)** Guest-preview error banner honest but right column stays silently pre-click; flag failure looks like success (issue #2). Held at run-#11 low. |
-| Accessibility | 3 | 3 | = | **(live)** Skip-to-main + ≥44px targets confirmed; `aria-pressed=false` while the button renders active (issue #2, WCAG 4.1.2); `autocomplete=null` unfixed (issue #5). Real SR pass still owed. |
+| Error/empty states | 2 | 2 | = | **(live)** Guest-preview error banner honest but right column stays silently pre-click; flag failure is silent — no toast (issue #2). Held at run-#11 low. |
+| Accessibility | 3 | 3 | = | **(live)** Skip-to-main + ≥44px targets confirmed; `aria-pressed` correctly tracks flag state (the dark-green in the screenshot is sticky hover, not an active-state mismatch — see issue #2); `autocomplete=null` unfixed (issue #5). Real SR pass still owed. |
 | Copy quality | 4 | 4 | = | **(live)** Hero, autosave, pricing copy all honest. "Cycle 1 of 3" interstitial still reads as from a different app. |
 
 **Composite trend: flat vs run #11 (which was already −2 vs run #9).** Nothing
 shipped to production this week, so the low scores hold rather than recover.
-The one refinement — the flag failure being *misleading* rather than silent —
-argues Practice mode/Error states are marginally worse in kind if not in
-number; kept at 2/2 rather than dropped further because the underlying
-break is the same one, just seen more clearly.
+The flag failure is silent (no user-facing toast) but the code correctly
+keeps `aria-pressed`/label inactive on failure, so there is no
+accessibility-state regression to add — Practice mode and Error states are
+held at the run-#11 low of 2/2 for the same underlying break.
 
 ## Regression check
 
@@ -170,10 +176,10 @@ break is the same one, just seen more clearly.
 |------|-------|------|
 | Production backend frozen at 2026-05-15 | **Still frozen — unchanged from run #11** | 7 pending migrations + 7 undeployed functions, byte-identical `list_migrations`/`list_edge_functions`. **P0.** |
 | Guest "Preview my prep" broken | **Still broken — sixth consecutive week** | `research-preview` CORS/404. Part of issue #1. |
-| Practice flags broken (`400 / 42P10`) | **Still broken — now visibly misleading** | New this run: *Needs work* renders active (optimistic) while write 400s and `aria-pressed=false`. **P1**, issue #2. |
+| Practice flags broken (`400 / 42P10`) | **Still broken — silent (no toast)** | Every click 400s; label + `aria-pressed` correctly stay inactive, but the user sees no error. **P1**, issue #2. |
 | Breathing interstitial before Q1 | **Still broken — fifth consecutive week** | `main`-branch issue. Issue #3. |
 | Interviews counter vs History mismatch | **Still broken — sixth consecutive week** | 10% vs empty. Issue #4. |
-| `/new-interview` marketing hero | **Unfixed live (11th audit)** — fix now on-branch | [PREPIO-111](https://linear.app/qiuyue/issue/PREPIO-111). `b9a3a0c` on this branch replaces it; merge to ship. |
+| `/new-interview` marketing hero | **Merged to `main` mid-session — awaiting deploy** | [PREPIO-111](https://linear.app/qiuyue/issue/PREPIO-111). `b9a3a0c` on `main` (advanced `bc34f68→b9a3a0c` during this run); live still showed the hero at test time (11th audit). Deploy verification remains. |
 | Nav has no "Interviews" link + `/dashboard` collision | **Still open** ([PREPIO-101](https://linear.app/qiuyue/issue/PREPIO-101), In Progress) | **11th audit unshipped.** |
 | `/auth` autocomplete missing | **Still unfixed in `main`** ([PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123)) | 8th audit. #244 never merged. Issue #5. |
 | Save & Continue writes answer (201) | **Holding** ✅ | `practice_answers` POST → 201 this run. |
@@ -184,9 +190,10 @@ break is the same one, just seen more clearly.
 
 **Zero of the long-running P0/P1/P2 findings shipped to production. The
 dominant fact is unchanged from run #11: the production backend has not been
-deployed in ~2.5 months. The single new nuance is that the broken practice
-flag is misleading, not merely silent. The single positive is that a
-PREPIO-111 fix now exists on this review branch awaiting merge.**
+deployed in ~2.5 months, and the broken practice flag fails silently (no
+user-facing error). The single positive is that the PREPIO-111 fix merged to
+`main` mid-session (`b9a3a0c`) — it now awaits deploy verification rather
+than merging.**
 
 ## Recommended tickets
 
@@ -196,17 +203,17 @@ Once the cap is lifted, file these to Linear per CLAUDE.md conventions
 (Quality & Maintenance unless noted).
 
 1. **[P0] Deploy the production backend to parity with `main` and add a drift guard.** Reconcile the divergent migration history (`billing_v1`, `security_hardening_and_resume_rpc`) and pre-check for duplicate `(user_id, question_id, flag_type)` rows; then `npm run db:push` (7 pending) and `npm run functions:deploy` (7 missing incl. `research-preview`, `stripe-webhook`, `profile-import`; verify `verify_jwt=false` on `research-preview`). Smoke-test guest preview, a real checkout→`stripe-webhook`→entitlement round-trip, flag toggle (+`aria-pressed`), transcription, and answer feedback. Add a deploy-parity CI/health check. *Type: Bug · area:infra.*
-2. **[P1] Make practice flag writes honest — toast on failure + latch visual state only after the write resolves.** Independent of the deploy: on a `user_question_flags` write error, show a toast and roll back the optimistic active treatment so *Needs work* can't render "on" while the write 400s and `aria-pressed` stays `false`. *Type: Bug · area:practice.*
+2. **[P1] Surface a toast when a practice flag write fails.** Independent of the deploy: `handleToggleFlag` (`Practice.tsx:1336–1347`) today only `console.error`s on a `user_question_flags` write error, so the failure is invisible to the user — show a toast. (Active-state latching already happens only on success; no rollback needed.) Optionally guard the flag buttons' hover styling behind `@media (hover: hover)` so a mobile tap doesn't leave a sticky accent fill. *Type: Bug · area:practice.*
 3. **[P1] Remove the breathing interstitial from the default practice start** (opt-in off by default, or invert "Don't show again" + cap the gate at ≤5s and auto-advance). *Type: Bug · area:practice.*
 4. **[P2] Reconcile the Interviews "practiced" counter with History** — render in-progress sessions as a resume row in `/history` (preferred), or relabel the counter to "answered" with a tooltip. *Type: Bug · area:practice.*
 5. **[P2] Ship `autocomplete` on `/auth` (PREPIO-123)** — add `email` / `current-password` / `new-password` to sign-in and sign-up fields. PR #244 already implements it; rebase-and-merge or re-implement. *Existing issue — update, don't re-file. Type: Bug · area:auth.*
-6. **[P3] Merge the on-branch PREPIO-111 fix.** `b9a3a0c` replaces the `/new-interview` marketing hero with a task header; it just needs to land and deploy. *Existing issue — update on merge.*
+6. **[P3] Verify the PREPIO-111 deploy.** `b9a3a0c` (marketing hero → task header on `/new-interview`) is already merged to `main`; confirm Vercel has served it to production and the task header renders live. *Existing issue — update once deploy-verified.*
 
 ## Next-run focus
 
 1. **Re-verify the backend deploy** (ticket 1): guest-preview OPTIONS→200 + POST; authenticated *Choose monthly* → Stripe redirect **and** a webhook→entitlement update; flag toggle persists and `aria-pressed` flips.
-2. **Confirm whether the PREPIO-111 fix (this branch) merged** and `/new-interview` now shows the task header live.
-3. **Re-test the flag optimistic-visual fix** (ticket 2) even before the deploy — the toast + rollback is a frontend-only change.
+2. **Confirm the PREPIO-111 deploy landed** — `b9a3a0c` is on `main`; verify `/new-interview` now shows the task header live.
+3. **Re-test the flag failure toast** (ticket 2) even before the deploy — the toast is a frontend-only change.
 4. **Budget a real authenticated research run end-to-end** — ninth audit owed. Rotate to a fresh company (Palantir, Amazon).
 5. **Real keyboard-only + screen-reader pass** — still owed; pair it with the `aria-pressed` and `autocomplete` checks.
 
