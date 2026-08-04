@@ -196,7 +196,6 @@
         "npm:globals@^15.9.0",
         "npm:input-otp@^1.2.4",
         "npm:jsdom@^29.1.1",
-        "npm:lovable-tagger@^1.1.7",
         "npm:lucide-react@0.462",
         "npm:mammoth@^1.12.0",
         "npm:next-themes@~0.4.6",
