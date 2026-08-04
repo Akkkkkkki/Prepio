@@ -25,6 +25,7 @@ export type PrepPlan = {
     level: Level;
     overallConfidence: Confidence;
     weakSignalCase: boolean;
+    researchFreshness?: ResearchFreshness;
   };
   assessmentSignals: AssessmentSignal[];
   stageRoadmap: StagePlan[];
@@ -100,6 +101,30 @@ export type EvidenceItem = {
   relevance: Priority;
   trustWeight: Priority;
   contradictionGroup: string | null;
+};
+
+export type ResearchSourceDate = {
+  url: string;
+  publishedAt: string | null;
+  observedAt: string;
+};
+
+export type ResearchFreshness = {
+  sourceCount: number;
+  datedSourceCount: number;
+  /** When the run assembled this metadata. */
+  observedAt: string;
+  /**
+   * Earliest / latest time a source was actually fetched from its origin.
+   * Optional: plans generated before these fields existed only carry
+   * `observedAt`.
+   */
+  oldestObservedAt?: string | null;
+  newestObservedAt?: string | null;
+  oldestPublishedAt: string | null;
+  newestPublishedAt: string | null;
+  sourceDates: ResearchSourceDate[];
+  summary: string;
 };
 
 // ── Database row shape (matches prep_plans table JSONB columns) ──

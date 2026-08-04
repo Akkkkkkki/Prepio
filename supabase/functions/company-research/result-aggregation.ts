@@ -13,6 +13,11 @@ export interface CachedContentRow {
     raw_content?: unknown;
     score?: number;
   };
+  /**
+   * When the cached row was originally scraped. Reusing it does not re-check
+   * the source, so this is carried through instead of the current run time.
+   */
+  observed_at?: string | null;
 }
 
 export interface SearchResultRecord {
@@ -22,6 +27,8 @@ export interface SearchResultRecord {
   raw_content: unknown;
   score: number | undefined;
   published_date: string | null;
+  /** Present only for cache-reused results; fresh results are observed now. */
+  observed_at?: string | null;
 }
 
 export interface SearchPayload {
@@ -50,6 +57,7 @@ function cachedRowToRecord(cached: CachedContentRow): SearchResultRecord {
     raw_content: cached.content.raw_content,
     score: cached.content.score,
     published_date: null,
+    observed_at: cached.observed_at ?? null,
   };
 }
 
