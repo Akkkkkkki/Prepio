@@ -1276,7 +1276,6 @@ const Home = () => {
             <InterviewBriefPreview preview={preview} />
             <PrepAskPanel preview={preview} />
             <ConversionPanel
-              onSavePlan={() => navigateToAuth(GUEST_RESEARCH_RESUME_STEP)}
               onGenerateFullPlan={() => navigateToAuth(GUEST_RESEARCH_RESUME_STEP)}
             />
           </div>
