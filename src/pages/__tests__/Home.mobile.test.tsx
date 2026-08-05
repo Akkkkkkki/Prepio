@@ -321,7 +321,7 @@ describe("Home flow", () => {
     expect(screen.queryByTestId("auth-state")).not.toBeInTheDocument();
   });
 
-  it("saves the guest preview draft and carries preview auth state to /auth", async () => {
+  it("shows one guest conversion CTA and carries preview auth state to /auth", async () => {
     renderHome();
 
     fireEvent.change(screen.getByLabelText("Company *"), {
@@ -333,7 +333,8 @@ describe("Home flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
 
     expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Generate full practice set" }));
+    expect(screen.queryByRole("button", { name: "Save full plan" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in to generate full practice set" }));
 
     const savedDraft = JSON.parse(
       window.sessionStorage.getItem(RESEARCH_DRAFT_STORAGE_KEY) || "{}",
