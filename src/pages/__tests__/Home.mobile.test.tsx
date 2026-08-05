@@ -333,7 +333,7 @@ describe("Home flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
 
     expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save full plan" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save full plan" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Sign in to generate full practice set" }));
 
     const savedDraft = JSON.parse(
