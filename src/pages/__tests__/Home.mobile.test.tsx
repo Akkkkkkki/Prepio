@@ -321,7 +321,7 @@ describe("Home flow", () => {
     expect(screen.queryByTestId("auth-state")).not.toBeInTheDocument();
   });
 
-  it("shows one guest conversion CTA and carries preview auth state to /auth", async () => {
+  it("saves the guest preview draft and carries preview auth state to /auth", async () => {
     renderHome();
 
     fireEvent.change(screen.getByLabelText("Company *"), {
@@ -333,8 +333,7 @@ describe("Home flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
 
     expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save full plan" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Sign in to generate full practice set" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate full practice set" }));
 
     const savedDraft = JSON.parse(
       window.sessionStorage.getItem(RESEARCH_DRAFT_STORAGE_KEY) || "{}",
@@ -585,7 +584,7 @@ describe("Home flow", () => {
     mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
     mockStartProcessing.mockResolvedValue({
       success: false,
-      error: new Error("Timed out while starting research"),
+      error: new Error("Research worker unavailable"),
     });
 
     renderHome();
@@ -603,7 +602,7 @@ describe("Home flow", () => {
       expect(mockToast).toHaveBeenCalledWith(
         expect.objectContaining({
           title: "Error Starting Research",
-          description: "Timed out while starting research",
+          description: "Research worker unavailable",
           variant: "destructive",
         }),
       );

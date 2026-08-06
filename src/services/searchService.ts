@@ -33,7 +33,6 @@ interface CreateResearchPreviewParams {
   country?: string;
 }
 
-const RESEARCH_START_TIMEOUT_MS = 15000;
 const PRACTICE_AUDIO_BUCKET = "practice-audio";
 
 interface ResumeFileInput {
@@ -473,27 +472,20 @@ export const searchService = {
       }
       const normalizedRoleLinks = normalizeRoleLinks(roleLinks);
 
-      const response = await Promise.race([
-        supabase.functions.invoke("interview-research", {
-          body: {
-            company,
-            role,
-            country,
-            roleLinks: normalizedRoleLinks,
-            cv,
-            level,
-            userNote,
-            jobDescription,
-            userId: user.id,
-            searchId,
-          }
-        }),
-        new Promise<never>((_, reject) => {
-          window.setTimeout(() => {
-            reject(new Error("Timed out while starting research"));
-          }, RESEARCH_START_TIMEOUT_MS);
-        }),
-      ]);
+      const response = await supabase.functions.invoke("interview-research", {
+        body: {
+          company,
+          role,
+          country,
+          roleLinks: normalizedRoleLinks,
+          cv,
+          level,
+          userNote,
+          jobDescription,
+          userId: user.id,
+          searchId,
+        }
+      });
 
       if (response.error) {
         throw response.error;

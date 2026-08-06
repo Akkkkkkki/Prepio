@@ -5,16 +5,16 @@ How interview research works today, why output quality is below bar, and the tar
 design decisions; the work is tracked in Linear under the **[Epic] Research pipeline v3 —
 grounded evidence architecture** (PREPIO-76) in Quality & Maintenance.
 
-Status: design approved for incremental rollout. Last reviewed 2026-06-12.
+Status: design approved for incremental rollout. Last reviewed 2026-08-06.
 
 ## The pipeline as shipped (v2)
 
 `interview-research` orchestrates three concurrent gatherers, then one synthesis call:
 
 ```
-Browser ──► interview-research (orchestrator)
+Browser ──► interview-research (202 acknowledgement; background orchestrator)
               │
-              ├─ PHASE 1 (concurrent, per-call timeouts 15–20s)
+              ├─ PHASE 1 (concurrent, per-call stall guards 45–120s)
               │    ├─ company-research   → company insights + interview reports
               │    ├─ job-analysis       → requirements from role links (Tavily extract)
               │    └─ cv-analysis        → structured CV data
@@ -34,11 +34,12 @@ deep-extraction phase.
 
 ## Why quality is below bar
 
-Two classes of problems. The first class — **retrieval depth** — is known and tracked
-(PREPIO-40 and its tier): everything was cut to fit a synchronous 15s timeout. Queries
-sliced to 2, `maxResults: 3`, `searchDepth: 'basic'`, raw content off, the deep-extraction
-phase skipped, caching disabled. The analyzer is asked for "EXACT questions candidates were
-asked" while being fed a handful of search snippets.
+Two classes of problems. The first class — **retrieval depth** — is known and tracked.
+PREPIO-40 moved orchestration into background work, removed the browser and company-research
+15-second wall-clock races, and retained longer per-phase stall guards. The follow-on depth
+work remains: queries are sliced to 2, `maxResults: 3`, `searchDepth: 'basic'`, the
+deep-extraction phase is skipped, and caching is disabled. The analyzer is asked for
+"EXACT questions candidates were asked" while being fed a handful of search snippets.
 
 The second class — **evidence integrity** — surfaced in the 2026-06-12 review and is the
 core of v3:
