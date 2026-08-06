@@ -1284,6 +1284,7 @@ const getInterviewerFocus = (
       setTempDifficulties([]);
       setTempShuffle(false);
       setTempShowFavoritesOnly(false);
+      setTempBreathingBreak(false);
     }
     setSelectedPreset(null);
     if (typeof window !== "undefined") {
