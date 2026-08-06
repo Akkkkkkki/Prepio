@@ -291,16 +291,16 @@ describe("Practice mobile layout", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("Practice setup")).toBeInTheDocument();
+    expect(await screen.findByText("Practice setup")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
 
     expect(
       await screen.findByText(
         "How did you leverage LLM technology in the AI product evaluation at Hg Capital?",
       ),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("Breathe in...")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument();
+    ).toBeTruthy();
+    expect(screen.queryByText("Breathe in...")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
   });
 
   it("shows the breathing warm-up only when opted in from the setup options", async () => {
@@ -319,7 +319,7 @@ describe("Practice mobile layout", () => {
     fireEvent.click(await screen.findByRole("button", { name: /breathing warm-up/i }));
     fireEvent.click(await screen.findByRole("button", { name: "Start custom session" }));
 
-    expect(await screen.findByText("Breathe in...")).toBeInTheDocument();
+    expect(await screen.findByText("Breathe in...")).toBeTruthy();
   });
 
   it("starts with notes expanded and preserves them across coach sheet open/close", async () => {
