@@ -61,7 +61,7 @@ import { PracticeHelperDrawer } from "@/components/practice/PracticeHelperDrawer
 import { QuestionInsightsPanel } from "@/components/practice/QuestionInsightsPanel";
 import { MobileCoachModal } from "@/components/practice/MobileCoachModal";
 import { CompletionCheckmark } from "@/components/practice/CompletionCheckmark";
-import { BreathingBreak, BREATHING_DISMISSED_KEY } from "@/components/practice/BreathingBreak";
+import { BreathingBreak } from "@/components/practice/BreathingBreak";
 import { FollowUpDrill } from "@/components/practice/FollowUpDrill";
 import type { SavedPracticeAnswerRecord } from "@/hooks/usePracticeSession";
 import { cn } from "@/lib/utils";
@@ -120,6 +120,7 @@ type PracticeDefaults = {
   shuffle: boolean;
   favoritesOnly: boolean;
   interviewerMode?: boolean;
+  breathingBreak?: boolean;
 };
 
 interface EnhancedQuestion {
@@ -250,6 +251,9 @@ const Practice = () => {
   const [tempShuffle, setTempShuffle] = useState<boolean>(false);
   const [tempInterviewerMode, setTempInterviewerMode] = useState<boolean>(false);
   const [appliedInterviewerMode, setAppliedInterviewerMode] = useState<boolean>(false);
+  // Optional pre-question breathing warm-up. Off by default so Q1 is the hero;
+  // users opt in from the setup options and the choice persists with defaults.
+  const [tempBreathingBreak, setTempBreathingBreak] = useState<boolean>(false);
   // Set right after a save in interviewer mode; the advance (or session
   // finalization) is held until the follow-up is dismissed.
   const [pendingFollowUp, setPendingFollowUp] = useState<{
@@ -462,6 +466,9 @@ const Practice = () => {
         if (typeof parsed.interviewerMode === "boolean") {
           setTempInterviewerMode(parsed.interviewerMode);
         }
+        if (typeof parsed.breathingBreak === "boolean") {
+          setTempBreathingBreak(parsed.breathingBreak);
+        }
         const isQuickDefault =
           parsed.sampleSize === practicePresets.quick.config.sampleSize &&
           parsed.categories.length === 0 &&
@@ -491,7 +498,8 @@ const Practice = () => {
       difficulties: tempDifficulties,
       shuffle: tempShuffle,
       favoritesOnly: tempShowFavoritesOnly,
-      interviewerMode: tempInterviewerMode
+      interviewerMode: tempInterviewerMode,
+      breathingBreak: tempBreathingBreak
     };
 
     try {
@@ -1133,6 +1141,7 @@ const getInterviewerFocus = (
     shuffle = tempShuffle,
     favoritesOnly = tempShowFavoritesOnly,
     interviewerMode = tempInterviewerMode,
+    breathingBreak = tempBreathingBreak,
     stages = allStages,
     nextSampleSize = sampleSize,
     nextPreset = selectedPreset,
@@ -1142,6 +1151,7 @@ const getInterviewerFocus = (
     shuffle?: boolean;
     favoritesOnly?: boolean;
     interviewerMode?: boolean;
+    breathingBreak?: boolean;
     stages?: InterviewStage[];
     nextSampleSize?: number;
     nextPreset?: string | null;
@@ -1184,7 +1194,8 @@ const getInterviewerFocus = (
       difficulties,
       shuffle,
       favoritesOnly,
-      interviewerMode
+      interviewerMode,
+      breathingBreak
     });
     if (typeof window !== "undefined") {
       sessionStorage.removeItem(swipeHintStorageKey);
@@ -1195,8 +1206,7 @@ const getInterviewerFocus = (
     setSetupStep(0);
     setSelectedPreset(nextPreset);
     setUseSampling(true);
-    const breathingDismissed = localStorage.getItem(BREATHING_DISMISSED_KEY) === "true";
-    setSessionState(breathingDismissed ? 'inProgress' : 'breathing');
+    setSessionState(breathingBreak ? 'breathing' : 'inProgress');
     setCurrentIndex(0);
     setIsCoachSheetOpen(false);
     setIsNotesExpanded(true);
@@ -2183,6 +2193,17 @@ const getInterviewerFocus = (
                     </button>
                     <button
                       type="button"
+                      onClick={() => setTempBreathingBreak(prev => !prev)}
+                      className={cn(
+                        "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition",
+                        tempBreathingBreak ? "border-primary bg-primary/5" : "border-border bg-background"
+                      )}
+                    >
+                      <span>Breathing warm-up</span>
+                      <span className="text-muted-foreground">{tempBreathingBreak ? "On" : "Off"}</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setRememberDefaults(prev => !prev)}
                       className={cn(
                         "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition",
@@ -2424,6 +2445,17 @@ const getInterviewerFocus = (
                         >
                           <span>Interviewer follow-ups</span>
                           <span className="text-muted-foreground">{tempInterviewerMode ? "On" : "Off"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTempBreathingBreak(prev => !prev)}
+                          className={cn(
+                            "flex items-center justify-between rounded-xl border px-4 py-3 text-sm transition",
+                            tempBreathingBreak ? "border-primary bg-primary/5" : "border-border bg-background",
+                          )}
+                        >
+                          <span>Breathing warm-up</span>
+                          <span className="text-muted-foreground">{tempBreathingBreak ? "On" : "Off"}</span>
                         </button>
                         <button
                           type="button"
