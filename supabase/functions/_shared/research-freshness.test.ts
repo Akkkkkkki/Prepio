@@ -187,6 +187,54 @@ describe("mergeResearchFreshness", () => {
     );
   });
 
+  it("merges duplicate sources without losing dated metadata or newer observation time", () => {
+    const cachedCompany = buildResearchFreshness(
+      [
+        {
+          results: [
+            {
+              url: "https://example.com/shared",
+              observed_at: "2026-01-04T09:30:00.000Z",
+            },
+          ],
+        },
+      ],
+      OBSERVED_AT,
+    );
+    const extractedJob = buildResearchFreshness(
+      [
+        {
+          results: [
+            {
+              url: "https://example.com/shared",
+              published_date: "2026-02-10",
+              observed_at: "2026-07-23T12:00:00.000Z",
+            },
+          ],
+        },
+      ],
+      OBSERVED_AT,
+    );
+
+    const merged = mergeResearchFreshness([cachedCompany, extractedJob]);
+
+    expect(merged?.sourceCount).toBe(1);
+    expect(merged?.datedSourceCount).toBe(1);
+    expect(merged?.oldestPublishedAt).toBe("2026-02-10");
+    expect(merged?.oldestObservedAt).toBe(OBSERVED_AT);
+    expect(merged?.newestObservedAt).toBe(OBSERVED_AT);
+    expect(merged?.sourceDates).toEqual([
+      {
+        url: "https://example.com/shared",
+        publishedAt: "2026-02-10",
+        observedAt: OBSERVED_AT,
+      },
+    ]);
+    expect(merged?.summary).toBe(
+      "Based on 1 source; the dated report is from 2026.",
+    );
+  });
+
   it("returns null when no retrieval path produced freshness", () => {
     expect(mergeResearchFreshness([null, undefined])).toBeNull();
   });
