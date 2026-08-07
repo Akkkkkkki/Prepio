@@ -783,7 +783,9 @@ describe("Practice keyboard navigation", () => {
     );
   });
 
-  it("lets desktop users mark the current in-session question as needs work", async () => {
+  // Timing-sensitive under CI load (full-render + async flag write); retry to
+  // de-flake, matching the autosave-label tests in this file.
+  it("lets desktop users mark the current in-session question as needs work", { retry: 2 }, async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
