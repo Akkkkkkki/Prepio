@@ -2,7 +2,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
-import { TooltipProvider } from "@/components/ui/tooltip";
 import Interviews from "../Interviews";
 
 const mockGetInterviewSummaries = vi.fn();
@@ -19,14 +18,12 @@ vi.mock("@/services/searchService", () => ({
 
 const renderInterviews = () =>
   render(
-    <TooltipProvider>
-      <MemoryRouter initialEntries={["/interviews"]}>
-        <Routes>
-          <Route path="/interviews" element={<Interviews />} />
-          <Route path="/new-interview" element={<div>New interview target</div>} />
-        </Routes>
-      </MemoryRouter>
-    </TooltipProvider>,
+    <MemoryRouter initialEntries={["/interviews"]}>
+      <Routes>
+        <Route path="/interviews" element={<Interviews />} />
+        <Route path="/new-interview" element={<div>New interview target</div>} />
+      </Routes>
+    </MemoryRouter>,
   );
 
 describe("Interviews home", () => {
@@ -77,7 +74,7 @@ describe("Interviews home", () => {
     expect(screen.getByText("6 of 14 answered · 43%")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "What the answered count means" }),
-    ).toBeInTheDocument();
+    ).toBeTruthy();
     expect(screen.getByText("3 questions still need work")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Practice these/ })).toHaveAttribute(
       "href",

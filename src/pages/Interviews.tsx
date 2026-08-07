@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { badgeToneClassName } from "@/lib/designTokens";
 import {
   searchService,
@@ -65,8 +65,8 @@ const InterviewCard = ({ interview }: { interview: InterviewSummary }) => {
               <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="flex items-center gap-1.5">
                   {interview.practicedQuestions} of {interview.totalQuestions} answered · {interview.progressPercent}%
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                  <Popover>
+                    <PopoverTrigger asChild>
                       <button
                         type="button"
                         className="text-muted-foreground transition hover:text-foreground"
@@ -74,11 +74,11 @@ const InterviewCard = ({ interview }: { interview: InterviewSummary }) => {
                       >
                         <Info className="h-3.5 w-3.5" aria-hidden="true" />
                       </button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-3 text-sm leading-5">
                       Counts questions you&apos;ve answered so far. Completed practice sessions show up in History.
-                    </TooltipContent>
-                  </Tooltip>
+                    </PopoverContent>
+                  </Popover>
                 </span>
               </div>
               <Progress value={interview.progressPercent} />
