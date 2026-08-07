@@ -477,8 +477,8 @@ describe("Practice mobile layout", () => {
 
     // The button must not latch when the write failed.
     expect(
-      screen.getByRole("button", { name: "Needs work" }),
-    ).toHaveAttribute("aria-pressed", "false");
+      screen.getByRole("button", { name: "Needs work" }).getAttribute("aria-pressed"),
+    ).toBe("false");
     consoleErrorSpy.mockRestore();
   });
 
@@ -496,8 +496,8 @@ describe("Practice mobile layout", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Needs work" }));
 
     expect(
-      await screen.findByRole("button", { name: "Needs work flagged" }),
-    ).toHaveAttribute("aria-pressed", "true");
+      (await screen.findByRole("button", { name: "Needs work flagged" })).getAttribute("aria-pressed"),
+    ).toBe("true");
     expect(mockToast).not.toHaveBeenCalled();
   });
 
