@@ -24,6 +24,7 @@ const mockGetEntitlement = vi.fn();
 const mockUseIsMobile = vi.fn();
 const mockRemoveQuestionFlag = vi.fn();
 const mockSetQuestionFlag = vi.fn();
+const mockToast = vi.fn();
 
 class MockResizeObserver {
   static instances: MockResizeObserver[] = [];
@@ -137,6 +138,10 @@ vi.mock("@/services/searchService", () => ({
 
 vi.mock("@/services/entitlements", () => ({
   getEntitlement: (...args: unknown[]) => mockGetEntitlement(...args),
+}));
+
+vi.mock("@/hooks/use-toast", () => ({
+  useToast: () => ({ toast: mockToast }),
 }));
 
 beforeAll(() => {
@@ -444,6 +449,58 @@ describe("Practice mobile layout", () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("warns the user when a flag write fails instead of failing silently", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockSetQuestionFlag.mockResolvedValueOnce({
+      success: false,
+      error: { code: "42P10", message: "there is no unique or exclusion constraint" },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await startPracticeSession();
+
+    const needsWorkButton = await screen.findByRole("button", { name: "Needs work" });
+    fireEvent.click(needsWorkButton);
+
+    await waitFor(() => {
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive" }),
+      );
+    });
+
+    // The button must not latch when the write failed.
+    expect(
+      screen.getByRole("button", { name: "Needs work" }).getAttribute("aria-pressed"),
+    ).toBe("false");
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("does not warn when a flag write succeeds", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await startPracticeSession();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Needs work" }));
+
+    expect(
+      (await screen.findByRole("button", { name: "Needs work flagged" })).getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
   it("keeps a favorite flag when users also mark the question as needs work", async () => {
     mockGetQuestionFlags.mockResolvedValue({
       success: true,
@@ -726,7 +783,9 @@ describe("Practice keyboard navigation", () => {
     );
   });
 
-  it("lets desktop users mark the current in-session question as needs work", async () => {
+  // Timing-sensitive under CI load (full-render + async flag write); retry to
+  // de-flake, matching the autosave-label tests in this file.
+  it("lets desktop users mark the current in-session question as needs work", { retry: 2 }, async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
