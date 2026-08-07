@@ -18,6 +18,12 @@ import {
   type JobRequirementsSource,
 } from "./job-requirements-prompt.ts";
 import {
+  buildEvidenceLedger,
+  formatEvidenceLedgerForPrompt,
+  sanitizePlanEvidenceCitations,
+  type EvidenceLedgerEntry,
+} from "./evidence-ledger.ts";
+import {
   mergeResearchFreshness,
   type ResearchFreshness,
 } from "../_shared/research-freshness.ts";
@@ -70,6 +76,7 @@ interface PrepPlanOutput {
   stageRoadmap: Array<{
     stageName: string;
     orderIndex: number;
+    evidenceIds?: string[];
     confidence: Confidence;
     whatItTests: string[];
     whyLikely: string;
@@ -102,21 +109,13 @@ interface PrepPlanOutput {
     likelyFollowUps: QuestionItem[];
     extraDepth: QuestionItem[];
   };
-  internalEvidenceLog: Array<{
-    id: string;
-    sourceType: string;
-    sourceLabel: string;
-    excerpt: string;
-    url: string | null;
-    relevance: Priority;
-    trustWeight: Priority;
-    contradictionGroup: string | null;
-  }>;
+  internalEvidenceLog: EvidenceLedgerEntry[];
 }
 
 interface QuestionItem {
   question: string;
   stageName: string | null;
+  evidenceIds?: string[];
   linkedPriority: string;
   // Difficulty is assigned per question by the model within an enum, reflecting
   // the actual difficulty of the question — not inferred from its tier.
@@ -128,6 +127,7 @@ interface QuestionItem {
 interface GatheredCompanyData {
   insights: any;
   freshness: ResearchFreshness | null;
+  rawData: unknown;
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -295,6 +295,7 @@ async function gatherCompanyData(
       return {
         insights: result.company_insights || null,
         freshness: result.research_freshness || null,
+        rawData: result.raw_research_data || null,
       } satisfies GatheredCompanyData;
     }
     console.warn(`⚠️ Company research failed with status ${response.status}`);
@@ -313,6 +314,7 @@ interface JobAnalysisResult {
   requirements: any;
   source: JobRequirementsSource;
   freshness: ResearchFreshness | null;
+  rawData: unknown;
 }
 
 async function gatherJobData(
@@ -356,6 +358,7 @@ async function gatherJobData(
         requirements,
         source,
         freshness: result.research_freshness || null,
+        rawData: result.raw_job_data || null,
       };
     }
     console.warn(`⚠️ Job analysis failed with status ${response.status}`);
@@ -439,6 +442,8 @@ EVIDENCE POLICY:
 - Official employer pages and official job postings are highest trust.
 - User-provided notes and CV are first-class evidence.
 - Public interview reports inform the plan but do not override stronger evidence alone.
+- Cite support only through evidenceIds present in the verified evidence ledger.
+- Never generate source URLs, source labels, evidence rows, relevance, or trust weights.
 - Company-specific principles are only mentioned when backed by official material + reinforced by interviewee evidence.
 - Always produce ONE primary recommendation. Never push conflict resolution to the user.
 
@@ -474,12 +479,20 @@ function buildPrepPlanPrompt(
   jobRequirements: any,
   jobRequirementsSource: JobRequirementsSource | null,
   cvAnalysis: any,
+  evidenceLedger: EvidenceLedgerEntry[],
 ): string {
   let prompt = `Build a PrepPlan for:\n`;
   prompt += `Company: ${company}\n`;
   if (role) prompt += `Role: ${role}\n`;
   if (country) prompt += `Country: ${country}\n`;
   prompt += `Level: ${level}\n\n`;
+
+  prompt += `=== VERIFIED EVIDENCE LEDGER ===\n`;
+  prompt += `${formatEvidenceLedgerForPrompt(evidenceLedger)}\n\n`;
+  prompt += `Citation rules:\n`;
+  prompt += `- Support stage and question claims only with evidenceIds from this ledger.\n`;
+  prompt += `- Never write URLs, source labels, trust weights, relevance, or evidence-log rows.\n`;
+  prompt += `- If no ledger entry supports a claim, use an empty evidenceIds array and keep confidence low.\n\n`;
 
   // ── User note (first-class evidence) ──
   if (userNote) {
@@ -606,6 +619,7 @@ function getPrepPlanSchema(): any {
       {
         stageName: "e.g. Phone Screen",
         orderIndex: 1,
+        evidenceIds: ["ev-1"],
         confidence: "high | medium | low",
         whatItTests: ["communication", "motivation"],
         whyLikely: "Reason this stage likely exists",
@@ -640,35 +654,26 @@ function getPrepPlanSchema(): any {
     ],
     questionPlan: {
       coreMustPractice: [
-        { question: "Core question 1 — tailored to stage and candidate", stageName: "Phone Screen", linkedPriority: "high", difficulty: "Medium", reason: "Why this matters", answerGuidanceStatus: "pending" },
-        { question: "Core question 2 — different dimension", stageName: "Technical Round", linkedPriority: "high", difficulty: "Hard", reason: "Why this matters", answerGuidanceStatus: "pending" },
-        { question: "Core question 3 — covers weak spot", stageName: "Behavioral Round", linkedPriority: "high", difficulty: "Easy", reason: "Why this matters", answerGuidanceStatus: "pending" },
+        { question: "Core question 1 — tailored to stage and candidate", stageName: "Phone Screen", evidenceIds: ["ev-1"], linkedPriority: "high", difficulty: "Medium", reason: "Why this matters", answerGuidanceStatus: "pending" },
+        { question: "Core question 2 — different dimension", stageName: "Technical Round", evidenceIds: ["ev-2"], linkedPriority: "high", difficulty: "Hard", reason: "Why this matters", answerGuidanceStatus: "pending" },
+        { question: "Core question 3 — covers weak spot", stageName: "Behavioral Round", evidenceIds: [], linkedPriority: "high", difficulty: "Easy", reason: "Why this matters", answerGuidanceStatus: "pending" },
         "... MUST generate ≥ 15 items in this array (stageName must match a stageRoadmap stage or be null)"
       ],
       likelyFollowUps: [
-        { question: "Follow-up question 1", stageName: null, linkedPriority: "medium", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending" },
-        { question: "Follow-up question 2", stageName: "Phone Screen", linkedPriority: "medium", difficulty: "Easy", reason: "Why", answerGuidanceStatus: "pending" },
-        { question: "Follow-up question 3", stageName: null, linkedPriority: "medium", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Follow-up question 1", stageName: null, evidenceIds: [], linkedPriority: "medium", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Follow-up question 2", stageName: "Phone Screen", evidenceIds: ["ev-1"], linkedPriority: "medium", difficulty: "Easy", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Follow-up question 3", stageName: null, evidenceIds: [], linkedPriority: "medium", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending" },
         "... MUST generate ≥ 15 items in this array (stageName must match a stageRoadmap stage or be null)"
       ],
       extraDepth: [
-        { question: "Depth question 1", stageName: null, linkedPriority: "low", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending" },
-        { question: "Depth question 2", stageName: "Final Round", linkedPriority: "low", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Depth question 1", stageName: null, evidenceIds: [], linkedPriority: "low", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Depth question 2", stageName: "Final Round", evidenceIds: ["ev-2"], linkedPriority: "low", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending" },
         "... MUST generate ≥ 10 items in this array (stageName must match a stageRoadmap stage or be null)"
       ],
     },
-    internalEvidenceLog: [
-      {
-        id: "ev-1",
-        sourceType: "official_company | official_job | user_note | cv | public_report | market_heuristic",
-        sourceLabel: "Source name",
-        excerpt: "Key excerpt",
-        url: "null or URL",
-        relevance: "high | medium | low",
-        trustWeight: "high | medium | low",
-        contradictionGroup: "null or group label",
-      },
-    ],
+    // Code replaces this with the verified ledger after synthesis. The model
+    // may cite evidenceIds, but it must never author evidence rows.
+    internalEvidenceLog: [],
   };
 }
 
@@ -713,6 +718,8 @@ function logSynthesisOutcome(
   plan: PrepPlanOutput,
   validation: PrepPlanValidationResult,
   repairAttempted: boolean,
+  evidenceLedgerCount: number,
+  droppedEvidenceCitationIds: string[],
 ) {
   console.log(repairAttempted ? "✅ PrepPlan synthesis complete (after repair)" : "✅ PrepPlan synthesis complete");
   console.log(`   Stages: ${plan.stageRoadmap?.length || 0}, Signals: ${plan.assessmentSignals?.length || 0}`);
@@ -730,6 +737,8 @@ function logSynthesisOutcome(
       question_counts: validation.counts,
       error_count: validation.errors.length,
       errors: validation.errors.slice(0, 20),
+      evidence_ledger_count: evidenceLedgerCount,
+      dropped_evidence_citation_ids: droppedEvidenceCitationIds,
     })}`,
   );
 }
@@ -745,6 +754,7 @@ async function synthesizePrepPlan(
   jobRequirements: any,
   jobRequirementsSource: JobRequirementsSource | null,
   cvAnalysis: any,
+  evidenceLedger: EvidenceLedgerEntry[],
   openaiApiKey: string,
 ): Promise<PrepPlanOutput | null> {
   try {
@@ -753,6 +763,7 @@ async function synthesizePrepPlan(
     const prompt = buildPrepPlanPrompt(
       company, role, country, level, userNote, jobDescription,
       companyInsights, jobRequirements, jobRequirementsSource, cvAnalysis,
+      evidenceLedger,
     );
 
     const model = getOpenAIModel('interviewSynthesis');
@@ -781,6 +792,8 @@ async function synthesizePrepPlan(
         .filter((n): n is string => typeof n === 'string' && n.trim().length > 0);
       const repairPrompt =
         buildRepairInstructions(validation, roadmapNames) +
+        `\n\nVERIFIED EVIDENCE LEDGER:\n${formatEvidenceLedgerForPrompt(evidenceLedger)}` +
+        `\n\nKeep citations ID-only. Never author URLs or evidence-log rows.` +
         `\n\nPREVIOUS JSON:\n${JSON.stringify(plan)}`;
 
       const repaired = await requestPrepPlanCompletion(openaiApiKey, model, systemPrompt, repairPrompt, maxTokens);
@@ -806,7 +819,20 @@ async function synthesizePrepPlan(
       questionCounts: validation.counts,
     };
 
-    logSynthesisOutcome(plan, validation, repairAttempted);
+    const evidenceValidation = sanitizePlanEvidenceCitations(plan, evidenceLedger);
+    if (evidenceValidation.droppedCitationIds.length > 0) {
+      console.warn(
+        `⚠️ Dropped unresolved evidence citations: ${evidenceValidation.droppedCitationIds.join(", ")}`,
+      );
+    }
+
+    logSynthesisOutcome(
+      plan,
+      validation,
+      repairAttempted,
+      evidenceValidation.ledgerCount,
+      evidenceValidation.droppedCitationIds,
+    );
 
     return plan;
   } catch (error) {
@@ -823,6 +849,7 @@ async function savePrepPlanToDatabase(
   userId: string,
   rawData: RawResearchData,
   plan: PrepPlanOutput,
+  evidenceLedger: EvidenceLedgerEntry[],
 ) {
   try {
     console.log("💾 Saving PrepPlan to database...");
@@ -841,7 +868,9 @@ async function savePrepPlanToDatabase(
           candidate_positioning: plan.candidatePositioning || {},
           practice_sequence: plan.practiceSequence || [],
           question_plan: plan.questionPlan || {},
-          internal_evidence_log: plan.internalEvidenceLog || [],
+          // Defense in depth: persistence receives the code-owned ledger
+          // directly, never a model-authored evidence array.
+          internal_evidence_log: evidenceLedger,
         }, { onConflict: 'search_id' });
       if (error) throw error;
     }, 'Save prep_plans', 30000);
@@ -1058,10 +1087,27 @@ async function processInterviewResearch(
     const rawData: RawResearchData = {
       company_research_raw: companyData,
       job_analysis_raw: jobAnalysis
-        ? { ...jobRequirements, requirements_source: jobRequirementsSource }
+        ? {
+            ...jobRequirements,
+            requirements_source: jobRequirementsSource,
+            raw_job_data: jobAnalysis.rawData,
+          }
         : null,
       cv_analysis_raw: cvAnalysis,
     };
+
+    const evidenceLedger = buildEvidenceLedger({
+      company: requestData.company,
+      userNote: requestData.userNote,
+      jobDescription: requestData.jobDescription,
+      cvText,
+      companyResearchData: companyData?.rawData,
+      jobRawData: jobAnalysis?.rawData,
+    });
+    console.log(
+      `📚 Built verified evidence ledger with ${evidenceLedger.length} ` +
+        `entr${evidenceLedger.length === 1 ? "y" : "ies"}`,
+    );
 
     // ── PHASE 2: PrepPlan Synthesis ──
     console.log("\n🔄 PHASE 2: Assessment-first PrepPlan synthesis...");
@@ -1078,6 +1124,7 @@ async function processInterviewResearch(
       jobRequirements,
       jobRequirementsSource,
       cvAnalysis,
+      evidenceLedger,
       openaiApiKey,
     );
 
@@ -1101,7 +1148,14 @@ async function processInterviewResearch(
     console.log("\n💾 PHASE 3: Saving PrepPlan to database...");
     await tracker.updateStep('QUESTION_GENERATION_START');
 
-    await savePrepPlanToDatabase(supabase, searchId, userId, rawData, prepPlan);
+    await savePrepPlanToDatabase(
+      supabase,
+      searchId,
+      userId,
+      rawData,
+      prepPlan,
+      evidenceLedger,
+    );
 
     await tracker.updateStep('QUESTION_GENERATION_COMPLETE');
     console.log(`\n✅ Interview research complete for search: ${searchId}`);
