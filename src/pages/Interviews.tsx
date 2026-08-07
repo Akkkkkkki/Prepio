@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertCircle, ArrowRight, BriefcaseBusiness, Plus } from "lucide-react";
+import { AlertCircle, ArrowRight, BriefcaseBusiness, Info, Plus } from "lucide-react";
 
 import Navigation from "@/components/Navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { badgeToneClassName } from "@/lib/designTokens";
 import {
   searchService,
@@ -62,7 +63,23 @@ const InterviewCard = ({ interview }: { interview: InterviewSummary }) => {
           <>
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span>{interview.practicedQuestions} of {interview.totalQuestions} practiced · {interview.progressPercent}%</span>
+                <span className="flex items-center gap-1.5">
+                  {interview.practicedQuestions} of {interview.totalQuestions} answered · {interview.progressPercent}%
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="text-muted-foreground transition hover:text-foreground"
+                        aria-label="What the answered count means"
+                      >
+                        <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      Counts questions you&apos;ve answered so far. Completed practice sessions show up in History.
+                    </TooltipContent>
+                  </Tooltip>
+                </span>
               </div>
               <Progress value={interview.progressPercent} />
             </div>

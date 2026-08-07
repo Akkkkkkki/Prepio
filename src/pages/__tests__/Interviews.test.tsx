@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
+import { TooltipProvider } from "@/components/ui/tooltip";
 import Interviews from "../Interviews";
 
 const mockGetInterviewSummaries = vi.fn();
@@ -18,12 +19,14 @@ vi.mock("@/services/searchService", () => ({
 
 const renderInterviews = () =>
   render(
-    <MemoryRouter initialEntries={["/interviews"]}>
-      <Routes>
-        <Route path="/interviews" element={<Interviews />} />
-        <Route path="/new-interview" element={<div>New interview target</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <TooltipProvider>
+      <MemoryRouter initialEntries={["/interviews"]}>
+        <Routes>
+          <Route path="/interviews" element={<Interviews />} />
+          <Route path="/new-interview" element={<div>New interview target</div>} />
+        </Routes>
+      </MemoryRouter>
+    </TooltipProvider>,
   );
 
 describe("Interviews home", () => {
@@ -71,7 +74,10 @@ describe("Interviews home", () => {
       "/new-interview",
     );
     expect(screen.getByText("In progress")).toBeInTheDocument();
-    expect(screen.getByText("6 of 14 practiced · 43%")).toBeInTheDocument();
+    expect(screen.getByText("6 of 14 answered · 43%")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "What the answered count means" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("3 questions still need work")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Practice these/ })).toHaveAttribute(
       "href",
@@ -108,7 +114,7 @@ describe("Interviews home", () => {
 
     renderInterviews();
 
-    expect(await screen.findByText("10 of 10 practiced · 100%")).toBeInTheDocument();
+    expect(await screen.findByText("10 of 10 answered · 100%")).toBeInTheDocument();
     expect(screen.queryByText(/still need/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Practice these/ })).not.toBeInTheDocument();
   });
