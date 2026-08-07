@@ -52,6 +52,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMobileFooterHeight } from "@/hooks/useMobileFooterHeight";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useToast } from "@/hooks/use-toast";
 import { SessionSummary, type GenerateAnswerFeedbackResult } from "@/components/SessionSummary";
 import type { AnswerFeedback } from "@/shared/answer-feedback";
 import { QuestionFrame } from "@/components/practice/QuestionFrame";
@@ -196,6 +197,7 @@ const Practice = () => {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const { isOffline } = useNetworkStatus();
+  const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchId = searchParams.get('searchId');
   const urlStageIds = searchParams.get('stages')?.split(',') || [];
@@ -1305,6 +1307,17 @@ const getInterviewerFocus = (
   };
 
   // Flag handling functions (Epic 1.3)
+  const notifyFlagError = () => {
+    // The button only latches on success, so on failure the control silently
+    // snaps back with no feedback. Surface it so the user knows to retry.
+    toast({
+      title: "Couldn't save that flag",
+      description: "Something went wrong saving your Favorite / Needs work. Please try again.",
+      variant: "destructive",
+      duration: 5000,
+    });
+  };
+
   const handleToggleFlag = async (questionId: string, flagType: PracticeQuestionFlagType) => {
     if (isOffline) {
       return;
@@ -1312,7 +1325,7 @@ const getInterviewerFocus = (
 
     try {
       const currentFlag = questionFlags[questionId]?.[flagType];
-      
+
       // If same flag type, remove it (toggle off)
       if (currentFlag) {
         const result = await searchService.removeQuestionFlag(questionId, flagType);
@@ -1330,6 +1343,7 @@ const getInterviewerFocus = (
           });
         } else {
           console.error('Failed to remove flag:', result.error);
+          notifyFlagError();
         }
       } else {
         // Set new flag (or update existing one)
@@ -1344,10 +1358,12 @@ const getInterviewerFocus = (
           }));
         } else {
           console.error('Failed to set flag:', result.error);
+          notifyFlagError();
         }
       }
     } catch (error) {
       console.error('Error toggling flag:', error);
+      notifyFlagError();
     }
   };
 
