@@ -80,10 +80,15 @@ Not yet shipped:
 
 ### Research
 
-1. User enters company, role, optional job description, resume, and notes.
+1. User enters company, role, optional job description, resume, and notes. When both
+   `VITE_PROFILE_STORY_LINKING` and `PROFILE_STORY_LINKING` are enabled, the canonical
+   structured profile replaces the legacy CV-analysis prompt block and exposes opaque
+   `S*` story handles to synthesis.
 2. Browser creates a `searches` row.
 3. Browser invokes `interview-research`.
-4. Edge Functions generate company/job/resume insights, stages, prep plan, and questions.
+4. Edge Functions generate company/job/profile insights, stages, prep plan, and questions.
+   Linked profile bullets persist as text/source snapshots on each question so Practice
+   remains stable after a profile edit.
 5. Progress updates land on the search row and are read by realtime/polling UI.
 
 The current (v2) implementation, its quality gaps, and the target grounded-evidence (v3)

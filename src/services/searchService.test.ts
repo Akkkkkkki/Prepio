@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createEmptyCandidateProfile } from "@/lib/candidateProfile";
 
 const { mockSupabase } = vi.hoisted(() => ({
   mockSupabase: {
@@ -23,6 +24,7 @@ import {
   buildInterviewSummaries,
   dedupePracticeAnswersByQuestion,
   dedupePracticeAnswersBySessionQuestion,
+  isProfileStoryLinkingEnabled,
   searchService,
 } from "./searchService";
 
@@ -104,10 +106,21 @@ const createDeleteChain = (
 describe("practice history answer dedupe helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("VITE_PROFILE_STORY_LINKING", "false");
     mockSupabase.auth.getUser.mockResolvedValue({
       data: { user: { id: "user-1" } },
       error: null,
     });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("parses the profile story-linking rollout flag", () => {
+    expect(isProfileStoryLinkingEnabled("true")).toBe(true);
+    expect(isProfileStoryLinkingEnabled(" YES ")).toBe(true);
+    expect(isProfileStoryLinkingEnabled("false")).toBe(false);
   });
 
   it("keeps only the latest answer per question", () => {
@@ -661,6 +674,39 @@ describe("practice history answer dedupe helpers", () => {
         searchId: "search-1",
       },
     });
+  });
+
+  it("sends the structured profile when story linking is enabled", async () => {
+    vi.stubEnv("VITE_PROFILE_STORY_LINKING", "true");
+    const candidateProfile = {
+      ...createEmptyCandidateProfile("user-1"),
+      headline: "Senior product manager",
+      lastResumeId: "resume-1",
+    };
+    const profileSpy = vi.spyOn(searchService, "getCandidateProfile").mockResolvedValue({
+      profile: candidateProfile,
+      success: true,
+    });
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: { status: "accepted" },
+      error: null,
+    });
+
+    const result = await searchService.startProcessing("search-profile", {
+      company: "OpenAI",
+      cv: "Legacy CV fallback",
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(profileSpy).toHaveBeenCalledTimes(1);
+    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("interview-research", {
+      body: expect.objectContaining({
+        candidateProfile,
+        candidateProfileResumeId: "resume-1",
+        searchId: "search-profile",
+      }),
+    });
+    profileSpy.mockRestore();
   });
 
   it("marks the search as failed when the research function cannot be started", async () => {

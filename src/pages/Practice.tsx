@@ -138,6 +138,8 @@ interface EnhancedQuestion {
   weak_answer_signals?: string[];
   seniority_expectation?: string;
   sample_answer_outline?: string;
+  linked_story_text?: string | null;
+  linked_story_source?: string | null;
 }
 
 interface Question {
@@ -161,6 +163,8 @@ interface Question {
   weak_answer_signals?: string[];
   seniority_expectation?: string;
   sample_answer_outline?: string;
+  linkedStoryText?: string | null;
+  linkedStorySource?: string | null;
 }
 
 interface InterviewStage {
@@ -760,7 +764,9 @@ const getInterviewerFocus = (
                 good_answer_signals: questionObj.good_answer_signals,
                 weak_answer_signals: questionObj.weak_answer_signals,
                 seniority_expectation: questionObj.seniority_expectation,
-                sample_answer_outline: questionObj.sample_answer_outline
+                sample_answer_outline: questionObj.sample_answer_outline,
+                linkedStoryText: (questionObj as typeof questionObj & Partial<EnhancedQuestion>).linked_story_text,
+                linkedStorySource: (questionObj as typeof questionObj & Partial<EnhancedQuestion>).linked_story_source
               });
             });
           });
@@ -1599,6 +1605,8 @@ const getInterviewerFocus = (
         depthLabel: currentQuestion.depth_label,
         seniorityExpectation: currentQuestion.seniority_expectation,
         sampleAnswerOutline: currentQuestion.sample_answer_outline,
+        linkedStoryText: currentQuestion.linkedStoryText,
+        linkedStorySource: currentQuestion.linkedStorySource,
         meta: {
           company: searchData?.company,
           role: searchData?.role,
