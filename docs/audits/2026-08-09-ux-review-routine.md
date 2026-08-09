@@ -117,7 +117,7 @@ while the one blocking infra step sits in Backlog.
 - **What happened (live):** the new toast reads *"Couldn't save that flag / Something went wrong saving your Favorite / Needs work. Please try again."* The title is direct and correct; the body opens with *"Something went wrong"* — explicitly on Prepio's copy avoid-list — and names both flag types regardless of which one the user actually toggled.
 - **Why it matters:** the toast is a genuine improvement, but its body reads generic where Prepio's copy standard is specific. Naming both flags is mildly confusing when only one was tapped.
 - **Recommended fix:** tighten to the specific action, e.g. *"Couldn't save your Needs-work mark. Try again — your answer is safe."* Interpolate the actual flag label; drop *"Something went wrong."*
-- **Evidence:** mobile 390×844, `/practice`, [`62-m-flag-needswork.png`](./assets/2026-08-09/62-m-flag-needswork.png). New GitHub-ready ticket #5 (file to Quality & Maintenance).
+- **Evidence:** mobile 390×844, `/practice`, [`62-m-flag-needswork.png`](./assets/2026-08-09/62-m-flag-needswork.png). Filed as [PREPIO-136](https://linear.app/qiuyue/issue/PREPIO-136) (Quality & Maintenance, Improvement · area:practice, Backlog).
 
 ## Notable live observations (not top-5)
 
@@ -192,15 +192,15 @@ touch are honest but not yet functional.**
 ## Recommended tickets
 
 The Linear workspace is **no longer at the free-issue cap** assumed by runs
-#9–#12 — the backlog now runs through PREPIO-135, and every top finding is
+#9–#12 — the backlog now runs through PREPIO-136, and every top finding is
 already tracked. This run **updates** the existing issues rather than
-re-filing, and files **one** genuinely new ticket (#5).
+re-filing, and filed **one** genuinely new ticket ([PREPIO-136](https://linear.app/qiuyue/issue/PREPIO-136), #5).
 
 1. **[P0] Deploy the production backend to parity with `main` and add a drift guard** — reconcile the divergent migration history, `db:push` (7 pending), `functions:deploy` (7 missing incl. `research-preview`, `stripe-webhook`, `profile-import`), smoke-test guest preview + checkout→`stripe-webhook`→entitlement + flag toggle persistence + transcription + answer feedback, add a deploy-parity health check. → **Update [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124)** (done this run; 7th-week re-verification). Consider bumping visibility given it's now the sole blocker while frontend fixes ship around it.
 2. **[P1] Remove the breathing interstitial from the default practice start** (opt-in off by default, or invert "Don't show again" + cap the gate at ≤5s and auto-advance). → **Update [PREPIO-126](https://linear.app/qiuyue/issue/PREPIO-126)** (In Progress; 6th-week live confirmation added).
 3. **[P2] Ship `autocomplete` on `/auth`** — `email` / `current-password` / `new-password`. PR #244 already implements it; rebase-and-merge or re-implement. → **Update [PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123)** (still `null` live).
 4. **[P2] Surface in-progress sessions in `/history`** so the resume surface stops reading empty while the card shows 13% — render an "In progress · resume" row. → Tracked under [PREPIO-107](https://linear.app/qiuyue/issue/PREPIO-107) / [PREPIO-99](https://linear.app/qiuyue/issue/PREPIO-99); no new issue needed.
-5. **[P3 · NEW] Tighten the flag-failure toast copy** — drop "Something went wrong", interpolate the actual flag label, don't name both flags. *Type: Improvement · area:practice.* File to Quality & Maintenance.
+5. **[P3 · NEW] Tighten the flag-failure toast copy** — drop "Something went wrong", interpolate the actual flag label, don't name both flags. → **Filed as [PREPIO-136](https://linear.app/qiuyue/issue/PREPIO-136)** (Quality & Maintenance; Improvement · area:practice; Backlog).
 
 ## Next-run focus
 
