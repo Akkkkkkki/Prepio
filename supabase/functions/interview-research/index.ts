@@ -17,6 +17,10 @@ import {
   formatJobRequirementsBlock,
   type JobRequirementsSource,
 } from "./job-requirements-prompt.ts";
+import {
+  mergeResearchFreshness,
+  type ResearchFreshness,
+} from "../_shared/research-freshness.ts";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -51,6 +55,7 @@ interface PrepPlanOutput {
     level: string;
     overallConfidence: Confidence;
     weakSignalCase: boolean;
+    researchFreshness?: ResearchFreshness;
     // Records whether the synthesis passed schema validation. `degraded: true`
     // means the run is persisted but did not meet every quality minimum even
     // after the bounded repair pass — surfaced instead of silently completing.
@@ -118,6 +123,11 @@ interface QuestionItem {
   difficulty?: 'Easy' | 'Medium' | 'Hard';
   reason: string;
   answerGuidanceStatus: 'pending' | 'generated';
+}
+
+interface GatheredCompanyData {
+  insights: any;
+  freshness: ResearchFreshness | null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -282,7 +292,10 @@ async function gatherCompanyData(
     if (response.ok) {
       const result = await response.json();
       console.log("✅ Company research complete");
-      return result.company_insights || null;
+      return {
+        insights: result.company_insights || null,
+        freshness: result.research_freshness || null,
+      } satisfies GatheredCompanyData;
     }
     console.warn(`⚠️ Company research failed with status ${response.status}`);
     return null;
@@ -299,6 +312,7 @@ async function gatherCompanyData(
 interface JobAnalysisResult {
   requirements: any;
   source: JobRequirementsSource;
+  freshness: ResearchFreshness | null;
 }
 
 async function gatherJobData(
@@ -338,7 +352,11 @@ async function gatherJobData(
       const source: JobRequirementsSource =
         result.requirements_source === "extracted" ? "extracted" : "stub";
       console.log(`✅ Job analysis complete (source=${source})`);
-      return { requirements, source };
+      return {
+        requirements,
+        source,
+        freshness: result.research_freshness || null,
+      };
     }
     console.warn(`⚠️ Job analysis failed with status ${response.status}`);
     return null;
@@ -1019,7 +1037,10 @@ async function processInterviewResearch(
       gatherJobData(requestData.roleLinks || [], searchId, requestData.company, requestData.role),
       gatherCVData(cvText, userId),
     ]);
-    const companyInsights = settled[0].status === 'fulfilled' ? settled[0].value : null;
+    const companyData = settled[0].status === 'fulfilled'
+      ? (settled[0].value as GatheredCompanyData | null)
+      : null;
+    const companyInsights = companyData?.insights ?? null;
     const jobAnalysis = settled[1].status === 'fulfilled'
       ? (settled[1].value as JobAnalysisResult | null)
       : null;
@@ -1035,7 +1056,7 @@ async function processInterviewResearch(
     // blob so downstream debugging / RUNBOOK queries can tell stub-fallback
     // runs apart from real link extraction.
     const rawData: RawResearchData = {
-      company_research_raw: companyInsights,
+      company_research_raw: companyData,
       job_analysis_raw: jobAnalysis
         ? { ...jobRequirements, requirements_source: jobRequirementsSource }
         : null,
@@ -1062,6 +1083,16 @@ async function processInterviewResearch(
 
     if (!prepPlan) {
       throw new Error("PrepPlan synthesis failed");
+    }
+    // Freshness spans every retrieval path that fed synthesis — company
+    // search and job-description extraction — so a run grounded only in an
+    // extracted posting still reports its sources.
+    const researchFreshness = mergeResearchFreshness([
+      companyData?.freshness,
+      jobAnalysis?.freshness,
+    ]);
+    if (researchFreshness) {
+      prepPlan.summary.researchFreshness = researchFreshness;
     }
 
     await tracker.updateStep('AI_SYNTHESIS_COMPLETE');

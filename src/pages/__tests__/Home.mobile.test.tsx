@@ -321,7 +321,7 @@ describe("Home flow", () => {
     expect(screen.queryByTestId("auth-state")).not.toBeInTheDocument();
   });
 
-  it("saves the guest preview draft and carries preview auth state to /auth", async () => {
+  it("shows one guest conversion CTA and carries preview auth state to /auth", async () => {
     renderHome();
 
     fireEvent.change(screen.getByLabelText("Company *"), {
@@ -333,7 +333,8 @@ describe("Home flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
 
     expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Generate full practice set" }));
+    expect(screen.queryByRole("button", { name: "Save full plan" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in to generate full practice set" }));
 
     const savedDraft = JSON.parse(
       window.sessionStorage.getItem(RESEARCH_DRAFT_STORAGE_KEY) || "{}",
@@ -756,5 +757,43 @@ describe("Home flow", () => {
     const outerContainer = container.querySelector(".container.mx-auto.px-4") as HTMLElement;
     expect(outerContainer).not.toBeNull();
     expect(outerContainer.className).not.toMatch(/\bpb-32\b/);
+  });
+
+  it("shows a task header and back-to-interviews affordance instead of the marketing hero for signed-in mobile users", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+
+    renderHome();
+
+    // Built-in matchers only: tsconfig.app.json does not type the jest-dom
+    // matchers, so asserting via DOM reads keeps this file off the typecheck
+    // baseline (docs/TESTING.md).
+    const heading = await screen.findByRole("heading", { name: "Prep a new interview" });
+    expect(heading.tagName).toBe("H1");
+
+    const backLink = screen.getByRole("link", { name: "Your interviews" });
+    expect(backLink.getAttribute("href")).toBe("/interviews");
+
+    expect(screen.queryByText(/insider insights/i)).toBeNull();
+    expect(screen.queryByText(/for you and your friends/i)).toBeNull();
+    expect(screen.queryByText(/desktop-style sprawl/i)).toBeNull();
+  });
+
+  it("shows a breadcrumb back to interviews instead of the marketing hero for signed-in desktop users", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+
+    renderHome();
+
+    // The page must keep a top-level h1 so the heading hierarchy doesn't start
+    // at the form CardTitle (h3) for screen-reader users.
+    const heading = await screen.findByRole("heading", { name: "Prep a new interview" });
+    expect(heading.tagName).toBe("H1");
+
+    const backLink = screen.getByRole("link", { name: "Your interviews" });
+    expect(backLink.getAttribute("href")).toBe("/interviews");
+    expect(screen.queryByText("New interview")).not.toBeNull();
+
+    expect(screen.queryByText(/insider insights/i)).toBeNull();
+    expect(screen.queryByText(/for you and your friends/i)).toBeNull();
   });
 });

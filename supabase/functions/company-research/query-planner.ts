@@ -134,36 +134,117 @@ interface ExtractedUserNoteSignals {
   targeted: string[];
 }
 
+// "the Payments team", "Search Quality group"
+const TEAM_SUFFIX_PATTERN =
+  /\b([A-Z][A-Za-z0-9&-]*(?:\s+[A-Z][A-Za-z0-9&-]*){0,2})\s+(?:team|group|org|department)\b/g;
+// "team Payments", "org Platform"
+const TEAM_PREFIX_PATTERN =
+  /\b(?:team|group|org|department)\s+([A-Z][A-Za-z0-9&-]*(?:\s+[A-Z][A-Za-z0-9&-]*){0,2})\b/g;
+
+// Capitalised sentence openers that get swept into a match but never name a team,
+// e.g. "The Payments team" or "I team up with...".
+const TEAM_NAME_LEADING_STOPWORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "i",
+  "it",
+  "its",
+  "my",
+  "our",
+  "the",
+  "their",
+  "this",
+  "we",
+  "you",
+  "your",
+]);
+
+// In the prefix form these introduce a person, not a team: "team Lead Sarah Chen".
+const TEAM_ROLE_WORDS = new Set([
+  "lead",
+  "leader",
+  "leaders",
+  "leads",
+  "manager",
+  "managers",
+  "member",
+  "members",
+]);
+
+interface TeamCandidate {
+  index: number;
+  name: string;
+}
+
+function normalizeTeamName(raw: string, options: { rejectRoleWords: boolean }): string | undefined {
+  const words = raw.trim().split(/\s+/).filter(Boolean);
+  while (words.length > 0 && TEAM_NAME_LEADING_STOPWORDS.has(words[0].toLowerCase())) {
+    words.shift();
+  }
+  if (words.length === 0) return undefined;
+  if (options.rejectRoleWords && TEAM_ROLE_WORDS.has(words[0].toLowerCase())) return undefined;
+  return words.join(" ");
+}
+
+/**
+ * Both note forms are supported; when a note carries several, the earliest mention wins
+ * because that is the team the candidate is actually interviewing with.
+ */
+function extractTeamName(normalized: string): string | undefined {
+  const candidates: TeamCandidate[] = [];
+
+  for (const match of normalized.matchAll(TEAM_SUFFIX_PATTERN)) {
+    const name = normalizeTeamName(match[1] ?? "", { rejectRoleWords: false });
+    if (name) candidates.push({ index: match.index ?? 0, name });
+  }
+  for (const match of normalized.matchAll(TEAM_PREFIX_PATTERN)) {
+    const name = normalizeTeamName(match[1] ?? "", { rejectRoleWords: true });
+    if (name) candidates.push({ index: match.index ?? 0, name });
+  }
+
+  candidates.sort((a, b) => a.index - b.index);
+  return candidates[0]?.name;
+}
+
+const INTERVIEWER_PATTERN =
+  /\b(?:[Ii]nterviewer|[Ww]ith|[Mm]eeting|[Mm]eet|[Ss]peaking with|[Tt]alking to)\s+(?:the\s+)?([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,2})\b/g;
+const TRAILING_TEAM_KEYWORD = /^\s+(?:team|group|org|department)\b/;
+
+/**
+ * Skips candidates that a team keyword follows ("with the Data Platform team"), so a team
+ * name is not also quoted as a person in the targeted queries. The check runs on the whole
+ * greedy match rather than as a lookahead: inside the pattern it would let the name
+ * quantifier backtrack and accept a truncated "Core Data" out of "Core Data Platform team".
+ */
+function extractInterviewerName(normalized: string): string | undefined {
+  for (const match of normalized.matchAll(INTERVIEWER_PATTERN)) {
+    const name = (match[1] ?? "").trim();
+    if (!name) continue;
+    const trailing = normalized.slice((match.index ?? 0) + match[0].length);
+    if (TRAILING_TEAM_KEYWORD.test(trailing)) continue;
+    return name;
+  }
+  return undefined;
+}
+
 function extractUserNoteSignals(userNote?: string): ExtractedUserNoteSignals {
   if (!userNote) return { labels: [], targeted: [] };
   const labels: string[] = [];
   const targeted: string[] = [];
   const normalized = userNote.trim();
 
-  const teamMatch = normalized.match(
-    /\b([A-Z][A-Za-z0-9&-]*(?:\s+[A-Z][A-Za-z0-9&-]*){0,2})\s+(?:team|group|org|department)\b/,
-  );
-  const teamFirstMatch = normalized.match(
-    /\b(?:team|group|org|department)\s+([A-Z][A-Za-z0-9&-]*(?:\s+[A-Z][A-Za-z0-9&-]*){0,2})\b/,
-  );
-  const teamName =
-    teamFirstMatch?.[1] &&
-    (teamMatch?.index === undefined || (teamFirstMatch.index ?? Number.POSITIVE_INFINITY) < teamMatch.index)
-      ? teamFirstMatch[1]
-      : teamMatch?.[1];
+  const teamName = extractTeamName(normalized);
   if (teamName) {
-    const teamSignal = `${teamName.trim()} team`;
+    const teamSignal = `${teamName} team`;
     labels.push(teamSignal);
     targeted.push(teamSignal);
   }
 
-  const interviewerMatch = normalized.match(
-    /\b(?:[Ii]nterviewer|[Ww]ith|[Mm]eeting|[Mm]eet|[Ss]peaking with|[Tt]alking to)\s+(?:the\s+)?([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,2})\b/,
-  );
-  if (interviewerMatch?.[1]) {
-    const interviewerSignal = interviewerMatch[1].trim();
-    labels.push(interviewerSignal);
-    targeted.push(interviewerSignal);
+  const interviewerName = extractInterviewerName(normalized);
+  if (interviewerName) {
+    labels.push(interviewerName);
+    targeted.push(interviewerName);
   }
 
   if (/\bcase\b/i.test(normalized)) labels.push("case interview");

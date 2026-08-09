@@ -998,16 +998,7 @@ const Home = () => {
 
   const renderDesktopForm = () => (
     <Card className="max-w-2xl mx-auto shadow-lg">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-2xl tracking-tight">
-          <Search className="h-5 w-5 text-primary" />
-          Prep a new interview
-        </CardTitle>
-        <CardDescription>
-          All you need is the company. Add role, CV, or job description below to sharpen the questions.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         {error && (
           <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
@@ -1285,7 +1276,6 @@ const Home = () => {
             <InterviewBriefPreview preview={preview} />
             <PrepAskPanel preview={preview} />
             <ConversionPanel
-              onSavePlan={() => navigateToAuth(GUEST_RESEARCH_RESUME_STEP)}
               onGenerateFullPlan={() => navigateToAuth(GUEST_RESEARCH_RESUME_STEP)}
             />
           </div>
@@ -1425,12 +1415,17 @@ const Home = () => {
           >
             <div className="space-y-4">
               <div className="space-y-3">
-                <h1 className="text-4xl font-bold tracking-tight">
-                  <span className="text-primary">Prepio</span>
-                </h1>
+                <Link
+                  to="/interviews"
+                  className="inline-flex items-center text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  Your interviews
+                </Link>
+                <h1 className="text-2xl font-bold tracking-tight">Prep a new interview</h1>
                 <p className="max-w-xs text-sm leading-6 text-muted-foreground">
-                  Move from company research to practice in three short steps, without the
-                  desktop-style sprawl.
+                  Add the company and role, and we&apos;ll research the interview and build your prep
+                  plan.
                 </p>
               </div>
 
@@ -1542,12 +1537,18 @@ const Home = () => {
           </div>
         ) : (
           <>
-            <div className="mb-12 text-center">
-              <h1 className="mb-4 text-5xl font-bold tracking-tight">
-                <span className="text-primary">Prepio</span>
-              </h1>
-              <p className="mb-8 text-xl text-muted-foreground">
-                Get insider insights on any company's interview process. Tailored prep for you and your friends.
+            <div className="mx-auto mb-8 max-w-2xl">
+              <nav className="mb-3 text-sm text-muted-foreground">
+                <Link to="/interviews" className="hover:text-foreground transition-colors">
+                  Your interviews
+                </Link>
+                <span className="mx-2">›</span>
+                <span className="text-foreground">New interview</span>
+              </nav>
+              <h1 className="text-3xl font-bold tracking-tight">Prep a new interview</h1>
+              <p className="mt-2 text-muted-foreground">
+                All you need is the company. Add role, CV, or job description below to sharpen the
+                questions.
               </p>
             </div>
 
