@@ -71,7 +71,10 @@ describe("Interviews home", () => {
       "/new-interview",
     );
     expect(screen.getByText("In progress")).toBeInTheDocument();
-    expect(screen.getByText("6 of 14 practiced · 43%")).toBeInTheDocument();
+    expect(screen.getByText("6 of 14 answered · 43%")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "What the answered count means" }),
+    ).toBeTruthy();
     expect(screen.getByText("3 questions still need work")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Practice these/ })).toHaveAttribute(
       "href",
@@ -108,7 +111,7 @@ describe("Interviews home", () => {
 
     renderInterviews();
 
-    expect(await screen.findByText("10 of 10 practiced · 100%")).toBeInTheDocument();
+    expect(await screen.findByText("10 of 10 answered · 100%")).toBeInTheDocument();
     expect(screen.queryByText(/still need/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Practice these/ })).not.toBeInTheDocument();
   });

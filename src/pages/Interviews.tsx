@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertCircle, ArrowRight, BriefcaseBusiness, Plus } from "lucide-react";
+import { AlertCircle, ArrowRight, BriefcaseBusiness, Info, Plus } from "lucide-react";
 
 import Navigation from "@/components/Navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { badgeToneClassName } from "@/lib/designTokens";
 import {
   searchService,
@@ -62,7 +63,23 @@ const InterviewCard = ({ interview }: { interview: InterviewSummary }) => {
           <>
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span>{interview.practicedQuestions} of {interview.totalQuestions} practiced · {interview.progressPercent}%</span>
+                <span className="flex items-center gap-1.5">
+                  {interview.practicedQuestions} of {interview.totalQuestions} answered · {interview.progressPercent}%
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="text-muted-foreground transition hover:text-foreground"
+                        aria-label="What the answered count means"
+                      >
+                        <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-3 text-sm leading-5">
+                      Counts questions you&apos;ve answered so far. Completed practice sessions show up in History.
+                    </PopoverContent>
+                  </Popover>
+                </span>
               </div>
               <Progress value={interview.progressPercent} />
             </div>
