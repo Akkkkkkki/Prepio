@@ -76,6 +76,13 @@ const AUTOSAVE_DELAY_MS = 5000;
 const PRACTICE_SETUP_STORAGE_KEY = "practiceSetupDefaults";
 const COMPLETE_SESSION_ERROR_MESSAGE = "We couldn't mark this session complete. Try again.";
 const OFFLINE_PRACTICE_MESSAGE = "Reconnect to start practice, save answers, or update favorites.";
+// User-facing names for each flag, used in the save-failure toast so it names
+// only the control the user toggled. Mirrors the button labels.
+const FLAG_ERROR_LABELS: Record<PracticeQuestionFlagType, string> = {
+  favorite: "Favorite",
+  needs_work: "Needs work",
+  skipped: "Skip",
+};
 const RECOMMENDED_ANSWER_TIME_COPY = "Aim for 1-2 min";
 const ABORTED_RECORDING_ERROR_MESSAGE =
   "Recording stopped before any audio was captured. Try again or switch to notes.";
@@ -1307,12 +1314,14 @@ const getInterviewerFocus = (
   };
 
   // Flag handling functions (Epic 1.3)
-  const notifyFlagError = () => {
+  const notifyFlagError = (flagType: PracticeQuestionFlagType) => {
     // The button only latches on success, so on failure the control silently
-    // snaps back with no feedback. Surface it so the user knows to retry.
+    // snaps back with no feedback. Surface it so the user knows to retry, and
+    // name only the flag they actually toggled.
+    const label = FLAG_ERROR_LABELS[flagType];
     toast({
-      title: "Couldn't save that flag",
-      description: "Something went wrong saving your Favorite / Needs work. Please try again.",
+      title: `Couldn't save your ${label} flag`,
+      description: "Try again in a moment.",
       variant: "destructive",
       duration: 5000,
     });
@@ -1343,7 +1352,7 @@ const getInterviewerFocus = (
           });
         } else {
           console.error('Failed to remove flag:', result.error);
-          notifyFlagError();
+          notifyFlagError(flagType);
         }
       } else {
         // Set new flag (or update existing one)
@@ -1358,12 +1367,12 @@ const getInterviewerFocus = (
           }));
         } else {
           console.error('Failed to set flag:', result.error);
-          notifyFlagError();
+          notifyFlagError(flagType);
         }
       }
     } catch (error) {
       console.error('Error toggling flag:', error);
-      notifyFlagError();
+      notifyFlagError(flagType);
     }
   };
 
