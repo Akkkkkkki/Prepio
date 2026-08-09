@@ -501,6 +501,45 @@ describe("Practice mobile layout", () => {
     expect(mockToast).not.toHaveBeenCalled();
   });
 
+  it("keeps the flag active and warns when removing it fails", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockGetQuestionFlags.mockResolvedValue({
+      success: true,
+      flags: {
+        "question-1": {
+          needs_work: { flag_type: "needs_work", id: "flag-needs-work" },
+        },
+      },
+    });
+    mockRemoveQuestionFlag.mockResolvedValueOnce({
+      success: false,
+      error: { code: "network_error", message: "request failed" },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await startPracticeSession();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Needs work flagged" }));
+
+    await waitFor(() => {
+      expect(mockRemoveQuestionFlag).toHaveBeenCalledWith("question-1", "needs_work");
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive" }),
+      );
+    });
+    expect(
+      screen.getByRole("button", { name: "Needs work flagged" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+    consoleErrorSpy.mockRestore();
+  });
+
   it("keeps a favorite flag when users also mark the question as needs work", async () => {
     mockGetQuestionFlags.mockResolvedValue({
       success: true,
