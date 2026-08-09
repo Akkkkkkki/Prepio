@@ -13,6 +13,7 @@
     "test:legacy-schema": "bash scripts/check-legacy-schema.sh",
     "test:answer-feedback-schema": "bash scripts/check-answer-feedback-schema.sh",
     "test:answer-feedback-rpc-db": "bash scripts/check-answer-feedback-rpc-db.sh",
+    "audit:cross-tenant": "node scripts/audit-cross-tenant-access.mjs",
     "test:e2e": "playwright test",
     "preview": "vite preview",
     "# Remote Development (Recommended)": "",

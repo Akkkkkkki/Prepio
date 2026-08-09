@@ -98,6 +98,20 @@ npm run build
 
 For Supabase or Edge Function changes, add a targeted hosted check because the legacy Deno suite is not a full release gate.
 
+## Cross-tenant access audit
+
+Run the read-only two-account matrix against a non-production Supabase project whose account A has representative research, practice, feedback, resume/profile, billing, and audio fixtures:
+
+```bash
+SUPABASE_URL=... \
+SUPABASE_ANON_KEY=... \
+AUDIT_USER_A_JWT=... \
+AUDIT_USER_B_JWT=... \
+npm run audit:cross-tenant
+```
+
+The command prints a Markdown table suitable for the Linear issue. It exits `1` if account B reads any account A row/object and `2` for invalid setup. Missing fixtures are reported as `not_tested`, never as a pass. The script does not delete a resume or invoke model-backed Edge Functions, so verify disposable-resume cleanup separately and keep the audit non-production.
+
 ## Manual Stripe Test-Card Flow
 
 Run these only against Stripe test mode and a non-production Supabase project. Do not use live cards or live Stripe objects.
