@@ -9,6 +9,7 @@ import {
   createEmptyProject,
   createEmptySkillGroup,
   getDefaultMergeAction,
+  getProfileCompletionNextAction,
   prepareProfileImportAutoApply,
   mergeImportedProfile,
   normalizeCandidateProfile,
@@ -175,6 +176,80 @@ describe("candidateProfile helpers", () => {
 
     expect(computeCandidateProfileCompletion(empty)).toBe(0);
     expect(computeCandidateProfileCompletion(complete)).toBe(100);
+  });
+
+  it("surfaces the next highest-value profile action in priority order", () => {
+    const empty = createEmptyCandidateProfile("user-1");
+    expect(getProfileCompletionNextAction(empty)).toMatchObject({ label: "Add a headline" });
+
+    const withHeadline = normalizeCandidateProfile({ userId: "user-1", headline: "Staff PM" });
+    expect(getProfileCompletionNextAction(withHeadline)).toMatchObject({
+      label: "Add your most recent role",
+    });
+
+    const withRole = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({ company: "Acme", title: "PM", bullets: [{ text: "Led roadmap" }] }),
+      ],
+    });
+    expect(getProfileCompletionNextAction(withRole)).toMatchObject({
+      label: "Add a few accomplishment bullets",
+    });
+
+    const withBullets = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "PM",
+          bullets: [{ text: "Led roadmap" }, { text: "Ran discovery" }, { text: "Shipped pricing" }],
+        }),
+      ],
+    });
+    expect(getProfileCompletionNextAction(withBullets)).toMatchObject({
+      label: "Add metrics to a bullet or two",
+    });
+
+    const withMetrics = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "PM",
+          bullets: [
+            { text: "Grew activation 20%" },
+            { text: "Ran discovery" },
+            { text: "Shipped pricing" },
+          ],
+        }),
+      ],
+    });
+    expect(getProfileCompletionNextAction(withMetrics)).toMatchObject({
+      label: "Set your target roles",
+      to: "/profile/preferences",
+    });
+
+    const complete = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "PM",
+          bullets: [
+            { text: "Grew activation 20%" },
+            { text: "Ran discovery" },
+            { text: "Shipped pricing" },
+          ],
+        }),
+      ],
+      preferences: { targetRoles: ["Staff PM"], targetIndustries: [], locations: [], workModes: [], notes: "" },
+    });
+    expect(getProfileCompletionNextAction(complete)).toBeNull();
   });
 
   it("auto-applies new imported content into an empty profile", () => {

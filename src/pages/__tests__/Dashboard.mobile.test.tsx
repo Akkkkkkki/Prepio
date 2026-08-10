@@ -956,4 +956,60 @@ describe("Dashboard mobile layout", () => {
     expect(scrollContainer.style.paddingBottom).toBe("112px");
     expect(scrollContainer.className).not.toMatch(/\bpb-28\b/);
   });
+
+  it("offers a story-gap CTA into the profile so gaps can be closed where they're fixed", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    mockGetSearchResults.mockResolvedValue({
+      success: true,
+      search: {
+        id: "search-1",
+        company: "OpenAI",
+        role: "Research Engineer",
+        country: "United Kingdom",
+        status: "completed",
+        banner_dismissed: true,
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+      stages: [],
+      prepPlan: {
+        id: "plan-1",
+        search_id: "search-1",
+        summary: {
+          company: "OpenAI",
+          roleName: "Research Engineer",
+          industryFocus: "tech",
+          level: "senior_ic",
+          overallConfidence: "high",
+          weakSignalCase: false,
+        },
+        assessment_signals: [],
+        stage_roadmap: [],
+        prep_priorities: [],
+        candidate_positioning: {
+          strengthsToLeanOn: [],
+          weakSpotsToAddress: [],
+          storyCoverageGaps: ["Leading through organisational change"],
+          mismatchRisks: [],
+        },
+        practice_sequence: [],
+        question_plan: { coreMustPractice: [], likelyFollowUps: [], extraDepth: [] },
+        internal_evidence_log: [],
+        created_at: "2026-03-31T00:00:00.000Z",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard?searchId=search-1"]}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Why this plan/ }));
+
+    expect(await screen.findByText("Leading through organisational change")).toBeInTheDocument();
+    const cta = screen.getByRole("link", { name: /Add matching stories in your profile/ });
+    expect(cta).toHaveAttribute("href", "/profile");
+  });
 });

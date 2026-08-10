@@ -469,6 +469,71 @@ export const computeCandidateProfileCompletion = (profile: CandidateProfile) => 
   return Math.min(100, score);
 };
 
+export interface ProfileCompletionAction {
+  /** Short imperative label, e.g. "Add your most recent role". */
+  label: string;
+  /** One-line payoff explaining why it's worth doing. */
+  hint: string;
+  /** Optional in-app route to the editor that resolves this gap. */
+  to?: string;
+}
+
+/**
+ * Returns the single next highest-value gap to close, framed as a concrete
+ * action tied to a downstream payoff (research/practice), or null when the
+ * profile is strong enough that no gap is worth nudging.
+ *
+ * Every branch points at a control that actually exists in the profile UI —
+ * we deliberately skip prompts (e.g. flagging STAR stories) whose editor is
+ * not yet wired, to keep the copy honest.
+ */
+export const getProfileCompletionNextAction = (
+  profile: CandidateProfile,
+): ProfileCompletionAction | null => {
+  const bullets = [
+    ...profile.experiences.flatMap((experience) => experience.bullets),
+    ...profile.projects.flatMap((project) => project.bullets),
+  ].filter((bullet) => bullet.text);
+
+  if (!profile.headline) {
+    return {
+      label: "Add a headline",
+      hint: "Gives research your target level to reason from.",
+    };
+  }
+
+  if (profile.experiences.length === 0) {
+    return {
+      label: "Add your most recent role",
+      hint: "Research positions you against real experience, not role norms.",
+    };
+  }
+
+  if (bullets.length < 3) {
+    return {
+      label: "Add a few accomplishment bullets",
+      hint: "Bullets are what get matched to your practice questions.",
+    };
+  }
+
+  if (!bullets.some((bullet) => /\d/.test(bullet.text))) {
+    return {
+      label: "Add metrics to a bullet or two",
+      hint: "Numbers sharpen the research signal for your background.",
+    };
+  }
+
+  if (profile.preferences.targetRoles.length === 0) {
+    return {
+      label: "Set your target roles",
+      hint: "Pre-fills new research runs with the roles you're aiming for.",
+      to: "/profile/preferences",
+    };
+  }
+
+  return null;
+};
+
 export const candidateProfileFromLegacyParsedData = (
   parsedData: LegacyParsedData | null | undefined,
   userId = "",
