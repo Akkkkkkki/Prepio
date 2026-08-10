@@ -226,6 +226,26 @@ describe("candidateProfile helpers", () => {
       label: "Add metrics to a bullet or two",
     });
 
+    // Version/identifier digits are not metrics — the nudge should remain.
+    const withVersionDigits = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "PM",
+          bullets: [
+            bullet("Migrated services to React 19"),
+            bullet("Standardised on Python 3"),
+            bullet("Certified against ISO 27001"),
+          ],
+        }),
+      ],
+    });
+    expect(getProfileCompletionNextAction(withVersionDigits)).toMatchObject({
+      label: "Add metrics to a bullet or two",
+    });
+
     const withMetrics = normalizeCandidateProfile({
       userId: "user-1",
       headline: "Staff PM",

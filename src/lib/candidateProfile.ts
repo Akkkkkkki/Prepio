@@ -478,6 +478,13 @@ export interface ProfileCompletionAction {
   to?: string;
 }
 
+// Metric-shaped evidence: a percentage, currency amount, multiplier, or a
+// scaled magnitude (10k, 1.2M, 3bn). Deliberately does NOT match a bare digit,
+// so version/identifier noise like "React 19", "Python 3", or "ISO 27001" is
+// not mistaken for a quantified outcome.
+const METRIC_PATTERN =
+  /\d\s?%|[$£€]\s?\d|\d\s?[x×]\b|\d[\d.,]*\s?(?:k|m|mm|bn|b|million|billion|thousand)\b/i;
+
 /**
  * Returns the single next highest-value gap to close, framed as a concrete
  * action tied to a downstream payoff (research/practice), or null when the
@@ -519,7 +526,7 @@ export const getProfileCompletionNextAction = (
     };
   }
 
-  if (!bullets.some((bullet) => /\d/.test(bullet.text))) {
+  if (!bullets.some((bullet) => METRIC_PATTERN.test(bullet.text))) {
     return {
       label: "Add metrics to a bullet or two",
       hint: "Numbers sharpen the research signal for your background.",
