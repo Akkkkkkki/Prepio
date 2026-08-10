@@ -482,8 +482,11 @@ export interface ProfileCompletionAction {
 // scaled magnitude (10k, 1.2M, 3bn). Deliberately does NOT match a bare digit,
 // so version/identifier noise like "React 19", "Python 3", or "ISO 27001" is
 // not mistaken for a quantified outcome.
+// The `×` multiplier needs a whitespace/end lookahead rather than \b: `×` is a
+// non-word char, so `\b` after it never matches (and this also skips
+// resolutions like `1920×1080`). The ASCII `x` form keeps its word boundary.
 const METRIC_PATTERN =
-  /\d\s?%|[$£€]\s?\d|\d\s?[x×]\b|\d[\d.,]*\s?(?:k|m|mm|bn|b|million|billion|thousand)\b/i;
+  /\d\s?%|[$£€]\s?\d|\d\s?x\b|\d\s?×(?=\s|$)|\d[\d.,]*\s?(?:k|m|mm|bn|b|million|billion|thousand)\b/i;
 
 /**
  * Returns the single next highest-value gap to close, framed as a concrete

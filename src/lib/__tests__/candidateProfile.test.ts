@@ -262,6 +262,22 @@ describe("candidateProfile helpers", () => {
       to: "/profile/preferences",
     });
 
+    // A typographic multiplier (3×) counts as a metric, so the nudge advances.
+    const withTypographicMultiplier = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "PM",
+          bullets: [bullet("Grew revenue 3×"), bullet("Ran discovery"), bullet("Shipped pricing")],
+        }),
+      ],
+    });
+    expect(getProfileCompletionNextAction(withTypographicMultiplier)).toMatchObject({
+      label: "Set your target roles",
+    });
+
     const complete = normalizeCandidateProfile({
       userId: "user-1",
       headline: "Staff PM",
