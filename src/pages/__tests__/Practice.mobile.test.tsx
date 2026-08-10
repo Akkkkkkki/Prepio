@@ -531,7 +531,11 @@ describe("Practice mobile layout", () => {
     await waitFor(() => {
       expect(mockRemoveQuestionFlag).toHaveBeenCalledWith("question-1", "needs_work");
       expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ variant: "destructive" }),
+        expect.objectContaining({
+          variant: "destructive",
+          title: "Couldn't save your Needs work flag",
+          description: "Try again in a moment.",
+        }),
       );
     });
     expect(
