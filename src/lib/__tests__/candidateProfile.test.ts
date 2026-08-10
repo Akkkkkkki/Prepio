@@ -262,7 +262,8 @@ describe("candidateProfile helpers", () => {
       to: "/profile/preferences",
     });
 
-    // A typographic multiplier (3×) counts as a metric, so the nudge advances.
+    // A typographic multiplier (3×) counts as a metric, including when it is
+    // immediately followed by punctuation, so the nudge advances.
     const withTypographicMultiplier = normalizeCandidateProfile({
       userId: "user-1",
       headline: "Staff PM",
@@ -270,7 +271,7 @@ describe("candidateProfile helpers", () => {
         createEmptyExperience({
           company: "Acme",
           title: "PM",
-          bullets: [bullet("Grew revenue 3×"), bullet("Ran discovery"), bullet("Shipped pricing")],
+          bullets: [bullet("Grew revenue 3×, year over year"), bullet("Ran discovery"), bullet("Shipped pricing")],
         }),
       ],
     });
