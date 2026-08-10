@@ -1008,8 +1008,8 @@ describe("Dashboard mobile layout", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /^Why this plan/ }));
 
-    expect(await screen.findByText("Leading through organisational change")).toBeInTheDocument();
+    expect(await screen.findByText("Leading through organisational change")).toBeTruthy();
     const cta = screen.getByRole("link", { name: /Add matching stories in your profile/ });
-    expect(cta).toHaveAttribute("href", "/profile");
+    expect(cta.getAttribute("href")).toBe("/profile");
   });
 });

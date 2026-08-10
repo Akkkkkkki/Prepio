@@ -490,6 +490,9 @@ export interface ProfileCompletionAction {
 export const getProfileCompletionNextAction = (
   profile: CandidateProfile,
 ): ProfileCompletionAction | null => {
+  const hasRealExperience = profile.experiences.some(
+    (experience) => experience.title || experience.company,
+  );
   const bullets = [
     ...profile.experiences.flatMap((experience) => experience.bullets),
     ...profile.projects.flatMap((project) => project.bullets),
@@ -502,7 +505,7 @@ export const getProfileCompletionNextAction = (
     };
   }
 
-  if (profile.experiences.length === 0) {
+  if (!hasRealExperience) {
     return {
       label: "Add your most recent role",
       hint: "Research positions you against real experience, not role norms.",

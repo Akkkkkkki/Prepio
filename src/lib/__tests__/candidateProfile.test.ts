@@ -7,6 +7,7 @@ import {
   createEmptyCandidateProfile,
   createEmptyExperience,
   createEmptyProject,
+  createEmptyProfileBullet,
   createEmptySkillGroup,
   getDefaultMergeAction,
   getProfileCompletionNextAction,
@@ -179,6 +180,8 @@ describe("candidateProfile helpers", () => {
   });
 
   it("surfaces the next highest-value profile action in priority order", () => {
+    const bullet = (text: string) => createEmptyProfileBullet({ text });
+
     const empty = createEmptyCandidateProfile("user-1");
     expect(getProfileCompletionNextAction(empty)).toMatchObject({ label: "Add a headline" });
 
@@ -187,11 +190,21 @@ describe("candidateProfile helpers", () => {
       label: "Add your most recent role",
     });
 
+    // An empty placeholder role (added, then left blank) does not count as a real role.
+    const withEmptyRole = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [createEmptyExperience()],
+    });
+    expect(getProfileCompletionNextAction(withEmptyRole)).toMatchObject({
+      label: "Add your most recent role",
+    });
+
     const withRole = normalizeCandidateProfile({
       userId: "user-1",
       headline: "Staff PM",
       experiences: [
-        createEmptyExperience({ company: "Acme", title: "PM", bullets: [{ text: "Led roadmap" }] }),
+        createEmptyExperience({ company: "Acme", title: "PM", bullets: [bullet("Led roadmap")] }),
       ],
     });
     expect(getProfileCompletionNextAction(withRole)).toMatchObject({
@@ -205,7 +218,7 @@ describe("candidateProfile helpers", () => {
         createEmptyExperience({
           company: "Acme",
           title: "PM",
-          bullets: [{ text: "Led roadmap" }, { text: "Ran discovery" }, { text: "Shipped pricing" }],
+          bullets: [bullet("Led roadmap"), bullet("Ran discovery"), bullet("Shipped pricing")],
         }),
       ],
     });
@@ -220,11 +233,7 @@ describe("candidateProfile helpers", () => {
         createEmptyExperience({
           company: "Acme",
           title: "PM",
-          bullets: [
-            { text: "Grew activation 20%" },
-            { text: "Ran discovery" },
-            { text: "Shipped pricing" },
-          ],
+          bullets: [bullet("Grew activation 20%"), bullet("Ran discovery"), bullet("Shipped pricing")],
         }),
       ],
     });
@@ -240,11 +249,7 @@ describe("candidateProfile helpers", () => {
         createEmptyExperience({
           company: "Acme",
           title: "PM",
-          bullets: [
-            { text: "Grew activation 20%" },
-            { text: "Ran discovery" },
-            { text: "Shipped pricing" },
-          ],
+          bullets: [bullet("Grew activation 20%"), bullet("Ran discovery"), bullet("Shipped pricing")],
         }),
       ],
       preferences: { targetRoles: ["Staff PM"], targetIndustries: [], locations: [], workModes: [], notes: "" },
