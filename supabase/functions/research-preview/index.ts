@@ -5,6 +5,7 @@ import { callOpenAI, parseJsonResponse } from "../_shared/openai-client.ts";
 import { getOpenAIModel } from "../_shared/config.ts";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import { getFingerprint } from "./fingerprint.ts";
+import { claimPreviewRequest } from "./rate-limit.ts";
 
 type Confidence = "high" | "medium" | "low";
 
@@ -99,38 +100,6 @@ const normalizeInput = (value?: string) => value?.trim().replace(/\s+/g, " ") ||
 
 const buildCacheKey = (company: string, role?: string, country?: string) =>
   [company, role, country].map((part) => normalizeInput(part).toLowerCase()).join("|");
-
-const checkRateLimit = async (supabase: any, fingerprint: string) => {
-  const windowMinutes = 60;
-  const maxRequests = 8;
-  const now = new Date();
-
-  const { data } = await supabase
-    .from("research_preview_rate_limits")
-    .select("*")
-    .eq("fingerprint", fingerprint)
-    .maybeSingle();
-
-  if (!data) {
-    await supabase.from("research_preview_rate_limits").insert({ fingerprint });
-    return true;
-  }
-
-  const windowStart = new Date(data.window_start);
-  const isExpired = now.getTime() - windowStart.getTime() > windowMinutes * 60 * 1000;
-  const nextCount = isExpired ? 1 : data.request_count + 1;
-
-  await supabase
-    .from("research_preview_rate_limits")
-    .update({
-      request_count: nextCount,
-      window_start: isExpired ? now.toISOString() : data.window_start,
-      updated_at: now.toISOString(),
-    })
-    .eq("fingerprint", fingerprint);
-
-  return isExpired || nextCount <= maxRequests;
-};
 
 const getCachedPreview = async (supabase: any, cacheKey: string) => {
   const { data } = await supabase
@@ -313,7 +282,7 @@ serve(async (req) => {
       });
     }
 
-    const allowed = await checkRateLimit(supabase, fingerprint);
+    const allowed = await claimPreviewRequest(supabase, fingerprint);
     if (!allowed) {
       return new Response(JSON.stringify({ success: false, error: "Preview limit reached. Try again later." }), {
         status: 429,

@@ -73,6 +73,17 @@ The billing foundation and local purchase/manage surface now have focused tests:
 - `/billing/return` polls entitlement until the webhook lands and falls back clearly when the webhook is delayed.
 - Paid answer feedback re-checks entitlement server-side and returns `403` before any model call for free users.
 
+### Guest preview spend guard
+
+The unauthenticated `research-preview` function fingerprints requests from the
+edge-provided client IP and claims each uncached request through the atomic
+`claim_research_preview_request` database function. The atomic upsert prevents
+concurrent requests from sharing a stale counter value; database errors fail
+closed before Tavily or OpenAI is called. Local tests cover the fixed RPC
+contract and rejection/error behavior. A hosted non-production load check is
+still required to verify the edge gateway's `x-forwarded-for` behavior and
+confirm observed provider spend.
+
 Still cover with a hosted, non-production smoke check before release:
 
 - deployed Checkout and Portal auth wiring
