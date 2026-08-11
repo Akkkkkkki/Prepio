@@ -236,7 +236,7 @@ describe("candidateProfile helpers", () => {
           title: "PM",
           bullets: [
             bullet("Migrated services to React 19"),
-            bullet("Standardised on Python 3"),
+            bullet("Built a B2B onboarding platform"),
             bullet("Certified against ISO 27001"),
           ],
         }),

@@ -482,12 +482,14 @@ export interface ProfileCompletionAction {
 // scaled magnitude (10k, 1.2M, 3bn). Deliberately does NOT match a bare digit,
 // so version/identifier noise like "React 19", "Python 3", or "ISO 27001" is
 // not mistaken for a quantified outcome.
-// The `×` multiplier needs a negative-digit lookahead rather than \b: `×` is a
-// non-word char, so `\b` after it never matches. `×(?!\d)` accepts a trailing
-// space, punctuation, or end (`3×`, `3×.`, `3× YoY`) while still rejecting
-// resolutions like `1920×1080`. The ASCII `x` form keeps its word boundary.
+// Metric-shaped evidence: a percentage, currency amount, multiplier, or scaled
+// magnitude. The multiplier/magnitude branches start at a left word boundary
+// (\b\d) so an identifier like `B2B` or `web3` can't have its inner digit read
+// as a metric. The `×` multiplier uses a negative-digit lookahead rather than a
+// trailing \b (which never matches after a non-word `×`), which accepts `3×`,
+// `3×.`, `3× YoY` while still rejecting resolutions like `1920×1080`.
 const METRIC_PATTERN =
-  /\d\s?%|[$£€]\s?\d|\d\s?x\b|\d\s?×(?!\d)|\d[\d.,]*\s?(?:k|m|mm|bn|b|million|billion|thousand)\b/i;
+  /\d\s?%|[$£€]\s?\d|\b\d[\d.,]*\s?(?:x\b|×(?!\d))|\b\d[\d.,]*\s?(?:k|m|mm|bn|b|million|billion|thousand)\b/i;
 
 /**
  * Returns the single next highest-value gap to close, framed as a concrete
