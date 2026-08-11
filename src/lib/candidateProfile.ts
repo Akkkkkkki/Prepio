@@ -485,11 +485,11 @@ export interface ProfileCompletionAction {
 // Metric-shaped evidence: a percentage, currency amount, multiplier, or scaled
 // magnitude. The multiplier/magnitude branches start at a left word boundary
 // (\b\d) so an identifier like `B2B` or `web3` can't have its inner digit read
-// as a metric. The `×` multiplier uses a negative-digit lookahead rather than a
-// trailing \b (which never matches after a non-word `×`), which accepts `3×`,
-// `3×.`, `3× YoY` while still rejecting resolutions like `1920×1080`.
+// as a metric. Each multiplier symbol carries a `(?!\s*\d)` tail so a second
+// number never follows — rejecting dimensions like `1920×1080` and the spaced
+// `1920 × 1080` / `1920 x 1080` — while `3×`, `3×.`, and `3× YoY` still match.
 const METRIC_PATTERN =
-  /\d\s?%|[$£€]\s?\d|\b\d[\d.,]*\s?(?:x\b|×(?!\d))|\b\d[\d.,]*\s?(?:k|m|mm|bn|b|million|billion|thousand)\b/i;
+  /\d\s?%|[$£€]\s?\d|\b\d[\d.,]*\s?(?:x\b|×)(?!\s*\d)|\b\d[\d.,]*\s?(?:k|m|mm|bn|b|million|billion|thousand)\b/i;
 
 /**
  * Returns the single next highest-value gap to close, framed as a concrete

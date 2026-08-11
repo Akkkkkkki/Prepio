@@ -279,9 +279,10 @@ describe("candidateProfile helpers", () => {
       label: "Set your target roles",
     });
 
-    // ...but a screen resolution is not an outcome. This guards the `(?!\d)`
-    // lookahead: widening it to accept any trailing character would let
-    // `1920×1080` pass as a metric and silently drop the nudge.
+    // ...but a screen resolution is not an outcome, compact or spaced. This
+    // guards the `(?!\s*\d)` lookahead: a multiplier symbol must not be followed
+    // by another number, or `1920×1080` / `1920 × 1080` would pass as a metric
+    // and silently drop the nudge.
     const withResolution = normalizeCandidateProfile({
       userId: "user-1",
       headline: "Staff PM",
@@ -289,7 +290,7 @@ describe("candidateProfile helpers", () => {
         createEmptyExperience({
           company: "Acme",
           title: "PM",
-          bullets: [bullet("Rendered dashboards at 1920×1080"), bullet("Ran discovery"), bullet("Shipped pricing")],
+          bullets: [bullet("Rendered dashboards at 1920 × 1080"), bullet("Ran discovery"), bullet("Shipped pricing")],
         }),
       ],
     });
