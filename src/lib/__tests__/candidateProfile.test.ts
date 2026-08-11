@@ -279,6 +279,24 @@ describe("candidateProfile helpers", () => {
       label: "Set your target roles",
     });
 
+    // ...but a screen resolution is not an outcome. This guards the `(?!\d)`
+    // lookahead: widening it to accept any trailing character would let
+    // `1920×1080` pass as a metric and silently drop the nudge.
+    const withResolution = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "PM",
+          bullets: [bullet("Rendered dashboards at 1920×1080"), bullet("Ran discovery"), bullet("Shipped pricing")],
+        }),
+      ],
+    });
+    expect(getProfileCompletionNextAction(withResolution)).toMatchObject({
+      label: "Add metrics to a bullet or two",
+    });
+
     const complete = normalizeCandidateProfile({
       userId: "user-1",
       headline: "Staff PM",
