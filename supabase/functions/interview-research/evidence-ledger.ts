@@ -364,6 +364,7 @@ export function sanitizePlanEvidenceCitations(
   ledger: EvidenceLedgerEntry[],
 ) {
   const droppedIds: string[] = [];
+  const downgradedStages: string[] = [];
   const sanitizeTarget = (target: unknown) => {
     if (!target || typeof target !== "object") return;
     const record = target as Record<string, unknown>;
@@ -372,7 +373,28 @@ export function sanitizePlanEvidenceCitations(
     droppedIds.push(...result.droppedIds);
   };
 
-  (Array.isArray(plan.stageRoadmap) ? plan.stageRoadmap : []).forEach(sanitizeTarget);
+  // A stage the model graded `high` while citing only IDs that do not exist
+  // would otherwise keep that grade after its citations are stripped, and
+  // Dashboard would present unverified support as confident. The prompt already
+  // requires unsupported claims to stay low; enforce it in code rather than
+  // trusting the model to have followed it.
+  const sanitizeStage = (target: unknown) => {
+    sanitizeTarget(target);
+    if (!target || typeof target !== "object") return;
+    const record = target as Record<string, unknown>;
+    const evidenceIds = record.evidenceIds;
+    if (Array.isArray(evidenceIds) && evidenceIds.length > 0) return;
+    if (record.confidence === "low") return;
+
+    record.confidence = "low";
+    if (!record.lowConfidenceGuidance) {
+      record.lowConfidenceGuidance =
+        "No verified source backs this stage — treat it as a general expectation for this kind of role and confirm with your recruiter.";
+    }
+    if (typeof record.stageName === "string") downgradedStages.push(record.stageName);
+  };
+
+  (Array.isArray(plan.stageRoadmap) ? plan.stageRoadmap : []).forEach(sanitizeStage);
   const questionPlan = asRecord(plan.questionPlan);
   ["coreMustPractice", "likelyFollowUps", "extraDepth"].forEach((tier) => {
     const questions = questionPlan && Array.isArray(questionPlan[tier])
@@ -392,6 +414,7 @@ export function sanitizePlanEvidenceCitations(
 
   return {
     droppedCitationIds: Array.from(new Set(droppedIds)),
+    downgradedStageNames: Array.from(new Set(downgradedStages)),
     ledgerCount: ledger.length,
   };
 }

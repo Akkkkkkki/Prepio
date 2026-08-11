@@ -165,6 +165,7 @@ describe("evidence citation validation", () => {
 
     expect(result).toEqual({
       droppedCitationIds: ["ev-404", "made-up"],
+      downgradedStageNames: [],
       ledgerCount: 2,
     });
     expect(plan.stageRoadmap[0].evidenceIds).toEqual(["ev-1"]);
@@ -183,12 +184,74 @@ describe("evidence citation validation", () => {
 
     const result = sanitizePlanEvidenceCitations(plan, []);
 
-    expect(result).toEqual({ droppedCitationIds: [], ledgerCount: 0 });
+    expect(result).toEqual({
+      droppedCitationIds: [],
+      downgradedStageNames: [],
+      ledgerCount: 0,
+    });
     expect(plan.summary).toMatchObject({
       weakSignalCase: true,
       overallConfidence: "low",
     });
     expect(plan.internalEvidenceLog).toEqual([]);
+  });
+
+  it("downgrades stages left with no verified citation", () => {
+    const ledger = buildEvidenceLedger({
+      company: "Acme",
+      userNote: "Known phone screen.",
+      jobDescription: "Build data products.",
+    });
+    const plan = {
+      summary: { weakSignalCase: false, overallConfidence: "high" },
+      stageRoadmap: [
+        // Cites only an ID that does not exist — nothing verified survives.
+        {
+          stageName: "Onsite Loop",
+          evidenceIds: ["ev-999"],
+          confidence: "high",
+          lowConfidenceGuidance: null,
+        },
+        // Never cited anything at all.
+        { stageName: "Take-home", confidence: "medium", lowConfidenceGuidance: null },
+        // Genuinely supported: must keep the model's grade untouched.
+        { stageName: "Phone Screen", evidenceIds: ["ev-1"], confidence: "high" },
+      ],
+      questionPlan: {},
+      internalEvidenceLog: [],
+    };
+
+    const result = sanitizePlanEvidenceCitations(plan, ledger);
+
+    expect(result.downgradedStageNames).toEqual(["Onsite Loop", "Take-home"]);
+    expect(plan.stageRoadmap[0].confidence).toBe("low");
+    expect(plan.stageRoadmap[0].lowConfidenceGuidance).toContain("No verified source");
+    expect(plan.stageRoadmap[1].confidence).toBe("low");
+    expect(plan.stageRoadmap[2].confidence).toBe("high");
+    expect(plan.stageRoadmap[2].evidenceIds).toEqual(["ev-1"]);
+  });
+
+  it("keeps guidance the model already wrote for an unsupported stage", () => {
+    const plan = {
+      summary: {},
+      stageRoadmap: [
+        {
+          stageName: "Onsite Loop",
+          evidenceIds: [],
+          confidence: "high",
+          lowConfidenceGuidance: "Ask your recruiter how the loop is structured.",
+        },
+      ],
+      questionPlan: {},
+      internalEvidenceLog: [],
+    };
+
+    sanitizePlanEvidenceCitations(plan, []);
+
+    expect(plan.stageRoadmap[0].confidence).toBe("low");
+    expect(plan.stageRoadmap[0].lowConfidenceGuidance).toBe(
+      "Ask your recruiter how the loop is structured.",
+    );
   });
 });
 

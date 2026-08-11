@@ -825,6 +825,11 @@ async function synthesizePrepPlan(
         `⚠️ Dropped unresolved evidence citations: ${evidenceValidation.droppedCitationIds.join(", ")}`,
       );
     }
+    if (evidenceValidation.downgradedStageNames.length > 0) {
+      console.warn(
+        `⚠️ Downgraded unsupported stages to low confidence: ${evidenceValidation.downgradedStageNames.join(", ")}`,
+      );
+    }
 
     logSynthesisOutcome(
       plan,
