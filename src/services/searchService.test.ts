@@ -709,6 +709,70 @@ describe("practice history answer dedupe helpers", () => {
     profileSpy.mockRestore();
   });
 
+  it("falls back to the legacy CV path when the profile lookup stalls", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("VITE_PROFILE_STORY_LINKING", "true");
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // A candidate_profiles read that never settles. Before the bound, this await
+    // sat outside the start race entirely, so the Edge Function was never invoked
+    // and the search stayed pending with the progress dialog waiting forever.
+    const profileSpy = vi
+      .spyOn(searchService, "getCandidateProfile")
+      .mockImplementation(() => new Promise(() => {}));
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: { status: "accepted" },
+      error: null,
+    });
+
+    const resultPromise = searchService.startProcessing("search-stalled-profile", {
+      company: "OpenAI",
+      cv: "Legacy CV fallback",
+    });
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    await expect(resultPromise).resolves.toEqual({ success: true });
+    expect(mockSupabase.functions.invoke).toHaveBeenCalledTimes(1);
+    const [, invokeArgs] = mockSupabase.functions.invoke.mock.calls[0];
+    expect(invokeArgs.body).not.toHaveProperty("candidateProfile");
+    expect(invokeArgs.body).toMatchObject({
+      cv: "Legacy CV fallback",
+      searchId: "search-stalled-profile",
+    });
+    // The run started rather than failing, so no failure write happened.
+    expect(mockSupabase.from).not.toHaveBeenCalled();
+
+    profileSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
+  });
+
+  it("falls back to the legacy CV path when the profile lookup errors", async () => {
+    vi.stubEnv("VITE_PROFILE_STORY_LINKING", "true");
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const profileSpy = vi
+      .spyOn(searchService, "getCandidateProfile")
+      .mockRejectedValue(new Error("profiles unavailable"));
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: { status: "accepted" },
+      error: null,
+    });
+
+    const result = await searchService.startProcessing("search-broken-profile", {
+      company: "OpenAI",
+      cv: "Legacy CV fallback",
+    });
+
+    expect(result).toEqual({ success: true });
+    const [, invokeArgs] = mockSupabase.functions.invoke.mock.calls[0];
+    expect(invokeArgs.body).not.toHaveProperty("candidateProfile");
+    expect(mockSupabase.from).not.toHaveBeenCalled();
+
+    profileSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
+  });
+
   it("marks the search as failed when the research function cannot be started", async () => {
     const updates: Array<Record<string, unknown>> = [];
 
