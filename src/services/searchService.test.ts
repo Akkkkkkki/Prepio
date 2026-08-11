@@ -694,8 +694,40 @@ describe("practice history answer dedupe helpers", () => {
     expect(mockSupabase.from).not.toHaveBeenCalled();
   });
 
+  it("fails startup when the acknowledgement never arrives", async () => {
+    vi.useFakeTimers();
+    const updates: Array<Record<string, unknown>> = [];
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // A gateway that accepts the connection but never responds: without a bound
+    // this promise stays pending forever and the search row stays `pending`.
+    mockSupabase.functions.invoke.mockImplementation(() => new Promise(() => {}));
+    mockSupabase.from.mockReturnValueOnce(
+      createUpdateChain(
+        { error: null },
+        (payload) => updates.push(payload as Record<string, unknown>),
+      ),
+    );
+
+    const resultPromise = searchService.startProcessing("search-stalled", {
+      company: "OpenAI",
+    });
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    const result = await resultPromise;
+    expect(result.success).toBe(false);
+    expect(updates[0]).toMatchObject({
+      status: "failed",
+      error_message: "Timed out while starting research",
+    });
+
+    consoleErrorSpy.mockRestore();
+  });
+
   it("marks the search as failed when the research function cannot be started", async () => {
     const updates: Array<Record<string, unknown>> = [];
+    const eqFilters: Array<[string, unknown]> = [];
 
     mockSupabase.functions.invoke.mockResolvedValue({
       data: null,
@@ -705,6 +737,7 @@ describe("practice history answer dedupe helpers", () => {
       createUpdateChain(
         { error: null },
         (payload) => updates.push(payload as Record<string, unknown>),
+        (column, value) => eqFilters.push([column, value]),
       ),
     );
 
@@ -717,6 +750,12 @@ describe("practice history answer dedupe helpers", () => {
       status: "failed",
       error_message: "relay down",
     });
+    // Scoped to a still-pending row so a startup failure cannot overwrite the
+    // terminal status of a run the pipeline has already picked up.
+    expect(eqFilters).toEqual([
+      ["id", "search-2"],
+      ["status", "pending"],
+    ]);
   });
 
   it("skips prep plan lookups while research is still pending", async () => {

@@ -1182,8 +1182,16 @@ serve(async (req: Request) => {
     console.error("Unhandled background interview research error:", error);
   });
 
-  if (edgeRuntime.EdgeRuntime?.waitUntil) {
-    edgeRuntime.EdgeRuntime.waitUntil(work);
+  const runtime = edgeRuntime.EdgeRuntime;
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(work);
+  } else {
+    // Local, self-hosted, and older runtimes have no background lifetime
+    // extension, so the isolate can be reclaimed as soon as we respond. Awaiting
+    // inline keeps the pipeline alive there; the caller only loses the early
+    // acknowledgement, which is strictly better than abandoning the run and
+    // leaving the search stuck on `pending`/`processing`.
+    await work;
   }
 
   return jsonResponse({
