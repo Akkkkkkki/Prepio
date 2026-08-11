@@ -1143,6 +1143,7 @@ const getInterviewerFocus = (
     stages = allStages,
     nextSampleSize = sampleSize,
     nextPreset = selectedPreset,
+    persistDefaults = true,
   }: {
     categories?: string[];
     difficulties?: string[];
@@ -1152,6 +1153,7 @@ const getInterviewerFocus = (
     stages?: InterviewStage[];
     nextSampleSize?: number;
     nextPreset?: string | null;
+    persistDefaults?: boolean;
   } = {}) => {
     if (isOffline) {
       return false;
@@ -1185,14 +1187,19 @@ const getInterviewerFocus = (
       setSearchParams(nextParams);
     }
 
-    persistPracticeDefaults({
-      sampleSize: nextSampleSize,
-      categories,
-      difficulties,
-      shuffle,
-      favoritesOnly,
-      interviewerMode
-    });
+    // Only a session the user actually configured should rewrite their stored
+    // setup. The automatic Quick Start that fires on card entry is transient, so
+    // it must leave a remembered custom setup intact.
+    if (persistDefaults) {
+      persistPracticeDefaults({
+        sampleSize: nextSampleSize,
+        categories,
+        difficulties,
+        shuffle,
+        favoritesOnly,
+        interviewerMode
+      });
+    }
     if (typeof window !== "undefined") {
       sessionStorage.removeItem(swipeHintStorageKey);
     }
@@ -1237,7 +1244,7 @@ const getInterviewerFocus = (
     await startPracticeSession();
   };
 
-  const handleBeginQuickStart = async () => {
+  const handleBeginQuickStart = async ({ persistDefaults = true }: { persistDefaults?: boolean } = {}) => {
     const selectedStages = allStages.some(stage => stage.selected)
       ? allStages
       : allStages.map(stage => ({ ...stage, selected: true }));
@@ -1248,7 +1255,8 @@ const getInterviewerFocus = (
       favoritesOnly: practicePresets.quick.config.favoritesOnly,
       stages: selectedStages,
       nextSampleSize: practicePresets.quick.config.sampleSize,
-      nextPreset: 'quick'
+      nextPreset: 'quick',
+      persistDefaults
     });
 
     if (!didBegin) return;
@@ -1268,7 +1276,7 @@ const getInterviewerFocus = (
 
     hasAutoStartedRef.current = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional load-driven transition: begin the session once stages have loaded; the ref guard prevents cascading re-entry
-    void handleBeginQuickStart();
+    void handleBeginQuickStart({ persistDefaults: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot Quick Start; handleBeginQuickStart closes over setup state we intentionally read only at auto-start time, and the ref guard prevents re-entry
   }, [allStages, sessionState, isOffline]);
 
@@ -2224,7 +2232,7 @@ const getInterviewerFocus = (
             )}
 
             <Button
-              onClick={mobileSetupMode === 'quick' ? handleBeginQuickStart : handleBeginSession}
+              onClick={mobileSetupMode === 'quick' ? () => handleBeginQuickStart() : handleBeginSession}
               disabled={isOffline || (mobileSetupMode === 'custom' && selectedStagesCount === 0)}
               className="h-12 w-full rounded-2xl text-base"
             >
@@ -2281,7 +2289,7 @@ const getInterviewerFocus = (
             <CardContent className="space-y-5">
               <button
                 type="button"
-                onClick={handleBeginQuickStart}
+                onClick={() => handleBeginQuickStart()}
                 disabled={isOffline}
                 className="motion-surface w-full rounded-2xl border border-primary bg-primary/5 p-5 text-left transition hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
               >

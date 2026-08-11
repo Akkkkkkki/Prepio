@@ -1162,6 +1162,36 @@ describe("Practice one-tap entry", () => {
     expect(mockCreatePracticeSession).not.toHaveBeenCalled();
   });
 
+  it("leaves a remembered custom setup intact when auto-start fires", async () => {
+    const remembered = {
+      sampleSize: 5,
+      categories: ["behavioral"],
+      difficulties: ["hard"],
+      shuffle: false,
+      favoritesOnly: true,
+      interviewerMode: true,
+    };
+    localStorage.setItem("practiceSetupDefaults", JSON.stringify(remembered));
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(mockCreatePracticeSession).toHaveBeenCalledWith("search-1"));
+
+    // The automatic Quick Start is transient: it must not overwrite the setup
+    // the user explicitly asked to remember.
+    expect(JSON.parse(localStorage.getItem("practiceSetupDefaults") ?? "null")).toMatchObject(
+      remembered,
+    );
+
+    localStorage.removeItem("practiceSetupDefaults");
+  });
+
   it("auto-starts one-tap entry on mobile too", async () => {
     mockUseIsMobile.mockReturnValue(true);
 
