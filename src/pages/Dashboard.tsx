@@ -366,6 +366,7 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
     icon: Icon,
     iconClassName,
     sectionClassName,
+    cta,
   }: {
     items: string[] | undefined;
     label: string;
@@ -373,6 +374,7 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
     icon: typeof CheckCircle2;
     iconClassName: string;
     sectionClassName: string;
+    cta?: { label: string; to: string };
   }) => {
     if (!items?.length) return null;
     return (
@@ -389,6 +391,14 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
             <li key={i} className="text-sm text-foreground/85">{item}</li>
           ))}
         </ul>
+        {cta ? (
+          <Button asChild variant="link" size="sm" className="h-auto p-0 text-xs">
+            <Link to={cta.to}>
+              {cta.label}
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </Button>
+        ) : null}
       </div>
     );
   };
@@ -437,6 +447,7 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
             icon: Search,
             iconClassName: "text-blue-600",
             sectionClassName: "bg-blue-50 dark:bg-blue-950/40",
+            cta: { label: "Add matching stories in your profile", to: "/profile" },
           })}
           {renderList({
             items: positioning.mismatchRisks,

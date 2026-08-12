@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Link2, MapPin, Sparkles, Trash2, Upload } from "lucide-react";
+import { ArrowRight, CheckCircle2, Link2, MapPin, Sparkles, Trash2, Upload } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import type { CandidateProfile } from "@/lib/candidateProfile";
-import { createEmptyProfileLink } from "@/lib/candidateProfile";
+import { createEmptyProfileLink, getProfileCompletionNextAction } from "@/lib/candidateProfile";
 
 import {
   formatResumeLabel,
@@ -29,7 +29,10 @@ const ProfileSummaryCard = ({
   activeResume,
   profile,
   updateProfile,
-}: ProfileSummaryCardProps) => (
+}: ProfileSummaryCardProps) => {
+  const nextAction = getProfileCompletionNextAction(profile);
+
+  return (
   <Card className="overflow-hidden border-border/70 bg-gradient-to-br from-background via-background to-muted/30">
     <CardContent className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1.7fr)_280px]">
       <div className="space-y-5">
@@ -149,9 +152,25 @@ const ProfileSummaryCard = ({
             <Badge variant="secondary">{profile.completionScore}%</Badge>
           </div>
           <Progress value={profile.completionScore} />
-          <p className="text-xs text-muted-foreground">
-            Keep this profile concise and import operational flows only when needed.
-          </p>
+          {nextAction ? (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-foreground">Next: {nextAction.label}</p>
+              <p className="text-xs text-muted-foreground">{nextAction.hint}</p>
+              {nextAction.to ? (
+                <Button asChild variant="link" size="sm" className="h-auto p-0 text-xs">
+                  <Link to={nextAction.to}>
+                    {nextAction.label}
+                    <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+              Ready for research and practice.
+            </p>
+          )}
         </div>
 
         <div className="space-y-2 rounded-2xl bg-muted/40 p-4 text-sm">
@@ -178,6 +197,7 @@ const ProfileSummaryCard = ({
       </div>
     </CardContent>
   </Card>
-);
+  );
+};
 
 export default ProfileSummaryCard;
