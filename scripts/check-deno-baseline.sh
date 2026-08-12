@@ -18,9 +18,22 @@ cd "$ROOT"
 # that is reported as a skip rather than a failure, because a sandbox without
 # egress must not be mistaken for a type-clean tree.
 #
+# PROVISIONAL — needs one more CI run before this gate can block.
+#
+# The first CI run of this script (PR #294) measured 19 pre-existing errors
+# across _shared/tavily-client.ts, _shared/url-deduplication.ts,
+# interview-question-generator, job-analysis, and profile-import — mostly
+# TS18046 (`unknown` in catch) and TS2339. None had ever been surfaced by CI.
+#
+# That 19 was measured while this script checked only the 12 `*/index.ts`
+# entrypoints. The file set has since widened to all 38 non-test sources (see
+# below), which can only find the same errors or more, so 19 is a floor and not
+# necessarily the true count. Read the real number off the next CI run, set it
+# here, then drop continue-on-error in .github/workflows/ci.yml.
+#
 # Lower BASELINE as the backlog burns down. Never raise it without a written
 # justification in the PR.
-BASELINE=${DENO_ERROR_BASELINE:-0}
+BASELINE=${DENO_ERROR_BASELINE:-19}
 
 # Prefer the lockfile-pinned devDependency so CI and a local checkout agree;
 # fall back to a system deno for anyone who has one.
@@ -38,16 +51,30 @@ if ! command -v "$DENO_BIN" >/dev/null 2>&1 && [ ! -x "$DENO_BIN" ]; then
   exit 0
 fi
 
-# Entrypoints only: each pulls in its own local module graph, so checking the
-# handlers transitively covers _shared and the per-function helpers.
-mapfile -t ENTRYPOINTS < <(find supabase/functions -mindepth 2 -maxdepth 2 -name 'index.ts' | sort)
+# Every non-test source, not just the `*/index.ts` handlers. Checking only
+# entrypoints and relying on transitive imports leaves standalone modules
+# unchecked — `_shared/duckduckgo-fallback.ts` is imported solely by its test,
+# and `_shared/config.example.ts` by nothing at all, so both would merge
+# unreported. Since no tsconfig covers this directory, "unreachable from an
+# entrypoint" would have meant "never type-checked at all".
+#
+# `*.test.ts` is the one deliberate exclusion: the tests import from "vitest"
+# and run under vitest/node, so deno cannot resolve them. They are type-checked
+# by the vitest run instead.
+mapfile -t SOURCES < <(find supabase/functions -name '*.ts' ! -name '*.test.ts' | sort)
 
-if (( ${#ENTRYPOINTS[@]} == 0 )); then
-  echo "No edge-function entrypoints found under supabase/functions." >&2
+if (( ${#SOURCES[@]} == 0 )); then
+  echo "No edge-function sources found under supabase/functions." >&2
   exit 1
 fi
 
-output=$("$DENO_BIN" check "${ENTRYPOINTS[@]}" 2>&1 || true)
+# Keep deno's exit status: a failure that produces neither a `Found N errors.`
+# summary nor any `TS... [ERROR]` diagnostic (syntax error, corrupt lockfile,
+# missing local module) must not fall through to count=0 and report a pass.
+set +e
+output=$("$DENO_BIN" check "${SOURCES[@]}" 2>&1)
+deno_status=$?
+set -e
 
 # Strip ANSI colour codes; deno colourises even when piped, and the escape
 # sequences sit between the token and the bracket in `TS2322 [ERROR]:`.
@@ -71,6 +98,15 @@ if [ -n "$summary" ]; then
   count=$summary
 else
   count=$(printf '%s\n' "$output" | { grep -cE 'TS[0-9]+ \[ERROR\]' || true; })
+fi
+
+# deno failed, but nothing was classified as a network skip or counted as a type
+# diagnostic. Something else broke; surface it instead of reporting "at baseline".
+if (( deno_status != 0 )) && (( count == 0 )); then
+  echo "deno check failed (exit $deno_status) without any countable type diagnostic." >&2
+  echo "This is not a pass — inspect the output below." >&2
+  printf '%s\n' "$output" >&2
+  exit 1
 fi
 
 if (( count > BASELINE )); then
