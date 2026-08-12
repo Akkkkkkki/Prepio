@@ -836,6 +836,55 @@ describe("Practice keyboard navigation", () => {
     expect(await screen.findByText(initialQuestionText)).toBeInTheDocument();
   });
 
+  it("ArrowRight saves the current question after navigating (latest-callback binding)", async () => {
+    const questionIdByText: Record<string, string> = {
+      "Describe your system design approach.": "q-1",
+      "How do you evaluate ML models in production?": "q-2",
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByText("Quick Start"));
+
+    let initialQuestionText = "";
+    await waitFor(() => {
+      const renderedQuestion = Object.keys(questionIdByText).find((questionText) =>
+        screen.queryByText(questionText),
+      );
+      expect(renderedQuestion).toBeDefined();
+      initialQuestionText = renderedQuestion ?? "";
+    });
+
+    const nextQuestionText = Object.keys(questionIdByText).find(
+      (questionText) => questionText !== initialQuestionText,
+    );
+    expect(nextQuestionText).toBeDefined();
+
+    // Advance to the second question so the keydown refs must have been
+    // refreshed by the commit-phase effect, not the initial render.
+    fireEvent.click(screen.getByRole("button", { name: /skip/i }));
+    expect(await screen.findByText(nextQuestionText!)).toBeInTheDocument();
+
+    const textarea = await screen.findByPlaceholderText("Capture bullet points or timing cues…");
+    fireEvent.change(textarea, { target: { value: "Offline eval harness plus canary rollout." } });
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+
+    // The saved answer must target the question currently on screen. A stale
+    // ref would invoke the first question's handler and never save this one.
+    await waitFor(() =>
+      expect(mockSavePracticeAnswer).toHaveBeenCalledWith(
+        expect.objectContaining({ questionId: questionIdByText[nextQuestionText!] }),
+      ),
+    );
+  });
+
   it("debounces the aria-live question announcement so rapid navigation doesn't flood screen readers", async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>

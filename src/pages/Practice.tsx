@@ -1613,9 +1613,16 @@ const getInterviewerFocus = (
   };
 
   const handleSaveAnswerRef = useRef(handleSaveAnswer);
-  handleSaveAnswerRef.current = handleSaveAnswer;
   const skipQuestionRef = useRef(skipQuestion);
-  skipQuestionRef.current = skipQuestion;
+  // Keep the keydown-handler refs pointed at the latest committed callbacks.
+  // Writing them in a commit-phase effect rather than during render avoids a
+  // React 19 concurrent-render hazard: an interrupted or discarded render must
+  // not leave a ref aimed at a callback that closes over uncommitted state,
+  // which the keydown listener from the committed tree would then invoke.
+  useEffect(() => {
+    handleSaveAnswerRef.current = handleSaveAnswer;
+    skipQuestionRef.current = skipQuestion;
+  });
 
   const jumpToQuestion = (index: number) => {
     if (index >= 0 && index < questions.length) {
