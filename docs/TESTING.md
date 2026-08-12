@@ -123,6 +123,28 @@ To see the actual errors, run `npx tsc -p tsconfig.app.json --noEmit`. If your c
 
 Burning down the 381-error backlog is follow-up work, tracked separately from this gate.
 
+### Backlog triage (2026-08-12, PREPIO-133)
+
+The 381 errors were bucketed by code and the shipped-`src` subset read line by
+line. PREPIO-133's working hypothesis — 30–60 genuine null/undefined bugs
+clustered in the pipeline — did **not** hold: there are zero `TS2532` /
+`TS18048` / `TS2531` (possibly null/undefined) errors. The distribution:
+
+| Code | Count | Verdict |
+|------|-------|---------|
+| `TS2339` property-does-not-exist | 338 | **Noise.** ~317 are in `__tests__` files (mock/fixture shape drift Vitest never enforces at runtime). The 21 in shipped `src` are runtime-correct: discriminated unions TS fails to narrow (`result.errorCode` reached only after a `success` guard; `Auth` `confirmPassword` on the signup branch), local annotations narrower than the actual `select("*")` row shape (`Practice.tsx` question fields, populated by `searchService`), and columns absent from stale generated types. |
+| `TS2352` unsound cast | 22 | **Noise.** Deliberate `as` casts of Supabase `Json` columns in `searchService.ts` / `entitlements.ts`. Unsound but runtime-safe by construction. |
+| `TS2345` / `TS2769` / `TS2305` / `TS2304` | 8 | **Noise.** Missing RPC/table/import names (`save_resume_version`, `subscriptions`, `CardProps`) — stale type generation, tracked by PREPIO-124. |
+| `TS2739` / `TS2741` / `TS2740` / `TS2322` | 13 | **Noise.** Test fixtures and fallback profile construction missing optional fields that `normalizeCandidateProfile` backfills. |
+
+No confirmed runtime bug survived reading. The `mammoth.default` access in
+`resumeUpload.ts` was the one plausible functional risk (DOCX upload); it is
+exercised by a passing test and works via Vite's CJS interop. The backlog is a
+type-hygiene and stale-type-generation problem, not a pre-computed bug list, so
+a burn-down ranks below PREPIO-124 (deploy migrations → regenerate types),
+which clears the largest shipped-`src` cluster on its own. Baseline unchanged —
+nothing was fixed in this triage.
+
 ## Lint Baseline
 
 `npm run lint` is informational, not a release gate. As of 2026-07-07 (after the eslint 10 / eslint-plugin-react-hooks 7 upgrade) it reports **54 problems (46 errors, 8 warnings)** from a clean `npm ci`. This section triages what's there so reviewers can tell at a glance whether a new lint hit is signal or noise.
@@ -142,14 +164,30 @@ These come from boilerplate that the shadcn CLI and Tailwind plugin docs generat
 - `@typescript-eslint/no-require-imports` (1 error)
   - `tailwind.config.ts:110` — `require("tailwindcss-animate")`. The plugin's documented install.
 
-### New react-hooks 7 rules — untriaged
+### react-hooks 7 rules — triaged (2026-08-12, PREPIO-133)
 
 eslint-plugin-react-hooks 7 (via the 2026-07-04 lint-and-format dependency
-bump) enables new rules that flag pre-existing code: `set-state-in-effect`
-(20), `immutability` (9), `purity` (8), `refs` (2). These 39 errors are
-untriaged — some may be real fixes, most are established patterns that
-predate the rules. Triage them as a separate chore; do not fix them
-drive-by inside unrelated diffs.
+bump) surfaced 39 errors: `set-state-in-effect` (20), `immutability` (9),
+`purity` (8), `refs` (2). Triaged — none reproduce as a present-day runtime
+bug. The split is idiomatic-safe vs. forward-looking risk under React 19
+concurrent rendering (PREPIO-93, PREPIO-98). Still don't fix them drive-by
+inside unrelated diffs.
+
+- `set-state-in-effect` (20) — **safe.** Each is either a one-shot mount sync
+  (`useIsMobile`, `useMobileFooterHeight`) or a `setState` inside an async
+  `.then()` / guarded early-return in a data-load effect (`Practice.tsx`,
+  `Dashboard.tsx`, `Home.tsx`). Stable deps, no render loops.
+- `purity` (8) — **forward-looking.** `Date.now()` read during render in the
+  `useSearchProgress` time-estimate/stall helpers, plus impure `useState`
+  initializers reading `window` / `sessionStorage`. Deterministic enough today;
+  a concurrent-render smell, not a bug.
+- `immutability` (9) / `refs` (2) — **forward-looking.** Ref reads/writes the
+  rule dislikes, all in event handlers or refs (`Practice.tsx` media-stream and
+  swipe refs, `Auth.tsx`), never in render output.
+
+No `Bug` issues were filed — nothing is a confirmed current defect. Fix the
+forward-looking items inside the React 19 upgrade scope (PREPIO-93, PREPIO-98),
+not as a standalone burn-down.
 
 ### Legacy Deno tests — out of scope here
 
