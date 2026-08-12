@@ -117,6 +117,12 @@ const extractPdfText = async (file: File): Promise<ExtractedResume> => {
   const loadingTask = pdfjs.getDocument({
     data: await file.arrayBuffer(),
     useWorkerFetch: false,
+    // Resumes are attacker-controlled input. Disable the eval()/Function
+    // codepath in pdf.js (font/PostScript-function handling) so a crafted PDF
+    // cannot execute script in the browser context. We only extract text and
+    // never render, so this has no effect on output — it is defence-in-depth
+    // for the highest-risk untrusted-input surface in the app.
+    isEvalSupported: false,
   });
   let pdf: Awaited<typeof loadingTask.promise> | null = null;
 

@@ -21,6 +21,14 @@ fi
 cd "${CLAUDE_PROJECT_DIR:-.}"
 
 echo "[session-start] Installing npm dependencies..."
+# This also installs the pinned `deno` devDependency, so `npm run
+# typecheck:functions` can type-check the Supabase Edge Functions.
+#
+# NOTE: `deno check` resolves the functions' remote imports over the network
+# (deno.land, esm.sh). Those hosts must be on the environment allowlist or the
+# check reports SKIPPED rather than passing. Nothing else in the repo covers
+# edge-function types — no tsconfig includes supabase/functions — so a skip
+# means those files are unverified, not clean.
 npm install
 
 echo "[session-start] Installing Playwright Chromium..."

@@ -7,8 +7,10 @@ import {
   createEmptyCandidateProfile,
   createEmptyExperience,
   createEmptyProject,
+  createEmptyProfileBullet,
   createEmptySkillGroup,
   getDefaultMergeAction,
+  getProfileCompletionNextAction,
   prepareProfileImportAutoApply,
   mergeImportedProfile,
   normalizeCandidateProfile,
@@ -175,6 +177,140 @@ describe("candidateProfile helpers", () => {
 
     expect(computeCandidateProfileCompletion(empty)).toBe(0);
     expect(computeCandidateProfileCompletion(complete)).toBe(100);
+  });
+
+  it("surfaces the next highest-value profile action in priority order", () => {
+    const bullet = (text: string) => createEmptyProfileBullet({ text });
+
+    const empty = createEmptyCandidateProfile("user-1");
+    expect(getProfileCompletionNextAction(empty)).toMatchObject({ label: "Add a headline" });
+
+    const withHeadline = normalizeCandidateProfile({ userId: "user-1", headline: "Staff PM" });
+    expect(getProfileCompletionNextAction(withHeadline)).toMatchObject({
+      label: "Add your most recent role",
+    });
+
+    // An empty placeholder role (added, then left blank) does not count as a real role.
+    const withEmptyRole = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [createEmptyExperience()],
+    });
+    expect(getProfileCompletionNextAction(withEmptyRole)).toMatchObject({
+      label: "Add your most recent role",
+    });
+
+    const withRole = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({ company: "Acme", title: "PM", bullets: [bullet("Led roadmap")] }),
+      ],
+    });
+    expect(getProfileCompletionNextAction(withRole)).toMatchObject({
+      label: "Add a few accomplishment bullets",
+    });
+
+    const withBullets = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "PM",
+          bullets: [bullet("Led roadmap"), bullet("Ran discovery"), bullet("Shipped pricing")],
+        }),
+      ],
+    });
+    expect(getProfileCompletionNextAction(withBullets)).toMatchObject({
+      label: "Add metrics to a bullet or two",
+    });
+
+    // Version/identifier digits are not metrics — the nudge should remain.
+    const withVersionDigits = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "PM",
+          bullets: [
+            bullet("Migrated services to React 19"),
+            bullet("Built a B2B onboarding platform"),
+            bullet("Certified against ISO 27001"),
+          ],
+        }),
+      ],
+    });
+    expect(getProfileCompletionNextAction(withVersionDigits)).toMatchObject({
+      label: "Add metrics to a bullet or two",
+    });
+
+    const withMetrics = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "PM",
+          bullets: [bullet("Grew activation 20%"), bullet("Ran discovery"), bullet("Shipped pricing")],
+        }),
+      ],
+    });
+    expect(getProfileCompletionNextAction(withMetrics)).toMatchObject({
+      label: "Set your target roles",
+      to: "/profile/preferences",
+    });
+
+    // A typographic multiplier (3×) counts as a metric, including when it is
+    // immediately followed by punctuation, so the nudge advances.
+    const withTypographicMultiplier = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "PM",
+          bullets: [bullet("Grew revenue 3×, year over year"), bullet("Ran discovery"), bullet("Shipped pricing")],
+        }),
+      ],
+    });
+    expect(getProfileCompletionNextAction(withTypographicMultiplier)).toMatchObject({
+      label: "Set your target roles",
+    });
+
+    // ...but a screen resolution is not an outcome, compact or spaced. This
+    // guards the `(?!\s*\d)` lookahead: a multiplier symbol must not be followed
+    // by another number, or `1920×1080` / `1920 × 1080` would pass as a metric
+    // and silently drop the nudge.
+    const withResolution = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "PM",
+          bullets: [bullet("Rendered dashboards at 1920 × 1080"), bullet("Ran discovery"), bullet("Shipped pricing")],
+        }),
+      ],
+    });
+    expect(getProfileCompletionNextAction(withResolution)).toMatchObject({
+      label: "Add metrics to a bullet or two",
+    });
+
+    const complete = normalizeCandidateProfile({
+      userId: "user-1",
+      headline: "Staff PM",
+      experiences: [
+        createEmptyExperience({
+          company: "Acme",
+          title: "PM",
+          bullets: [bullet("Grew activation 20%"), bullet("Ran discovery"), bullet("Shipped pricing")],
+        }),
+      ],
+      preferences: { targetRoles: ["Staff PM"], targetIndustries: [], locations: [], workModes: [], notes: "" },
+    });
+    expect(getProfileCompletionNextAction(complete)).toBeNull();
   });
 
   it("auto-applies new imported content into an empty profile", () => {

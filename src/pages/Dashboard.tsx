@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MobileStageCard } from "@/components/dashboard/MobileStageCard";
+import { StageStepper } from "@/components/dashboard/StageStepper";
 import {
   PlayCircle,
   ArrowRight,
@@ -365,6 +366,7 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
     icon: Icon,
     iconClassName,
     sectionClassName,
+    cta,
   }: {
     items: string[] | undefined;
     label: string;
@@ -372,6 +374,7 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
     icon: typeof CheckCircle2;
     iconClassName: string;
     sectionClassName: string;
+    cta?: { label: string; to: string };
   }) => {
     if (!items?.length) return null;
     return (
@@ -388,6 +391,14 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
             <li key={i} className="text-sm text-foreground/85">{item}</li>
           ))}
         </ul>
+        {cta ? (
+          <Button asChild variant="link" size="sm" className="h-auto p-0 text-xs">
+            <Link to={cta.to}>
+              {cta.label}
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </Button>
+        ) : null}
       </div>
     );
   };
@@ -436,6 +447,7 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
             icon: Search,
             iconClassName: "text-blue-600",
             sectionClassName: "bg-blue-50 dark:bg-blue-950/40",
+            cta: { label: "Add matching stories in your profile", to: "/profile" },
           })}
           {renderList({
             items: positioning.mismatchRisks,
@@ -671,6 +683,7 @@ function StageRoadmapCard({
           <CardDescription>Select stages to include in your practice session</CardDescription>
         </CardHeader>
         <CardContent>
+          <StageStepper stages={stages} topStageId={topStageId} className="mb-4" />
           <div className="space-y-4">
             {stages.map((stage, index) => (
               <MobileStageCard
@@ -696,6 +709,7 @@ function StageRoadmapCard({
         <CardDescription>Select stages to include in your practice session</CardDescription>
       </CardHeader>
       <CardContent>
+        <StageStepper stages={stages} topStageId={topStageId} className="mb-4" />
         <Accordion type="multiple" className="space-y-4">
           {stages.map((stage, index) => (
             <AccordionItem
@@ -1053,19 +1067,18 @@ const Dashboard = () => {
           <p className="min-w-0 break-words text-sm leading-6 text-muted-foreground">
             {searchSubtitle}
           </p>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             {searchStatusLabel && <Badge variant="secondary">{searchStatusLabel}</Badge>}
-            {summary?.overallConfidence && (
-              <Badge className={confidenceColor(summary.overallConfidence)}>
-                {summary.overallConfidence} confidence
-              </Badge>
-            )}
-            {summary?.industryFocus && summary.industryFocus !== 'unknown' && (
-              <Badge variant="outline">{summary.industryFocus}</Badge>
-            )}
-            {summary?.level && summary.level !== 'unknown' && (
-              <Badge variant="outline">{summary.level.replace('_', ' ')}</Badge>
-            )}
+            {(() => {
+              const meta = [
+                summary?.overallConfidence ? `${summary.overallConfidence} confidence` : null,
+                summary?.industryFocus && summary.industryFocus !== "unknown" ? summary.industryFocus : null,
+                summary?.level && summary.level !== "unknown" ? summary.level.replace("_", " ") : null,
+              ].filter(Boolean);
+              return meta.length > 0 ? (
+                <span className="text-xs text-muted-foreground">{meta.join(" · ")}</span>
+              ) : null;
+            })()}
           </div>
         </div>
       </header>
