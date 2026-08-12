@@ -150,7 +150,20 @@ describe("evidence citation validation", () => {
       userNote: "Known phone screen.",
       jobDescription: "Build data products.",
     });
-    const plan = {
+    // `evidenceIds` is optional on the way in — a model may omit it entirely,
+    // and the sanitizer's job is to normalize that to []. Without the explicit
+    // annotation TypeScript narrows `likelyFollowUps[0]` to `{ question: string }`
+    // and the assertion below fails to compile.
+    const plan: {
+      summary: Record<string, unknown>;
+      stageRoadmap: Array<{ stageName: string; evidenceIds?: string[] }>;
+      questionPlan: {
+        coreMustPractice: Array<{ question: string; evidenceIds?: string[] }>;
+        likelyFollowUps: Array<{ question: string; evidenceIds?: string[] }>;
+        extraDepth: Array<{ question: string; evidenceIds?: string[] }>;
+      };
+      internalEvidenceLog: unknown[];
+    } = {
       summary: { weakSignalCase: false, overallConfidence: "high" },
       stageRoadmap: [{ stageName: "Phone Screen", evidenceIds: ["ev-1", "ev-404"] }],
       questionPlan: {
