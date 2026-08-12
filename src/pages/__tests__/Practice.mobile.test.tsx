@@ -7,7 +7,6 @@ const UrlSpy = () => {
   const location = useLocation();
   return <div data-testid="url-spy" data-search={location.search} />;
 };
-import { BREATHING_DISMISSED_KEY } from "@/components/practice/BreathingBreak";
 
 const capturedSwipeConfigs: Array<Record<string, unknown>> = [];
 const mockGetSearchResults = vi.fn();
@@ -149,9 +148,14 @@ beforeAll(() => {
   vi.stubGlobal("MediaRecorder", MockMediaRecorder);
 });
 
+// Practice defaults (including the opt-in breathing warm-up) persist to
+// localStorage, so reset it between tests to keep them isolated.
+beforeEach(() => {
+  localStorage.clear();
+});
+
 const startPracticeSession = async () => {
   fireEvent.click(await screen.findByRole("button", { name: "Start practice" }));
-  fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
 };
 
 describe("Practice mobile layout", () => {
@@ -160,7 +164,6 @@ describe("Practice mobile layout", () => {
     MockResizeObserver.reset();
     MockMediaRecorder.reset();
     capturedSwipeConfigs.length = 0;
-    localStorage.removeItem(BREATHING_DISMISSED_KEY);
     mockUseIsMobile.mockReturnValue(true);
     Object.defineProperty(navigator, "mediaDevices", {
       configurable: true,
@@ -284,6 +287,46 @@ describe("Practice mobile layout", () => {
     expect(await screen.findByText("New interview target")).toBeInTheDocument();
   });
 
+  it("goes straight to the first question without a breathing warm-up by default", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Practice setup")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
+
+    expect(
+      await screen.findByText(
+        "How did you leverage LLM technology in the AI product evaluation at Hg Capital?",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("Breathe in...")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+  });
+
+  it("shows the breathing warm-up only when opted in from the setup options", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /customize — stages, difficulty, filters/i }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /breathing warm-up/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start custom session" }));
+
+    expect(await screen.findByText("Breathe in...")).toBeTruthy();
+  });
+
   it("starts with notes expanded and preserves them across coach sheet open/close", async () => {
     const { container } = render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
@@ -296,8 +339,6 @@ describe("Practice mobile layout", () => {
     expect(await screen.findByText("Practice setup")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
-    expect(await screen.findByText("Breathe in...")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
 
     expect(
       await screen.findByText("How did you leverage LLM technology in the AI product evaluation at Hg Capital?")
@@ -707,7 +748,6 @@ describe("Practice keyboard navigation", () => {
     vi.clearAllMocks();
     MockResizeObserver.reset();
     capturedSwipeConfigs.length = 0;
-    localStorage.removeItem(BREATHING_DISMISSED_KEY);
     mockUseIsMobile.mockReturnValue(false);
     Object.defineProperty(navigator, "mediaDevices", {
       configurable: true,
@@ -774,7 +814,6 @@ describe("Practice keyboard navigation", () => {
     );
 
     fireEvent.click(await screen.findByText("Quick Start"));
-    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
 
     let initialQuestionText = "";
     await waitFor(() => {
@@ -807,7 +846,6 @@ describe("Practice keyboard navigation", () => {
     );
 
     fireEvent.click(await screen.findByText("Quick Start"));
-    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
 
     const initialAnnouncement = await screen.findByText("Question 1 of 2");
     expect(initialAnnouncement).toHaveAttribute("aria-live", "polite");
@@ -838,7 +876,6 @@ describe("Practice keyboard navigation", () => {
     );
 
     fireEvent.click(await screen.findByText("Quick Start"));
-    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
 
     const needsWorkButton = await screen.findByRole("button", { name: "Mark as needs work" });
     expect(needsWorkButton.getAttribute("aria-pressed")).toBe("false");
@@ -862,7 +899,6 @@ describe("Practice needs-work focus mode", () => {
     vi.clearAllMocks();
     MockResizeObserver.reset();
     capturedSwipeConfigs.length = 0;
-    localStorage.removeItem(BREATHING_DISMISSED_KEY);
     mockUseIsMobile.mockReturnValue(false);
     Object.defineProperty(navigator, "mediaDevices", {
       configurable: true,
@@ -1013,7 +1049,6 @@ describe("Practice needs-work focus mode", () => {
     );
 
     fireEvent.click(await screen.findByText("Quick Start"));
-    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
 
     expect(await screen.findByText("Question 1 of 2")).toBeInTheDocument();
 
@@ -1034,7 +1069,6 @@ describe("Practice autosave label", () => {
     vi.clearAllMocks();
     MockResizeObserver.reset();
     capturedSwipeConfigs.length = 0;
-    localStorage.removeItem(BREATHING_DISMISSED_KEY);
     sessionStorage.clear();
     mockUseIsMobile.mockReturnValue(false);
     Object.defineProperty(navigator, "mediaDevices", {
@@ -1081,10 +1115,6 @@ describe("Practice autosave label", () => {
 
   const startSession = async () => {
     fireEvent.click(await screen.findByRole("button", { name: /quick start/i }));
-    expect(
-      await screen.findByText("Breathe in...", {}, { timeout: 3000 })
-    ).toBeInTheDocument();
-    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
     expect(
       await screen.findByText(
         "Describe your system design approach.",
@@ -1180,8 +1210,10 @@ describe("Practice one-tap entry", () => {
     vi.clearAllMocks();
     MockResizeObserver.reset();
     capturedSwipeConfigs.length = 0;
-    // Skip the breathing interstitial so the loop renders synchronously.
-    localStorage.setItem(BREATHING_DISMISSED_KEY, "true");
+    // The breathing warm-up is opt-in and off by default, so the question loop
+    // renders synchronously with no interstitial to dismiss. (This block used to
+    // set BREATHING_DISMISSED_KEY; that opt-out no longer exists.)
+    localStorage.clear();
     mockUseIsMobile.mockReturnValue(false);
     Object.defineProperty(navigator, "mediaDevices", {
       configurable: true,
@@ -1216,7 +1248,7 @@ describe("Practice one-tap entry", () => {
   });
 
   afterEach(() => {
-    localStorage.removeItem(BREATHING_DISMISSED_KEY);
+    localStorage.clear();
     mathRandomSpy.mockRestore();
   });
 

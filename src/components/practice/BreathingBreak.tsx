@@ -1,9 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-
-const BREATHING_DISMISSED_KEY = "prepioBreathingDismissed";
 
 const PHASES = [
   { label: "Breathe in...", duration: 4000, scale: 1.5 },
@@ -23,7 +19,6 @@ export const BreathingBreak = ({ onComplete, onSkip }: BreathingBreakProps) => {
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [cycle, setCycle] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
-  const [dontShowAgain, setDontShowAgain] = useState(false);
   const onCompleteRef = useRef(onComplete);
   const prefersReducedMotion =
     typeof window !== "undefined" &&
@@ -33,16 +28,9 @@ export const BreathingBreak = ({ onComplete, onSkip }: BreathingBreakProps) => {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
-  const handleDismiss = useCallback(() => {
-    if (dontShowAgain) {
-      localStorage.setItem(BREATHING_DISMISSED_KEY, "true");
-    }
-  }, [dontShowAgain]);
-
-  const handleSkip = () => {
-    handleDismiss();
+  const handleSkip = useCallback(() => {
     onSkip();
-  };
+  }, [onSkip]);
 
   // Start scale(1) on first paint so the first phase transitions from 1 → 1.5.
   useEffect(() => {
@@ -57,7 +45,6 @@ export const BreathingBreak = ({ onComplete, onSkip }: BreathingBreakProps) => {
       if (nextPhase >= PHASES.length) {
         const nextCycle = cycle + 1;
         if (nextCycle >= TOTAL_CYCLES) {
-          handleDismiss();
           onCompleteRef.current();
           return;
         }
@@ -69,7 +56,7 @@ export const BreathingBreak = ({ onComplete, onSkip }: BreathingBreakProps) => {
     }, phase.duration);
 
     return () => clearTimeout(timer);
-  }, [phaseIndex, cycle, handleDismiss]);
+  }, [phaseIndex, cycle]);
 
   const currentPhase = PHASES[phaseIndex];
   const currentScale = hasStarted ? currentPhase.scale : 1;
@@ -102,16 +89,6 @@ export const BreathingBreak = ({ onComplete, onSkip }: BreathingBreakProps) => {
       </div>
 
       <div className="flex flex-col items-center gap-4 pb-12">
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id="breathing-dismiss"
-            checked={dontShowAgain}
-            onCheckedChange={(checked) => setDontShowAgain(checked === true)}
-          />
-          <Label htmlFor="breathing-dismiss" className="text-sm text-muted-foreground cursor-pointer">
-            Don't show again
-          </Label>
-        </div>
         <Button variant="outline" onClick={handleSkip} className="min-h-[44px] min-w-[120px]">
           Skip
         </Button>
@@ -119,5 +96,3 @@ export const BreathingBreak = ({ onComplete, onSkip }: BreathingBreakProps) => {
     </div>
   );
 };
-
-export { BREATHING_DISMISSED_KEY };
