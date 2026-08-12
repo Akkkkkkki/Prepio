@@ -189,6 +189,7 @@
         "npm:clsx@^2.1.1",
         "npm:cmdk@1",
         "npm:date-fns@^4.4.0",
+        "npm:deno@^2.9.5",
         "npm:embla-carousel-react@^8.3.0",
         "npm:eslint-plugin-react-hooks@^7.1.1",
         "npm:eslint-plugin-react-refresh@~0.5.3",
@@ -220,7 +221,10 @@
         "npm:vite@^7.3.5",
         "npm:vitest@^4.1.8",
         "npm:zod@^3.23.8"
-      ]
+      ],
+      "overrides": {
+        "esbuild": "^0.28.1"
+      }
     }
   }
 }

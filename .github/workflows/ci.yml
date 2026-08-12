@@ -44,6 +44,23 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # `supabase/functions/**` is in no tsconfig `include`, so the step above
+      # does not cover the edge functions — until this step they were
+      # type-checked by nothing in CI and a type error there shipped green.
+      #
+      # deno comes from the `deno` devDependency rather than setup-deno, so
+      # `npm ci` above already installed it — one version, pinned by the
+      # lockfile, identical in CI and in a local/agent checkout.
+      #
+      # Non-blocking on introduction: the pre-existing error count in the
+      # functions tree is not yet known (it cannot be measured in a sandbox
+      # without egress to deno.land/esm.sh). Read the count from this step's
+      # log on the first run, set BASELINE in scripts/check-deno-baseline.sh
+      # to it, then delete continue-on-error so the ratchet actually gates.
+      - name: Typecheck edge functions (informational until baselined)
+        continue-on-error: true
+        run: npm run typecheck:functions
+
       - name: Build
         run: npm run build
 
