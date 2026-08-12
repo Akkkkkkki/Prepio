@@ -123,6 +123,33 @@ To see the actual errors, run `npx tsc -p tsconfig.app.json --noEmit`. If your c
 
 Burning down the 381-error backlog is follow-up work, tracked separately from this gate.
 
+### Backlog triage (2026-08-12, PREPIO-133)
+
+The 381 errors were bucketed by code and the shipped-`src` subset read line by
+line. PREPIO-133's working hypothesis — 30–60 genuine null/undefined bugs
+clustered in the pipeline — did **not** hold: there are zero `TS2532` /
+`TS18048` / `TS2531` (possibly null/undefined) errors. The distribution:
+
+| Code | Count | Verdict |
+|------|-------|---------|
+| `TS2339` property-does-not-exist | 338 | **Noise.** ~317 are in `__tests__` files (mock/fixture shape drift Vitest never enforces at runtime). The 21 in shipped `src` are runtime-correct **except one** (`question_type`, broken out below): discriminated unions TS fails to narrow (`result.errorCode` reached only after a `success` guard; `Auth` `confirmPassword` on the signup branch), local annotations narrower than the actual `select("*")` row shape (`Practice.tsx` question fields, populated by `searchService`), and columns absent from stale generated types. |
+| `TS2352` unsound cast | 22 | **Noise.** Deliberate `as` casts of Supabase `Json` columns in `searchService.ts` / `entitlements.ts`. Unsound but runtime-safe by construction. |
+| `TS2345` / `TS2769` / `TS2305` / `TS2304` | 8 | **Noise, mixed owners.** 4 are stale generated types PREPIO-124 clears (`save_resume_version` RPC ×2; `subscriptions`/entitlements, billing WIP). 3 are **local** type errors PREPIO-124 will *not* touch — a `type CardProps` import (`card.tsx` doesn't export it; runtime-erased), a `PDFPageProxy`→`PdfPage` mismatch (`resumeUpload.ts`), and a `PrepPlanRow` setState cast (`Dashboard.tsx`) — all runtime-correct, opportunistic tsc hygiene. 1 is a vitest global (`afterEach`, `globals: true`), test-only. |
+| `TS2739` / `TS2741` / `TS2740` / `TS2322` | 13 | **Noise.** Test fixtures and fallback profile construction missing optional fields that `normalizeCandidateProfile` backfills. |
+
+**One confirmed defect, not noise** (found within the `TS2339` bucket): `searchService.ts:577` maps `type: q.question_type`, but `interview_questions` has no `question_type` column (it's `category`) — so every question gets `type: undefined`. Type regeneration cannot fix a column that does not exist. Currently latent: `Practice.tsx:757` forwards it into `question.type`, but no shipped behavior consumes that field (the UI renders `category`), so there is no user-visible symptom — it is still a real error. Tracked in **PREPIO-138**.
+
+Exactly one confirmed defect survived reading — the `question_type` phantom
+column above (PREPIO-138), and it is currently dead code with no user-visible
+symptom. The `mammoth.default` access in `resumeUpload.ts` was the other
+plausible functional risk (DOCX upload); it is exercised by a passing test and
+works via Vite's CJS interop. So the backlog is overwhelmingly a type-hygiene
+and stale-type-generation problem, not a pre-computed bug list, and a burn-down
+ranks below PREPIO-124 (deploy migrations → regenerate types), which clears the
+stale RPC/table errors. The residue — local narrowing/annotation gaps and
+test-file mock drift — is opportunistic hygiene, best cleaned when those files
+are next edited. Baseline unchanged — nothing was fixed in this triage.
+
 ## Lint Baseline
 
 `npm run lint` is informational, not a release gate. As of 2026-07-07 (after the eslint 10 / eslint-plugin-react-hooks 7 upgrade) it reports **54 problems (46 errors, 8 warnings)** from a clean `npm ci`. This section triages what's there so reviewers can tell at a glance whether a new lint hit is signal or noise.
@@ -142,14 +169,37 @@ These come from boilerplate that the shadcn CLI and Tailwind plugin docs generat
 - `@typescript-eslint/no-require-imports` (1 error)
   - `tailwind.config.ts:110` — `require("tailwindcss-animate")`. The plugin's documented install.
 
-### New react-hooks 7 rules — untriaged
+### react-hooks 7 rules — triaged (2026-08-12, PREPIO-133)
 
 eslint-plugin-react-hooks 7 (via the 2026-07-04 lint-and-format dependency
-bump) enables new rules that flag pre-existing code: `set-state-in-effect`
-(20), `immutability` (9), `purity` (8), `refs` (2). These 39 errors are
-untriaged — some may be real fixes, most are established patterns that
-predate the rules. Triage them as a separate chore; do not fix them
-drive-by inside unrelated diffs.
+bump) surfaced 39 errors: `set-state-in-effect` (20), `immutability` (9),
+`purity` (8), `refs` (2). Triaged. Note the framing: React 19 is **already
+live** (`react@^19.2.7`, mounted via `createRoot` in `src/main.tsx`; PREPIO-93
+shipped in #205), so concurrent rendering is in play now — the concurrent-render
+rules below are current correctness smells, not "forward-looking under a future
+upgrade." Still don't fix them drive-by inside unrelated diffs.
+
+- `set-state-in-effect` (20) — **safe.** Each is either a one-shot mount sync
+  (`useIsMobile`, `useMobileFooterHeight`) or a `setState` inside an async
+  `.then()` / guarded early-return in a data-load effect (`Practice.tsx`,
+  `Dashboard.tsx`, `Home.tsx`). Stable deps, no render loops.
+- `refs` (2) — **current hazard, tracked in PREPIO-137.** `Practice.tsx:1568`
+  and `:1570` write `handleSaveAnswerRef.current` / `skipQuestionRef.current`
+  **during render** (not in an effect or handler). Under live concurrent
+  rendering an interrupted render can leave the ref pointing at a callback that
+  closed over uncommitted state, which the committed keydown listener then
+  invokes. Real, if narrow. Fix = move the writes to commit phase.
+- `purity` (8) — **current, low severity.** `Date.now()` read during render in
+  the `useSearchProgress` time-estimate/stall helpers, plus impure `useState`
+  initializers reading `window` / `sessionStorage`. Deterministic enough that no
+  defect is observed today, but a genuine concurrent-render smell.
+- `immutability` (9) — **low severity.** Ref/object mutations the rule dislikes,
+  in event handlers (`Practice.tsx` media-stream refs, `Auth.tsx`), not render
+  output.
+
+One `Bug` issue filed for the confirmed hazard (PREPIO-137, the `refs`
+render-writes). The `purity`/`immutability` items are lower-severity cleanup
+best folded into that follow-up, not a standalone burn-down.
 
 ### Legacy Deno tests — out of scope here
 
