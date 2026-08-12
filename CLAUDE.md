@@ -116,6 +116,60 @@ Protected-route and `/` redirect behavior: [`src/App.tsx`](./src/App.tsx).
 - **Resume deletion must keep file cleanup and row cleanup in sync.**
 - **Model config is env-driven.** Falls back to `gpt-4o` / `gpt-4o-mini` if `OPENAI_MODEL` is not set.
 - **Edge functions use service role.** All substantive DB writes from edge functions bypass RLS via `SUPABASE_SERVICE_ROLE_KEY`.
+- **Re-request Codex review after pushing a fix.** Pushing commits does not re-trigger it. See [Working with Codex PR review](#working-with-codex-pr-review).
+
+## Working with Codex PR review
+
+Codex (`@chatgpt-codex-connector`) reviews PRs in this repo. It is configured
+in the ChatGPT Codex cloud settings, **not** in this repository — there is no
+workflow file to edit.
+
+### What triggers a review
+
+Only these three things:
+
+1. Opening a PR that is not a draft.
+2. Marking an existing draft as ready for review.
+3. A PR comment that mentions Codex.
+
+**Pushing new commits does not trigger a re-review.** This is the failure mode
+worth internalizing: you can push a fix addressing a P1 finding and the thread
+will simply go quiet, leaving the finding to look unaddressed.
+
+### The convention
+
+After pushing a fix that responds to Codex feedback, post the reply as a
+**top-level PR comment that mentions `@chatgpt-codex-connector`** (or says
+`@codex review`). Two things follow from that:
+
+- Inline review-thread replies do **not** count. A reply inside a
+  `discussion_r*` thread never reaches Codex, even when the fix is real and
+  pushed. Compare [#287](https://github.com/Akkkkkkki/Prepio/pull/287) (inline
+  reply → one review, silence after the fix) with
+  [#278](https://github.com/Akkkkkkki/Prepio/pull/278) (top-level mentions →
+  three passes, ending in an explicit all-clear on the new head).
+- Mention it once per round, not once per finding. Codex re-reads the current
+  head, so one comment covering everything you fixed is enough.
+
+Codex answers a mention in one of two modes: a **fresh review** of the current
+head, or an **agent task** that investigates and replies (the response carries
+a `View task →` link). Both are useful; you do not choose between them.
+
+### Draft PRs get no review
+
+`.github/workflows/codex-prepio-linear-auto-pr.yml` opens its PRs with
+`gh pr create --draft`, so scheduled auto-PRs sit unreviewed until someone
+marks them ready. Mark them ready when you want the review.
+
+### If this ever gets automated
+
+The alternative is a workflow posting `@codex review` on
+`pull_request: synchronize`. Deliberately **not** implemented — the mention
+convention above covers the agent-driven flow at no extra cost. Two things to
+carry forward if it is revisited: skip bot-authored pushes so the scheduled
+auto-PR workflow does not review its own output, and verify that Codex
+responds to a `github-actions[bot]` mention at all (integrations commonly
+ignore bot comments to avoid loops, which would mean it needs a PAT).
 
 ## Working with Linear
 

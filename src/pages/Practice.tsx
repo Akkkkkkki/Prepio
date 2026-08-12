@@ -52,6 +52,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMobileFooterHeight } from "@/hooks/useMobileFooterHeight";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useToast } from "@/hooks/use-toast";
 import { SessionSummary, type GenerateAnswerFeedbackResult } from "@/components/SessionSummary";
 import type { AnswerFeedback } from "@/shared/answer-feedback";
 import { QuestionFrame } from "@/components/practice/QuestionFrame";
@@ -75,6 +76,13 @@ const AUTOSAVE_DELAY_MS = 5000;
 const PRACTICE_SETUP_STORAGE_KEY = "practiceSetupDefaults";
 const COMPLETE_SESSION_ERROR_MESSAGE = "We couldn't mark this session complete. Try again.";
 const OFFLINE_PRACTICE_MESSAGE = "Reconnect to start practice, save answers, or update favorites.";
+// User-facing names for each flag, used in the save-failure toast so it names
+// only the control the user toggled. Mirrors the button labels.
+const FLAG_ERROR_LABELS: Record<PracticeQuestionFlagType, string> = {
+  favorite: "Favorite",
+  needs_work: "Needs work",
+  skipped: "Skip",
+};
 const RECOMMENDED_ANSWER_TIME_COPY = "Aim for 1-2 min";
 const ABORTED_RECORDING_ERROR_MESSAGE =
   "Recording stopped before any audio was captured. Try again or switch to notes.";
@@ -197,6 +205,7 @@ const Practice = () => {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const { isOffline } = useNetworkStatus();
+  const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchId = searchParams.get('searchId');
   const urlStageIds = searchParams.get('stages')?.split(',') || [];
@@ -284,6 +293,13 @@ const Practice = () => {
   const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hydratedAnswersRef = useRef<Set<string>>(new Set());
   const answeredIdsRef = useRef<Set<string>>(new Set());
+  // One-tap entry: interview cards link to /practice?searchId=… with no
+  // `stages` param, meaning "practice now". Treat that as a Quick Start over
+  // all stages instead of stopping on the setup screen; an explicit `stages=`
+  // entry (a narrowed or shared session) still opens setup. Captured once at
+  // mount because the loader rewrites the URL to include every stage id.
+  const arrivedWithoutStageSelectionRef = useRef(searchParams.get('stages') === null);
+  const hasAutoStartedRef = useRef(false);
 
   const getAutosaveKey = (questionId: string) =>
     `${ANSWER_AUTOSAVE_PREFIX}:${questionId}`;
@@ -1145,6 +1161,7 @@ const getInterviewerFocus = (
     stages = allStages,
     nextSampleSize = sampleSize,
     nextPreset = selectedPreset,
+    persistDefaults = true,
   }: {
     categories?: string[];
     difficulties?: string[];
@@ -1155,6 +1172,7 @@ const getInterviewerFocus = (
     stages?: InterviewStage[];
     nextSampleSize?: number;
     nextPreset?: string | null;
+    persistDefaults?: boolean;
   } = {}) => {
     if (isOffline) {
       return false;
@@ -1188,15 +1206,20 @@ const getInterviewerFocus = (
       setSearchParams(nextParams);
     }
 
-    persistPracticeDefaults({
-      sampleSize: nextSampleSize,
-      categories,
-      difficulties,
-      shuffle,
-      favoritesOnly,
-      interviewerMode,
-      breathingBreak
-    });
+    // Only a session the user actually configured should rewrite their stored
+    // setup. The automatic Quick Start that fires on card entry is transient, so
+    // it must leave a remembered custom setup intact.
+    if (persistDefaults) {
+      persistPracticeDefaults({
+        sampleSize: nextSampleSize,
+        categories,
+        difficulties,
+        shuffle,
+        favoritesOnly,
+        interviewerMode,
+        breathingBreak
+      });
+    }
     if (typeof window !== "undefined") {
       sessionStorage.removeItem(swipeHintStorageKey);
     }
@@ -1240,7 +1263,7 @@ const getInterviewerFocus = (
     await startPracticeSession();
   };
 
-  const handleBeginQuickStart = async () => {
+  const handleBeginQuickStart = async ({ persistDefaults = true }: { persistDefaults?: boolean } = {}) => {
     const selectedStages = allStages.some(stage => stage.selected)
       ? allStages
       : allStages.map(stage => ({ ...stage, selected: true }));
@@ -1251,13 +1274,30 @@ const getInterviewerFocus = (
       favoritesOnly: practicePresets.quick.config.favoritesOnly,
       stages: selectedStages,
       nextSampleSize: practicePresets.quick.config.sampleSize,
-      nextPreset: 'quick'
+      nextPreset: 'quick',
+      persistDefaults
     });
 
     if (!didBegin) return;
 
     await startPracticeSession();
   };
+
+  // Launch straight into practice when the user arrived from an interview card
+  // (no explicit stage selection). Runs once; "Change setup" returns to the
+  // setup screen without re-triggering this.
+  useEffect(() => {
+    if (hasAutoStartedRef.current) return;
+    if (!arrivedWithoutStageSelectionRef.current) return;
+    if (isOffline) return;
+    if (sessionState !== 'setup') return;
+    if (allStages.length === 0) return;
+
+    hasAutoStartedRef.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional load-driven transition: begin the session once stages have loaded; the ref guard prevents cascading re-entry
+    void handleBeginQuickStart({ persistDefaults: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot Quick Start; handleBeginQuickStart closes over setup state we intentionally read only at auto-start time, and the ref guard prevents re-entry
+  }, [allStages, sessionState, isOffline]);
 
   const handleStartNewSession = () => {
     setSessionState('setup');
@@ -1316,6 +1356,19 @@ const getInterviewerFocus = (
   };
 
   // Flag handling functions (Epic 1.3)
+  const notifyFlagError = (flagType: PracticeQuestionFlagType) => {
+    // The button only latches on success, so on failure the control silently
+    // snaps back with no feedback. Surface it so the user knows to retry, and
+    // name only the flag they actually toggled.
+    const label = FLAG_ERROR_LABELS[flagType];
+    toast({
+      title: `Couldn't save your ${label} flag`,
+      description: "Try again in a moment.",
+      variant: "destructive",
+      duration: 5000,
+    });
+  };
+
   const handleToggleFlag = async (questionId: string, flagType: PracticeQuestionFlagType) => {
     if (isOffline) {
       return;
@@ -1323,7 +1376,7 @@ const getInterviewerFocus = (
 
     try {
       const currentFlag = questionFlags[questionId]?.[flagType];
-      
+
       // If same flag type, remove it (toggle off)
       if (currentFlag) {
         const result = await searchService.removeQuestionFlag(questionId, flagType);
@@ -1341,6 +1394,7 @@ const getInterviewerFocus = (
           });
         } else {
           console.error('Failed to remove flag:', result.error);
+          notifyFlagError(flagType);
         }
       } else {
         // Set new flag (or update existing one)
@@ -1355,10 +1409,12 @@ const getInterviewerFocus = (
           }));
         } else {
           console.error('Failed to set flag:', result.error);
+          notifyFlagError(flagType);
         }
       }
     } catch (error) {
       console.error('Error toggling flag:', error);
+      notifyFlagError(flagType);
     }
   };
 
@@ -2223,7 +2279,7 @@ const getInterviewerFocus = (
             )}
 
             <Button
-              onClick={mobileSetupMode === 'quick' ? handleBeginQuickStart : handleBeginSession}
+              onClick={mobileSetupMode === 'quick' ? () => handleBeginQuickStart() : handleBeginSession}
               disabled={isOffline || (mobileSetupMode === 'custom' && selectedStagesCount === 0)}
               className="h-12 w-full rounded-2xl text-base"
             >
@@ -2280,7 +2336,7 @@ const getInterviewerFocus = (
             <CardContent className="space-y-5">
               <button
                 type="button"
-                onClick={handleBeginQuickStart}
+                onClick={() => handleBeginQuickStart()}
                 disabled={isOffline}
                 className="motion-surface w-full rounded-2xl border border-primary bg-primary/5 p-5 text-left transition hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -2986,14 +3042,20 @@ const getInterviewerFocus = (
       <div className="container mx-auto max-w-6xl px-4 py-6 pb-32 lg:py-8 lg:pb-40">
         <div className="space-y-3 mb-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
-            >
-              <ChevronLeft className="h-4 w-4 mr-2" />
-              Back to dashboard
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Back to dashboard
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleStartNewSession}>
+                <Settings className="h-4 w-4 mr-2" />
+                Change setup
+              </Button>
+            </div>
             <div className="text-sm text-muted-foreground sm:text-right">
               {searchData?.company && `${searchData.company}`}
               {searchData?.role && ` • ${searchData.role}`}
