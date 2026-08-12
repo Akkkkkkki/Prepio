@@ -585,7 +585,7 @@ describe("Home flow", () => {
     mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
     mockStartProcessing.mockResolvedValue({
       success: false,
-      error: new Error("Timed out while starting research"),
+      error: new Error("Research worker unavailable"),
     });
 
     renderHome();
@@ -603,7 +603,7 @@ describe("Home flow", () => {
       expect(mockToast).toHaveBeenCalledWith(
         expect.objectContaining({
           title: "Error Starting Research",
-          description: "Timed out while starting research",
+          description: "Research worker unavailable",
           variant: "destructive",
         }),
       );

@@ -7,12 +7,22 @@ Use this for common operational checks.
 Check:
 
 - browser created a row in `searches`
-- `interview-research` invocation returned success
+- `interview-research` invocation returned `202` with `success: true`
 - `searches.status`, `progress_step`, and `error_message`
 - Supabase Edge Function logs
 - required environment variables: Supabase URL/service key, OpenAI key, Tavily key
 
-Likely issue: the browser marked work as started before the Edge Function accepted it.
+Async contract: `interview-research` acknowledges the request and continues the research pipeline in background work. The browser should rely on the `searches` row for progress and completion, not the Edge Function response body.
+
+Terminal states:
+
+- `completed`: results are available.
+- `failed`: `error_message` should explain the failure.
+
+In-flight states:
+
+- `pending`: row exists but processing has not been accepted yet.
+- `processing`: background work is running; `progress_step`, `progress_pct`, and `updated_at` are the live progress signal.
 
 ## Research Stalls
 

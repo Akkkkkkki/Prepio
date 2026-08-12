@@ -1178,15 +1178,25 @@ serve(async (req: Request) => {
     return jsonResponse({ success: false, error: "Missing required fields: company, searchId, userId" }, 400);
   }
 
-  // Fire-and-forget: process in background if EdgeRuntime supports it
-  const work = processInterviewResearch(requestData, authResult.context);
+  const work = processInterviewResearch(requestData, authResult.context).catch((error) => {
+    console.error("Unhandled background interview research error:", error);
+  });
 
-  if (edgeRuntime.EdgeRuntime?.waitUntil) {
-    edgeRuntime.EdgeRuntime.waitUntil(work);
-    return jsonResponse({ success: true, message: "Research started", searchId: requestData.searchId }, 202);
+  const runtime = edgeRuntime.EdgeRuntime;
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(work);
+  } else {
+    // Local, self-hosted, and older runtimes have no background lifetime
+    // extension, so the isolate can be reclaimed as soon as we respond. Awaiting
+    // inline keeps the pipeline alive there; the caller only loses the early
+    // acknowledgement, which is strictly better than abandoning the run and
+    // leaving the search stuck on `pending`/`processing`.
+    await work;
   }
 
-  // Fallback: await inline
-  await work;
-  return jsonResponse({ success: true, message: "Research completed", searchId: requestData.searchId }, 200);
+  return jsonResponse({
+    success: true,
+    message: "Research queued",
+    searchId: requestData.searchId,
+  }, 202);
 });

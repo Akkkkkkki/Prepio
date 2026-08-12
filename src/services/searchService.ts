@@ -33,7 +33,13 @@ interface CreateResearchPreviewParams {
   country?: string;
 }
 
-const RESEARCH_START_TIMEOUT_MS = 15000;
+// The Edge Function now acknowledges with 202 as soon as it has authorized the
+// request and parsed the body, so this bounds only the acknowledgement round
+// trip — not the research pipeline. It is deliberately well clear of a cold
+// start so a slow boot never fails a valid run, while still surfacing a gateway
+// or network stall instead of leaving the search stuck on `pending` forever.
+const RESEARCH_ACK_TIMEOUT_MS = 60000;
+
 const PRACTICE_AUDIO_BUCKET = "practice-audio";
 
 interface ResumeFileInput {
@@ -473,6 +479,7 @@ export const searchService = {
       }
       const normalizedRoleLinks = normalizeRoleLinks(roleLinks);
 
+      let ackTimer: number | undefined;
       const response = await Promise.race([
         supabase.functions.invoke("interview-research", {
           body: {
@@ -489,11 +496,13 @@ export const searchService = {
           }
         }),
         new Promise<never>((_, reject) => {
-          window.setTimeout(() => {
+          ackTimer = window.setTimeout(() => {
             reject(new Error("Timed out while starting research"));
-          }, RESEARCH_START_TIMEOUT_MS);
+          }, RESEARCH_ACK_TIMEOUT_MS);
         }),
-      ]);
+      ]).finally(() => {
+        if (ackTimer !== undefined) window.clearTimeout(ackTimer);
+      });
 
       if (response.error) {
         throw response.error;
@@ -503,15 +512,18 @@ export const searchService = {
     } catch (error) {
       console.error("Error starting processing:", error);
       
-      // Update status to failed
+      // Only fail a search that never got off the ground. Once the pipeline has
+      // moved the row past `pending` it owns the terminal status, so a startup
+      // timeout here must not clobber a run that is actually progressing.
       await supabase
         .from("searches")
         .update({
           status: "failed",
           error_message: error instanceof Error ? error.message : "Unable to start research",
         })
-        .eq("id", searchId);
-      
+        .eq("id", searchId)
+        .eq("status", "pending");
+
       return { error, success: false };
     }
   },
