@@ -132,18 +132,22 @@ clustered in the pipeline — did **not** hold: there are zero `TS2532` /
 
 | Code | Count | Verdict |
 |------|-------|---------|
-| `TS2339` property-does-not-exist | 338 | **Noise.** ~317 are in `__tests__` files (mock/fixture shape drift Vitest never enforces at runtime). The 21 in shipped `src` are runtime-correct: discriminated unions TS fails to narrow (`result.errorCode` reached only after a `success` guard; `Auth` `confirmPassword` on the signup branch), local annotations narrower than the actual `select("*")` row shape (`Practice.tsx` question fields, populated by `searchService`), and columns absent from stale generated types. |
+| `TS2339` property-does-not-exist | 338 | **Noise.** ~317 are in `__tests__` files (mock/fixture shape drift Vitest never enforces at runtime). The 21 in shipped `src` are runtime-correct **except one** (`question_type`, broken out below): discriminated unions TS fails to narrow (`result.errorCode` reached only after a `success` guard; `Auth` `confirmPassword` on the signup branch), local annotations narrower than the actual `select("*")` row shape (`Practice.tsx` question fields, populated by `searchService`), and columns absent from stale generated types. |
 | `TS2352` unsound cast | 22 | **Noise.** Deliberate `as` casts of Supabase `Json` columns in `searchService.ts` / `entitlements.ts`. Unsound but runtime-safe by construction. |
 | `TS2345` / `TS2769` / `TS2305` / `TS2304` | 8 | **Noise.** Missing RPC/table/import names (`save_resume_version`, `subscriptions`, `CardProps`) — stale type generation, tracked by PREPIO-124. |
 | `TS2739` / `TS2741` / `TS2740` / `TS2322` | 13 | **Noise.** Test fixtures and fallback profile construction missing optional fields that `normalizeCandidateProfile` backfills. |
 
-No confirmed runtime bug survived reading. The `mammoth.default` access in
-`resumeUpload.ts` was the one plausible functional risk (DOCX upload); it is
-exercised by a passing test and works via Vite's CJS interop. The backlog is a
-type-hygiene and stale-type-generation problem, not a pre-computed bug list, so
-a burn-down ranks below PREPIO-124 (deploy migrations → regenerate types),
-which clears the largest shipped-`src` cluster on its own. Baseline unchanged —
-nothing was fixed in this triage.
+**One confirmed defect, not noise** (found within the `TS2339` bucket): `searchService.ts:577` maps `type: q.question_type`, but `interview_questions` has no `question_type` column (it's `category`) — so every question gets `type: undefined`. Type regeneration cannot fix a column that does not exist. Currently latent (no shipped consumer reads `question.type`), so no user-visible symptom, but it is a real error. Tracked in **PREPIO-138**.
+
+Exactly one confirmed defect survived reading — the `question_type` phantom
+column above (PREPIO-138), and it is currently dead code with no user-visible
+symptom. The `mammoth.default` access in `resumeUpload.ts` was the other
+plausible functional risk (DOCX upload); it is exercised by a passing test and
+works via Vite's CJS interop. So the backlog is overwhelmingly a type-hygiene
+and stale-type-generation problem, not a pre-computed bug list, and a burn-down
+ranks below PREPIO-124 (deploy migrations → regenerate types), which clears the
+largest shipped-`src` cluster on its own. Baseline unchanged — nothing was fixed
+in this triage.
 
 ## Lint Baseline
 
