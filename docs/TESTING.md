@@ -137,7 +137,7 @@ clustered in the pipeline — did **not** hold: there are zero `TS2532` /
 | `TS2345` / `TS2769` / `TS2305` / `TS2304` | 8 | **Noise.** Missing RPC/table/import names (`save_resume_version`, `subscriptions`, `CardProps`) — stale type generation, tracked by PREPIO-124. |
 | `TS2739` / `TS2741` / `TS2740` / `TS2322` | 13 | **Noise.** Test fixtures and fallback profile construction missing optional fields that `normalizeCandidateProfile` backfills. |
 
-**One confirmed defect, not noise** (found within the `TS2339` bucket): `searchService.ts:577` maps `type: q.question_type`, but `interview_questions` has no `question_type` column (it's `category`) — so every question gets `type: undefined`. Type regeneration cannot fix a column that does not exist. Currently latent (no shipped consumer reads `question.type`), so no user-visible symptom, but it is a real error. Tracked in **PREPIO-138**.
+**One confirmed defect, not noise** (found within the `TS2339` bucket): `searchService.ts:577` maps `type: q.question_type`, but `interview_questions` has no `question_type` column (it's `category`) — so every question gets `type: undefined`. Type regeneration cannot fix a column that does not exist. Currently latent: `Practice.tsx:757` forwards it into `question.type`, but no shipped behavior consumes that field (the UI renders `category`), so there is no user-visible symptom — it is still a real error. Tracked in **PREPIO-138**.
 
 Exactly one confirmed defect survived reading — the `question_type` phantom
 column above (PREPIO-138), and it is currently dead code with no user-visible
