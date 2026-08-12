@@ -61,7 +61,7 @@ interface CompanyInsights {
 
 interface CompanyResearchOutput {
   company_insights: CompanyInsights;
-  raw_research_data: any[];
+  raw_research_data: unknown;
 }
 
 // Enhanced company research with URL extraction and deep content analysis
@@ -76,11 +76,6 @@ async function searchCompanyInfo(
   supabase?: any,
   logger?: SearchLogger
 ): Promise<any> {
-  // Set a maximum execution time for the entire function (15 seconds for concurrent execution)
-  const functionTimeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Company research function timeout')), 15000)
-  );
-
   const researchPromise = async () => {
     const tavilyApiKey = Deno.env.get("TAVILY_API_KEY");
     if (!tavilyApiKey) {
@@ -329,11 +324,11 @@ async function searchCompanyInfo(
   }; // End of researchPromise
 
   try {
-    return await Promise.race([researchPromise(), functionTimeout]);
+    return await researchPromise();
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    logger?.log('SEARCH_TIMEOUT', 'COMPANY_INFO', { company, role }, errorMsg);
-    console.error("Company research timed out or failed:", error);
+    logger?.log('SEARCH_ERROR', 'COMPANY_INFO', { company, role }, errorMsg);
+    console.error("Company research failed:", error);
     return null;
   }
 }
@@ -665,7 +660,13 @@ serve(async (req) => {
     await logger.saveToFile();
 
     return new Response(
-      JSON.stringify(responseData),
+      JSON.stringify({
+        ...responseData,
+        // Internal orchestrator input for the code-owned evidence ledger.
+        // Keep it out of logger.logFunctionEnd above to avoid duplicating raw
+        // retrieval content in logs.
+        raw_research_data: researchData || null,
+      }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,

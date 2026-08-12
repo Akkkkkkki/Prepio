@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import Practice from "../Practice";
-import { BREATHING_DISMISSED_KEY } from "@/components/practice/BreathingBreak";
 
 const mockGetSearchResults = vi.fn();
 const mockGetQuestionFlags = vi.fn();
@@ -121,7 +120,6 @@ const startCustomSession = async ({ interviewerMode }: { interviewerMode: boolea
     fireEvent.click(await screen.findByRole("button", { name: /interviewer follow-ups/i }));
   }
   fireEvent.click(await screen.findByRole("button", { name: "Start custom session" }));
-  fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
 };
 
 const answerCurrentQuestion = async (saveLabel: RegExp) => {
@@ -136,7 +134,6 @@ const answerCurrentQuestion = async (saveLabel: RegExp) => {
 describe("Practice interviewer follow-ups", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.removeItem(BREATHING_DISMISSED_KEY);
     localStorage.removeItem(PRACTICE_SETUP_STORAGE_KEY);
     sessionStorage.clear();
     mockUseIsMobile.mockReturnValue(false);
@@ -227,7 +224,6 @@ describe("Practice interviewer follow-ups", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "Start custom session" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
 
     expect(await screen.findByText(QUESTION_ONE)).toBeInTheDocument();
     await answerCurrentQuestion(/save & continue/i);
