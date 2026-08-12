@@ -44,7 +44,7 @@ describe("Navigation component", () => {
     mockCanInstall.mockReturnValue(false);
   });
 
-  it("renders all navigation links", () => {
+  it("renders the primary work navigation links", () => {
     renderNavigation();
 
     expect(screen.getByText("Prepio")).toBeInTheDocument();
@@ -53,7 +53,15 @@ describe("Navigation component", () => {
     expect(screen.getAllByText("Dashboard").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Practice").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Practice History").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Profile").length).toBeGreaterThan(0);
+  });
+
+  it("keeps account surfaces out of the primary nav", () => {
+    renderNavigation();
+
+    // Profile and Pricing live in the account menu, not the primary work nav,
+    // so they are not rendered until the menu/sheet is opened.
+    expect(screen.queryByText("Profile")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pricing")).not.toBeInTheDocument();
   });
 
   it("highlights the active route", () => {
