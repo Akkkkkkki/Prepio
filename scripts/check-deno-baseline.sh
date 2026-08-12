@@ -28,6 +28,12 @@ cd "$ROOT"
 # entrypoints to every non-test source found no additional errors, so the
 # previously entrypoint-only 19 is the true count, not a floor.
 #
+# Adding the 14 `*.test.ts` files is expected to hold at 19 as well: their only
+# diagnostics resolve to modules already inside the counted set (the four
+# TS2339s reached via duckduckgo-fallback.test.ts all land in tavily-client.ts),
+# and deno dedupes modules across a batch. CI is the arbiter — if it reports a
+# different number, set that number here rather than reasoning about it.
+#
 # Lower BASELINE as the backlog burns down. Never raise it without a written
 # justification in the PR.
 BASELINE=${DENO_ERROR_BASELINE:-19}
@@ -48,17 +54,22 @@ if ! command -v "$DENO_BIN" >/dev/null 2>&1 && [ ! -x "$DENO_BIN" ]; then
   exit 0
 fi
 
-# Every non-test source, not just the `*/index.ts` handlers. Checking only
-# entrypoints and relying on transitive imports leaves standalone modules
-# unchecked — `_shared/duckduckgo-fallback.ts` is imported solely by its test,
-# and `_shared/config.example.ts` by nothing at all, so both would merge
-# unreported. Since no tsconfig covers this directory, "unreachable from an
-# entrypoint" would have meant "never type-checked at all".
+# Every `.ts` file under supabase/functions, with no exclusions.
 #
-# `*.test.ts` is the one deliberate exclusion: the tests import from "vitest"
-# and run under vitest/node, so deno cannot resolve them. They are type-checked
-# by the vitest run instead.
-mapfile -t SOURCES < <(find supabase/functions -name '*.ts' ! -name '*.test.ts' | sort)
+# Checking only the `*/index.ts` handlers and relying on transitive imports left
+# standalone modules unchecked — `_shared/duckduckgo-fallback.ts` is imported
+# solely by its test, and `_shared/config.example.ts` by nothing at all. Since
+# no tsconfig covers this directory, "unreachable from an entrypoint" meant
+# "never type-checked at all".
+#
+# The tests are included too. An earlier version of this script excluded
+# `*.test.ts` on the stated grounds that vitest type-checks them — that was
+# simply wrong: vitest's `typecheck` option defaults to false and is not enabled
+# in this repo's config, and `npm test` runs a plain `vitest run`. So the
+# exclusion left them checked by nothing at all, same as the standalone modules.
+# Deno resolves their bare `"vitest"` import from node_modules without trouble,
+# so there was never a reason to skip them.
+mapfile -t SOURCES < <(find supabase/functions -name '*.ts' | sort)
 
 if (( ${#SOURCES[@]} == 0 )); then
   echo "No edge-function sources found under supabase/functions." >&2
