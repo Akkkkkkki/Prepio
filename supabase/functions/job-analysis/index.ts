@@ -27,7 +27,7 @@ type JobRequirementsSource = "extracted" | "stub";
 
 interface JobAnalysisOutput {
   job_requirements: JobRequirements;
-  raw_job_data: any[];
+  raw_job_data: unknown;
   urls_processed: number;
   requirements_source: JobRequirementsSource;
 }
@@ -351,6 +351,7 @@ serve(async (req) => {
         status: "success",
         message: "Job analysis completed",
         job_requirements: jobRequirements,
+        raw_job_data: jobData || null,
         urls_processed: urlsProcessed,
         requirements_source: requirementsSource,
         research_freshness: researchFreshness,

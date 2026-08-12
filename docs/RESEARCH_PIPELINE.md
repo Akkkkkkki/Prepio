@@ -46,7 +46,7 @@ core of v3:
 
 | # | Failure | Where | Tracked |
 |---|---------|-------|---------|
-| 1 | `internalEvidenceLog` (now user-visible via the Dashboard "Sources" affordance) is written freeform by the synthesis LLM — URLs and trust weights are model-invented, not derived from retrieval. | `interview-research/index.ts` | PREPIO-78 |
+| 1 | `internalEvidenceLog` (now user-visible via the Dashboard "Sources" affordance) was written freeform by the synthesis LLM. **FIXED:** retrieval now builds the persisted ledger in code, synthesis cites `ev-*` IDs only, and unresolved IDs are dropped before persistence. | `interview-research/index.ts`, `interview-research/evidence-ledger.ts` | PREPIO-78 ✓ |
 | 2 | Synthesis is one 12k-token mega-call with no schema enforcement: question minimums are prompt-only, stage links are free-text (mismatches silently orphan questions), malformed output fails the whole run with no repair. **PARTIALLY FIXED:** synthesis output is now schema-validated (minimums, stage-link resolution, per-question difficulty enums) with one bounded repair pass; runs that still fail are persisted with an honest `summary.synthesisQuality.degraded` marker instead of silently completing. The staged-generation split remains open. | `interview-research/index.ts`, `interview-research/prep-plan-validation.ts` | PREPIO-79 ◑ |
 | 3 | Confidence (`stageRoadmap[].confidence`, `overallConfidence`, `weakSignalCase`) is model self-assessment; zero-evidence runs still present confident roadmaps. `contradictionGroup` exists in the schema but nothing computes it. | `interview-research/index.ts` | PREPIO-81 |
 | 4 | Retrieval is SWE-biased regardless of role: query templates and allowed domains assume software engineering; `level` and `country` never shape a query; the DuckDuckGo "fallback" hits the instant-answer API and returns no forum results. | `_shared/config.ts`, `_shared/duckduckgo-fallback.ts` | PREPIO-80 |
@@ -129,7 +129,7 @@ so quality regressions are visible in the RUNBOOK queries, not just credit spend
 |------|----------|--------|
 | 0. Stop the bleeding | Flag job-analysis stubs; remove the no-op DuckDuckGo fallback | PREPIO-82, part of PREPIO-80 |
 | 1. Real retrieval | Async job; restore query breadth, raw content, extraction, caching | PREPIO-40, PREPIO-48, PREPIO-51 |
-| 2. Grounding | Evidence ledger, ID-only citations, sufficiency gate | PREPIO-78, PREPIO-50 |
+| 2. Grounding | Evidence ledger + ID-only citations shipped; sufficiency gate remains | PREPIO-78 ✓, PREPIO-50 |
 | 3. Synthesis quality | Staged synthesis with validation + repair; computed confidence | PREPIO-79, PREPIO-81 |
 | 4. Reach | Query planner with role-family packs; freshness; interviewer/team targeting; non-English | PREPIO-80, PREPIO-52, PREPIO-53, PREPIO-55 |
 

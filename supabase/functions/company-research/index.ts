@@ -61,7 +61,7 @@ interface CompanyInsights {
 
 interface CompanyResearchOutput {
   company_insights: CompanyInsights;
-  raw_research_data: any[];
+  raw_research_data: unknown;
 }
 
 // Enhanced company research with URL extraction and deep content analysis
@@ -660,7 +660,13 @@ serve(async (req) => {
     await logger.saveToFile();
 
     return new Response(
-      JSON.stringify(responseData),
+      JSON.stringify({
+        ...responseData,
+        // Internal orchestrator input for the code-owned evidence ledger.
+        // Keep it out of logger.logFunctionEnd above to avoid duplicating raw
+        // retrieval content in logs.
+        raw_research_data: researchData || null,
+      }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
