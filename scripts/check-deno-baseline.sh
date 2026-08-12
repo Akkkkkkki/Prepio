@@ -49,8 +49,16 @@ else
 fi
 
 if ! command -v "$DENO_BIN" >/dev/null 2>&1 && [ ! -x "$DENO_BIN" ]; then
-  echo "deno not found — skipping edge-function typecheck." >&2
+  echo "deno not found." >&2
   echo "Run 'npm install' to get the pinned devDependency." >&2
+  # Same fail-closed rule as the network skip below: deno is a declared
+  # devDependency, so on a runner its absence means `npm ci` did not deliver it
+  # and nothing was checked. Silently passing would disable the gate outright.
+  if [ -n "${CI:-}" ]; then
+    echo "Running in CI (\$CI set) — a missing deno is a FAILURE here, not a pass." >&2
+    exit 1
+  fi
+  echo "Edge-function typecheck SKIPPED — this is not a pass." >&2
   exit 0
 fi
 
@@ -120,8 +128,21 @@ fi
 
 if (( network_head == 1 && network_cause == 1 )); then
   echo "deno could not resolve remote imports (deno.land / esm.sh unreachable)." >&2
-  echo "Edge-function typecheck SKIPPED — this is not a pass." >&2
   head -5 <<< "$output" >&2
+
+  # Fail closed on a runner. The skip exists so a sandbox without egress can run
+  # the rest of the suite, but CI advertises this as a blocking gate — and a
+  # transient DNS or connection failure there would otherwise mark it green with
+  # zero edge functions verified, which is the precise false pass this script
+  # exists to prevent. On a runner an outage is an infrastructure failure to
+  # retry, not a condition to tolerate.
+  if [ -n "${CI:-}" ]; then
+    echo "Running in CI (\$CI set) — a network skip is a FAILURE here, not a pass." >&2
+    echo "Nothing was type-checked. Re-run the job once connectivity recovers." >&2
+    exit 1
+  fi
+
+  echo "Edge-function typecheck SKIPPED — this is not a pass." >&2
   exit 0
 fi
 
