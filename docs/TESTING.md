@@ -168,26 +168,33 @@ These come from boilerplate that the shadcn CLI and Tailwind plugin docs generat
 
 eslint-plugin-react-hooks 7 (via the 2026-07-04 lint-and-format dependency
 bump) surfaced 39 errors: `set-state-in-effect` (20), `immutability` (9),
-`purity` (8), `refs` (2). Triaged — none reproduce as a present-day runtime
-bug. The split is idiomatic-safe vs. forward-looking risk under React 19
-concurrent rendering (PREPIO-93, PREPIO-98). Still don't fix them drive-by
-inside unrelated diffs.
+`purity` (8), `refs` (2). Triaged. Note the framing: React 19 is **already
+live** (`react@^19.2.7`, mounted via `createRoot` in `src/main.tsx`; PREPIO-93
+shipped in #205), so concurrent rendering is in play now — the concurrent-render
+rules below are current correctness smells, not "forward-looking under a future
+upgrade." Still don't fix them drive-by inside unrelated diffs.
 
 - `set-state-in-effect` (20) — **safe.** Each is either a one-shot mount sync
   (`useIsMobile`, `useMobileFooterHeight`) or a `setState` inside an async
   `.then()` / guarded early-return in a data-load effect (`Practice.tsx`,
   `Dashboard.tsx`, `Home.tsx`). Stable deps, no render loops.
-- `purity` (8) — **forward-looking.** `Date.now()` read during render in the
-  `useSearchProgress` time-estimate/stall helpers, plus impure `useState`
-  initializers reading `window` / `sessionStorage`. Deterministic enough today;
-  a concurrent-render smell, not a bug.
-- `immutability` (9) / `refs` (2) — **forward-looking.** Ref reads/writes the
-  rule dislikes, all in event handlers or refs (`Practice.tsx` media-stream and
-  swipe refs, `Auth.tsx`), never in render output.
+- `refs` (2) — **current hazard, tracked in PREPIO-137.** `Practice.tsx:1568`
+  and `:1570` write `handleSaveAnswerRef.current` / `skipQuestionRef.current`
+  **during render** (not in an effect or handler). Under live concurrent
+  rendering an interrupted render can leave the ref pointing at a callback that
+  closed over uncommitted state, which the committed keydown listener then
+  invokes. Real, if narrow. Fix = move the writes to commit phase.
+- `purity` (8) — **current, low severity.** `Date.now()` read during render in
+  the `useSearchProgress` time-estimate/stall helpers, plus impure `useState`
+  initializers reading `window` / `sessionStorage`. Deterministic enough that no
+  defect is observed today, but a genuine concurrent-render smell.
+- `immutability` (9) — **low severity.** Ref/object mutations the rule dislikes,
+  in event handlers (`Practice.tsx` media-stream refs, `Auth.tsx`), not render
+  output.
 
-No `Bug` issues were filed — nothing is a confirmed current defect. Fix the
-forward-looking items inside the React 19 upgrade scope (PREPIO-93, PREPIO-98),
-not as a standalone burn-down.
+One `Bug` issue filed for the confirmed hazard (PREPIO-137, the `refs`
+render-writes). The `purity`/`immutability` items are lower-severity cleanup
+best folded into that follow-up, not a standalone burn-down.
 
 ### Legacy Deno tests — out of scope here
 
