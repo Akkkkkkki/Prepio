@@ -176,6 +176,19 @@ Check:
 
 If profile import fails, the resume version can still be valid.
 
+## Profile Story Linking Rollout
+
+This feature is default-off and requires both halves of the gate:
+
+- frontend build: `VITE_PROFILE_STORY_LINKING=true`
+- `interview-research` secret: `PROFILE_STORY_LINKING=true`
+
+Apply `20260808110000_profile_story_linking.sql` in a non-production environment before
+enabling either flag there. Run one research job with a canonical profile and confirm that
+linked questions have `star_story_fit = true`, non-null `linked_story_text`, and a visible
+“Draw on your experience” card in Practice. With either flag off, research keeps the legacy
+CV-analysis path.
+
 ## Practice Audio Fails
 
 Check:

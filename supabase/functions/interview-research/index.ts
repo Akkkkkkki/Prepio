@@ -27,6 +27,12 @@ import {
   mergeResearchFreshness,
   type ResearchFreshness,
 } from "../_shared/research-freshness.ts";
+import {
+  resolveStoryForQuestion,
+  serializeProfileForPrompt,
+  type CandidateProfileForStoryLinking,
+  type ProfilePromptContext,
+} from "./profile-story-linking.ts";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -40,6 +46,8 @@ interface InterviewResearchRequest {
   country?: string;
   roleLinks?: string[];
   cv?: string;
+  candidateProfile?: CandidateProfileForStoryLinking;
+  candidateProfileResumeId?: string | null;
   level?: Level;
   userNote?: string;
   jobDescription?: string;
@@ -51,6 +59,7 @@ interface RawResearchData {
   company_research_raw?: any;
   job_analysis_raw?: any;
   cv_analysis_raw?: any;
+  profile_context_raw?: any;
 }
 
 interface PrepPlanOutput {
@@ -122,6 +131,7 @@ interface QuestionItem {
   difficulty?: 'Easy' | 'Medium' | 'Hard';
   reason: string;
   answerGuidanceStatus: 'pending' | 'generated';
+  leveragesStoryId: string | null;
 }
 
 interface GatheredCompanyData {
@@ -134,6 +144,11 @@ interface GatheredCompanyData {
 
 function resolveLevel(req: InterviewResearchRequest): Level {
   return req.level ?? 'unknown';
+}
+
+function isProfileStoryLinkingEnabled(): boolean {
+  const value = Deno.env.get("PROFILE_STORY_LINKING") || "";
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
 async function withDbTimeout<T>(
@@ -463,6 +478,13 @@ QUESTION GENERATION — MINIMUM 40 QUESTIONS TOTAL:
 - Assign each question a "difficulty" of "Easy", "Medium", or "Hard" reflecting the actual difficulty of THAT question — do not derive it from the tier (a coreMustPractice question can be Easy; an extraDepth question can be Hard).
 - Set answerGuidanceStatus to "pending" for all questions.
 
+STORY LINKING:
+- When a STRUCTURED CANDIDATE PROFILE block is present, each question must set leveragesStoryId to one shown story handle such as "S1" or to null.
+- Cite only story handles shown in the profile block. Never invent a handle.
+- Prefer STAR-flagged stories when they genuinely fit the question.
+- Use null when no shown story is relevant.
+- Ground candidatePositioning in the shown profile handles and call out gaps when no story handle covers an important assessment theme.
+
 INDUSTRY SUPPORT: Optimize for tech, consulting, and finance. Do not assume software engineering everywhere.
 
 Return ONLY valid JSON matching the exact schema specified. No markdown, no extra text.`;
@@ -479,6 +501,7 @@ function buildPrepPlanPrompt(
   jobRequirements: any,
   jobRequirementsSource: JobRequirementsSource | null,
   cvAnalysis: any,
+  profileContext: ProfilePromptContext | null,
   evidenceLedger: EvidenceLedgerEntry[],
 ): string {
   let prompt = `Build a PrepPlan for:\n`;
@@ -560,8 +583,10 @@ function buildPrepPlanPrompt(
   // job-requirements-prompt.ts for the rationale.
   prompt += formatJobRequirementsBlock(jobRequirements, jobRequirementsSource);
 
-  // ── CV evidence ──
-  if (cvAnalysis) {
+  // ── Structured profile / legacy CV evidence ──
+  if (profileContext) {
+    prompt += `${profileContext.promptBlock}\n\n`;
+  } else if (cvAnalysis) {
     const a = cvAnalysis.aiAnalysis || cvAnalysis;
     prompt += `=== CANDIDATE CV ===\n`;
     if (a.current_role) prompt += `Current role: ${a.current_role}\n`;
@@ -654,26 +679,66 @@ function getPrepPlanSchema(): any {
     ],
     questionPlan: {
       coreMustPractice: [
-        { question: "Core question 1 — tailored to stage and candidate", stageName: "Phone Screen", evidenceIds: ["ev-1"], linkedPriority: "high", difficulty: "Medium", reason: "Why this matters", answerGuidanceStatus: "pending" },
-        { question: "Core question 2 — different dimension", stageName: "Technical Round", evidenceIds: ["ev-2"], linkedPriority: "high", difficulty: "Hard", reason: "Why this matters", answerGuidanceStatus: "pending" },
-        { question: "Core question 3 — covers weak spot", stageName: "Behavioral Round", evidenceIds: [], linkedPriority: "high", difficulty: "Easy", reason: "Why this matters", answerGuidanceStatus: "pending" },
+        { question: "Core question 1 — tailored to stage and candidate", stageName: "Phone Screen", evidenceIds: ["ev-1"], linkedPriority: "high", difficulty: "Medium", reason: "Why this matters", answerGuidanceStatus: "pending", leveragesStoryId: "S1 | null" },
+        { question: "Core question 2 — different dimension", stageName: "Technical Round", evidenceIds: ["ev-2"], linkedPriority: "high", difficulty: "Hard", reason: "Why this matters", answerGuidanceStatus: "pending", leveragesStoryId: "S2 | null" },
+        { question: "Core question 3 — covers weak spot", stageName: "Behavioral Round", evidenceIds: [], linkedPriority: "high", difficulty: "Easy", reason: "Why this matters", answerGuidanceStatus: "pending", leveragesStoryId: "S3 | null" },
         "... MUST generate ≥ 15 items in this array (stageName must match a stageRoadmap stage or be null)"
       ],
       likelyFollowUps: [
-        { question: "Follow-up question 1", stageName: null, evidenceIds: [], linkedPriority: "medium", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending" },
-        { question: "Follow-up question 2", stageName: "Phone Screen", evidenceIds: ["ev-1"], linkedPriority: "medium", difficulty: "Easy", reason: "Why", answerGuidanceStatus: "pending" },
-        { question: "Follow-up question 3", stageName: null, evidenceIds: [], linkedPriority: "medium", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Follow-up question 1", stageName: null, evidenceIds: [], linkedPriority: "medium", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: null },
+        { question: "Follow-up question 2", stageName: "Phone Screen", evidenceIds: ["ev-1"], linkedPriority: "medium", difficulty: "Easy", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: "S1 | null" },
+        { question: "Follow-up question 3", stageName: null, evidenceIds: [], linkedPriority: "medium", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: null },
         "... MUST generate ≥ 15 items in this array (stageName must match a stageRoadmap stage or be null)"
       ],
       extraDepth: [
-        { question: "Depth question 1", stageName: null, evidenceIds: [], linkedPriority: "low", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending" },
-        { question: "Depth question 2", stageName: "Final Round", evidenceIds: ["ev-2"], linkedPriority: "low", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending" },
+        { question: "Depth question 1", stageName: null, evidenceIds: [], linkedPriority: "low", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: null },
+        { question: "Depth question 2", stageName: "Final Round", evidenceIds: ["ev-2"], linkedPriority: "low", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: "S1 | null" },
         "... MUST generate ≥ 10 items in this array (stageName must match a stageRoadmap stage or be null)"
       ],
     },
     // Code replaces this with the verified ledger after synthesis. The model
     // may cite evidenceIds, but it must never author evidence rows.
     internalEvidenceLog: [],
+  };
+}
+
+function buildStageThemesByName(plan: PrepPlanOutput): Record<string, string[]> {
+  const lookup: Record<string, string[]> = {};
+  (plan.stageRoadmap || []).forEach((stage) => {
+    lookup[normalizeStageName(stage.stageName)] = stage.questionThemes || [];
+  });
+  return lookup;
+}
+
+function applyStoryLinksToPrepPlan(
+  plan: PrepPlanOutput,
+  profileContext: ProfilePromptContext | null,
+): PrepPlanOutput {
+  if (!profileContext) return plan;
+
+  const stageThemesByName = buildStageThemesByName(plan);
+  const apply = (items: QuestionItem[] = []) =>
+    items.map((question) => {
+      const linkedStory = resolveStoryForQuestion(
+        question,
+        profileContext,
+        question.stageName
+          ? stageThemesByName[normalizeStageName(question.stageName)] || []
+          : [],
+      );
+      return {
+        ...question,
+        leveragesStoryId: linkedStory?.alias ?? null,
+      };
+    });
+
+  return {
+    ...plan,
+    questionPlan: {
+      coreMustPractice: apply(plan.questionPlan?.coreMustPractice || []),
+      likelyFollowUps: apply(plan.questionPlan?.likelyFollowUps || []),
+      extraDepth: apply(plan.questionPlan?.extraDepth || []),
+    },
   };
 }
 
@@ -754,6 +819,7 @@ async function synthesizePrepPlan(
   jobRequirements: any,
   jobRequirementsSource: JobRequirementsSource | null,
   cvAnalysis: any,
+  profileContext: ProfilePromptContext | null,
   evidenceLedger: EvidenceLedgerEntry[],
   openaiApiKey: string,
 ): Promise<PrepPlanOutput | null> {
@@ -763,7 +829,7 @@ async function synthesizePrepPlan(
     const prompt = buildPrepPlanPrompt(
       company, role, country, level, userNote, jobDescription,
       companyInsights, jobRequirements, jobRequirementsSource, cvAnalysis,
-      evidenceLedger,
+      profileContext, evidenceLedger,
     );
 
     const model = getOpenAIModel('interviewSynthesis');
@@ -792,6 +858,7 @@ async function synthesizePrepPlan(
         .filter((n): n is string => typeof n === 'string' && n.trim().length > 0);
       const repairPrompt =
         buildRepairInstructions(validation, roadmapNames) +
+        (profileContext ? `\n\n${profileContext.promptBlock}` : '') +
         `\n\nVERIFIED EVIDENCE LEDGER:\n${formatEvidenceLedgerForPrompt(evidenceLedger)}` +
         `\n\nKeep citations ID-only. Never author URLs or evidence-log rows.` +
         `\n\nPREVIOUS JSON:\n${JSON.stringify(plan)}`;
@@ -854,6 +921,7 @@ async function savePrepPlanToDatabase(
   userId: string,
   rawData: RawResearchData,
   plan: PrepPlanOutput,
+  profileContext: ProfilePromptContext | null,
   evidenceLedger: EvidenceLedgerEntry[],
 ) {
   try {
@@ -943,6 +1011,15 @@ async function savePrepPlanToDatabase(
       const addQuestions = (items: QuestionItem[], tier: string) => {
         (items || []).forEach((q) => {
           const stageId = q.stageName ? (stageIdByName[normalizeStageName(q.stageName)] ?? null) : null;
+          const linkedStory = resolveStoryForQuestion(
+            q,
+            profileContext,
+            q.stageName
+              ? (plan.stageRoadmap || []).find(
+                  (stage) => normalizeStageName(stage.stageName) === normalizeStageName(q.stageName),
+                )?.questionThemes || []
+              : [],
+          );
           questionsToInsert.push({
             search_id: searchId,
             stage_id: stageId,
@@ -954,7 +1031,10 @@ async function savePrepPlanToDatabase(
             evaluation_criteria: [],
             follow_up_questions: [],
             company_context: '',
-            star_story_fit: false,
+            star_story_fit: Boolean(linkedStory),
+            linked_story_bullet_id: linkedStory?.realBulletId ?? null,
+            linked_story_text: linkedStory?.text ?? null,
+            linked_story_source: linkedStory?.sourceLabel ?? null,
             tier,
             linked_priority: q.linkedPriority || '',
             reason: q.reason || '',
@@ -1029,6 +1109,7 @@ async function processInterviewResearch(
       roleLinkCount: requestData.roleLinks?.length || 0,
       hasUserNote: !!requestData.userNote,
       hasJobDescription: !!requestData.jobDescription,
+      hasCandidateProfile: !!requestData.candidateProfile,
     });
 
     console.log(`\n🚀 Starting interview research (V2 PrepPlan) for search: ${searchId}`);
@@ -1055,6 +1136,10 @@ async function processInterviewResearch(
       await ensureResumeSnapshotForSearch(supabase, searchId, userId, cvText);
     }
 
+    const profileContext = isProfileStoryLinkingEnabled()
+      ? serializeProfileForPrompt(requestData.candidateProfile)
+      : null;
+
     // ── PHASE 1: Concurrent Data Gathering ──
     console.log("\n📊 PHASE 1: Gathering research data...");
     await tracker.updateStep('DATA_GATHERING_START');
@@ -1069,7 +1154,7 @@ async function processInterviewResearch(
         requestData.userNote,
       ),
       gatherJobData(requestData.roleLinks || [], searchId, requestData.company, requestData.role),
-      gatherCVData(cvText, userId),
+      profileContext ? Promise.resolve(null) : gatherCVData(cvText, userId),
     ]);
     const companyData = settled[0].status === 'fulfilled'
       ? (settled[0].value as GatheredCompanyData | null)
@@ -1099,6 +1184,12 @@ async function processInterviewResearch(
           }
         : null,
       cv_analysis_raw: cvAnalysis,
+      profile_context_raw: profileContext
+        ? {
+            aliasToBulletId: profileContext.aliasToBulletId,
+            candidateProfileResumeId: requestData.candidateProfileResumeId ?? null,
+          }
+        : null,
     };
 
     const evidenceLedger = buildEvidenceLedger({
@@ -1129,6 +1220,7 @@ async function processInterviewResearch(
       jobRequirements,
       jobRequirementsSource,
       cvAnalysis,
+      profileContext,
       evidenceLedger,
       openaiApiKey,
     );
@@ -1153,12 +1245,14 @@ async function processInterviewResearch(
     console.log("\n💾 PHASE 3: Saving PrepPlan to database...");
     await tracker.updateStep('QUESTION_GENERATION_START');
 
+    const linkedPrepPlan = applyStoryLinksToPrepPlan(prepPlan, profileContext);
     await savePrepPlanToDatabase(
       supabase,
       searchId,
       userId,
       rawData,
-      prepPlan,
+      linkedPrepPlan,
+      profileContext,
       evidenceLedger,
     );
 

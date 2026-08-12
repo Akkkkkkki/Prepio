@@ -92,6 +92,7 @@ export type QuestionItem = {
   linkedPriority: string;
   reason: string;
   answerGuidanceStatus: AnswerGuidanceStatus;
+  leveragesStoryId: string | null;
 };
 
 export type EvidenceItem = {

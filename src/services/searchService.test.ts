@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createEmptyCandidateProfile } from "@/lib/candidateProfile";
 
 const { mockSupabase } = vi.hoisted(() => ({
   mockSupabase: {
@@ -23,6 +24,7 @@ import {
   buildInterviewSummaries,
   dedupePracticeAnswersByQuestion,
   dedupePracticeAnswersBySessionQuestion,
+  isProfileStoryLinkingEnabled,
   searchService,
 } from "./searchService";
 
@@ -104,6 +106,7 @@ const createDeleteChain = (
 describe("practice history answer dedupe helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("VITE_PROFILE_STORY_LINKING", "false");
     vi.useRealTimers();
     mockSupabase.auth.getUser.mockResolvedValue({
       data: { user: { id: "user-1" } },
@@ -112,7 +115,14 @@ describe("practice history answer dedupe helpers", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.useRealTimers();
+  });
+
+  it("parses the profile story-linking rollout flag", () => {
+    expect(isProfileStoryLinkingEnabled("true")).toBe(true);
+    expect(isProfileStoryLinkingEnabled(" YES ")).toBe(true);
+    expect(isProfileStoryLinkingEnabled("false")).toBe(false);
   });
 
   it("keeps only the latest answer per question", () => {
@@ -723,6 +733,103 @@ describe("practice history answer dedupe helpers", () => {
     });
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it("sends the structured profile when story linking is enabled", async () => {
+    vi.stubEnv("VITE_PROFILE_STORY_LINKING", "true");
+    const candidateProfile = {
+      ...createEmptyCandidateProfile("user-1"),
+      headline: "Senior product manager",
+      lastResumeId: "resume-1",
+    };
+    const profileSpy = vi.spyOn(searchService, "getCandidateProfile").mockResolvedValue({
+      profile: candidateProfile,
+      success: true,
+    });
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: { status: "accepted" },
+      error: null,
+    });
+
+    const result = await searchService.startProcessing("search-profile", {
+      company: "OpenAI",
+      cv: "Legacy CV fallback",
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(profileSpy).toHaveBeenCalledTimes(1);
+    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("interview-research", {
+      body: expect.objectContaining({
+        candidateProfile,
+        candidateProfileResumeId: "resume-1",
+        searchId: "search-profile",
+      }),
+    });
+    profileSpy.mockRestore();
+  });
+
+  it("falls back to the legacy CV path when the profile lookup stalls", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("VITE_PROFILE_STORY_LINKING", "true");
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // A candidate_profiles read that never settles. Before the bound, this await
+    // sat outside the start race entirely, so the Edge Function was never invoked
+    // and the search stayed pending with the progress dialog waiting forever.
+    const profileSpy = vi
+      .spyOn(searchService, "getCandidateProfile")
+      .mockImplementation(() => new Promise(() => {}));
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: { status: "accepted" },
+      error: null,
+    });
+
+    const resultPromise = searchService.startProcessing("search-stalled-profile", {
+      company: "OpenAI",
+      cv: "Legacy CV fallback",
+    });
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    await expect(resultPromise).resolves.toEqual({ success: true });
+    expect(mockSupabase.functions.invoke).toHaveBeenCalledTimes(1);
+    const [, invokeArgs] = mockSupabase.functions.invoke.mock.calls[0];
+    expect(invokeArgs.body).not.toHaveProperty("candidateProfile");
+    expect(invokeArgs.body).toMatchObject({
+      cv: "Legacy CV fallback",
+      searchId: "search-stalled-profile",
+    });
+    // The run started rather than failing, so no failure write happened.
+    expect(mockSupabase.from).not.toHaveBeenCalled();
+
+    profileSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
+  });
+
+  it("falls back to the legacy CV path when the profile lookup errors", async () => {
+    vi.stubEnv("VITE_PROFILE_STORY_LINKING", "true");
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const profileSpy = vi
+      .spyOn(searchService, "getCandidateProfile")
+      .mockRejectedValue(new Error("profiles unavailable"));
+    mockSupabase.functions.invoke.mockResolvedValue({
+      data: { status: "accepted" },
+      error: null,
+    });
+
+    const result = await searchService.startProcessing("search-broken-profile", {
+      company: "OpenAI",
+      cv: "Legacy CV fallback",
+    });
+
+    expect(result).toEqual({ success: true });
+    const [, invokeArgs] = mockSupabase.functions.invoke.mock.calls[0];
+    expect(invokeArgs.body).not.toHaveProperty("candidateProfile");
+    expect(mockSupabase.from).not.toHaveBeenCalled();
+
+    profileSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
   });
 
   it("marks the search as failed when the research function cannot be started", async () => {

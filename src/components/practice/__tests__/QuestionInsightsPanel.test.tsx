@@ -11,6 +11,8 @@ const sampleData = {
   weakSignals: ["Only restates the prompt", "Ignores alignment with Tencent culture"],
   answerApproach: "Outline the shared goal, your proposed plan, tradeoffs, and sync cadence.",
   followUps: ["How did you escalate disagreements?", "What metrics proved it worked?"],
+  linkedStoryText: "Aligned ML infra, product, and support on an incident-response rollout.",
+  linkedStorySource: "Senior PM @ Acme",
   depthLabel: "Mid-senior depth expected",
   seniorityExpectation: "Mid+ candidates should articulate collaborative planning, not just individual output.",
   sampleAnswerOutline: "Context • Communication plan • Execution mechanics • Impact",
@@ -29,6 +31,8 @@ describe("QuestionInsightsPanel", () => {
     expect(screen.getByText("Great answers include")).toBeInTheDocument();
     expect(screen.getByText("Watch out for")).toBeInTheDocument();
     expect(screen.getByText(/Mid\+ candidates/)).toBeInTheDocument();
+    expect(screen.queryByText("Draw on your experience")).not.toBeNull();
+    expect(screen.queryByText("Senior PM @ Acme")).not.toBeNull();
     expect(screen.getByText("Suggested outline")).toBeInTheDocument();
     expect(screen.getByText("They may ask")).toBeInTheDocument();
   });
@@ -48,4 +52,3 @@ describe("QuestionInsightsPanel", () => {
     expect(screen.getByText("Great answers include")).toBeInTheDocument();
   });
 });
-

@@ -42,6 +42,42 @@ const RESEARCH_ACK_TIMEOUT_MS = 60000;
 
 const PRACTICE_AUDIO_BUCKET = "practice-audio";
 
+export const isProfileStoryLinkingEnabled = (
+  value = import.meta.env.VITE_PROFILE_STORY_LINKING ?? "",
+) => ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+
+// Comfortably longer than a healthy profile read, short enough that a stalled
+// one costs the user a few seconds of startup rather than the whole run.
+const PROFILE_LOOKUP_TIMEOUT_MS = 5000;
+
+// Resolves to the profile when the lookup succeeds in time, or null on timeout,
+// error, or absence — every failure mode degrades to the legacy CV path.
+const withProfileLookupTimeout = async (
+  lookup: Promise<{ success: boolean; profile?: CandidateProfile | null }>,
+): Promise<CandidateProfile | null> => {
+  let timer: number | undefined;
+  try {
+    const result = await Promise.race([
+      lookup,
+      new Promise<null>((resolve) => {
+        timer = window.setTimeout(() => resolve(null), PROFILE_LOOKUP_TIMEOUT_MS);
+      }),
+    ]);
+    if (!result || !result.success || !result.profile) {
+      if (!result) {
+        console.warn("Profile lookup timed out; starting research without story linking");
+      }
+      return null;
+    }
+    return result.profile;
+  } catch (error) {
+    console.warn("Profile lookup failed; starting research without story linking", error);
+    return null;
+  } finally {
+    if (timer !== undefined) window.clearTimeout(timer);
+  }
+};
+
 interface ResumeFileInput {
   name: string;
   path: string;
@@ -478,6 +514,17 @@ export const searchService = {
         throw new Error("No authenticated user");
       }
       const normalizedRoleLinks = normalizeRoleLinks(roleLinks);
+      let candidateProfile: CandidateProfile | null = null;
+
+      if (isProfileStoryLinkingEnabled()) {
+        // Story linking is an enhancement, not a precondition for research. This
+        // lookup runs before the invoke race, so an unbounded await here would
+        // sit outside RESEARCH_START_TIMEOUT_MS entirely: a stalled
+        // candidate_profiles request would leave the search pending forever with
+        // the progress dialog waiting on a call that was never made. Bound it and
+        // fall back to the legacy CV path instead of failing the run.
+        candidateProfile = await withProfileLookupTimeout(this.getCandidateProfile());
+      }
 
       let ackTimer: number | undefined;
       const response = await Promise.race([
@@ -491,6 +538,12 @@ export const searchService = {
             level,
             userNote,
             jobDescription,
+            ...(candidateProfile
+              ? {
+                  candidateProfile,
+                  candidateProfileResumeId: candidateProfile.lastResumeId,
+                }
+              : {}),
             userId: user.id,
             searchId,
           }

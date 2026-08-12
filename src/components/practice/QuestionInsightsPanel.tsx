@@ -9,6 +9,8 @@ export interface QuestionInsightsData {
   weakSignals?: string[];
   answerApproach?: string | null;
   followUps?: string[];
+  linkedStoryText?: string | null;
+  linkedStorySource?: string | null;
   depthLabel?: string | null;
   seniorityExpectation?: string | null;
   sampleAnswerOutline?: string | null;
@@ -128,6 +130,19 @@ export const QuestionInsightsPanel = ({ data, className, hideHeader = false }: Q
         </div>
       )}
 
+      {data.linkedStoryText && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-sm">
+          <div className="mb-1 flex items-center gap-2 text-sm font-medium text-amber-900">
+            <BookOpen className="h-4 w-4 text-amber-600" />
+            Draw on your experience
+          </div>
+          {data.linkedStorySource && (
+            <p className="mb-1 text-xs uppercase text-amber-700">{data.linkedStorySource}</p>
+          )}
+          <p className="text-amber-950">{data.linkedStoryText}</p>
+        </div>
+      )}
+
       {hasOutline && (
         <div className="rounded-xl border bg-muted/30 p-3 text-sm">
           <div className="flex items-center gap-2 text-sm font-medium mb-1">
@@ -154,4 +169,3 @@ export const QuestionInsightsPanel = ({ data, className, hideHeader = false }: Q
     </div>
   );
 };
-
