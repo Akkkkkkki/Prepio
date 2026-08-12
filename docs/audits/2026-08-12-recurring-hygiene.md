@@ -27,13 +27,31 @@ by the last three reviews:
   [`profile-story-linking.ts`](../../supabase/functions/interview-research/profile-story-linking.ts)
   serializes citable bullets into opaque `S*` handles.
 
-**Headline result: the pipeline rework is clean.** Read in full, the new
-code is defensively engineered — ID-only citations enforced in code, opaque
-story aliases so real bullet IDs never reach the model, code-owned ledger
-persistence, bounded profile-lookup + acknowledgement timeouts, and a
-`status = 'pending'` guard so a startup timeout can't clobber an in-flight
-run. No new Critical / High / Medium finding came out of the diff.
-Authorization is intact (the body `userId` must still match the JWT user).
+**Headline result: the pipeline's *new* code is well-engineered, but
+adversarial review surfaced a real pre-existing authorization gap the first
+read missed.** The new synthesis/grounding code is defensively written —
+ID-only citations enforced in code, opaque story aliases so real bullet IDs
+never reach the model, code-owned ledger persistence, bounded
+profile-lookup + acknowledgement timeouts, and a `status = 'pending'` guard
+so a startup timeout can't clobber an in-flight run.
+
+My first-pass conclusion — "authz intact, no cross-user path" — was
+**overstated**, and a Codex review on this PR (#295) correctly challenged
+it. Verified against the code: `interview-research` checks only that the
+body `userId` matches the JWT user; it **never verifies the caller-supplied
+`searchId` belongs to that user**, and every write goes through the
+service-role client (RLS-bypassing). An authenticated caller who knows a
+victim's search UUID can overwrite that victim's prep plan / questions /
+status — a broken object-level authorization (BOLA) **cross-tenant write**
+(High; write-only, UUID-gated, **pre-existing** — not introduced by this
+window). Filed as
+[PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143). Codex also flagged
+that the ledger grants `official_job`/high-trust to unvalidated
+caller-supplied `roleLinks` (Low,
+[PREPIO-144](https://linear.app/qiuyue/issue/PREPIO-144)). Both are recorded
+in Findings below; the lesson is that a single-reader "clean" verdict on
+an authorization surface is worth an adversarial second pass.
+
 Secret / client-exposure re-scan clean; both new env flags are already
 documented in `.env.example`, RUNBOOK, and ARCHITECTURE.
 
@@ -120,11 +138,15 @@ and [`searchService.ts`](../../src/services/searchService.ts) diffs in full.
   [`20260808110000_profile_story_linking.sql`](../../supabase/migrations/20260808110000_profile_story_linking.sql),
   nullable columns under the table's existing RLS). Hallucinated aliases
   degrade to `null`.
-- **Client-supplied profile is own-data, flag-gated, degradable.**
-  `candidateProfile` arrives in the request body, but it is the requesting
-  user's own profile affecting only their own search, both flags default
-  off, and `withProfileLookupTimeout` (5s) falls back to the legacy CV path
-  on any timeout/error. No cross-user path.
+- **Client-supplied profile is own-data, flag-gated, degradable** — *in the
+  normal flow.* `candidateProfile` arrives in the request body, is the
+  requesting user's own profile, both flags default off, and
+  `withProfileLookupTimeout` (5s) falls back to the legacy CV path on any
+  timeout/error. **Caveat (see High finding):** because `searchId` ownership
+  is not verified, a caller can steer their profile text/bullet IDs into a
+  *victim's* question rows by supplying the victim's `searchId`. The
+  own-data guarantee holds only as long as the `searchId`-ownership gap
+  (PREPIO-143) is open.
 
 ### Async background job (#277) + startup guard
 
@@ -133,7 +155,9 @@ and [`searchService.ts`](../../src/services/searchService.ts) diffs in full.
   the 60s ack timeout bounds a stalled gateway, and the `searches` failure
   write is now scoped `.eq("status", "pending")` so a startup timeout
   cannot clobber a run already past `pending`. Background errors are caught
-  and logged rather than surfacing as unhandled rejections.
+  and logged rather than surfacing as unhandled rejections. **Note:** this
+  refactor did not touch request authorization, so the missing `searchId`
+  ownership check (High, PREPIO-143) is orthogonal to and pre-dates it.
 
 ### Secret / client-exposure re-scan — clean
 
@@ -153,6 +177,36 @@ and [`searchService.ts`](../../src/services/searchService.ts) diffs in full.
 
 ### High
 
+- [ ] **`interview-research` never verifies `searchId` ownership —
+  cross-tenant write (BOLA) via the service-role client.** *(New this run;
+  surfaced by Codex review on PR #295, verified against the code.
+  Pre-existing, not a regression from this window.)*
+  - Evidence: the only identity check is body `userId` == JWT user
+    ([index.ts:1096](../../supabase/functions/interview-research/index.ts)).
+    `searchId` is never checked against the caller, and all writes use the
+    service-role client (RLS-bypassing): `prep_plans` upsert on `search_id`,
+    `interview_stages`/`interview_questions` inserts, and `searches` status
+    updates `.eq('id', searchId)`. The legitimate flow
+    ([`searchService.createSearchRecord`](../../src/services/searchService.ts):485)
+    always creates the `searches` row with `user_id = user.id` before
+    invoking, so an ownership check would break nothing.
+  - Risk: **High (integrity).** An authenticated caller who knows a victim's
+    search UUID can overwrite that victim's prep plan / stages / questions
+    and flip their search status, and inject the caller's own profile
+    text/bullet IDs into the victim's rows. **Write-only — not a read/exfil
+    path** (results derive from the caller's inputs; the 202 returns no
+    data; frontend reads stay RLS-scoped). Gated by knowing a non-enumerable
+    UUID that nonetheless appears in shareable `/search/:searchId` URLs.
+  - Recommended fix: fail closed on ownership in the `serve` handler before
+    background work — `select id from searches where id = searchId and
+    user_id = authContext.userId`, else 404. Small, safe, no legitimate-flow
+    impact. **Not applied in this docs-only run**: an authorization change to
+    a core edge function warrants its own reviewed, test-covered PR rather
+    than being bundled unattended into a hygiene-note PR.
+  - Owner / next step: **Filed as
+    [PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143)** (Bug,
+    `area:research-pipeline` + `area:infra`, High). Recommend scheduling
+    ahead of any `PROFILE_STORY_LINKING` rollout.
 - [ ] **`pdfjs-dist` arbitrary-JS-execution advisory (GHSA-hq66-cqwq-w95j)
   — production resume-parser dep; needs a breaking 5 → 6 major to fully
   remediate.** *(Carried from 2026-08-08; now Linear-tracked.)*
@@ -191,6 +245,24 @@ and [`searchService.ts`](../../src/services/searchService.ts) diffs in full.
 
 ### Low / clean-up
 
+- [ ] **Evidence ledger grants `official_job`/high-trust to unvalidated
+  caller-supplied `roleLinks`.** *(New this run; Codex PR #295, line 95.)*
+  - Evidence:
+    [`evidence-ledger.ts:328–335`](../../supabase/functions/interview-research/evidence-ledger.ts)
+    forces `sourceType: "official_job"` (→ `trustWeight: "high"`) on every
+    `jobRawData.results` row, and those rows come from `job-analysis`
+    extracting arbitrary user-pasted `roleLinks` with no host validation.
+    The ledger classifies by provenance *channel*, not by whether the URL is
+    actually a job/employer origin.
+  - Risk: **Low.** `roleLinks` normally affect only the caller's own run
+    (self-inflicted mis-grounding); the concern sharpens only in combination
+    with the `searchId`-ownership High (PREPIO-143).
+  - Recommended fix: classify job rows via the existing
+    `isJobPosting(url, title)` / company-domain check (as company rows
+    already are) instead of a blanket `official_job` force.
+  - Owner / next step: **Filed as
+    [PREPIO-144](https://linear.app/qiuyue/issue/PREPIO-144)** (Chore,
+    `area:research-pipeline`).
 - [ ] **`QUERY_PLAN` structured log captures interviewer person-names
   parsed from the user note into first-party operational logs.**
   *(Carried from 2026-08-01/05/08; not touched this window; now
@@ -206,9 +278,17 @@ and [`searchService.ts`](../../src/services/searchService.ts) diffs in full.
     [PREPIO-141](https://linear.app/qiuyue/issue/PREPIO-141)** (Chore,
     `area:research-pipeline`). Redact vs. accept is a product-owner
     observability decision recorded on the issue.
-- [ ] **`Practice.mobile.test.tsx` CI flake — remains Low; not
-  reproducing.** *(Carried.)* All 423 tests passed cleanly; the `{ retry: 2 }`
-  mitigation holds. Trigger for a real ticket remains retries exhausting in CI.
+- [ ] **`Practice.mobile.test.tsx` CI flake — crossed its trigger this run;
+  now Linear-tracked.** *(Carried, escalated.)* All 423 tests passed
+  cleanly **locally**, but the "ArrowLeft navigates back after skipping
+  forward" case (`Practice.mobile.test.tsx:802`) **exhausted its `{ retry: 2 }`
+  budget and failed the `verify` job on this docs-only PR #295**
+  (`Test timed out in 5000ms`; 422/423). The change touches only this audit
+  markdown file, so the failure is pure flake, not a regression. This is the
+  exact "retries actually exhaust in CI" trigger the finding has carried for
+  months, so it is now filed as
+  [PREPIO-142](https://linear.app/qiuyue/issue/PREPIO-142) (Bug,
+  `area:practice` + `area:infra`). CI was re-run to unblock the PR.
 - [ ] **Dependabot cadence vs. security advisories — informational.**
   *(Carried.)* [`.github/dependabot.yml`](../../.github/dependabot.yml) runs
   `npm` monthly. Next reviewer: confirm GitHub → Code security has
@@ -226,14 +306,32 @@ and [`searchService.ts`](../../src/services/searchService.ts) diffs in full.
   Maintenance, cross-linked to this audit and the introducing PRs, per the
   CLAUDE.md recurring-hygiene requirement. This clears the "still unfiled"
   note that four prior reviews carried.
+- **Filed [PREPIO-142](https://linear.app/qiuyue/issue/PREPIO-142)** after
+  the `Practice.mobile.test.tsx` flake exhausted its retry budget and failed
+  CI on this PR (see the Low finding) — the documented trigger for
+  escalating the standing flake to a real ticket. CI was re-run to bring the
+  PR green.
+- **Filed [PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143) (High
+  BOLA) and [PREPIO-144](https://linear.app/qiuyue/issue/PREPIO-144) (Low
+  role-link trust)** after adversarial Codex review on this PR surfaced them
+  and I verified both against the code. The audit conclusion above was
+  corrected from "authz intact / no cross-user path" to record the real
+  authorization gap. **No code fix in this PR** — the `searchId` ownership
+  check belongs in its own reviewed, test-covered security PR, not bundled
+  unattended into a docs note.
 
-No source code changed this run. The wide pipeline diff produced no
-Critical/High/Medium code finding, and the one open High needs a breaking
-major that is out of the hygiene-runner's low-risk allowance — there was no
-in-scope, low-risk code fix to make.
+No source code changed this run — the review is delivered as this note plus
+the tracked findings. The two code findings this run (the `searchId` BOLA
+and the ledger role-link over-trust) are authorization/grounding changes to
+a core edge function that each warrant a reviewed, test-covered PR, and the
+one advisory-driven High needs a breaking major — none fit an unattended,
+low-risk docs-PR fix.
 
 Explicitly *not* touched this run:
 
+- **The `searchId`-ownership BOLA fix (PREPIO-143).** A small but real
+  edge-function authorization change; belongs in a dedicated security PR
+  with a cross-tenant-rejection test, not this docs note.
 - **The `pdfjs-dist` 5 → 6 major bump.** Breaking, real-browser-tested work
   on the resume-parse journey — deferred with High tracking (PREPIO-140).
 - **The react-router v7 major upgrade.** Migration-sized; deferred
@@ -253,6 +351,16 @@ Tracked in Linear (no free-form bullets left to re-discover):
 - [PREPIO-141](https://linear.app/qiuyue/issue/PREPIO-141) — `QUERY_PLAN`
   operational-log PII redaction (Low; redact-vs-accept decision). **Filed
   this run.**
+- [PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143) — **High:**
+  `searchId`-ownership BOLA in `interview-research` (cross-tenant write).
+  **Filed this run.** The code fix is deferred to a dedicated, reviewed
+  security PR.
+- [PREPIO-144](https://linear.app/qiuyue/issue/PREPIO-144) — evidence-ledger
+  `official_job` over-trust of caller-supplied `roleLinks` (Low). **Filed
+  this run.**
+- [PREPIO-142](https://linear.app/qiuyue/issue/PREPIO-142) — flaky
+  `Practice.mobile.test.tsx` keyboard-nav case (exhausts retries, fails CI).
+  **Filed this run.**
 - [PREPIO-98](https://linear.app/qiuyue/issue/PREPIO-98) — major
   dependency-migration planner (carries the react-router 6 → 7 upgrade).
 - [PREPIO-110](https://linear.app/qiuyue/issue/PREPIO-110) — stale bot-PR
@@ -262,7 +370,12 @@ Tracked in Linear (no free-form bullets left to re-discover):
 
 ## Questions for product owner
 
-- **Schedule PREPIO-140 (`pdfjs-dist` 5 → 6)?** The only remaining High and
+- **Schedule PREPIO-143 (`searchId`-ownership BOLA) as a priority fix?** It
+  is a cross-tenant write on user-owned research data. The fix is small
+  (one fail-closed ownership check) but changes edge-function authorization,
+  so it wants its own reviewed PR with a cross-tenant-rejection test —
+  ideally before `PROFILE_STORY_LINKING` is turned on.
+- **Schedule PREPIO-140 (`pdfjs-dist` 5 → 6)?** The advisory-driven High and
   the only advisory on a genuine production-runtime, untrusted-input path.
   Defense-in-depth is already shipped; the version bump is the true fix and
   needs a real-browser resume-parse regression pass.
@@ -275,14 +388,19 @@ Tracked in Linear (no free-form bullets left to re-discover):
 
 ## Next review focus
 
-1. **PREPIO-140 / react-router disposition.** If either major bump gets
-   scheduled, the upgrade PR becomes the next focused retro-audit; if both
-   are accepted as standing advisories, `npm audit` should stay at 3.
-2. **Next research-pipeline PR under the story-linking flags.** If
+1. **PREPIO-143 (`searchId` BOLA) fix PR.** The highest-value follow-up —
+   verify the ownership check lands with a cross-tenant-rejection test and
+   that the normal create→invoke flow still passes. Then re-audit the other
+   service-role edge functions (`company-research`, `job-analysis`,
+   `answer-feedback`, etc.) for the same missing object-ownership check.
+2. **PREPIO-140 / react-router disposition.** If either major bump gets
+   scheduled, the upgrade PR becomes a focused retro-audit; if both are
+   accepted as standing advisories, `npm audit` should stay at 3.
+3. **Next research-pipeline PR under the story-linking flags.** If
    `PROFILE_STORY_LINKING` moves toward on, re-audit the profile-context
    path end to end (serialization budget, alias resolution, and whether any
    profile text widens the operational-log surface).
-3. **Confirm the Deno edge-function typecheck runs green in CI.** It was
+4. **Confirm the Deno edge-function typecheck runs green in CI.** It was
    gated in #294 but is unreachable from this environment; verify CI is
    actually exercising it (not silently skipping like the root tsc no-op
    PREPIO-119 caught).
