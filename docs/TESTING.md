@@ -134,7 +134,7 @@ clustered in the pipeline — did **not** hold: there are zero `TS2532` /
 |------|-------|---------|
 | `TS2339` property-does-not-exist | 338 | **Noise.** ~317 are in `__tests__` files (mock/fixture shape drift Vitest never enforces at runtime). The 21 in shipped `src` are runtime-correct **except one** (`question_type`, broken out below): discriminated unions TS fails to narrow (`result.errorCode` reached only after a `success` guard; `Auth` `confirmPassword` on the signup branch), local annotations narrower than the actual `select("*")` row shape (`Practice.tsx` question fields, populated by `searchService`), and columns absent from stale generated types. |
 | `TS2352` unsound cast | 22 | **Noise.** Deliberate `as` casts of Supabase `Json` columns in `searchService.ts` / `entitlements.ts`. Unsound but runtime-safe by construction. |
-| `TS2345` / `TS2769` / `TS2305` / `TS2304` | 8 | **Noise.** Missing RPC/table/import names (`save_resume_version`, `subscriptions`, `CardProps`) — stale type generation, tracked by PREPIO-124. |
+| `TS2345` / `TS2769` / `TS2305` / `TS2304` | 8 | **Noise, mixed owners.** 4 are stale generated types PREPIO-124 clears (`save_resume_version` RPC ×2; `subscriptions`/entitlements, billing WIP). 3 are **local** type errors PREPIO-124 will *not* touch — a `type CardProps` import (`card.tsx` doesn't export it; runtime-erased), a `PDFPageProxy`→`PdfPage` mismatch (`resumeUpload.ts`), and a `PrepPlanRow` setState cast (`Dashboard.tsx`) — all runtime-correct, opportunistic tsc hygiene. 1 is a vitest global (`afterEach`, `globals: true`), test-only. |
 | `TS2739` / `TS2741` / `TS2740` / `TS2322` | 13 | **Noise.** Test fixtures and fallback profile construction missing optional fields that `normalizeCandidateProfile` backfills. |
 
 **One confirmed defect, not noise** (found within the `TS2339` bucket): `searchService.ts:577` maps `type: q.question_type`, but `interview_questions` has no `question_type` column (it's `category`) — so every question gets `type: undefined`. Type regeneration cannot fix a column that does not exist. Currently latent: `Practice.tsx:757` forwards it into `question.type`, but no shipped behavior consumes that field (the UI renders `category`), so there is no user-visible symptom — it is still a real error. Tracked in **PREPIO-138**.
@@ -146,8 +146,9 @@ plausible functional risk (DOCX upload); it is exercised by a passing test and
 works via Vite's CJS interop. So the backlog is overwhelmingly a type-hygiene
 and stale-type-generation problem, not a pre-computed bug list, and a burn-down
 ranks below PREPIO-124 (deploy migrations → regenerate types), which clears the
-largest shipped-`src` cluster on its own. Baseline unchanged — nothing was fixed
-in this triage.
+stale RPC/table errors. The residue — local narrowing/annotation gaps and
+test-file mock drift — is opportunistic hygiene, best cleaned when those files
+are next edited. Baseline unchanged — nothing was fixed in this triage.
 
 ## Lint Baseline
 
