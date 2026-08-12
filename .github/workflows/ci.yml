@@ -52,13 +52,10 @@ jobs:
       # `npm ci` above already installed it — one version, pinned by the
       # lockfile, identical in CI and in a local/agent checkout.
       #
-      # Still non-blocking: the first run measured 19 pre-existing errors, but
-      # that was before the script widened from the 12 entrypoints to all 38
-      # non-test sources, so the true count may be higher. Read it off this
-      # step's log, set BASELINE in scripts/check-deno-baseline.sh, then delete
-      # continue-on-error so the ratchet actually gates.
-      - name: Typecheck edge functions (informational until baselined)
-        continue-on-error: true
+      # Blocking as of the 19-error baseline measured across all 38 non-test
+      # sources (PR #294). New edge-function type errors now fail CI; the
+      # backlog is held flat rather than allowed to grow.
+      - name: Typecheck edge functions
         run: npm run typecheck:functions
 
       - name: Build

@@ -18,18 +18,15 @@ cd "$ROOT"
 # that is reported as a skip rather than a failure, because a sandbox without
 # egress must not be mistaken for a type-clean tree.
 #
-# PROVISIONAL — needs one more CI run before this gate can block.
+# 19 pre-existing errors on main, measured by CI in PR #294 — across
+# _shared/tavily-client.ts, _shared/url-deduplication.ts,
+# interview-question-generator, job-analysis, and profile-import, mostly
+# TS18046 (`unknown` in catch) and TS2339. None had ever been surfaced by CI,
+# because nothing type-checked this directory.
 #
-# The first CI run of this script (PR #294) measured 19 pre-existing errors
-# across _shared/tavily-client.ts, _shared/url-deduplication.ts,
-# interview-question-generator, job-analysis, and profile-import — mostly
-# TS18046 (`unknown` in catch) and TS2339. None had ever been surfaced by CI.
-#
-# That 19 was measured while this script checked only the 12 `*/index.ts`
-# entrypoints. The file set has since widened to all 38 non-test sources (see
-# below), which can only find the same errors or more, so 19 is a floor and not
-# necessarily the true count. Read the real number off the next CI run, set it
-# here, then drop continue-on-error in .github/workflows/ci.yml.
+# Confirmed against the full 38-source set: widening from the 12 `*/index.ts`
+# entrypoints to every non-test source found no additional errors, so the
+# previously entrypoint-only 19 is the true count, not a floor.
 #
 # Lower BASELINE as the backlog burns down. Never raise it without a written
 # justification in the PR.
