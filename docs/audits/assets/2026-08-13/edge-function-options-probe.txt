@@ -1,0 +1,26 @@
+Edge-function deploy-state probe — 2026-08-13 UX review routine (run #15)
+Method: OPTIONS preflight (CORS) to each function; 200/204 = deployed, 404 = not deployed.
+No business logic invoked (preflight only) — no cost, no side effects.
+Endpoint base: https://vjwrirrqprjzdorignlz.supabase.co/functions/v1
+
+DEPLOYED (200):
+  interview-research               OPTIONS -> 200
+  company-research                 OPTIONS -> 200
+  cv-analysis                      OPTIONS -> 200
+  job-analysis                     OPTIONS -> 200
+  interview-question-generator     OPTIONS -> 200
+
+NOT DEPLOYED (404):
+  research-preview                 OPTIONS -> 404
+  answer-feedback                  OPTIONS -> 404
+  create-checkout-session          OPTIONS -> 404
+  create-portal-session            OPTIONS -> 404
+  practice-audio-transcribe        OPTIONS -> 404
+  profile-import                   OPTIONS -> 404
+  stripe-webhook                   OPTIONS -> 404
+
+Verdict: 5 original research functions live; the same 7 functions undeployed as
+the 2026-08-09 run's direct list_edge_functions listing. Directly verified this
+run via preflight (not inferred). Migration state: 20260710203000 confirmed
+unapplied via the live 42P10 on the flag write; the other pending migrations
+were not directly listed this run (listing tools unavailable).

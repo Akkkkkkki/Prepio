@@ -36,11 +36,20 @@ Manager, desktop 1440×900); `/auth` autocomplete probe + real login; logged-in
 `/new-interview` (desktop); full mobile practice flow *Continue practice → Q1*
 with a live flag-toggle network+toast probe, a real answer save (Q1→Q2), and a
 touch-target sweep (mobile 390×844, `isMobile`+`hasTouch`); logged-out landing
-keyboard tab-order pass. Backend deploy state inferred from live edge-function
-behaviour — the Supabase `list_migrations`/`list_edge_functions` MCP tools were
-**not available this run** (only `query_logs`, which returned backend errors on
-every filtered query), so the deploy verdict rests on the live CORS/404 and
-`42P10` signatures rather than a direct migration listing. Screenshots under
+keyboard tab-order pass. **Backend deploy state directly probed this run** — the
+Supabase `list_migrations`/`list_edge_functions` MCP tools were **not available**
+(only `query_logs`, which returned backend errors on every filtered query), so in
+their place each edge function was hit with a CORS **OPTIONS preflight** (200/204 =
+deployed, 404 = not deployed; preflight only, no business logic invoked, no cost).
+Results in [`edge-function-options-probe.txt`](./assets/2026-08-13/edge-function-options-probe.txt):
+**5 deployed** (`interview-research`, `company-research`, `cv-analysis`,
+`job-analysis`, `interview-question-generator` → 200) and **7 undeployed**
+(`research-preview`, `answer-feedback`, `create-checkout-session`,
+`create-portal-session`, `practice-audio-transcribe`, `profile-import`,
+`stripe-webhook` → 404) — exactly the split the 2026-08-09 run read from a direct
+`list_edge_functions`. The *migration* layer is verified only for
+`20260710203000` (via the live `42P10` on the flag write); the other pending
+migrations were not directly listed this run. Screenshots under
 [`assets/2026-08-13/`](./assets/2026-08-13/).
 
 ## Overall product judgment
@@ -83,8 +92,11 @@ transcription, answer feedback, and the practice flag write at once.
 - **What happened (live this run):**
   - **Guest preview** (`/`, desktop): filled *Anthropic / Product Manager* → *Preview my prep* → console `Access to fetch at '…/functions/v1/research-preview' … blocked by CORS policy … does not have HTTP ok status` + `Error creating research preview: FunctionsFetchError`; red banner *"We couldn't build the preview. Try again, or sign in to run the full research workflow."*; right column stays on its pre-click *"Your Anthropic preview will appear here."* [`03-d-guest-result.png`](./assets/2026-08-13/03-d-guest-result.png). **Eighth consecutive week.**
   - **Practice flag write** (mobile, Q1): every *Favorite* / *Needs work* tap → `POST …/rest/v1/user_question_flags?on_conflict=user_id,question_id,flag_type → 400` with console `code: 42P10, message: "there is no unique or exclusion constraint matching the ON CONFLICT specification"`. The `(user_id, question_id, flag_type)` unique key from migration `20260710203000` is still unapplied in prod.
-  - **Paid checkout**: `create-checkout-session` / `stripe-webhook` remain undeployed (not re-probed this run to avoid a cost-incurring authed checkout; unchanged from the 2026-08-09 run).
-- **Note on evidence:** the direct migration/function listing tools were unavailable this run, so the deploy verdict rests on the two live error signatures above (both are the exact fingerprints of an undeployed function and an unapplied migration). This is weaker than a direct `list_migrations` diff — re-confirm with the listing tools next run if available.
+  - **Paid checkout**: `create-checkout-session` and `stripe-webhook` both return **404 on an OPTIONS preflight** this run — directly confirmed undeployed (no authed checkout triggered, so no cost/side effect). `create-portal-session`, `answer-feedback`, `practice-audio-transcribe`, and `profile-import` are also 404. See [`edge-function-options-probe.txt`](./assets/2026-08-13/edge-function-options-probe.txt).
+- **Note on evidence (scope of the verdict):** the direct `list_migrations`/`list_edge_functions` tools were unavailable this run, so this verdict is built from what was actually probed, not assumed:
+  - **Directly verified this run:** the *edge-function* layer — a CORS OPTIONS preflight to all 12 functions returned **5 × 200 (deployed)** and **7 × 404 (undeployed)**, matching the 2026-08-09 direct listing exactly. And migration `20260710203000` is unapplied (live `42P10`).
+  - **Not re-verified this run (carried from 2026-08-09's direct listing):** the state of the other 6 pending migrations, i.e. whether any migration *other than* `20260710203000` landed. A partial migration deploy that left `20260710203000` off would produce the same `42P10`; the function-layer probe rules out a partial *function* deploy, but not a partial *migration* deploy.
+  - Net: the "frozen" characterization is solid for the function layer and for the flag-write migration; treat the full 7-migration freeze as carried-forward until a direct `list_migrations` diff is available again.
 - **Why it matters:** the two growth-and-revenue funnels (guest→signup, free→paid) plus a core practice action are all still dead in production, for the eighth week, while four *frontend* fixes shipped around it. The deploy step is the sole bottleneck.
 - **Recommended fix (maintainer, attended):** (a) reconcile the divergent migration history and pre-check for duplicate `(user_id, question_id, flag_type)` rows before applying `20260710203000`; (b) `npm run db:push`; (c) `npm run functions:deploy` (verify `verify_jwt` intent on `research-preview`); (d) smoke-test each recovered surface incl. a real checkout→`stripe-webhook`→entitlement round-trip; (e) add a deploy-parity/health check so drift can't silently persist again.
 - **Tracking:** [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124) (Urgent, Backlog). Updated this run with the 8th-week re-verification.
