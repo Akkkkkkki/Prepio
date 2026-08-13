@@ -26,5 +26,10 @@ stripe-webhook                   404    NOT_FOUND          no
 
 Verdict: 5 functions deployed (200 + deno handler); 7 undeployed (404 + gateway
 sb-error-code:NOT_FOUND, no handler). Same 5/7 split as the 2026-08-09 direct
-list_edge_functions. Migration layer verified only for 20260710203000 (live 42P10);
-other pending migrations carried from the 2026-08-09 direct listing.
+list_edge_functions. NOTE: the probe tests function PRESENCE by name, not code version — it cannot
+detect a redeploy of the 5 present functions (e.g. interview-research changed in
+parent commit d9cc5d1), so it does not rule out a partial function deploy.
+Migration layer: only 20260710203000 is directly verified unapplied (live 42P10).
+The repo has 8 migrations newer than the 2026-08-09 baseline (20260515171733),
+including the new 20260808110000_profile_story_linking (PREPIO-57); the other 7
+are unknown this run.

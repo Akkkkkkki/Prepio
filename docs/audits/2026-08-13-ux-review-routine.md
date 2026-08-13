@@ -62,8 +62,11 @@ migrations were not directly listed this run. Screenshots under
 ## Overall product judgment
 
 **The strongest forward-motion week this routine has recorded in months —
-three tracked findings shipped and verified live — but the P0 backend deploy is
-still frozen at 2026-05-15, now the eighth consecutive week.** The headline is
+three tracked findings shipped and verified live — while the P0 backend deploy
+gap persists: this run directly re-verified that 7 edge functions are absent and
+the practice-flag migration is unapplied (the "frozen since 2026-05-15" framing
+is carried from the last direct listing; see issue #1's evidence note for what
+was and wasn't checked this run).** The headline is
 that the **breathing interstitial is gone**: *Continue practice* now drops
 straight to Q1 with no timed meditation gate ([PREPIO-126](https://linear.app/qiuyue/issue/PREPIO-126),
 Done, PR #280) — closing the run-#13 P1 that had repeated for six weeks. Combined
@@ -80,7 +83,7 @@ Profile also reframes completeness as a next action (*"Next: Add your most
 recent role — Research positions you against real experience, not role norms"*,
 [PREPIO-59](https://linear.app/qiuyue/issue/PREPIO-59), live).
 
-**But the underlying backend is unchanged.** Guest "Preview my prep" still
+**But the backend deploy gap persists on every surface probed.** Guest "Preview my prep" still
 `research-preview` CORS/404s (**8th consecutive week**), the practice flag write
 still `400 / 42P10`s on every tap (migration `20260710203000` unapplied — the
 honest toast fires but nothing persists), and the checkout functions remain
@@ -101,11 +104,13 @@ transcription, answer feedback, and the practice flag write at once.
   - **Practice flag write** (mobile, Q1): every *Favorite* / *Needs work* tap → `POST …/rest/v1/user_question_flags?on_conflict=user_id,question_id,flag_type → 400` with console `code: 42P10, message: "there is no unique or exclusion constraint matching the ON CONFLICT specification"`. The `(user_id, question_id, flag_type)` unique key from migration `20260710203000` is still unapplied in prod.
   - **Paid checkout**: `create-checkout-session` and `stripe-webhook` both return **404 on an OPTIONS preflight** this run — directly confirmed undeployed (no authed checkout triggered, so no cost/side effect). `create-portal-session`, `answer-feedback`, `practice-audio-transcribe`, and `profile-import` are also 404. See [`edge-function-options-probe.txt`](./assets/2026-08-13/edge-function-options-probe.txt).
 - **Note on evidence (scope of the verdict):** the direct `list_migrations`/`list_edge_functions` tools were unavailable this run, so this verdict is built from what was actually probed, not assumed:
-  - **Directly verified this run:** the *edge-function* layer — a CORS OPTIONS preflight to all 12 functions returned **5 × 200 (deployed, `x-deno-execution-id` present)** and **7 × 404 (undeployed, gateway `sb-error-code: NOT_FOUND` / no handler)**, matching the 2026-08-09 direct listing exactly. The gateway signature rules out a deployed-but-OPTIONS-404 handler. And migration `20260710203000` is unapplied (live `42P10`).
-  - **Not re-verified this run (carried from 2026-08-09's direct listing):** the state of the other 6 pending migrations, i.e. whether any migration *other than* `20260710203000` landed. A partial migration deploy that left `20260710203000` off would produce the same `42P10`; the function-layer probe rules out a partial *function* deploy, but not a partial *migration* deploy.
-  - Net: the "frozen" characterization is solid for the function layer and for the flag-write migration; treat the full 7-migration freeze as carried-forward until a direct `list_migrations` diff is available again.
+  - **Directly verified this run — two facts only:** (1) **7 function *names* are absent** — a CORS OPTIONS preflight to all 12 returned 5 × 200 (`x-deno-execution-id` present, handler ran) and 7 × 404 with gateway `sb-error-code: NOT_FOUND` / no handler, so those 7 are absent at the gateway (not deployed-but-OPTIONS-404 handlers). (2) **migration `20260710203000` is unapplied** (live `42P10`).
+  - **Explicitly NOT verified this run (do not over-read the probe):**
+    - **Whether the 5 present functions run current or stale code.** The probe tests presence by *name*, not code version — a redeploy of an existing function (e.g. `interview-research`, which changed in parent commit `d9cc5d1`) would leave the 5/7 split and every gateway result identical. So this run cannot rule out a *partial* deploy that updated the present five.
+    - **The applied state of the other pending migrations.** The repo carries **8 migrations newer than the 2026-08-09 baseline** (`20260515171733`): `20260516120000`, `20260516232408`, `20260524140500`, `20260525120000`, `20260528000000`, `20260623210533`, `20260710203000`, and the **new** `20260808110000_profile_story_linking` (PREPIO-57, landed in `d9cc5d1` *after* the last direct listing). Only `20260710203000` is directly confirmed unapplied; the **other 7 are unknown this run** — a partial migration deploy is not excluded.
+  - Net: what this run *proves* is "7 named functions absent + the flag migration unapplied." The broader **"frozen since 2026-05-15"** framing is a **carried-forward hypothesis** from the 2026-08-09 direct listing, not a this-run finding — re-confirm with a direct `list_migrations`/`list_edge_functions` diff (and a version/behaviour check on the present five) before treating the full freeze as current.
 - **Why it matters:** the two growth-and-revenue funnels (guest→signup, free→paid) plus a core practice action are all still dead in production, for the eighth week, while four *frontend* fixes shipped around it. The deploy step is the sole bottleneck.
-- **Recommended fix (maintainer, attended):** (a) reconcile the divergent migration history and pre-check for duplicate `(user_id, question_id, flag_type)` rows before applying `20260710203000`; (b) `npm run db:push`; (c) `npm run functions:deploy` (verify `verify_jwt` intent on `research-preview`); (d) smoke-test each recovered surface incl. a real checkout→`stripe-webhook`→entitlement round-trip; (e) add a deploy-parity/health check so drift can't silently persist again.
+- **Recommended fix (maintainer, attended):** (a) reconcile the divergent migration history and pre-check for duplicate `(user_id, question_id, flag_type)` rows before applying `20260710203000`; (b) `npm run db:push` — **8 migrations** are newer than the last-listed prod HEAD, including the new `20260808110000_profile_story_linking` (PREPIO-57), so confirm each one's applied state rather than assuming the count; (c) `npm run functions:deploy` — deploys the 7 absent functions **and** re-pushes current code for the 5 already-present ones (whose prod version this run could not check); verify `verify_jwt` intent on `research-preview`; (d) smoke-test each recovered surface incl. a real checkout→`stripe-webhook`→entitlement round-trip; (e) add a deploy-parity/health check so drift can't silently persist again.
 - **Tracking:** [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124) (Urgent, Backlog). Updated this run with the 8th-week re-verification.
 - **Not performed by the review job** — cost-incurring, guest-facing, unattended.
 
@@ -197,7 +202,7 @@ Rows marked **↑** improved since the 2026-08-09 run, **=** unchanged. Cells ma
 | Flag-failure toast copy ("Something went wrong" + both flags) | **FIXED** ✅ | [PREPIO-136](https://linear.app/qiuyue/issue/PREPIO-136) Done (PR #288); now *"Couldn't save your Needs work flag / Try again in a moment."* |
 | `/new-interview` marketing hero | **FIXED (deploy-verified)** ✅ | [PREPIO-111](https://linear.app/qiuyue/issue/PREPIO-111); task header + breadcrumb live. |
 | Profile completeness as next action | **SHIPPED** ✅ | [PREPIO-59](https://linear.app/qiuyue/issue/PREPIO-59) live. |
-| Production backend frozen at 2026-05-15 | **Still frozen — 8th week** | Guest preview `research-preview` CORS/404 + flag write `400/42P10`. **P0**, [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124). |
+| Backend deploy gap (was "frozen at 2026-05-15") | **Persists — 8th week; verified core, wider freeze carried** | Verified this run: 7 functions absent (gateway `NOT_FOUND`) + flag migration `20260710203000` unapplied (`42P10`). Present-5 code version and the other 7 newer-than-baseline migrations not re-checked. **P0**, [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124). |
 | Practice flag write broken (`400 / 42P10`) | **Still broken — honest via toast** | Every tap 400s; write recovery needs the deploy. |
 | `/history` empty vs in-progress card | **Still open** | Card 15% vs History "your first session will appear here." [PREPIO-107](https://linear.app/qiuyue/issue/PREPIO-107)/[PREPIO-99](https://linear.app/qiuyue/issue/PREPIO-99). |
 | Nav has no "Interviews" link + `/dashboard` collision | **Still open — 13th audit** | [PREPIO-101](https://linear.app/qiuyue/issue/PREPIO-101), In Progress. |
