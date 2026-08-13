@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSwipeable } from "react-swipeable";
 import Navigation from "@/components/Navigation";
@@ -1613,9 +1613,19 @@ const getInterviewerFocus = (
   };
 
   const handleSaveAnswerRef = useRef(handleSaveAnswer);
-  handleSaveAnswerRef.current = handleSaveAnswer;
   const skipQuestionRef = useRef(skipQuestion);
-  skipQuestionRef.current = skipQuestion;
+  // Keep the keydown-handler refs pointed at the latest committed callbacks.
+  // Written in a layout effect (synchronous commit phase, before paint) rather
+  // than during render: a render-body write is a React 19 concurrent-render
+  // hazard, while a passive effect would leave a post-paint window in which the
+  // still-attached window listener could invoke a previous-commit callback. A
+  // layout effect refreshes the refs after commit but before the browser can
+  // deliver keyboard input against the updated UI, so the listener always calls
+  // the latest handleSaveAnswer / skipQuestion.
+  useLayoutEffect(() => {
+    handleSaveAnswerRef.current = handleSaveAnswer;
+    skipQuestionRef.current = skipQuestion;
+  });
 
   const jumpToQuestion = (index: number) => {
     if (index >= 0 && index < questions.length) {

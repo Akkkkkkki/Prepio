@@ -42,6 +42,13 @@ export default defineConfig(() => ({
     environment: "jsdom",
     globals: true,
     setupFiles: "./vitest.setup.ts",
+    // vitest.setup.ts raises findBy*/waitFor's ceiling to 5000ms so a session
+    // render behind async mocks doesn't expire the wait. The test timeout must
+    // sit comfortably above that ceiling, or a single near-ceiling settle burns
+    // the whole budget and the test times out before its later assertions run —
+    // the Practice keyboard-navigation flake (PREPIO-142), where starting a
+    // session then navigating chains several async settles with no headroom.
+    testTimeout: 20000,
     // Playwright specs in e2e/ are run by `npm run test:e2e`, not Vitest.
     exclude: [...configDefaults.exclude, "e2e/**"],
   }
