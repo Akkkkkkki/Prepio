@@ -356,6 +356,51 @@ describe("Practice mobile layout", () => {
     expect(screen.queryByText("Starting your practice session")).toBeNull();
   });
 
+  it("leaves the session-start loader for an actionable error when session creation fails", async () => {
+    let resolveSession: (value: unknown) => void = () => {};
+    mockCreatePracticeSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSession = resolve;
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Practice setup")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
+
+    expect(await screen.findByText("Starting your practice session")).toBeTruthy();
+    expect(
+      screen.queryByText(
+        "How did you leverage LLM technology in the AI product evaluation at Hg Capital?",
+      ),
+    ).toBeNull();
+
+    await act(async () => {
+      resolveSession({
+        success: false,
+        error: { message: "database unavailable" },
+      });
+    });
+
+    expect(await screen.findByText("Practice Session Error")).toBeTruthy();
+    expect(
+      screen.getByText("We couldn't start the practice session. Please try again."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Starting your practice session")).toBeNull();
+    expect(
+      screen.queryByText(
+        "How did you leverage LLM technology in the AI product evaluation at Hg Capital?",
+      ),
+    ).toBeNull();
+  });
+
   it("shows the breathing warm-up only when opted in from the setup options", async () => {
     mockUseIsMobile.mockReturnValue(false);
     render(
