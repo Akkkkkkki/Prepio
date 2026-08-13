@@ -11,7 +11,6 @@ interface Question {
   stage_name: string;
   question: string;
   answered: boolean;
-  type?: string;
   difficulty?: string;
   category?: string;
 }

@@ -891,6 +891,50 @@ describe("practice history answer dedupe helpers", () => {
     ).not.toContain("prep_plans");
   });
 
+  it("enhances stage questions from real columns without a phantom type field", async () => {
+    const searchChain = createSelectChain({
+      data: { id: "search-4", status: "completed" },
+      error: null,
+    });
+    const stagesChain = createSelectChain({
+      data: [{ id: "stage-1", name: "Phone Screen", order_index: 0 }],
+      error: null,
+    });
+    const questionsChain = createSelectChain({
+      data: [
+        {
+          id: "question-1",
+          stage_id: "stage-1",
+          question: "Tell me about a hard tradeoff.",
+          category: "behavioral",
+          difficulty: "medium",
+        },
+      ],
+      error: null,
+    });
+    const prepPlanChain = createSelectChain({ data: null, error: null });
+
+    mockSupabase.from
+      .mockReturnValueOnce(searchChain)
+      .mockReturnValueOnce(stagesChain)
+      .mockReturnValueOnce(questionsChain)
+      .mockReturnValueOnce(prepPlanChain);
+
+    const result = await searchService.getSearchResults("search-4");
+
+    if (!result.success) {
+      throw new Error("expected getSearchResults to succeed");
+    }
+    const [question] = result.stages[0].questions;
+    // Real columns still flow through for category-based rendering.
+    expect(question.category).toBe("behavioral");
+    expect(question.answered).toBe(false);
+    // interview_questions has no `question_type` column, so the old
+    // `type: q.question_type` mapping only ever produced `type: undefined`.
+    // Guard against anyone reintroducing the phantom facet (PREPIO-138).
+    expect(question).not.toHaveProperty("type");
+  });
+
   it("sends new V2 fields (level, userNote, jobDescription) to the research function", async () => {
     mockSupabase.functions.invoke.mockResolvedValue({
       data: { status: "accepted" },

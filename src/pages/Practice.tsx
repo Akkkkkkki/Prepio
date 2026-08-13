@@ -157,7 +157,6 @@ interface Question {
   question: string;
   answered: boolean;
   // Enhanced question properties
-  type?: string;
   difficulty?: string;
   rationale?: string;
   suggested_answer_approach?: string;
@@ -773,7 +772,6 @@ const getInterviewerFocus = (
                 stage_name: stage.name,
                 question: questionObj.question,
                 answered: answeredIdsRef.current.has(questionObj.id),
-                type: questionObj.type,
                 difficulty: questionObj.difficulty,
                 rationale: questionObj.rationale,
                 suggested_answer_approach: questionObj.suggested_answer_approach,
