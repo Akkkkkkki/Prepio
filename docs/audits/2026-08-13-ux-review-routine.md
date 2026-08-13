@@ -41,6 +41,13 @@ Supabase `list_migrations`/`list_edge_functions` MCP tools were **not available*
 (only `query_logs`, which returned backend errors on every filtered query), so in
 their place each edge function was hit with a CORS **OPTIONS preflight** (200/204 =
 deployed, 404 = not deployed; preflight only, no business logic invoked, no cost).
+The raw `curl -i` output distinguishes a *gateway* absence from a handler-level
+404: deployed functions return `200` with an `x-deno-execution-id` header (the
+Deno handler ran), while the 7 undeployed ones return `404` with
+`sb-error-code: NOT_FOUND`, body `{"code":"NOT_FOUND","message":"Requested
+function was not found"}`, and **no** `x-deno-execution-id` — i.e. the Supabase
+gateway reports the function absent, which rules out a deployed-but-OPTIONS-404
+handler.
 Results in [`edge-function-options-probe.txt`](./assets/2026-08-13/edge-function-options-probe.txt):
 **5 deployed** (`interview-research`, `company-research`, `cv-analysis`,
 `job-analysis`, `interview-question-generator` → 200) and **7 undeployed**
@@ -94,7 +101,7 @@ transcription, answer feedback, and the practice flag write at once.
   - **Practice flag write** (mobile, Q1): every *Favorite* / *Needs work* tap → `POST …/rest/v1/user_question_flags?on_conflict=user_id,question_id,flag_type → 400` with console `code: 42P10, message: "there is no unique or exclusion constraint matching the ON CONFLICT specification"`. The `(user_id, question_id, flag_type)` unique key from migration `20260710203000` is still unapplied in prod.
   - **Paid checkout**: `create-checkout-session` and `stripe-webhook` both return **404 on an OPTIONS preflight** this run — directly confirmed undeployed (no authed checkout triggered, so no cost/side effect). `create-portal-session`, `answer-feedback`, `practice-audio-transcribe`, and `profile-import` are also 404. See [`edge-function-options-probe.txt`](./assets/2026-08-13/edge-function-options-probe.txt).
 - **Note on evidence (scope of the verdict):** the direct `list_migrations`/`list_edge_functions` tools were unavailable this run, so this verdict is built from what was actually probed, not assumed:
-  - **Directly verified this run:** the *edge-function* layer — a CORS OPTIONS preflight to all 12 functions returned **5 × 200 (deployed)** and **7 × 404 (undeployed)**, matching the 2026-08-09 direct listing exactly. And migration `20260710203000` is unapplied (live `42P10`).
+  - **Directly verified this run:** the *edge-function* layer — a CORS OPTIONS preflight to all 12 functions returned **5 × 200 (deployed, `x-deno-execution-id` present)** and **7 × 404 (undeployed, gateway `sb-error-code: NOT_FOUND` / no handler)**, matching the 2026-08-09 direct listing exactly. The gateway signature rules out a deployed-but-OPTIONS-404 handler. And migration `20260710203000` is unapplied (live `42P10`).
   - **Not re-verified this run (carried from 2026-08-09's direct listing):** the state of the other 6 pending migrations, i.e. whether any migration *other than* `20260710203000` landed. A partial migration deploy that left `20260710203000` off would produce the same `42P10`; the function-layer probe rules out a partial *function* deploy, but not a partial *migration* deploy.
   - Net: the "frozen" characterization is solid for the function layer and for the flag-write migration; treat the full 7-migration freeze as carried-forward until a direct `list_migrations` diff is available again.
 - **Why it matters:** the two growth-and-revenue funnels (guest→signup, free→paid) plus a core practice action are all still dead in production, for the eighth week, while four *frontend* fixes shipped around it. The deploy step is the sole bottleneck.
