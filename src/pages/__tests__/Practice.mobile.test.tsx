@@ -308,6 +308,54 @@ describe("Practice mobile layout", () => {
     expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
   });
 
+  it("withholds the first question behind a loader until the session is created", async () => {
+    let resolveSession: (value: unknown) => void = () => {};
+    mockCreatePracticeSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSession = resolve;
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Practice setup")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
+
+    // While createPracticeSession is pending, the loader shows and Q1 is withheld
+    // so nothing typed can hit handleSaveAnswer's `!practiceSession` early return.
+    expect(await screen.findByText("Starting your practice session")).toBeTruthy();
+    expect(
+      screen.queryByText(
+        "How did you leverage LLM technology in the AI product evaluation at Hg Capital?",
+      ),
+    ).toBeNull();
+
+    await act(async () => {
+      resolveSession({
+        success: true,
+        session: {
+          id: "session-1",
+          user_id: "user-1",
+          search_id: "search-1",
+          started_at: "2026-03-31T00:00:00.000Z",
+        },
+      });
+    });
+
+    expect(
+      await screen.findByText(
+        "How did you leverage LLM technology in the AI product evaluation at Hg Capital?",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("Starting your practice session")).toBeNull();
+  });
+
   it("shows the breathing warm-up only when opted in from the setup options", async () => {
     mockUseIsMobile.mockReturnValue(false);
     render(
@@ -403,6 +451,12 @@ describe("Practice mobile layout", () => {
     );
 
     await startPracticeSession();
+
+    // Q1 now renders behind a "Starting your practice session" loader until the
+    // session lands, so wait for the in-session footer before measuring it.
+    await waitFor(() => {
+      expect(container.querySelector("[data-mobile-practice-footer]")).not.toBeNull();
+    });
 
     const shell = container.querySelector("[data-mobile-practice-shell]") as HTMLElement;
     const footer = container.querySelector("[data-mobile-practice-footer]") as HTMLElement;
@@ -642,7 +696,8 @@ describe("Practice mobile layout", () => {
 
     await startPracticeSession();
 
-    fireEvent.click(screen.getByRole("button", { name: "Record answer" }));
+    // Wait past the "Starting your practice session" loader for the in-session UI.
+    fireEvent.click(await screen.findByRole("button", { name: "Record answer" }));
     fireEvent.click(await screen.findByRole("button", { name: "Stop recording" }));
 
     expect(await screen.findByText(/Recording ready/)).toBeInTheDocument();
