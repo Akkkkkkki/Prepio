@@ -1997,6 +1997,32 @@ const getInterviewerFocus = (
     );
   }
 
+  // The warm-up interstitial used to mask createPracticeSession latency; with it
+  // off, beginSession flips sessionState to 'inProgress' synchronously while the
+  // session is still being created. Hold Q1 behind a loader until the session
+  // lands so an answer typed in that window can't be silently dropped by
+  // handleSaveAnswer's `!practiceSession` guard.
+  if (sessionState === 'inProgress' && !practiceSession) {
+    return (
+      <div id="main-content" className="min-h-screen bg-background">
+        <Navigation />
+        <div className="container mx-auto px-4 py-8">
+          <Card className="w-full max-w-md mx-auto text-center">
+            <CardHeader>
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+              <CardTitle>Starting your practice session</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Hang tight — we're setting up your questions...
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   // If no questions available after filtering, show appropriate message
   if (!currentQuestion && sessionState === 'inProgress') {
     return (
