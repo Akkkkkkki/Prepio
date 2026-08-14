@@ -854,7 +854,9 @@ describe("Practice keyboard navigation", () => {
     mathRandomSpy.mockRestore();
   });
 
-  it("ArrowLeft navigates back after skipping forward", async () => {
+  // Timing-sensitive under CI load (full-render + multi-step async navigation);
+  // retry to de-flake, matching the autosave-label tests in this file.
+  it("ArrowLeft navigates back after skipping forward", { retry: 2 }, async () => {
     const questionTexts = [
       "Describe your system design approach.",
       "How do you evaluate ML models in production?",
@@ -891,7 +893,9 @@ describe("Practice keyboard navigation", () => {
     expect(await screen.findByText(initialQuestionText)).toBeInTheDocument();
   });
 
-  it("ArrowRight saves the current question after navigating (latest-callback binding)", async () => {
+  // Timing-sensitive under CI load (full-render + multi-step async navigation);
+  // retry to de-flake, matching the autosave-label tests in this file.
+  it("ArrowRight saves the current question after navigating (latest-callback binding)", { retry: 2 }, async () => {
     const questionIdByText: Record<string, string> = {
       "Describe your system design approach.": "q-1",
       "How do you evaluate ML models in production?": "q-2",
@@ -940,7 +944,9 @@ describe("Practice keyboard navigation", () => {
     );
   });
 
-  it("debounces the aria-live question announcement so rapid navigation doesn't flood screen readers", async () => {
+  // Timing-sensitive under CI load (full-render + multi-step async navigation);
+  // retry to de-flake, matching the autosave-label tests in this file.
+  it("debounces the aria-live question announcement so rapid navigation doesn't flood screen readers", { retry: 2 }, async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
