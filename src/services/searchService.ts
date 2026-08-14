@@ -639,7 +639,6 @@ export const searchService = {
           // Transform questions to include enhanced metadata
           const enhancedQuestions = (questions || []).map(q => ({
             ...q,
-            type: q.question_type,
             answered: false, // For practice session tracking
           }));
 

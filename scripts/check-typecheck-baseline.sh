@@ -8,7 +8,7 @@ cd "$ROOT"
 # tsconfig.app.json carries a legacy backlog; new code must not add to it.
 # Lower APP_BASELINE as the backlog burns down. Never raise a baseline
 # without a written justification in the PR.
-APP_BASELINE=64
+APP_BASELINE=62
 NODE_BASELINE=0
 
 count_errors() {

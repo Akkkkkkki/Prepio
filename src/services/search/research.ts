@@ -155,7 +155,6 @@ export const researchService = {
             ...stage,
             questions: (questions || []).map((question) => ({
               ...question,
-              type: (question as Record<string, unknown>).question_type ?? null,
               answered: false,
             })),
           };
