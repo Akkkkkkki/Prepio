@@ -1,0 +1,35 @@
+Edge-function deploy-state probe — 2026-08-13 UX review routine (run #15)
+Method: CORS OPTIONS preflight (no business logic invoked; no cost, no side effects).
+Endpoint base: https://vjwrirrqprjzdorignlz.supabase.co/functions/v1
+
+Discriminator (gateway vs handler), captured via 'curl -i':
+  DEPLOYED   = HTTP 200 + header 'x-deno-execution-id' present (Deno handler ran).
+  UNDEPLOYED = HTTP 404 + 'sb-error-code: NOT_FOUND' + body
+               {"code":"NOT_FOUND","message":"Requested function was not found"}
+               and NO 'x-deno-execution-id' (Supabase GATEWAY reports the function absent —
+               this rules out a deployed-but-OPTIONS-404 handler, per PR #298 review).
+
+FUNCTION                         STATUS sb-error-code      deno-handler?
+--------                         ------ -------------      -------------
+interview-research               200    (none)             yes
+company-research                 200    (none)             yes
+cv-analysis                      200    (none)             yes
+job-analysis                     200    (none)             yes
+interview-question-generator     200    (none)             yes
+research-preview                 404    NOT_FOUND          no
+answer-feedback                  404    NOT_FOUND          no
+create-checkout-session          404    NOT_FOUND          no
+create-portal-session            404    NOT_FOUND          no
+practice-audio-transcribe        404    NOT_FOUND          no
+profile-import                   404    NOT_FOUND          no
+stripe-webhook                   404    NOT_FOUND          no
+
+Verdict: 5 functions deployed (200 + deno handler); 7 undeployed (404 + gateway
+sb-error-code:NOT_FOUND, no handler). Same 5/7 split as the 2026-08-09 direct
+list_edge_functions. NOTE: the probe tests function PRESENCE by name, not code version — it cannot
+detect a redeploy of the 5 present functions (e.g. interview-research changed in
+parent commit d9cc5d1), so it does not rule out a partial function deploy.
+Migration layer: only 20260710203000 is directly verified unapplied (live 42P10).
+The repo has 8 migrations newer than the 2026-08-09 baseline (20260515171733),
+including the new 20260808110000_profile_story_linking (PREPIO-57); the other 7
+are unknown this run.
