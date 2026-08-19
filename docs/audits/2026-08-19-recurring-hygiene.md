@@ -26,12 +26,17 @@ Narrow, quiet window. Since the last hygiene review (#295, base `4cd0acd`,
   note under Low).
 
 Both retro-audited clean (details below). **Headline: no new security
-surface, no runtime behaviour change, security posture unchanged.** The
-secret / client-exposure re-scan is clean, `.env.example` carries
-placeholders only, and no new PII log surface was introduced.
+surface, no runtime behaviour change from the two merged commits.**
+`.env.example` carries placeholders only, and no new PII log surface was
+introduced. **But a committed test credential — missed by the first-pass
+secret scan and surfaced by Codex review on PR #302 — was found and removed
+this run** (see High finding below): seven legacy Deno test files hard-coded
+a real personal email + password as `signInWithPassword` fallbacks. The
+initial "secret scan clean" claim was **wrong because it excluded `tests/`**;
+this is corrected throughout.
 
-**No source code changed this run.** The two functional commits are already
-merged and clean; the one High-severity code finding still open
+**One small security fix pushed this run** (the credential removal, below).
+The one High-severity *authorization* finding still open
 ([PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143), the `searchId`
 BOLA — the standing #1 next-review-focus item) is **verified still unfixed**
 but remains correctly deferred to its own reviewed, test-covered security PR.
@@ -129,14 +134,19 @@ has landed since 2026-08-12 (no PR). Unchanged risk profile: authenticated,
 UUID-gated, **write-only** cross-tenant write. Kept deferred to a dedicated
 security PR — see High finding and Deferred.
 
-### Secret / client-exposure re-scan — clean
+### Secret / client-exposure re-scan — one committed credential found (fixed)
 
-- **No server-only env referenced from `src/`.** Grep for
+- **`src/` + `supabase/functions/` clean.** No server-only env referenced
+  from `src/` (grep for
   `import.meta.env.{SUPABASE_SERVICE_ROLE_KEY,OPENAI_API_KEY,STRIPE_SECRET_KEY,TAVILY_API_KEY,OPENAI_MODEL}`
-  returns nothing.
-- **No hardcoded secrets** in `src/` or `supabase/functions/` (JWT / `sk-` /
-  PEM / `api_key=` patterns, excluding placeholders and `Deno.env`/`import.meta.env`
-  reads).
+  returns nothing); no hardcoded secrets (JWT / `sk-` / PEM / `api_key=`
+  patterns) in either tree.
+- **⚠️ `tests/` was NOT clean — and the first pass wrongly excluded it.**
+  Seven legacy Deno test files hard-coded a real personal email + password as
+  `signInWithPassword` fallbacks (`?? "<redacted>"`). **Removed in-run**
+  (High finding below). This corrects the initial draft's "secret scan clean"
+  conclusion, which had scoped the grep to `src/` + `supabase/functions/` and
+  filtered out `test_*` matches — exactly where the credential lived.
 - **`.env.example` clean** — every value is a truncated placeholder
   (`sb_publishable_...`, `eyJ...` JWT header only, `sk-proj-...`, `tvly-...`,
   `sk_test_...`); no real signature present.
@@ -152,10 +162,37 @@ security PR — see High finding and Deferred.
 
 ### High
 
-- [ ] **`interview-research` never verifies `searchId` ownership —
-  cross-tenant write (BOLA) via the service-role client.** *(Carried from
-  2026-08-12; re-verified still open this run. Pre-existing, not a
-  regression.)*
+- [x] **Committed test credential (real email + password) hard-coded in 7
+  legacy Deno test files — code removed in-run; account still needs
+  rotation.** *(New this run; surfaced by Codex review on PR #302, verified
+  against the code. Pre-existing — present since the tests were authored.)*
+  - Evidence: seven files under `tests/` read the test login from env with a
+    hard-coded fallback — `Deno.env.get("TEST_USER_EMAIL") ?? "<real-email>"`
+    and `Deno.env.get("TEST_USER_PASSWORD") ?? "<redacted-password>"` — then
+    pass them to `supabase.auth.signInWithPassword`
+    (`tests/unit/test_edge_functions/test_0{1..6}_*.ts`,
+    `tests/integration/test_workflows/test_07_complete_workflow.ts`).
+    [`docs/TESTING.md:17`](../../docs/TESTING.md) already flags this suite as
+    legacy and dependent on live credentials.
+  - Risk: **High (credential exposure).** A real account's password is
+    committed to the repo and its git history. With `.env.local` pointed at
+    any project that contains that account, the fallback authenticates
+    without either env var set. The value is redacted here per the
+    no-secrets-in-notes rule, but it is plainly readable in the tracked
+    source and in history.
+  - Fix applied: replaced the two fallback lines in all 7 files with a
+    required-env read plus a fail-closed guard (`if (!TEST_USER_EMAIL ||
+    !TEST_USER_PASSWORD) throw …`) — no committed credential remains, the
+    consts stay typed `string`, lint unchanged at 51. Verified no `tests/`
+    match for either value after the edit.
+  - **Still required (owner action, cannot be done here):** the credential is
+    in git history and must be treated as compromised — **rotate the account
+    password** (and, if the mailbox is a real personal inbox, review it).
+    Removing it from `HEAD` stops default use but does not un-leak history.
+  - Owner / next step: **Needs a Linear issue** (Bug, `area:infra`; Linear
+    MCP is unauthenticated in this session so it could not be filed here) —
+    track the rotation and, separately, migrating the legacy Deno suite off
+    live credentials. See Questions for product owner.
   - Evidence: the only identity check is body `userId` == JWT user
     ([index.ts:1096](../../supabase/functions/interview-research/index.ts)).
     `searchId` is never checked against the caller, and all writes use the
@@ -266,25 +303,39 @@ security PR — see High finding and Deferred.
 
 ## Small fixes made in this run
 
-None. This is a documentation-only run:
+**Removed a committed test credential from 7 legacy Deno test files** (the
+High finding above). Replaced the hard-coded `TEST_USER_EMAIL` /
+`TEST_USER_PASSWORD` fallbacks with a required-env read + fail-closed guard,
+so no real credential remains in the tracked source. This is squarely in the
+allowed "remove hardcoded secrets" category and is low-risk: the affected
+files are the legacy Deno suite (not run by CI's `verify` job), and lint is
+unchanged at 51. **The account itself still needs owner rotation** (the value
+is in git history) — flagged as a question below.
+
+Not fixed this run (deferred with tracking):
 
 - The two functional commits in the window (#300, #301) are already merged
   and retro-audited clean — nothing to fix there.
-- The one open High code finding (PREPIO-143) is an edge-function
-  authorization change that (a) warrants its own reviewed, test-covered PR
+- The one open High **authorization** finding (PREPIO-143) is an
+  edge-function change that (a) warrants its own reviewed, test-covered PR
   and (b) **cannot be validated in this environment** (Deno typecheck +
   integration tests are unreachable here), so pushing it unattended would be
-  unsafe. Deferred with tracking.
+  unsafe.
 - The advisory-driven items each need a breaking major (`pdfjs-dist` 5 → 6,
   `react-router` 6 → 7) — out of hygiene-runner scope; no lockfile-only
   `npm audit fix` is available this window.
 
-There was no in-scope, low-risk, environment-validatable code change to make.
-
 ## Deferred items
 
-Tracked in Linear (no free-form bullets left to re-discover):
+Tracked in Linear (no free-form bullets left to re-discover), plus one new
+item that needs filing:
 
+- **NEW — committed test credential rotation + legacy-suite migration.** The
+  code fallback was removed in-run (High finding), but the credential is in
+  git history and the **account must be rotated by the owner**; separately,
+  the legacy Deno suite should move off live credentials entirely. **Needs a
+  Linear issue** (Bug/Chore, `area:infra`) — could not be filed here (Linear
+  MCP unauthenticated this session).
 - [PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143) — **High:**
   `searchId`-ownership BOLA in `interview-research` (cross-tenant write). Code
   fix deferred to a dedicated, reviewed security PR with a
@@ -308,6 +359,11 @@ Tracked in Linear (no free-form bullets left to re-discover):
 
 ## Questions for product owner
 
+- **Rotate the exposed test account credential now.** Seven test files
+  committed a real email + password (removed from `HEAD` this run, but still
+  in git history). Please rotate the account password — and if the address is
+  a live personal inbox, review it. This is a do-now security action, not a
+  scheduling question.
 - **Schedule PREPIO-143 (`searchId`-ownership BOLA) as a priority fix?**
   Re-verified still open. It is a cross-tenant write on user-owned research
   data. The fix is small (one fail-closed ownership check) but changes
@@ -324,16 +380,20 @@ Tracked in Linear (no free-form bullets left to re-discover):
   auto-open these.
 ## Next review focus
 
-1. **PREPIO-143 (`searchId` BOLA) fix PR.** Still the highest-value
+1. **Confirm the exposed test credential was rotated**, the new Linear issue
+   is filed, and consider widening the recurring secret scan to cover
+   `tests/` (and the whole tree, not just `src/` + `supabase/functions/`) so
+   the next run doesn't repeat this scoping miss.
+2. **PREPIO-143 (`searchId` BOLA) fix PR.** Still the highest-value
    follow-up. When scheduled, verify the ownership check lands with a
    cross-tenant-rejection test and the normal create → invoke flow still
    passes. Then re-audit the other service-role edge functions
    (`company-research`, `job-analysis`, `answer-feedback`) for the same
    missing object-ownership check.
-2. **Confirm the Deno edge-function typecheck runs green in CI.** Gated in
+3. **Confirm the Deno edge-function typecheck runs green in CI.** Gated in
    #294 but unreachable from this environment — verify CI actually exercises
    it (not silently skipping, like the root `tsc` no-op PREPIO-119 caught).
-3. **Next research-pipeline PR under the story-linking flags.** If
+4. **Next research-pipeline PR under the story-linking flags.** If
    `PROFILE_STORY_LINKING` moves toward on, re-audit the profile-context path
    end to end (serialization budget, alias resolution, and whether any
    profile text widens the operational-log surface).
