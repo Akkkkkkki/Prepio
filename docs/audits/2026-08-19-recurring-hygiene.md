@@ -42,20 +42,33 @@ local Supabase + real test-user credentials) **cannot run in this
 environment**, so an authorization change to that function cannot be
 validated here and must not be pushed unattended.
 
-Baselines: lint **51 problems** (down from 54 — #300's dead-code removal
-cleared 3 errors). Typecheck **pass at baseline** (app **62**, was 64; node
-0). Tests **up 423 → 426** (the #300 guard test + the Practice retry cases).
-Build **2278.79 KiB** / 62 precache entries (flat, +0.5 KiB). `npm audit`
-**3** (2 react-router moderate + 1 pdfjs-dist high) — unchanged, no
-lockfile-only fix available.
+Baselines (measured against the actual base commit `4cd0acd`, not the
+2026-08-12 note's self-reported figures — see below): lint **51 → 51**
+problems (unchanged; #300 removed a `tsc` error, not a lint violation).
+Typecheck **pass at baseline**, app tsc **64 → 62** (#300 cleared two
+`TS2339`s; node 0). Tests **425 → 426** (+1 — #300's guard test; #301 adds
+`{ retry: 2 }` options to three *existing* tests, no new cases). Build
+**2278.79 KiB** / 62 precache entries (flat, +0.5 KiB). `npm audit` **3**
+(2 react-router moderate + 1 pdfjs-dist high) — unchanged, no lockfile-only
+fix available.
+
+> **Baseline-source correction (Codex P2, verified in-run):** an earlier
+> draft of this note took its "before" lint (54) and test (423) counts from
+> the 2026-08-12 note's self-reported figures, which do **not** match the
+> actual base commit. Checked out `4cd0acd` and re-ran the same commands: it
+> already reports **51** lint problems and **425** tests. So the correct
+> window deltas are lint **51 → 51** and tests **425 → 426**, not 54 → 51 and
+> 423 → 426. #300 did not clear any lint violations (its change was a `tsc`
+> `TS2339` fix, reflected in the app tsc baseline 64 → 62).
 
 ## Commands run
 
 - `npm install`: **pass** (via SessionStart hook). 3 vulnerabilities
   (2 moderate, 1 high) — unchanged from the 2026-08-12 exit state.
-- `npm run lint`: **51 problems (43 errors, 8 warnings).** Down from 54
-  (46 errors, 8 warnings) on 2026-08-12 — the #300 dead-code removal cleared
-  3 `react-hooks`/`TS`-adjacent errors. No new violations introduced.
+- `npm run lint`: **51 problems (43 errors, 8 warnings).** Verified
+  **unchanged** vs the actual base commit `4cd0acd` (also 51 / 43 / 8; the
+  2026-08-12 note's "54" does not match the base). #300's dead-code removal
+  was a `tsc` `TS2339` fix, not a lint change; no new lint violations.
 - `npm run typecheck`
   ([`scripts/check-typecheck-baseline.sh`](../../scripts/check-typecheck-baseline.sh)):
   **pass at baseline.** App: **62** errors (baseline lowered 64 → 62 by #300).
@@ -68,7 +81,8 @@ lockfile-only fix available.
   CI where those hosts are reachable.
 - `npm run build`: **pass** (Vite + PWA, 62 precache entries,
   **2278.79 KiB**). Flat vs 2026-08-12 (2278.29, +0.5 KiB).
-- `npm test`: **pass** (49 test files, **426 tests**, up from 423). Vitest +
+- `npm test`: **pass** (49 test files, **426 tests**, 425 → 426 vs base
+  `4cd0acd` — the single new guard test from #300). Vitest +
   `check-legacy-schema.sh` + `check-answer-feedback-schema.sh` all green. The
   previously-flaky Practice keyboard-nav cases passed cleanly this run under
   the #301 retry guard.
