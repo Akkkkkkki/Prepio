@@ -49,14 +49,6 @@ Build **2278.79 KiB** / 62 precache entries (flat, +0.5 KiB). `npm audit`
 **3** (2 react-router moderate + 1 pdfjs-dist high) — unchanged, no
 lockfile-only fix available.
 
-> **Branch note:** this hygiene work is committed on
-> `claude/elegant-gates-v1yx98`, which already carried one unmerged,
-> PR-less commit from a prior session — `a5c2de3`, the *2026-08-13 UX review
-> routine (run #15)* docs + screenshots, not on `main`. Per the
-> keep-unmerged-commits rule it was **preserved**, not discarded, so the PR
-> for this note also surfaces that earlier UX-review doc. Flagging it so the
-> owner can decide its disposition (it appears complete and Codex-reviewed).
-
 ## Commands run
 
 - `npm install`: **pass** (via SessionStart hook). 3 vulnerabilities
@@ -316,11 +308,6 @@ Tracked in Linear (no free-form bullets left to re-discover):
 - **Enable Dependabot *security* updates?** *(Carried.)* Recurring highs keep
   surfacing between monthly version runs; turning on security updates would
   auto-open these.
-- **Disposition of the unmerged UX-review-routine commit (`a5c2de3`) on this
-  branch?** It is complete, Codex-reviewed docs + screenshots (run #15) that
-  never reached `main` and has no PR. This note's PR surfaces it; the owner
-  should decide whether to merge or drop it.
-
 ## Next review focus
 
 1. **PREPIO-143 (`searchId` BOLA) fix PR.** Still the highest-value
