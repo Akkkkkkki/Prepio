@@ -193,6 +193,10 @@ security PR — see High finding and Deferred.
     MCP is unauthenticated in this session so it could not be filed here) —
     track the rotation and, separately, migrating the legacy Deno suite off
     live credentials. See Questions for product owner.
+- [ ] **`interview-research` never verifies `searchId` ownership —
+  cross-tenant write (BOLA) via the service-role client.** *(Carried from
+  2026-08-12; re-verified still open this run. Pre-existing, not a
+  regression.)*
   - Evidence: the only identity check is body `userId` == JWT user
     ([index.ts:1096](../../supabase/functions/interview-research/index.ts)).
     `searchId` is never checked against the caller, and all writes use the
