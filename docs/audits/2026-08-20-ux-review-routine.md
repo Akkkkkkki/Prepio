@@ -70,7 +70,7 @@ Continue to Practice."*), and honest three-cadence pricing all hold. But the lan
 page — the one surface a first-time job seeker judges before signing up — has three
 real, independently-fixable accessibility defects: **it ships no `<h1>` at all** (the
 hero is an `<h3>` and the heading order runs h3→h3→h2), its **muted body copy sits at or
-just below the 4.5:1 AA contrast floor** (measured 4.06–4.50 on the very "why it matters"
+just below the 4.5:1 AA contrast floor** (measured 4.35–4.42 on the off-white cards, on the very "why it matters"
 lines that carry the personalization proof), and several **mobile controls fall below the
 44px touch-target baseline**. None block use, but together they weaken the first
 impression for keyboard/screen-reader/low-vision users and one-handed mobile users — the
@@ -139,21 +139,39 @@ first thing every new user sees.
 - **Area:** accessibility / landing / copy
 - **User scenario:** A low-vision user, or anyone on a dim phone screen outdoors, reads the
   landing page to decide whether Prepio is worth signing up for.
-- **What happened (live, `/`):** the warm-grey muted text color `rgb(127, 117, 108)` on the
-  near-white card backgrounds (`rgb(253,253,252)` / `#fff`) measures **4.06–4.50:1** across
-  several small-text elements — the sub-hero *"Tell us the company. We research the stages…"*,
-  the static-example lead *"Each question comes with the stage, difficulty, and why it
-  matters…"* (14px → **4.06**), and the *"Why it matters — …"* explanation bodies (12px →
-  **4.42**). AA requires **4.5:1** for text this size; these hover right at or just under it.
-  (The bolded *"Why it matters —"* lead-in is a darker `rgba(45,41,37,0.7)` at 14.18:1 and is
-  fine — it is the explanatory *body* that falls short.)
-- **Why it matters:** the "why it matters" lines are exactly where Prepio proves its
-  research is specific rather than generic; if they are the hardest text on the page to read,
-  the product's core differentiator is the first thing to disappear for low-vision users.
-- **Recommended fix:** darken the muted token by one step (target ≥4.5:1 — e.g. move
-  `rgb(127,117,108)` toward `rgb(107,98,90)` or darker) for body text ≤14px, or reserve the
-  current lighter grey for ≥18px / bold text only.
-- **Evidence:** Desktop Chrome 1440×900, `/`, computed-style contrast sampling.
+- **What happened (live, `/`):** the warm-grey muted text color `rgb(127, 117, 108)`
+  (`--muted-foreground`) is used both on **pure white** (the hero column / `--card #fff`) and
+  on the **slightly off-white** card/`--background` (`rgb(251,251,250)`–`rgb(253,253,252)`).
+  With alpha-composited backgrounds measured directly, the split is:
+  - **On pure white — borderline PASS:** the sub-hero *"Tell us the company…"* (16px) and the
+    *"No resume needed…"* line (12px) both measure **4.50:1** — meeting the 4.5 AA floor by a
+    hair.
+  - **On the off-white card/background — genuine AA FAIL:** the static-example lead *"Each
+    question comes with the stage, difficulty, and why it matters…"* (14px) = **4.35:1**, the
+    *"Why it matters — …"* explanation bodies (12px) = **4.42:1**, and *"Generated from public
+    signals · Glassdoor, LinkedIn…"* (12px) = **4.35:1**. All three fall below 4.5:1 for
+    normal-weight text this size.
+  - (The bolded *"Why it matters —"* lead-in is a darker `rgba(45,41,37,0.7)` at ~14:1 and is
+    fine — it is the explanatory *body* that falls short.)
+- **Correction / evidence note:** an earlier draft of this finding reported **4.06:1** for the
+  static-example lead and framed the range as "4.06–4.50 across the page." That 4.06 figure was
+  a **compositing artifact** — the first-pass probe treated the element's translucent
+  `rgba(244,243,241,0.2)` background as opaque instead of compositing it (≈ white). Re-measured
+  with proper alpha compositing, that element is **4.35:1**. **Thanks to Codex (PR #303 review)
+  for catching this.** The finding is accordingly narrowed: the muted token *passes on pure
+  white (4.50)* and *fails only on the off-white card/`--background` (4.35–4.42)* — so this is a
+  targeted contrast bug on those surfaces, not a blanket page-wide failure.
+- **Why it matters:** the "why it matters" and "generated from public signals" lines are exactly
+  where Prepio proves its research is specific rather than generic; on the off-white cards they
+  are the hardest text on the page to read, so the product's core differentiator is the first
+  thing to disappear for low-vision users.
+- **Recommended fix (targeted):** darken `--muted-foreground` by one step for body text on the
+  card/`--background` surfaces (target ≥4.5:1 with margin — e.g. move `rgb(127,117,108)` toward
+  `rgb(112,103,94)` or darker), or reserve the current grey for ≥18px / bold text. A small,
+  token-level change scoped to the failing surfaces clears all three without touching the
+  already-passing white-background text.
+- **Evidence:** Desktop Chrome 1440×900, `/`, computed-style contrast sampling with per-element
+  alpha compositing of the effective background.
 
 ### 4. **P2 (REPEAT, 11th audit, live-verified) — `/auth` sign-in fields still have no `autocomplete` attributes**
 
@@ -281,7 +299,7 @@ the backend is reachable again.
 | Pricing three-cadence honest copy | **Holding** ✅ | Unchanged. |
 | Skip-link + tab order + 200% reflow | **Holding** ✅ | No h-scroll at 200%; tab order matches visual order. |
 | Landing `<h1>` / heading hierarchy | **Newly flagged** ⚠️ | Zero `<h1>`; h3→h3→h2. Not a *new* regression (likely long-standing) but newly measured. **P2**, issue #2. |
-| Landing muted-copy contrast | **Newly flagged** ⚠️ | 4.06–4.50:1 on ≤14px body text. **P2**, issue #3. |
+| Landing muted-copy contrast | **Newly flagged** ⚠️ | Muted `rgb(127,117,108)` fails AA on the off-white cards (4.35–4.42:1 on ≤14px body text); borderline pass (4.50) on pure white. **P2**, issue #3. (First-pass 4.06 was an alpha-compositing artifact — corrected per Codex PR #303 review.) |
 | Sub-44px mobile touch targets (inputs/tabs/links) | **Newly flagged** ⚠️ | Primary submit OK (44px); inputs 40 / tabs 32 / links 36. **P3**, issue #5. |
 | `/auth` autocomplete missing | **Still unfixed — 11th audit** | `autocomplete=null` on both sign-in fields. [PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123); PR #244 never merged. |
 | `/404` "Oops!" + auth raw "Failed to fetch" | **Off-voice (P3)** | Copy notes above. |
@@ -302,9 +320,11 @@ the next session that has Linear access.**
 1. **[P2] Landing page: add an `<h1>` and fix heading order** — promote the hero to `<h1>`,
    demote the two section titles to `<h2>`/`<h3>` to form a valid outline; mirror
    `/pricing`'s existing correct pattern. Area: `area:landing` + accessibility. (Issue #2.)
-2. **[P2] Landing page: raise muted body-copy contrast to ≥4.5:1** — darken the
-   `rgb(127,117,108)` muted token (or restrict it to ≥18px/bold) so the sub-hero and
-   "why it matters" lines meet AA. Area: `area:landing` + accessibility. (Issue #3.)
+2. **[P2] Landing page: raise muted body-copy contrast to ≥4.5:1 on the off-white cards** —
+   darken the `rgb(127,117,108)` `--muted-foreground` token (or restrict it to ≥18px/bold) so
+   the static-example lead, the "why it matters" bodies, and the "generated from public signals"
+   line (currently **4.35–4.42:1** on `rgb(251–253,…)`) clear AA; the pure-white text is a
+   borderline 4.50 and benefits from the same nudge. Area: `area:landing` + accessibility. (Issue #3.)
 3. **[P2] Merge PR #244 to ship `autocomplete` on `/auth`** — still `null` live, 11th audit.
    **Update [PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123).** (Issue #4.)
 4. **[P3] Raise mobile touch targets to 44px** — landing/auth inputs (40px), auth tab
