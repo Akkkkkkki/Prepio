@@ -151,8 +151,11 @@ first thing every new user sees.
     *"Why it matters — …"* explanation bodies (12px) = **4.42:1**, and *"Generated from public
     signals · Glassdoor, LinkedIn…"* (12px) = **4.35:1**. All three fall below 4.5:1 for
     normal-weight text this size.
-  - (The bolded *"Why it matters —"* lead-in is a darker `rgba(45,41,37,0.7)` at ~14:1 and is
-    fine — it is the explanatory *body* that falls short.)
+  - (The *"Why it matters —"* lead-in is `rgba(45,41,37,0.7)` — composited over the card
+    (`--foreground/70` → ≈ `rgb(107,105,102)` on `rgb(253,253,252)`) it measures **5.38:1**,
+    which passes AA; it is the muted-foreground *body* that falls short. Reporting the composited
+    value here, not the opaque ~14:1, for consistency with the alpha-compositing method used
+    above — thanks to Codex PR #303 review for the catch.)
 - **Correction / evidence note:** an earlier draft of this finding reported **4.06:1** for the
   static-example lead and framed the range as "4.06–4.50 across the page." That 4.06 figure was
   a **compositing artifact** — the first-pass probe treated the element's translucent
