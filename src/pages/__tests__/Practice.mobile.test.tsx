@@ -264,6 +264,8 @@ describe("Practice mobile layout", () => {
               weak_answer_signals: ["Talking only about tools and not user impact."],
               follow_up_questions: ["How did you validate the output quality?"],
               sample_answer_outline: "Context, decision, evaluation loop, results.",
+              linked_story_text: "Aligned research, product, and support on an evaluation rollout.",
+              linked_story_source: "AI product evaluation at Hg Capital",
               evaluation_criteria: ["Clear decision process"],
             },
           ],
@@ -429,6 +431,10 @@ describe("Practice mobile layout", () => {
       await screen.findByRole("heading", { name: "What strong answers show", level: 2 })
     ).toBeInTheDocument();
     expect(screen.getByText("Tie model choice to measurable business outcomes.")).toBeInTheDocument();
+    expect(screen.getByText("AI product evaluation at Hg Capital")).toBeInTheDocument();
+    expect(
+      screen.getByText("Aligned research, product, and support on an evaluation rollout."),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
