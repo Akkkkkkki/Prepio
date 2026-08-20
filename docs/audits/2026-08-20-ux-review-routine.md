@@ -167,7 +167,9 @@ first thing every new user sees.
   thing to disappear for low-vision users.
 - **Recommended fix (targeted):** darken `--muted-foreground` by one step for body text on the
   card/`--background` surfaces (target ≥4.5:1 with margin — e.g. move `rgb(127,117,108)` toward
-  `rgb(112,103,94)` or darker), or reserve the current grey for ≥18px / bold text. A small,
+  `rgb(112,103,94)` or darker), or reserve the current grey only for genuinely large text —
+  note WCAG's reduced 3:1 tier starts at **≥24px regular / ≥18.66px bold**, so 18–23px regular
+  text (like these 12–16px lines) still needs the full 4.5:1. A small,
   token-level change scoped to the failing surfaces clears all three without touching the
   already-passing white-background text.
 - **Evidence:** Desktop Chrome 1440×900, `/`, computed-style contrast sampling with per-element
@@ -192,8 +194,15 @@ first thing every new user sees.
 
 ### 5. **P3 (NEW/refined, live-verified) — Several mobile controls fall below the 44px touch-target baseline**
 
-- **Severity:** P3 (above the WCAG 2.5.8 AA 24px floor, but below the 44px / Material-48dp
-  comfortable baseline the design principles cite; usability friction, not a blocker)
+- **Severity:** P3 (these controls **conform** to the WCAG 2.5.8 AA target-size floor of 24px;
+  44px is an *external ergonomic recommendation* — Apple HIG 44pt, Material 48dp, WCAG 2.5.5
+  Target Size **AAA** 44×44 — not a WCAG AA requirement; usability friction, not a blocker)
+- **Attribution correction (per Codex, PR #303 review):** an earlier draft said the repo's own
+  design principles "cite" a 44px/48dp baseline. They do **not** — `docs/DESIGN_PRINCIPLES.md`
+  requires only that mobile controls "keep controls reachable" (stable bottom nav, safe-area
+  padding, no layout shifts, offline states) and specifies **no target dimensions**. So this
+  finding stands purely on the external ergonomic guidelines above, not on a documented local
+  standard, and is priced P3 accordingly.
 - **Area:** accessibility / mobile
 - **User scenario:** A user prepping one-handed on a phone taps landing/auth controls.
 - **What happened (live, mobile 390×844):** measured control heights — landing **company /
@@ -321,7 +330,8 @@ the next session that has Linear access.**
    demote the two section titles to `<h2>`/`<h3>` to form a valid outline; mirror
    `/pricing`'s existing correct pattern. Area: `area:landing` + accessibility. (Issue #2.)
 2. **[P2] Landing page: raise muted body-copy contrast to ≥4.5:1 on the off-white cards** —
-   darken the `rgb(127,117,108)` `--muted-foreground` token (or restrict it to ≥18px/bold) so
+   darken the `rgb(127,117,108)` `--muted-foreground` token (or restrict it to WCAG large text —
+   ≥24px regular / ≥18.66px bold, not merely ≥18px) so
    the static-example lead, the "why it matters" bodies, and the "generated from public signals"
    line (currently **4.35–4.42:1** on `rgb(251–253,…)`) clear AA; the pure-white text is a
    borderline 4.50 and benefits from the same nudge. Area: `area:landing` + accessibility. (Issue #3.)
