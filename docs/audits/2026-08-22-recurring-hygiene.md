@@ -100,8 +100,8 @@ tree**:
   rightly flagged that silently dropping matches of the very shape being
   scanned could discard a real one). The email-literal scan (excluding the
   `docs/audits/**` snapshots and `.env.example`) returns **25 matches across
-  11 files**, and **all 25 are provably non-credentials**:
-  - **20** are RFC-2606 reserved `@example.com` / obvious-fake `@email.com`
+  11 files**, and **all 25 are provably non-credentials** (23 + 1 + 1):
+  - **23** are RFC-2606 reserved `@example.com` / obvious-fake `@email.com`
     addresses — `test@example.com` ×7, `user@example.com` ×4,
     `your@email.com` ×4 (all `Auth.tsx` input **placeholders**),
     `verify@` / `reset@` `@example.com` ×2 each, `email@example.com`,
