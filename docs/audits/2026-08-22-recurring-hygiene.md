@@ -23,9 +23,14 @@ next-focus #1 asked for).
 
 **No code fix was needed or made this run** — the window introduced nothing
 to fix, the one in-run fix from #302 (test-credential removal) is verified
-still landed, and every open finding is already tracked in Linear and is
-either owner-scheduling work or an edge-function change that cannot be
-validated in this environment. This note is the deliverable.
+still landed, and every open finding is either owner-scheduling work or an
+edge-function change that cannot be validated in this environment. All but
+**two** are tracked in Linear: the exceptions are the test-credential
+rotation (a do-now owner action still owed a Linear issue) and the new
+`parseJsonResponse` raw-model-response PII log sink surfaced by Codex on this
+PR (see Low findings) — neither should be treated as covered by
+tracker-based follow-ups until an issue is filed. This note is the
+deliverable.
 
 Baselines (measured against base `1ee9cbe` / HEAD `3dc1852`; all flat):
 lint **51 → 51** problems (43 errors, 8 warnings). Typecheck **pass at
@@ -106,12 +111,15 @@ Every resume / CV / transcript / answer-adjacent `console.*` call in `src/`
 logs the **error object only** (`console.error("Error …:", error)` /
 `(…, result.error)`); none interpolates CV, transcript, or answer *text*.
 No new client log surface (no source changed). **Scope note:** this covers
-only the client (`src/`) — the one known *server-side* PII-in-logs item, the
+only the client (`src/`). Two *server-side* PII-in-logs items are **not**
+claimed absent — both carried as still-open Low findings below: (1) the
 `QUERY_PLAN` structured log forwarding user-note-derived interviewer names to
-first-party edge-function `console.log`, is a separate, still-open Low finding
-carried below and tracked as
-[PREPIO-141](https://linear.app/qiuyue/issue/PREPIO-141); it is not claimed
-absent here.
+first-party edge-function `console.log`, tracked as
+[PREPIO-141](https://linear.app/qiuyue/issue/PREPIO-141); and (2) the
+`parseJsonResponse` malformed-JSON error path, which logs the **full raw
+model response** — for `cv-analysis` / `answer-feedback` that response
+carries candidate name/email/phone/CV-history or answer text (surfaced by
+Codex on this PR, verified this run; needs a Linear issue filed).
 
 ### `searchId`-ownership BOLA (PREPIO-143) — re-verified still open
 
@@ -236,6 +244,37 @@ fail CI on a new type error. Next-focus #3 resolved: CI does exercise it.
   - Owner / next step: **Tracked as
     [PREPIO-141](https://linear.app/qiuyue/issue/PREPIO-141)** (Chore).
     Redact-vs-accept is a product-owner observability decision.
+- [ ] **`parseJsonResponse` logs the full raw model response on a
+  malformed-JSON error path — resume/answer-derived PII can reach
+  edge-function logs.** *(New this run; surfaced by Codex review on PR #306,
+  verified against the code. Pre-existing, not a regression.)*
+  - Evidence: on any `JSON.parse` failure,
+    [`_shared/openai-client.ts:93`](../../supabase/functions/_shared/openai-client.ts)
+    runs `console.error("Raw response:", content)` — the **complete** model
+    output. `cv-analysis`
+    ([index.ts:218](../../supabase/functions/cv-analysis/index.ts)) asks the
+    model to return the candidate's `name` / `email` / `phone` / `education` /
+    `experience`, and `answer-feedback`
+    ([index.ts:136](../../supabase/functions/answer-feedback/index.ts)) routes
+    the practice-answer feedback response through the same parser; other
+    callers (`interview-research` prep plan, `profile-import`,
+    `company-research`, `job-analysis`, `research-preview`) share it. So a
+    malformed model response on the CV or answer path lands parsed PII in the
+    first-party operational logs.
+  - Risk: **Low.** Error-path only (well-formed JSON never logs), first-party
+    edge-function logs, not cross-user, not client-exposed — same risk class
+    as the `QUERY_PLAN` item. Sharpens the same redact-vs-accept observability
+    question across more surfaces.
+  - Recommended fix: log a redacted marker (length / first-parse-error only)
+    instead of the raw `content`, or gate the raw dump behind a debug flag.
+    Small and local to `parseJsonResponse`, but touches an edge-function path
+    that **cannot be validated in this environment** (Deno typecheck blocked;
+    integration tests need live Supabase) — so it wants its own reviewed PR,
+    not a docs-run bundle.
+  - Owner / next step: **Needs a Linear issue** (Chore, `area:infra` /
+    `area:research-pipeline`; Linear MCP is unauthenticated this session so it
+    could not be filed here). Fold into the same observability decision as
+    PREPIO-141.
 - [ ] **Stale bot-PR pile — 17 open PRs, 8 Dependabot.** *(Carried;
   recounted this run.)* The open list runs #237 (2026-07-10) → #304
   (2026-08-20): **8 Dependabot** (#264, #265, #266, #267, #269, #270, #271,
@@ -276,11 +315,12 @@ would violate the "avoid aesthetic refactors" guardrail.
 
 ## Deferred items
 
-All but one are tracked in Linear (no free-form code bullets left to
-re-discover). **The exception is an untracked owner action** — the
-test-credential rotation at the end of this list still needs a Linear issue
-filed (Linear MCP was unauthenticated this session), so it must **not** be
-treated as covered by tracker-based follow-ups until that issue exists:
+All but **two** are tracked in Linear (no free-form code bullets left to
+re-discover). **Two items are untracked and still need Linear issues filed**
+(Linear MCP was unauthenticated this session) — the test-credential rotation
+and the `parseJsonResponse` raw-model-response PII log sink, both at the end
+of this list. They must **not** be treated as covered by tracker-based
+follow-ups until those issues exist:
 
 - [PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143) — **High:**
   `searchId`-ownership BOLA in `interview-research` (cross-tenant write).
@@ -302,11 +342,15 @@ treated as covered by tracker-based follow-ups until that issue exists:
   tickets (one is likely a Duplicate).
 - [PREPIO-62](https://linear.app/qiuyue/issue/PREPIO-62) — esbuild override
   test guard (PR #240). Product-owner merge call.
-- **Owner-action, cannot be tracked as code:** rotate the exposed test
-  account credential (removed from `HEAD` in #302 but still in git history);
-  separately, migrate the legacy Deno suite off live credentials. Needs a
-  Linear issue (Bug/Chore, `area:infra`) — Linear MCP is unauthenticated
-  this session, so it could not be filed here.
+- **Untracked owner-action:** rotate the exposed test account credential
+  (removed from `HEAD` in #302 but still in git history); separately, migrate
+  the legacy Deno suite off live credentials. Needs a Linear issue (Bug/Chore,
+  `area:infra`) — Linear MCP is unauthenticated this session, so it could not
+  be filed here.
+- **Untracked (new this run):** `parseJsonResponse` raw-model-response PII log
+  sink (Low finding above) — needs a Linear issue (Chore, `area:infra` /
+  `area:research-pipeline`), foldable into the PREPIO-141 observability
+  decision. Could not be filed here (Linear unauthenticated).
 
 ## Questions for product owner
 
@@ -328,9 +372,12 @@ treated as covered by tracker-based follow-ups until that issue exists:
 
 ## Next review focus
 
-1. **Confirm the exposed test credential was rotated** and the tracking
-   Linear issue is filed. This is the one open owner-action item that is a
-   real security exposure rather than a scheduling call.
+1. **File the two untracked items and confirm the credential rotation.** The
+   exposed test credential must be rotated (it is a real security exposure,
+   not a scheduling call) and needs a Linear issue; the new
+   `parseJsonResponse` raw-model-response PII log sink also needs one (Low,
+   foldable into the PREPIO-141 observability decision). Neither is in Linear
+   yet.
 2. **PREPIO-143 (`searchId` BOLA) fix PR.** Still the highest-value
    follow-up. When scheduled, verify the ownership check lands with a
    cross-tenant-rejection test and the normal create → invoke flow still
