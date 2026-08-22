@@ -24,13 +24,13 @@ next-focus #1 asked for).
 **No code fix was needed or made this run** — the window introduced nothing
 to fix, the one in-run fix from #302 (test-credential removal) is verified
 still landed, and every open finding is either owner-scheduling work or an
-edge-function change that cannot be validated in this environment. All but
-**two** are tracked in Linear: the exceptions are the test-credential
-rotation (a do-now owner action still owed a Linear issue) and the new
-`parseJsonResponse` raw-model-response PII log sink surfaced by Codex on this
-PR (see Low findings) — neither should be treated as covered by
-tracker-based follow-ups until an issue is filed. This note is the
-deliverable.
+edge-function change that cannot be validated in this environment. Most are
+tracked in Linear; the exceptions — still owed Linear issues, so **not**
+covered by tracker-based follow-ups yet — are the test-credential rotation (a
+do-now owner action), the new `parseJsonResponse` raw-model-response PII log
+sink, and the `check-deno-baseline.sh` CI false-green gap (the latter two
+surfaced via Codex review on this PR; see Low findings / Deferred). This note
+is the deliverable.
 
 Baselines (measured against base `1ee9cbe` / HEAD `3dc1852`; all flat):
 lint **51 → 51** problems (43 errors, 8 warnings). Typecheck **pass at
@@ -426,20 +426,22 @@ edge-function authorization change that cannot be validated in this
 environment and warrants its own reviewed PR (PREPIO-143), or (b) a
 breaking-major dependency bump needing a real-browser or full-CI regression
 pass (PREPIO-140 pdfjs 5 → 6, PREPIO-98 react-router 6 → 7) — both out of
-hygiene-runner scope. **Two items are not yet in Linear** and must not be
+hygiene-runner scope. **Three items are not yet in Linear** and must not be
 treated as covered by tracker-based follow-ups until issues are filed: the
-test-credential rotation (owner action) and the new `parseJsonResponse`
-raw-model-response PII log sink (see Low findings / Deferred). Forcing an
-aesthetic change here would violate the "avoid aesthetic refactors" guardrail.
+test-credential rotation (owner action), the new `parseJsonResponse`
+raw-model-response PII log sink, and the `check-deno-baseline.sh` CI
+false-green gap (see Low findings / Deferred). Forcing an aesthetic change
+here would violate the "avoid aesthetic refactors" guardrail.
 
 ## Deferred items
 
-This ledger covers **discrete actionable findings** only. Of those, all but
-**two** are tracked in Linear; the **two untracked** items still need Linear
-issues filed (Linear MCP was unauthenticated this session) — the
-test-credential rotation and the `parseJsonResponse` raw-model-response PII
-log sink, both at the end of this list — and must **not** be treated as
-covered by tracker-based follow-ups until those issues exist. **Excluded from
+This ledger covers **discrete actionable findings** only. Some are tracked in
+Linear; the **untracked** ones — listed last, each flagged **Untracked** —
+still need Linear issues filed (Linear MCP was unauthenticated this session)
+and must **not** be treated as covered by tracker-based follow-ups until those
+issues exist. As of this run the untracked items are the test-credential
+rotation, the `parseJsonResponse` raw-model-response PII log sink, and the
+`check-deno-baseline.sh` CI false-green gap. **Excluded from
 the count by design:** the one standing *informational* check in Low findings
 — the Dependabot security-updates repo-setting confirmation — is a recurring
 verification prompt for the next reviewer, not a discrete task warranting its
@@ -479,6 +481,16 @@ not filing a new one.)
   sink (Low finding above) — needs a Linear issue (Chore, `area:infra` /
   `area:research-pipeline`), foldable into the PREPIO-141 observability
   decision. Could not be filed here (Linear unauthenticated).
+- **Untracked (new this run):** **`check-deno-baseline.sh` CI false-green
+  gap** — surfaced while verifying next-focus #3 (see the CI section). A
+  non-network import failure that leaves 1–19 countable diagnostics passes the
+  gate, because the wrapper fails only on a network-classified skip, a
+  `count == 0` nonzero exit, or `count > BASELINE`. Harden it to reject any
+  unclassified nonzero `deno` exit and to treat a below-baseline count as an
+  inspect-signal rather than an auto-pass. Needs a Linear issue (Chore,
+  `area:infra`) — not filed here (Linear unauthenticated). Low severity: the
+  observed CI runs this window were genuinely green, so this is a latent
+  soundness gap, not an active false-green.
 
 ## Questions for product owner
 
@@ -500,12 +512,13 @@ not filing a new one.)
 
 ## Next review focus
 
-1. **File the two untracked items and confirm the credential rotation.** The
+1. **File the three untracked items and confirm the credential rotation.** The
    exposed test credential must be rotated (it is a real security exposure,
    not a scheduling call) and needs a Linear issue; the new
-   `parseJsonResponse` raw-model-response PII log sink also needs one (Low,
-   foldable into the PREPIO-141 observability decision). Neither is in Linear
-   yet.
+   `parseJsonResponse` raw-model-response PII log sink needs one (Low,
+   foldable into the PREPIO-141 observability decision); and the
+   `check-deno-baseline.sh` CI false-green gap needs one (Chore,
+   `area:infra`). None is in Linear yet.
 2. **PREPIO-143 (`searchId` BOLA) fix PR.** Still the highest-value
    follow-up. When scheduled, verify the ownership check lands with a
    cross-tenant-rejection test and the normal create → invoke flow still
