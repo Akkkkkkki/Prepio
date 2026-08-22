@@ -89,24 +89,42 @@ tree**:
   snapshots (which embed large gzip+base64 page captures that trip byte-level
   regexes but contain no credentials) and `.env.example` (truncated
   placeholders only).
-- **Credential-aware pass — clean (this is the class that matters).** The
-  provider-prefix patterns above would **not** have caught the #302 leak,
-  which was a plain email + password with no key format — so this run also ran
-  the format-agnostic scan that *would* have: email-address literals and
-  `(password|secret|token|api_key)=["…"]` string-literal assignments across
-  the whole tree. Only three benign hits, none a live credential: the repo
-  owner's own address as a **Linear-assignee CI fallback**
-  (`FALLBACK_LINEAR_ASSIGNEE_EMAIL` in
-  [`codex-prepio-linear-auto-pr.yml`](../../.github/workflows/codex-prepio-linear-auto-pr.yml)
-  — an assignee identifier, not an auth secret, no password paired), obvious
-  sample fixtures (`john.doe@email.com` / a `555` phone in two `tests/`
-  files), and literal **mock** tokens (`"svc-token"` / `"user-jwt"`) in
+- **Credential-aware pass — clean, full match set enumerated (this is the
+  class that matters).** The provider-prefix patterns above would **not** have
+  caught the #302 leak, which was a plain email + password with no key format
+  — so this run also ran the format-agnostic scan that *would* have:
+  email-address literals and `(password|secret|token|api_key)=["…"]`
+  string-literal assignments across the whole tree. **Every match was
+  enumerated and inspected** (an earlier draft cherry-picked three examples
+  after `grep -v` filtering — corrected per Codex review on this PR, which
+  rightly flagged that silently dropping matches of the very shape being
+  scanned could discard a real one). The email-literal scan (excluding the
+  `docs/audits/**` snapshots and `.env.example`) returns **25 matches across
+  11 files**, and **all 25 are provably non-credentials**:
+  - **20** are RFC-2606 reserved `@example.com` / obvious-fake `@email.com`
+    addresses — `test@example.com` ×7, `user@example.com` ×4,
+    `your@email.com` ×4 (all `Auth.tsx` input **placeholders**),
+    `verify@` / `reset@` `@example.com` ×2 each, `email@example.com`,
+    `candidate@example.com` (the `cv-analysis` fallback placeholder), and
+    `john.doe@email.com` ×2 (a `555`-phone sample fixture).
+  - **1** is `codex-auto-pr@users.noreply.github.com` — a GitHub noreply
+    commit identity in the auto-PR workflow, not a credential.
+  - **1** is the repo owner's own address as `FALLBACK_LINEAR_ASSIGNEE_EMAIL`
+    in
+    [`codex-prepio-linear-auto-pr.yml`](../../.github/workflows/codex-prepio-linear-auto-pr.yml)
+    — an assignee identifier, not an auth secret, **no password paired**.
+
+  The only password-shaped literal anywhere is the test fixture
+  `"hunter22"` paired with `user@example.com` in
+  [`Auth.test.tsx`](../../src/pages/__tests__/Auth.test.tsx) (a mocked
+  `signInWithPassword` call, not a real login); string-literal `token`
+  assignments are the mock `"svc-token"` / `"user-jwt"` in
   `_shared/auth.test.ts`. **Caveat:** this is still pattern-based, not a full
   entropy scan — exhaustive high-entropy detection is delegated to
   **GitGuardian**, whose check suite runs on every PR and reported **success**
-  on this PR's head; "clean" here means clean for the enumerated formats plus
-  this credential-aware pass, not a proof of absence for every possible
-  encoding.
+  on this PR's head; "clean" here means every enumerated match was inspected
+  and is a placeholder/fixture/identifier, not a proof of absence for every
+  possible encoding.
 - **`.env.example` verified placeholder-only** — 15 keys, every value a
   redacted placeholder (`sb_publishable_…`, a JWT *header* fragment only,
   `sk-proj-…`, `tvly-…`, `sk_test_…`); no real signature present. The key set
