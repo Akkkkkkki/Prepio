@@ -212,34 +212,35 @@ gate executed and the wrapper accepted a **≤-baseline diagnostic count** —
 enough to resolve next-focus #3 (the typecheck is a real, running, blocking
 step, not a silent no-op).
 
-**Bound on that inference (per Codex review on this PR).** A green job does
-**not** by itself prove *every* remote import resolved. The script's
-non-network failure guard (lines 160–167) only rejects a nonzero `deno` exit
-when `count == 0`; a nonzero exit is *expected* at `count == 19` (type errors
-themselves exit nonzero), so a hypothetical import error that (a) is **not**
-connection-level — e.g. an HTTP 404/403 whose cause text misses the
-network-skip regex — and (b) still leaves exactly the baseline count of
-countable diagnostics would be indistinguishable from a clean baseline pass
-and could go green. In practice an unresolved import makes `deno check` abort
-before emitting a full `Found 19 errors.` summary (so the count would drop and
-trip the `count == 0` / sub-baseline paths), which is why the observed green
-is strong evidence. **But — correcting an over-claim in the prior commit
-(caught by Codex) — the step's own `supabase/functions: N type errors (at
-baseline)` log line is *not* airtight proof either:** that line is printed by
-the same count-based branch (lines 176–179) that permits the false positive,
-without first establishing the nonzero `deno` exit contained *only* type
-diagnostics. So **neither the job conclusion nor the wrapper's baseline
-summary proves complete import resolution.** The only sound ways to establish
-that are (a) inspecting the raw captured `deno check` output and confirming no
-`error: Import '…' failed` line is present, or (b) hardening the wrapper to
-distinguish an expected type-diagnostic exit from every other nonzero `deno`
-exit (not just the `count == 0` case) — a worthwhile follow-up for the
-ratchet's maintainers, noted, not filed here. **None of this reopens
-next-focus #3**, which asked only whether the edge-function typecheck *runs as
-a real blocking CI step* (vs. the PREPIO-119 silent no-op): it does — a real
-`deno check` runs under a no-`continue-on-error` step and the job is green.
-The import-resolution soundness gap is a separate, newly-surfaced property of
-the wrapper.
+**Bound on that inference (refined across Codex review on this PR).** A green
+job does **not** by itself prove *every* remote import resolved. Tracing
+[`check-deno-baseline.sh`](../../scripts/check-deno-baseline.sh) precisely, the
+script's **only** failure exits are: a network-classified import skip in CI
+(lines 139–143), a nonzero `deno` exit with `count == 0` (lines 160–167), and
+`count > BASELINE` (line 169). **Every other outcome exits 0** — including
+`count == BASELINE` and, per line 176, **any `count < BASELINE`** (which just
+prints a "below the baseline, lower it" note and passes). A nonzero `deno`
+exit is moreover *expected* at the baseline, since the 19 type errors
+themselves make `deno check` exit nonzero. So a non-connection import error
+(e.g. an HTTP 404/403 whose cause text misses the network-skip regex) that
+leaves **any count between 1 and 19** of countable diagnostics would pass
+green — the earlier draft's claim that a dropped count would "trip" a
+failure path was wrong (a sub-baseline count is a *success*, not a trip), and
+the step's own `supabase/functions: N type errors (at baseline)` log line is
+likewise **not** airtight proof: it is printed by that same count-based branch
+without first establishing the nonzero exit held *only* type diagnostics.
+**Conclusion: neither the job result, nor the diagnostic count, nor the
+baseline log line proves complete import resolution.** Establishing that needs
+either (a) inspecting the raw captured `deno check` output for the absence of
+an `error: Import '…' failed` line, or (b) hardening the wrapper — reject any
+unclassified nonzero `deno` exit (not just `count == 0`), and treat a
+below-baseline count as a signal to inspect rather than an automatic pass. A
+worthwhile follow-up for the ratchet's maintainers; noted, not filed here.
+**None of this reopens next-focus #3**, which asked only whether the
+edge-function typecheck *runs as a real blocking CI step* (vs. the PREPIO-119
+silent no-op): it does — a real `deno check` runs under a
+no-`continue-on-error` step and the job is green. The import-resolution
+soundness gap is a separate, newly-surfaced property of the wrapper.
 
 **Precision on the guarantee (also per Codex):** the gate is a
 **total-error-count ratchet**, not a per-diagnostic gate — it fails only when
