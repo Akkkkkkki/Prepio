@@ -80,13 +80,31 @@ The 2026-08-19 next-focus #1 asked the scan to stop scoping itself to `src/`
 slip past the first pass in #302). This run scanned the **entire tracked
 tree**:
 
-- **No live secrets anywhere.** Patterns `sk-proj-…`, `tvly-…`,
+- **No formatted secrets anywhere.** Patterns `sk-proj-…`, `tvly-…`,
   `-----BEGIN … PRIVATE KEY`, `sk_live_…`, `sk_test_…`, `whsec_…`, and
   bare `eyJ…` JWTs return **zero** matches across the whole repo once the
   two known-benign sources are excluded: the `docs/audits/**` UX-review HTML
   snapshots (which embed large gzip+base64 page captures that trip byte-level
   regexes but contain no credentials) and `.env.example` (truncated
   placeholders only).
+- **Credential-aware pass — clean (this is the class that matters).** The
+  provider-prefix patterns above would **not** have caught the #302 leak,
+  which was a plain email + password with no key format — so this run also ran
+  the format-agnostic scan that *would* have: email-address literals and
+  `(password|secret|token|api_key)=["…"]` string-literal assignments across
+  the whole tree. Only three benign hits, none a live credential: the repo
+  owner's own address as a **Linear-assignee CI fallback**
+  (`FALLBACK_LINEAR_ASSIGNEE_EMAIL` in
+  [`codex-prepio-linear-auto-pr.yml`](../../.github/workflows/codex-prepio-linear-auto-pr.yml)
+  — an assignee identifier, not an auth secret, no password paired), obvious
+  sample fixtures (`john.doe@email.com` / a `555` phone in two `tests/`
+  files), and literal **mock** tokens (`"svc-token"` / `"user-jwt"`) in
+  `_shared/auth.test.ts`. **Caveat:** this is still pattern-based, not a full
+  entropy scan — exhaustive high-entropy detection is delegated to
+  **GitGuardian**, whose check suite runs on every PR and reported **success**
+  on this PR's head; "clean" here means clean for the enumerated formats plus
+  this credential-aware pass, not a proof of absence for every possible
+  encoding.
 - **`.env.example` verified placeholder-only** — 15 keys, every value a
   redacted placeholder (`sb_publishable_…`, a JWT *header* fragment only,
   `sk-proj-…`, `tvly-…`, `sk_test_…`); no real signature present. Key set is
@@ -138,13 +156,25 @@ Kept deferred to a dedicated, test-covered security PR — see High finding.
 [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs, in order,
 `npm run typecheck` (line 45), `npm run typecheck:functions` (line 59, the
 Deno edge-function check), `npm run build`, and `npm test` — all **without**
-`continue-on-error`, so each gates the `verify` job. The
-`typecheck:functions` step is genuinely blocking (its comment records the
-19-error baseline from PR #294 and states "New edge-function type errors now
-fail CI"), and `deno` comes from the pinned `deno` devDependency installed by
-`npm ci`, not `setup-deno`. This is **not** the silent-no-op failure mode
-PREPIO-119 caught on the root `tsc` — the step runs a real check that would
-fail CI on a new type error. Next-focus #3 resolved: CI does exercise it.
+`continue-on-error`, so each gates the `verify` job. `deno` comes from the
+pinned `deno` devDependency installed by `npm ci`, not `setup-deno`, and the
+step runs a real `deno check` over every `.ts` under `supabase/functions`.
+This is **not** the silent-no-op failure mode PREPIO-119 caught on the root
+`tsc` — a genuine check runs and can fail the job.
+
+**Precision on the guarantee (per Codex review on this PR):**
+[`scripts/check-deno-baseline.sh`](../../scripts/check-deno-baseline.sh) is a
+**total-error-count ratchet**, not a per-diagnostic gate — it fails only when
+the *total* diagnostic count exceeds `BASELINE=19` (line 169). So it reliably
+catches a **net increase** in edge-function type errors, but a change that
+*fixes one existing error and introduces a different one* nets 19 and still
+passes. The earlier draft's "new edge-function type errors now fail CI"
+(quoting the workflow comment) overstated this; the accurate claim is that CI
+now type-checks the directory at all and blocks any net regression above the
+baseline. Next-focus #3 resolved with that qualification: CI exercises the
+Deno typecheck as a real total-count ratchet (a per-diagnostic baseline
+comparison would be the stronger follow-up, worth a Low note for the ratchet's
+own maintainers — not filed here).
 
 ## Findings
 
