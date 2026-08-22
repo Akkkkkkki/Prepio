@@ -223,11 +223,23 @@ countable diagnostics would be indistinguishable from a clean baseline pass
 and could go green. In practice an unresolved import makes `deno check` abort
 before emitting a full `Found 19 errors.` summary (so the count would drop and
 trip the `count == 0` / sub-baseline paths), which is why the observed green
-is strong evidence — but the *airtight* proof is the step's own
-`supabase/functions: N type errors (at baseline)` log line, not the job
-conclusion alone. **Hardening the wrapper to reject any nonzero `deno` exit
-that wasn't classified as a type-diagnostic count (not just `count == 0`) is a
-worthwhile follow-up** for the ratchet's maintainers — noted, not filed here.
+is strong evidence. **But — correcting an over-claim in the prior commit
+(caught by Codex) — the step's own `supabase/functions: N type errors (at
+baseline)` log line is *not* airtight proof either:** that line is printed by
+the same count-based branch (lines 176–179) that permits the false positive,
+without first establishing the nonzero `deno` exit contained *only* type
+diagnostics. So **neither the job conclusion nor the wrapper's baseline
+summary proves complete import resolution.** The only sound ways to establish
+that are (a) inspecting the raw captured `deno check` output and confirming no
+`error: Import '…' failed` line is present, or (b) hardening the wrapper to
+distinguish an expected type-diagnostic exit from every other nonzero `deno`
+exit (not just the `count == 0` case) — a worthwhile follow-up for the
+ratchet's maintainers, noted, not filed here. **None of this reopens
+next-focus #3**, which asked only whether the edge-function typecheck *runs as
+a real blocking CI step* (vs. the PREPIO-119 silent no-op): it does — a real
+`deno check` runs under a no-`continue-on-error` step and the job is green.
+The import-resolution soundness gap is a separate, newly-surfaced property of
+the wrapper.
 
 **Precision on the guarantee (also per Codex):** the gate is a
 **total-error-count ratchet**, not a per-diagnostic gate — it fails only when
