@@ -89,26 +89,27 @@ tree**:
   snapshots (which embed large gzip+base64 page captures that trip byte-level
   regexes but contain no credentials) and `.env.example` (truncated
   placeholders only).
-- **Credential-aware pass — clean, full match set enumerated (this is the
-  class that matters).** The provider-prefix patterns above would **not** have
-  caught the #302 leak, which was a plain email + password with no key format
-  — so this run also ran the format-agnostic scan that *would* have:
-  email-address literals and `(password|secret|token|api_key)=["…"]`
-  string-literal assignments across the whole tree. **Every match was
-  enumerated and inspected** (an earlier draft cherry-picked three examples
-  after `grep -v` filtering — corrected per Codex review on this PR, which
-  rightly flagged that silently dropping matches of the very shape being
-  scanned could discard a real one). The email-literal scan (excluding the
-  `docs/audits/**` snapshots and `.env.example`) returns **25 matches across
-  11 files**, and **all 25 are provably non-credentials** (23 + 1 + 1):
-  - **23** are RFC-2606 reserved `@example.com` / obvious-fake `@email.com`
-    addresses — `test@example.com` ×7, `user@example.com` ×4,
-    `your@email.com` ×4 (all `Auth.tsx` input **placeholders**),
-    `verify@` / `reset@` `@example.com` ×2 each, `email@example.com`,
-    `candidate@example.com` (the `cv-analysis` fallback placeholder), and
-    `john.doe@email.com` ×2 (a `555`-phone sample fixture).
+- **Credential-aware spot-check — clean; GitGuardian is the exhaustive
+  authority (this is the class that matters).** The provider-prefix patterns
+  above would **not** have caught the #302 leak, which was a plain email +
+  password with no key format — so this run also ran a format-agnostic
+  **spot-check**: email-address literals and
+  `(password|secret|token|api_key)=["…"]` string-literal assignments. A
+  TLD-agnostic email pass over the whole tracked tree (excluding only the
+  `docs/audits/**` snapshots) returns **27 matches across 13 files**, and
+  **all 27 are non-credentials**:
+  - **24** are RFC-2606 reserved `@example.com` / `@example.test` /
+    obvious-fake `@email.com` addresses — `test@example.com` ×7,
+    `user@example.com` ×4, `your@email.com` ×4 (all `Auth.tsx` input
+    **placeholders**), `verify@` / `reset@` `@example.com` ×2 each,
+    `email@example.com`, `candidate@example.com` (the `cv-analysis` fallback
+    placeholder), `john.doe@email.com` ×2 (a `555`-phone sample fixture), and
+    `prepio-109-answer-feedback@example.test` (a SQL-test fixture).
+  - **1** is `i@izs.me` — the `glob` maintainer's contact email embedded in a
+    **deprecation notice inside `package-lock.json`** (third-party dependency
+    metadata npm generated, not ours, not a secret).
   - **1** is `codex-auto-pr@users.noreply.github.com` — a GitHub noreply
-    commit identity in the auto-PR workflow, not a credential.
+    commit identity in the auto-PR workflow.
   - **1** is the repo owner's own address as `FALLBACK_LINEAR_ASSIGNEE_EMAIL`
     in
     [`codex-prepio-linear-auto-pr.yml`](../../.github/workflows/codex-prepio-linear-auto-pr.yml)
@@ -119,12 +120,16 @@ tree**:
   [`Auth.test.tsx`](../../src/pages/__tests__/Auth.test.tsx) (a mocked
   `signInWithPassword` call, not a real login); string-literal `token`
   assignments are the mock `"svc-token"` / `"user-jwt"` in
-  `_shared/auth.test.ts`. **Caveat:** this is still pattern-based, not a full
-  entropy scan — exhaustive high-entropy detection is delegated to
-  **GitGuardian**, whose check suite runs on every PR and reported **success**
-  on this PR's head; "clean" here means every enumerated match was inspected
-  and is a placeholder/fixture/identifier, not a proof of absence for every
-  possible encoding.
+  `_shared/auth.test.ts`. **Scope of this claim (refined across Codex review
+  on this PR):** the hand-run grep is a **bounded spot-check**, not a proof of
+  exhaustiveness — a fixed regex will always miss some TLD, encoding, or
+  excluded file, so it is deliberately *not* the completeness guarantee.
+  **Exhaustive secret detection is delegated to GitGuardian**, whose check
+  suite runs on every PR and reported **success** on this PR's head; that is
+  the authority for "no secret shipped." The spot-check's role is only to
+  cover the specific plain-credential shape the #302 miss taught us to check
+  by hand, and on that pass every match resolves to a
+  placeholder/fixture/identifier.
 - **`.env.example` verified placeholder-only** — 15 keys, every value a
   redacted placeholder (`sb_publishable_…`, a JWT *header* fragment only,
   `sk-proj-…`, `tvly-…`, `sk_test_…`); no real signature present. The key set
