@@ -55,8 +55,10 @@ lockfile-only fix available.
   **not runnable in this environment** — the agent proxy blocks
   `esm.sh` / `deno.land`, so Deno cannot resolve the edge functions' remote
   imports; the script reports `SKIPPED — this is not a pass` rather than a
-  false green. **Confirmed it runs as a real, blocking CI step** — see next
-  section (closes 2026-08-19 next-focus #3).
+  false green. **Confirmed green in real CI** by inspecting this PR's own
+  `verify` job log (run `32581722484` / job `97051998308` on head `b8f6c90`,
+  conclusion **success**) — see next section (closes 2026-08-19
+  next-focus #3).
 - `npm run build`: **pass** (Vite + PWA, 62 precache entries,
   **2278.79 KiB**). Byte-flat vs 2026-08-19.
 - `npm test`: **pass** (49 test files, **426 tests**). Vitest +
@@ -107,8 +109,20 @@ tree**:
   encoding.
 - **`.env.example` verified placeholder-only** — 15 keys, every value a
   redacted placeholder (`sb_publishable_…`, a JWT *header* fragment only,
-  `sk-proj-…`, `tvly-…`, `sk_test_…`); no real signature present. Key set is
-  complete for the documented local-dev + Stripe + story-linking flags.
+  `sk-proj-…`, `tvly-…`, `sk_test_…`); no real signature present. The key set
+  covers the app + edge-function **runtime** + Stripe + story-linking flags.
+  **Documentation gap (per Codex review on this PR):** it does **not** list
+  `TEST_USER_EMAIL` / `TEST_USER_PASSWORD`, which the 7 legacy Deno suites now
+  require via the #302 fail-closed guard — a developer running that suite off
+  the template alone hits the guard before the tests run. This is deliberate
+  (those are live-account credentials that must not ship even as a sample), but
+  it *is* an undocumented prerequisite. It belongs with the deferred
+  legacy-Deno-suite migration (which should move that suite off live
+  credentials entirely — see Deferred / the untracked credential item);
+  [`docs/TESTING.md`](../../docs/TESTING.md) already flags the suite as legacy
+  and live-credential-dependent. Recommend either adding both as **empty**
+  placeholders with a "legacy suite only — supply a throwaway test account"
+  comment, or recording the prerequisite in TESTING.md.
 - **#302 credential removal verified still landed.** All 7 legacy Deno test
   files now read `TEST_USER_EMAIL` / `TEST_USER_PASSWORD` from env with a
   fail-closed guard (`if (!… ) throw`) and **no hard-coded fallback**. Grep
@@ -162,19 +176,29 @@ step runs a real `deno check` over every `.ts` under `supabase/functions`.
 This is **not** the silent-no-op failure mode PREPIO-119 caught on the root
 `tsc` — a genuine check runs and can fail the job.
 
-**Precision on the guarantee (per Codex review on this PR):**
-[`scripts/check-deno-baseline.sh`](../../scripts/check-deno-baseline.sh) is a
+**Verified green in an actual CI run (per Codex review on this PR).** The
+2026-08-19 ask was to confirm the edge-function typecheck runs *green in CI*,
+not merely that the YAML is wired to block. This run inspected this PR's own
+`verify` job log (run `32581722484` / job `97051998308`, head `b8f6c90`) —
+conclusion **success**. That job status is dispositive because
+[`check-deno-baseline.sh`](../../scripts/check-deno-baseline.sh) **fails
+closed on a runner**: a missing `deno` exits 1 when `$CI` is set (lines
+57–60), an unresolved-remote-import network skip exits 1 when `$CI` is set
+(lines 139–143), and a count over baseline exits 1 (line 169). The only exit-0
+path in CI is therefore *deno resolved its `esm.sh`/`deno.land` imports **and**
+the diagnostic count was ≤ baseline* — so a green `verify` proves the gate
+actually executed and passed on the runner, resolving next-focus #3.
+
+**Precision on the guarantee (also per Codex):** the gate is a
 **total-error-count ratchet**, not a per-diagnostic gate — it fails only when
-the *total* diagnostic count exceeds `BASELINE=19` (line 169). So it reliably
-catches a **net increase** in edge-function type errors, but a change that
-*fixes one existing error and introduces a different one* nets 19 and still
-passes. The earlier draft's "new edge-function type errors now fail CI"
-(quoting the workflow comment) overstated this; the accurate claim is that CI
-now type-checks the directory at all and blocks any net regression above the
-baseline. Next-focus #3 resolved with that qualification: CI exercises the
-Deno typecheck as a real total-count ratchet (a per-diagnostic baseline
-comparison would be the stronger follow-up, worth a Low note for the ratchet's
-own maintainers — not filed here).
+the *total* count exceeds `BASELINE=19` (line 169). So it reliably catches a
+**net increase**, but a change that *fixes one existing error and introduces a
+different one* nets 19 and still passes. The earlier draft's "new
+edge-function type errors now fail CI" (quoting the workflow comment)
+overstated this; the accurate claim is that CI now type-checks the directory
+at all and blocks any net regression above the baseline. A per-diagnostic
+baseline comparison would be the stronger follow-up for the ratchet's own
+maintainers — noted, not filed here.
 
 ## Findings
 
