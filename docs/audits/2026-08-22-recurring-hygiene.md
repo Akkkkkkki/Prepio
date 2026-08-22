@@ -359,13 +359,16 @@ maintainers — noted, not filed here.
 
 **None.** The window was documentation-only, so it introduced nothing to fix.
 The one in-run fix from the prior run (#302 test-credential removal) is
-verified still landed and clean. Every open finding is already tracked in
-Linear and is either (a) an edge-function authorization change that cannot be
-validated in this environment and warrants its own reviewed PR
-(PREPIO-143), or (b) a breaking-major dependency bump needing a real-browser
-or full-CI regression pass (PREPIO-140 pdfjs 5 → 6, PREPIO-98 react-router
-6 → 7) — both out of hygiene-runner scope. Forcing an aesthetic change here
-would violate the "avoid aesthetic refactors" guardrail.
+verified still landed and clean. The tracked findings are each either (a) an
+edge-function authorization change that cannot be validated in this
+environment and warrants its own reviewed PR (PREPIO-143), or (b) a
+breaking-major dependency bump needing a real-browser or full-CI regression
+pass (PREPIO-140 pdfjs 5 → 6, PREPIO-98 react-router 6 → 7) — both out of
+hygiene-runner scope. **Two items are not yet in Linear** and must not be
+treated as covered by tracker-based follow-ups until issues are filed: the
+test-credential rotation (owner action) and the new `parseJsonResponse`
+raw-model-response PII log sink (see Low findings / Deferred). Forcing an
+aesthetic change here would violate the "avoid aesthetic refactors" guardrail.
 
 ## Deferred items
 
