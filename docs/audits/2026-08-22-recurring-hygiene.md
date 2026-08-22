@@ -372,12 +372,18 @@ aesthetic change here would violate the "avoid aesthetic refactors" guardrail.
 
 ## Deferred items
 
-All but **two** are tracked in Linear (no free-form code bullets left to
-re-discover). **Two items are untracked and still need Linear issues filed**
-(Linear MCP was unauthenticated this session) — the test-credential rotation
-and the `parseJsonResponse` raw-model-response PII log sink, both at the end
-of this list. They must **not** be treated as covered by tracker-based
-follow-ups until those issues exist:
+This ledger covers **discrete actionable findings** only. Of those, all but
+**two** are tracked in Linear; the **two untracked** items still need Linear
+issues filed (Linear MCP was unauthenticated this session) — the
+test-credential rotation and the `parseJsonResponse` raw-model-response PII
+log sink, both at the end of this list — and must **not** be treated as
+covered by tracker-based follow-ups until those issues exist. **Excluded from
+the count by design:** the two standing *informational* checks in Low findings
+(the Dependabot security-updates repo-setting confirmation, and the
+`Practice.mobile.test.tsx` ticket-duplication reconciliation) are recurring
+verification prompts for the next reviewer, not discrete tasks warranting
+their own Linear issue; they are carried in Findings above, deliberately not
+in this list.
 
 - [PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143) — **High:**
   `searchId`-ownership BOLA in `interview-research` (cross-tenant write).
