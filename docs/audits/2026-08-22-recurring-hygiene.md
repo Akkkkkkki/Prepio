@@ -100,12 +100,18 @@ STRIPE_SECRET_KEY, TAVILY_API_KEY, OPENAI_MODEL, STRIPE_WEBHOOK_SECRET}` in
 `src/` returns nothing. No server-only variable is referenced from the
 client bundle.
 
-### PII log surface — clean
+### Client-side PII log surface — clean (server-side `QUERY_PLAN` tracked separately)
 
 Every resume / CV / transcript / answer-adjacent `console.*` call in `src/`
 logs the **error object only** (`console.error("Error …:", error)` /
 `(…, result.error)`); none interpolates CV, transcript, or answer *text*.
-No new log surface (no source changed).
+No new client log surface (no source changed). **Scope note:** this covers
+only the client (`src/`) — the one known *server-side* PII-in-logs item, the
+`QUERY_PLAN` structured log forwarding user-note-derived interviewer names to
+first-party edge-function `console.log`, is a separate, still-open Low finding
+carried below and tracked as
+[PREPIO-141](https://linear.app/qiuyue/issue/PREPIO-141); it is not claimed
+absent here.
 
 ### `searchId`-ownership BOLA (PREPIO-143) — re-verified still open
 
@@ -270,7 +276,11 @@ would violate the "avoid aesthetic refactors" guardrail.
 
 ## Deferred items
 
-All tracked in Linear (no free-form bullets left to re-discover):
+All but one are tracked in Linear (no free-form code bullets left to
+re-discover). **The exception is an untracked owner action** — the
+test-credential rotation at the end of this list still needs a Linear issue
+filed (Linear MCP was unauthenticated this session), so it must **not** be
+treated as covered by tracker-based follow-ups until that issue exists:
 
 - [PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143) — **High:**
   `searchId`-ownership BOLA in `interview-research` (cross-tenant write).
