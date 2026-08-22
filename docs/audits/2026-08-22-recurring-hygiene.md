@@ -203,14 +203,31 @@ This is **not** the silent-no-op failure mode PREPIO-119 caught on the root
 2026-08-19 ask was to confirm the edge-function typecheck runs *green in CI*,
 not merely that the YAML is wired to block. This run inspected this PR's own
 `verify` job log (run `32581722484` / job `97051998308`, head `b8f6c90`) —
-conclusion **success**. That job status is dispositive because
-[`check-deno-baseline.sh`](../../scripts/check-deno-baseline.sh) **fails
-closed on a runner**: a missing `deno` exits 1 when `$CI` is set (lines
-57–60), an unresolved-remote-import network skip exits 1 when `$CI` is set
-(lines 139–143), and a count over baseline exits 1 (line 169). The only exit-0
-path in CI is therefore *deno resolved its `esm.sh`/`deno.land` imports **and**
-the diagnostic count was ≤ baseline* — so a green `verify` proves the gate
-actually executed and passed on the runner, resolving next-focus #3.
+conclusion **success**. [`check-deno-baseline.sh`](../../scripts/check-deno-baseline.sh)
+**fails closed on a runner** for the common failure modes: a missing `deno`
+exits 1 when `$CI` is set (lines 57–60), a *connection-level*
+unresolved-remote-import skip exits 1 when `$CI` is set (lines 139–143), and a
+count over baseline exits 1 (line 169). So a green `verify` establishes the
+gate executed and the wrapper accepted a **≤-baseline diagnostic count** —
+enough to resolve next-focus #3 (the typecheck is a real, running, blocking
+step, not a silent no-op).
+
+**Bound on that inference (per Codex review on this PR).** A green job does
+**not** by itself prove *every* remote import resolved. The script's
+non-network failure guard (lines 160–167) only rejects a nonzero `deno` exit
+when `count == 0`; a nonzero exit is *expected* at `count == 19` (type errors
+themselves exit nonzero), so a hypothetical import error that (a) is **not**
+connection-level — e.g. an HTTP 404/403 whose cause text misses the
+network-skip regex — and (b) still leaves exactly the baseline count of
+countable diagnostics would be indistinguishable from a clean baseline pass
+and could go green. In practice an unresolved import makes `deno check` abort
+before emitting a full `Found 19 errors.` summary (so the count would drop and
+trip the `count == 0` / sub-baseline paths), which is why the observed green
+is strong evidence — but the *airtight* proof is the step's own
+`supabase/functions: N type errors (at baseline)` log line, not the job
+conclusion alone. **Hardening the wrapper to reject any nonzero `deno` exit
+that wasn't classified as a type-diagnostic count (not just `count == 0`) is a
+worthwhile follow-up** for the ratchet's maintainers — noted, not filed here.
 
 **Precision on the guarantee (also per Codex):** the gate is a
 **total-error-count ratchet**, not a per-diagnostic gate — it fails only when
