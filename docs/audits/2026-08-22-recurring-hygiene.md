@@ -378,12 +378,15 @@ issues filed (Linear MCP was unauthenticated this session) — the
 test-credential rotation and the `parseJsonResponse` raw-model-response PII
 log sink, both at the end of this list — and must **not** be treated as
 covered by tracker-based follow-ups until those issues exist. **Excluded from
-the count by design:** the two standing *informational* checks in Low findings
-(the Dependabot security-updates repo-setting confirmation, and the
-`Practice.mobile.test.tsx` ticket-duplication reconciliation) are recurring
-verification prompts for the next reviewer, not discrete tasks warranting
-their own Linear issue; they are carried in Findings above, deliberately not
-in this list.
+the count by design:** the one standing *informational* check in Low findings
+— the Dependabot security-updates repo-setting confirmation — is a recurring
+verification prompt for the next reviewer, not a discrete task warranting its
+own Linear issue; it is carried in Findings above, deliberately not in this
+list. (The `Practice.mobile.test.tsx` flake is **not** in that excluded set —
+it is already tracked by [PREPIO-142](https://linear.app/qiuyue/issue/PREPIO-142)
+/ [PREPIO-146](https://linear.app/qiuyue/issue/PREPIO-146) below; the
+outstanding work there is only reconciling those two tickets as duplicates,
+not filing a new one.)
 
 - [PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143) — **High:**
   `searchId`-ownership BOLA in `interview-research` (cross-tenant write).
