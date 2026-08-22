@@ -89,8 +89,8 @@ tree**:
   snapshots (which embed large gzip+base64 page captures that trip byte-level
   regexes but contain no credentials) and `.env.example` (truncated
   placeholders only).
-- **Credential-aware spot-check — clean; GitGuardian is the exhaustive
-  authority (this is the class that matters).** The provider-prefix patterns
+- **Credential-aware spot-check — clean under two bounded detectors (this is
+  the class that matters).** The provider-prefix patterns
   above would **not** have caught the #302 leak, which was a plain email +
   password with no key format — so this run also ran a format-agnostic
   **spot-check**: email-address literals and
@@ -121,15 +121,24 @@ tree**:
   `signInWithPassword` call, not a real login); string-literal `token`
   assignments are the mock `"svc-token"` / `"user-jwt"` in
   `_shared/auth.test.ts`. **Scope of this claim (refined across Codex review
-  on this PR):** the hand-run grep is a **bounded spot-check**, not a proof of
-  exhaustiveness — a fixed regex will always miss some TLD, encoding, or
-  excluded file, so it is deliberately *not* the completeness guarantee.
-  **Exhaustive secret detection is delegated to GitGuardian**, whose check
-  suite runs on every PR and reported **success** on this PR's head; that is
-  the authority for "no secret shipped." The spot-check's role is only to
-  cover the specific plain-credential shape the #302 miss taught us to check
-  by hand, and on that pass every match resolves to a
-  placeholder/fixture/identifier.
+  on this PR):** this run relied on **two independent but each-bounded
+  detectors**, and neither proves the whole tree is credential-free:
+  - the **hand-run grep** — a spot-check for the specific plain-credential
+    shape the #302 miss taught us to check; a fixed regex will always miss
+    some TLD, encoding, or excluded file, so it is explicitly *not* an
+    exhaustiveness proof;
+  - **GitGuardian**, whose check suite runs on every PR and reported
+    **success** on this PR's head — broader entropy/signature detection than a
+    grep, but still a *detector*, not a completeness oracle: it scans the diff
+    (a docs-only diff here), does not re-attest the whole unchanged history,
+    and can miss a sufficiently generic email/password shape.
+
+  So "clean" means **both bounded passes surfaced only
+  placeholder/fixture/identifier matches and no live credential** — not a
+  proof of absence for every possible secret. The honest residual guarantee is
+  defense-in-depth (two detectors agree), plus the #302 lesson now covered by
+  hand; a stronger claim would require a purpose-built high-entropy sweep of
+  the full tree, which is out of this run's scope.
 - **`.env.example` verified placeholder-only** — 15 keys, every value a
   redacted placeholder (`sb_publishable_…`, a JWT *header* fragment only,
   `sk-proj-…`, `tvly-…`, `sk_test_…`); no real signature present. The key set
