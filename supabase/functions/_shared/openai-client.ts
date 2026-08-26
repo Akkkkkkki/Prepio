@@ -89,8 +89,18 @@ export function parseJsonResponse<T>(content: string, fallback: T): T {
     const cleaned = stripMarkdownCodeBlocks(content);
     return JSON.parse(cleaned);
   } catch (parseError) {
+    // Bound the logged raw response to a short preview. The model output can
+    // echo user PII (CV text, interview answers, imported profile data) for the
+    // cv-analysis / answer-feedback / profile-import callers, so we log only a
+    // sample rather than the whole payload — matching the "first 500 chars"
+    // content-sampling convention in RESEARCH_CONFIG.logging.logContentSamples.
+    const RAW_PREVIEW_CHARS = 500;
+    const preview =
+      content.length > RAW_PREVIEW_CHARS
+        ? `${content.slice(0, RAW_PREVIEW_CHARS)}… [truncated, ${content.length} chars total]`
+        : content;
     console.error("Failed to parse OpenAI JSON response:", parseError);
-    console.error("Raw response:", content);
+    console.error("Raw response (preview):", preview);
     return fallback;
   }
 }
