@@ -252,13 +252,16 @@ overdue by any measure: **one attended backend deploy + migration push.**
 ## Journey scorecard
 
 Full authenticated pass this run. Since **no product code shipped since `2026-08-23`**, scores are
-unchanged by design — the parenthetical is `2026-08-23`, and every row is re-measured live here.
+unchanged by design — the parenthetical is `2026-08-23`. Most rows were re-measured live here; two
+were **not** and are marked accordingly in their notes: *Research entry* (the form was not
+re-submitted — confirmed unchanged in code) and *Research progress/loading* (carried from the
+`2026-08-23` live measurement; unchanged in code). Rows tagged **(live)** were exercised this run.
 
 | Area | 2026-08-23 | 2026-08-27 | Trend | Notes |
 |------|------:|------:|------|-------|
 | First-time understanding | 3 | 3 | = | **(live)** Landing hero + static example strong, but the guest preview — the pre-signup value demo — still **fails** (P0 #1). |
-| Research entry | 4 | 4 | = | **(live)** Honest, progressive, CV-aware form (not re-submitted this run; unchanged in code). |
-| Research progress/loading | 5 | 5 | = | Async modal unchanged in code since it was measured excellent on 2026-08-23. |
+| Research entry | 4 | 4 | = | **(code-confirmed, not re-submitted)** Honest, progressive, CV-aware form; unchanged in code this week. |
+| Research progress/loading | 5 | 5 | = | **(carried from 2026-08-23)** Async modal unchanged in code since it was measured excellent then; not re-triggered this run. |
 | Generated output clarity | 5 | 5 | = | **(live)** Dashboard/plan structure + CV-grounded positioning unchanged. |
 | Practice mode | 4 | 4 | = | **(live)** Question is hero, save persists (`201`) — but Favorite/Needs-work is 100% broken (P1 #2), holding the score down. |
 | Mobile usability | 4 | 4 | = | **(live)** Practice-mobile strong: no overflow, ≥44px, fixed bottom bar, question dominates. (Landing/auth targets still small — P3.) |
@@ -275,8 +278,13 @@ accessibility cluster** — are both carried and both live-confirmed still open.
 ## Regression check
 
 Zero product-code commits merged to `main` since the last review (`git log 04719f2..d0377e8` is one
-docs commit; the `ebea456` test de-flake predates the last review), so **no behaviour regressions
-are possible this week** — verified by diffing `origin/main` history. State table:
+docs commit; the `ebea456` test de-flake predates the last review), so **no *code-introduced*
+regressions are possible this week** — the frontend bundle is byte-identical to the last review.
+That does **not** rule out regressions from backend drift (edge-function deploy state, applied
+migrations, config/secrets, data, or external services) — the very state this audit separately
+tracks, which can change independently of the commit range. The table below therefore reports each
+surface from its **live check this run**, not from the `git diff`; the diff only explains why no
+*shipped-code* change could have moved them. State table:
 
 | Item | State | Note |
 |------|-------|------|
