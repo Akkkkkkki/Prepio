@@ -11,8 +11,11 @@ Eighteenth run of the recurring weekly UX-review routine. Baselines:
 
 ## Capability check — FULL LIVE (frontend + backend both reachable)
 
-This run is a **full-live** review. Both capability checks passed and the authenticated loop was
-exercised end-to-end.
+This run is a **full-live** review: both capability checks passed and the authenticated **practice**
+loop was exercised live (login → resume an existing plan → save an answer → flag a question). It was
+**not** an end-to-end research-to-practice pass — no fresh research run was submitted this week, so
+the research form and the async progress modal were not re-exercised (they are marked as such in the
+scorecard). Backend state was probed live regardless (deploy table below).
 
 - **Playwright Chromium: PASS** — `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
   (`--ssl-version-max=tls1.2` + `--ignore-certificate-errors` + explicit `--proxy-server` from
