@@ -35,11 +35,13 @@ landing) and the flag-error capture.
 
 ### The week in one line: no product code shipped
 
-`origin/main` HEAD is `d0377e8` (a docs PR). **The only product-code commit merged to `main` since
-the last review is `ebea456` — a Practice keyboard-nav *test* de-flake (PREPIO-146), no user-facing
-change.** So there are **no regressions and no new improvements** this run: every finding below is
-carried unchanged from `2026-08-23`, now re-confirmed live. The product surface has been static for
-a week while the P0 below has not moved.
+`origin/main` HEAD is `d0377e8` (a docs PR). **Zero product-code commits landed on `main` since the
+last review — `git log 04719f2..d0377e8` contains only that one documentation commit.** (An earlier
+draft attributed the `ebea456` Practice test de-flake to this interval; that was wrong —
+`ebea456` is an ancestor of the 2026-08-23 review commit `04719f2`, i.e. it predates the last
+review, per Codex review of this PR.) So there are **no regressions and no new improvements** this
+run: every finding below is carried unchanged from `2026-08-23`, now re-confirmed live. The product
+surface has been static for a week while the P0 below has not moved.
 
 ### Edge-function deploy state — freshly probed live (the standing P0)
 
@@ -51,6 +53,9 @@ gateway `{"code":"NOT_FOUND"}` `404` (confirmed via a POST body check, not just 
 |----------|:--------:|-----------------|
 | `interview-research` | **200** ✅ | Core research pipeline (POST body → function-level "Missing bearer token", i.e. genuinely deployed) |
 | `company-research` | **200** ✅ | (sub-step) |
+| `job-analysis` | **200** ✅ | (sub-step — invoked by `interview-research`; required for role-grounded questions) |
+| `cv-analysis` | **200** ✅ | (sub-step — invoked by `interview-research`; required for CV personalization) |
+| `interview-question-generator` | **200** ✅ | (sub-step) |
 | `research-preview` | **404** ❌ | **Guest preview** (guest→signup funnel) |
 | `create-checkout-session` | **404** ❌ | **Stripe checkout** (free→paid funnel) |
 | `create-portal-session` | **404** ❌ | Billing management portal |
@@ -269,9 +274,9 @@ accessibility cluster** — are both carried and both live-confirmed still open.
 
 ## Regression check
 
-No product-code commits merged to `main` since the last review (only a Practice test de-flake,
-`ebea456`/PREPIO-146), so **no behaviour regressions are possible this week** — verified by diffing
-`origin/main` src/supabase history. State table:
+Zero product-code commits merged to `main` since the last review (`git log 04719f2..d0377e8` is one
+docs commit; the `ebea456` test de-flake predates the last review), so **no behaviour regressions
+are possible this week** — verified by diffing `origin/main` history. State table:
 
 | Item | State | Note |
 |------|-------|------|
