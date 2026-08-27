@@ -1378,6 +1378,42 @@ describe("Practice one-tap entry", () => {
     expect(screen.queryByText("Quick Start")).toBeNull();
   });
 
+  it("withholds one-tap questions behind the session-start loader until the session exists", async () => {
+    let resolveSession: (value: unknown) => void = () => {};
+    mockCreatePracticeSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSession = resolve;
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(mockCreatePracticeSession).toHaveBeenCalledWith("search-1"));
+    expect(await screen.findByText("Starting your practice session")).toBeTruthy();
+    expect(screen.queryByText("Describe your system design approach.")).toBeNull();
+
+    await act(async () => {
+      resolveSession({
+        success: true,
+        session: {
+          id: "session-1",
+          user_id: "user-1",
+          search_id: "search-1",
+          started_at: "2026-03-31T00:00:00.000Z",
+        },
+      });
+    });
+
+    expect(await screen.findByText("Describe your system design approach.")).toBeTruthy();
+    expect(screen.queryByText("Starting your practice session")).toBeNull();
+  });
+
   it("exposes in-session stage narrowing via Change setup after auto-start", async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1"]}>
