@@ -182,8 +182,11 @@ overdue by any measure: **one attended backend deploy + migration push.**
   fails — and `src/pages/Practice.tsx:1482` handles that with a bare
   `if (!transcriptionResult.success) return;`. The audio uploads and the answer row saves, but the
   user is **told nothing**: no transcript appears and no message explains why. The repo's own design
-  principles list the correct copy — *"Transcription is unavailable. Your text answer was still
-  saved."* — which is not shown.
+  principles list the correct copy verbatim ([`docs/DESIGN_PRINCIPLES.md:74`](../DESIGN_PRINCIPLES.md)) —
+  *"Transcription unavailable. Your answer was still saved."* — which is not shown. (Note the wording
+  is deliberately **generic** — "your answer," not "your text answer": a voice-only recording saves
+  `audio_path` with `textAnswer` undefined, so a "text answer was saved" message would itself be
+  misleading. Keep the generic phrasing when implementing.)
 - **Why it matters:** on mobile the recommended answer path *is* voice; a user who records and sees
   no transcript and no explanation reasonably concludes their answer was lost. Even after the #1
   deploy, the silent-failure branch is a latent honesty bug worth fixing on its own.
