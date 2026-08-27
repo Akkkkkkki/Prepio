@@ -731,6 +731,44 @@ describe("Practice mobile layout", () => {
     expect(mockUpdatePracticeAnswerTranscript).not.toHaveBeenCalled();
   });
 
+  it("tells the user when transcription fails after saving the recording", async () => {
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockResolvedValueOnce({
+      getAudioTracks: () => [{ stop: vi.fn() }],
+      getTracks: () => [{ stop: vi.fn() }],
+    } as unknown as MediaStream);
+
+    mockTranscribePracticeAudio.mockResolvedValueOnce({ success: false });
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await startPracticeSession();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Record answer" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Stop recording" }));
+
+    expect(await screen.findByText(/Recording ready/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
+
+    await waitFor(() => {
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Transcript unavailable",
+          description:
+            "Your audio answer was saved, but we couldn't transcribe it this time.",
+        }),
+      );
+    });
+    // The failure is surfaced, not swallowed into a transcript write.
+    expect(mockUpdatePracticeAnswerTranscript).not.toHaveBeenCalled();
+  });
+
   it("keeps the user in practice when completion fails on the last answer", async () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockCompletePracticeSession.mockResolvedValueOnce({

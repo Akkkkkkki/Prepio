@@ -86,6 +86,8 @@ const FLAG_ERROR_LABELS: Record<PracticeQuestionFlagType, string> = {
 const RECOMMENDED_ANSWER_TIME_COPY = "Aim for 1-2 min";
 const ABORTED_RECORDING_ERROR_MESSAGE =
   "Recording stopped before any audio was captured. Try again or switch to notes.";
+const TRANSCRIPTION_UNAVAILABLE_MESSAGE =
+  "Your audio answer was saved, but we couldn't transcribe it this time.";
 
 type AnswerFeedbackAccess = "loading" | "free" | "paid";
 
@@ -1479,7 +1481,20 @@ const getInterviewerFocus = (
           const transcribedAudioPath = pendingTranscription.path;
           void (async () => {
             const transcriptionResult = await searchService.transcribePracticeAudio(pendingTranscription);
-            if (!transcriptionResult.success) return;
+            if (!transcriptionResult.success) {
+              // Transcription is fire-and-forget, so a failure here would
+              // otherwise vanish silently — the audio saved but no transcript
+              // ever appears, with no explanation. Surface an honest,
+              // non-blocking note that names what happened without implying the
+              // answer was lost. An empty-but-successful transcript (below)
+              // stays silent: a wordless recording is not an error.
+              toast({
+                title: "Transcript unavailable",
+                description: TRANSCRIPTION_UNAVAILABLE_MESSAGE,
+                duration: 5000,
+              });
+              return;
+            }
             const transcript = typeof transcriptionResult.transcript === "string"
               ? transcriptionResult.transcript.trim()
               : "";
