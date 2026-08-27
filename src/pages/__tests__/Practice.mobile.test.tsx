@@ -375,6 +375,59 @@ describe("Practice mobile layout", () => {
     expect(await screen.findByText("Breathe in...")).toBeTruthy();
   });
 
+  it("keeps Q1 behind the loader when the breathing warm-up is skipped before session creation finishes", async () => {
+    let resolveSession: (value: unknown) => void = () => {};
+    mockUseIsMobile.mockReturnValue(false);
+    mockCreatePracticeSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSession = resolve;
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /customize — stages, difficulty, filters/i }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /breathing warm-up/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start custom session" }));
+
+    expect(await screen.findByText("Breathe in...")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    expect(await screen.findByText("Starting your practice session")).toBeTruthy();
+    expect(
+      screen.queryByText(
+        "How did you leverage LLM technology in the AI product evaluation at Hg Capital?",
+      ),
+    ).toBeNull();
+
+    await act(async () => {
+      resolveSession({
+        success: true,
+        session: {
+          id: "session-1",
+          user_id: "user-1",
+          search_id: "search-1",
+          started_at: "2026-03-31T00:00:00.000Z",
+        },
+      });
+    });
+
+    expect(
+      await screen.findByText(
+        "How did you leverage LLM technology in the AI product evaluation at Hg Capital?",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("Starting your practice session")).toBeNull();
+  });
+
   it("starts with notes expanded and preserves them across coach sheet open/close", async () => {
     const { container } = render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
