@@ -302,9 +302,11 @@ surface from its **live check this run**, not from the `git diff`; the diff only
 | `/auth` autocomplete | **Still unfixed — 13th audit** ⚠️ | `null`; PR #244 now **closed unmerged**. (P2 #5) |
 | `/history` vs in-progress card parity | **Still open** ⚠️ | Empty state despite "8 of 40 answered." (P3, PREPIO-107/99) |
 
-**Net: nothing regressed and nothing improved — a static week. The P0 deploy freeze, the P1 flag
-write, and the landing/auth a11y cluster all remain open and are freshly live-confirmed; the P1's
-fix is now located in an unapplied migration, and the autocomplete fix PR has been closed unmerged.**
+**Net: across the surfaces exercised live this run, nothing regressed and nothing improved — a
+static week (with the drift caveat above: unchanged shipped code, not a guarantee the untested
+surfaces or backend state are unchanged). The P0 deploy freeze, the P1 flag write, and the
+landing/auth a11y cluster all remain open and are freshly live-confirmed; the P1's fix is now
+located in an unapplied migration, and the autocomplete fix PR has been closed unmerged.**
 
 ## Recommended tickets
 
