@@ -86,8 +86,7 @@ const FLAG_ERROR_LABELS: Record<PracticeQuestionFlagType, string> = {
 const RECOMMENDED_ANSWER_TIME_COPY = "Aim for 1-2 min";
 const ABORTED_RECORDING_ERROR_MESSAGE =
   "Recording stopped before any audio was captured. Try again or switch to notes.";
-const TRANSCRIPTION_UNAVAILABLE_MESSAGE =
-  "Your audio answer was saved, but we couldn't transcribe it this time.";
+const TRANSCRIPTION_UNAVAILABLE_MESSAGE = "Your answer was still saved.";
 
 type AnswerFeedbackAccess = "loading" | "free" | "paid";
 
@@ -1488,8 +1487,12 @@ const getInterviewerFocus = (
               // non-blocking note that names what happened without implying the
               // answer was lost. An empty-but-successful transcript (below)
               // stays silent: a wordless recording is not an error.
+              // Copy is the verbatim string from docs/DESIGN_PRINCIPLES.md:74;
+              // keep it generic ("your answer") — a recorded answer may also
+              // carry typed notes, so naming just one of them would itself be a
+              // misleading status.
               toast({
-                title: "Transcript unavailable",
+                title: "Transcription unavailable",
                 description: TRANSCRIPTION_UNAVAILABLE_MESSAGE,
                 duration: 5000,
               });

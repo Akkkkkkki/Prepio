@@ -759,9 +759,8 @@ describe("Practice mobile layout", () => {
     await waitFor(() => {
       expect(mockToast).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: "Transcript unavailable",
-          description:
-            "Your audio answer was saved, but we couldn't transcribe it this time.",
+          title: "Transcription unavailable",
+          description: "Your answer was still saved.",
         }),
       );
     });
