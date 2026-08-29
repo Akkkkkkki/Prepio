@@ -4,7 +4,7 @@
 
 Twenty-sixth recurring codebase hygiene & security review for Prepio.
 
-**First product-team functional commit since run #22.** Since the last hygiene
+**One product-code commit merged this window.** Since the last hygiene
 review's PR merged (run #25 = commit `2ab52d7`, 2026-08-26), `main` advanced to
 `a9640b1` over the window `2ab52d7..a9640b1`, which is exactly **two commits**:
 one docs (the 2026-08-27 UX routine note, `0a2c95c`) and exactly **one
@@ -15,12 +15,12 @@ note when practice transcription fails."* (`a9640b1`). Note on base selection:
 commit the #25 PR merged and it **itself carries a source edit** (the
 `openai-client.ts` log-bound fix run #25 shipped in that same PR). Measuring
 from `d0377e8` would wrongly pull that #25 fix into this window and mislabel
-`2ab52d7` as docs-only. Relatedly, runs #23–#25 merged no *product-team*
-source, but they were not literally "docs-only": run #23 shipped a
-test-credential removal and run #25 the `openai-client.ts` log bound as their
-own in-run hygiene fixes; #311 is the first *product-team* functional commit
-since #22. Per the prior run's Next-review-focus item 2 ("re-run the full
-baseline against the first source-touching merge rather than re-verifying
+`2ab52d7` as docs-only. (This scope statement is deliberately confined to the
+since-#25 window only — earlier runs reviewed their own functional commits,
+e.g. #300/#301 in run #23; #311 is simply this window's single product-code
+commit, not a "first since #22.") Per the prior run's Next-review-focus item 2
+("re-run the full baseline against the first source-touching merge rather than
+re-verifying
 carried findings"), I re-ran the full baseline and reviewed #311 closely.
 
 **#311 reviewed and cleared — no fix owed this run.** The change adds a
