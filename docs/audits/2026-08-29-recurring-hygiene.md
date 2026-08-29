@@ -163,7 +163,7 @@ test). `npm audit` **3** findings — flat.
 
 - [ ] **`check-deno-baseline.sh` is a total-count ratchet with an
   import-resolution soundness gap.** *(Carried from 2026-08-22; re-verified.
-  Noted for the ratchet's maintainers, not filed.)*
+  Filed this run as [PREPIO-169](https://linear.app/qiuyue/issue/PREPIO-169).)*
   - Evidence: the wrapper fails only on `count > BASELINE` (19), a
     network-classified skip under `$CI`, or a nonzero `deno` exit with
     `count == 0`. A non-connection import error whose text misses the
@@ -173,8 +173,11 @@ test). `npm audit` **3** findings — flat.
     false-green.
   - Recommended fix: reject any unclassified nonzero `deno` exit (not just
     `count == 0`), and treat a below-baseline count as inspect-not-pass.
-  - Owner / next step: deferred; a CI-gate hardening change for the ratchet's
-    maintainers, higher-risk than the hygiene mandate absorbs without approval.
+  - Owner / next step: **[PREPIO-169](https://linear.app/qiuyue/issue/PREPIO-169)**
+    (Chore, Low, Quality & Maintenance). The code change stays deferred (a
+    CI-gate hardening for the ratchet's maintainers); prior runs kept it
+    noted-not-filed only because Linear MCP was unauthenticated — it is
+    authenticated this run, so it is now tracked rather than doc-only.
 
 ## Small fixes made in this run
 
@@ -196,6 +199,13 @@ tracked." Linear MCP is authenticated this run, so I filed PREPIO-168
 rotation and the legacy-suite migration, closing the tracking gap the prior
 runs left open. The password rotation itself still requires the owner.
 
+**Process fix — filed [PREPIO-169](https://linear.app/qiuyue/issue/PREPIO-169)
+(Low).** The `check-deno-baseline.sh` import-resolution soundness hardening,
+carried "noted-not-filed" since 2026-08-22, is now tracked (Chore,
+`area:infra`) — again, filed rather than left doc-only now that Linear MCP is
+authenticated. The CI-gate code change stays deferred; only the tracking gap is
+closed.
+
 ## Deferred items
 
 Discrete, actionable items already tracked or explicitly noted-not-filed:
@@ -209,8 +219,9 @@ Discrete, actionable items already tracked or explicitly noted-not-filed:
   major bumps needing human validation; no lockfile-only fix, no upgrade PR
   open yet.
 - **`check-deno-baseline.sh` import-resolution soundness hardening** (Low) —
-  noted for the ratchet's maintainers, not filed (a CI-gate change beyond the
-  hygiene mandate's approval scope).
+  now tracked as [PREPIO-169](https://linear.app/qiuyue/issue/PREPIO-169)
+  (Chore, `area:infra`). The code change stays deferred; it is filed this run
+  (Linear MCP is authenticated, unlike the prior runs that left it doc-only).
 - **PREPIO-141** — observability decision on whether any raw model content
   should be logged at all (the #25 `parseJsonResponse` bound was a limit, not
   a policy answer).
@@ -240,9 +251,10 @@ Discrete, actionable items already tracked or explicitly noted-not-filed:
 Correction to the completeness claim carried in the prior three runs: the
 credential rotation above was a real carried open that earlier notes let slip
 out of the tracked set. It is now tracked as PREPIO-168, so — with that filing
-— every carried open this run is Linear-tracked (PREPIO-143, PREPIO-141,
-PREPIO-140, PREPIO-98, PREPIO-144, **PREPIO-168**). The rotation *action*
-remains owed to the owner.
+— every carried open this run is now Linear-tracked (PREPIO-143, PREPIO-141,
+PREPIO-140, PREPIO-98, PREPIO-144, PREPIO-168, **PREPIO-169**) — including the
+`check-deno-baseline.sh` soundness gap, which this run filed rather than
+leaving doc-only. The credential rotation *action* remains owed to the owner.
 
 ## Questions for product owner
 
