@@ -214,6 +214,14 @@ Discrete, actionable items already tracked or explicitly noted-not-filed:
 - **PREPIO-141** — observability decision on whether any raw model content
   should be logged at all (the #25 `parseJsonResponse` bound was a limit, not
   a policy answer).
+- **[PREPIO-144](https://linear.app/qiuyue/issue/PREPIO-144)** — evidence-ledger
+  `official_job` over-trust of caller-supplied `roleLinks` (Low, result
+  integrity). *Re-verified still open this run:*
+  [`evidence-ledger.ts:329-335`](../../supabase/functions/interview-research/evidence-ledger.ts)
+  still passes every `jobRawData.results` row to `addRetrievedRows(...,
+  "official_job")` unconditionally, so no intervening commit has fixed or
+  closed it. Tracked; deferred (a research-pipeline change beyond a hygiene
+  run's scope, and coupled to the PREPIO-143 BOLA for its higher-impact case).
 - **Rotate the exposed test-account credential (still owed from 2026-08-19).**
   *(Filed this run as [PREPIO-168](https://linear.app/qiuyue/issue/PREPIO-168),
   Urgent.)* Seven legacy Deno test files committed a real email + password; the
@@ -233,8 +241,8 @@ Correction to the completeness claim carried in the prior three runs: the
 credential rotation above was a real carried open that earlier notes let slip
 out of the tracked set. It is now tracked as PREPIO-168, so — with that filing
 — every carried open this run is Linear-tracked (PREPIO-143, PREPIO-141,
-PREPIO-140, PREPIO-98, **PREPIO-168**). The rotation *action* remains owed to
-the owner.
+PREPIO-140, PREPIO-98, PREPIO-144, **PREPIO-168**). The rotation *action*
+remains owed to the owner.
 
 ## Questions for product owner
 
