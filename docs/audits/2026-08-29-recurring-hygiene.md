@@ -39,7 +39,9 @@ correctly not treated as an error). Notably, this change **closes the
 routines carried against this exact code path — a hygiene-relevant reliability
 improvement, cleanly done.
 
-**No new security surface, no owed fix.** Whole-tree secret scan clean; no new
+**No new security surface; no code fix owed from this window's change.**
+(Carried opens and the one owner-action rotation remain — see Findings /
+Deferred items.) Whole-tree secret scan clean; no new
 hardcoded keys, tokens, or JWTs. `npm audit` is **unchanged** at 3 findings
 (2 react-router moderate + 1 pdfjs-dist high) — same package count and same
 two react-router advisories as run #25; no new advisory attached this window.
@@ -182,12 +184,15 @@ test). `npm audit` **3** findings — flat.
 ## Small fixes made in this run
 
 **No code change.** The one source-touching merge this window (#311) was
-reviewed and found clean, so no corrective change was needed. The remaining
-open findings are each either out-of-scope for a hygiene run and un-validatable
-in this proxy-restricted environment (PREPIO-143 BOLA, an edge-function change
-needing a real Supabase instance) or dependency majors tracked in Linear
-(PREPIO-140 pdfjs-dist, PREPIO-98 react-router) with no lockfile-only fix.
-Unlike run #25, no dangling Low finding was outstanding to fix.
+reviewed and found clean, so no corrective change was needed. None of the
+remaining open findings is a lockfile-only or isolated single-file change a
+hygiene run can safely land in this proxy-restricted environment; each is
+deferred for the reason its Findings / Deferred-items entry gives. In full,
+they are: out-of-scope code changes (PREPIO-143 BOLA edge-function; PREPIO-144
+evidence-ledger pipeline; PREPIO-169 CI-gate hardening), dependency majors
+(PREPIO-140 pdfjs-dist; PREPIO-98 react-router), an observability policy
+decision (PREPIO-141), and one owner action (PREPIO-168 credential rotation).
+Unlike run #25, no dangling Low finding was safely fixable in-run.
 
 **Process fix — filed [PREPIO-168](https://linear.app/qiuyue/issue/PREPIO-168)
 (Urgent).** The exposed test-account credential rotation — a do-now owner
