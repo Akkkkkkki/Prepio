@@ -121,14 +121,23 @@ test). `npm audit` **3** findings — flat.
   JS execution on opening a malicious PDF.** *(Carried; re-verified.)*
   - Evidence: `npm audit` reports `pdfjs-dist >=5.6.83 <6.2.108` high; the app
     parses user-uploaded resumes client-side via the `pdf-*` chunk.
-  - Risk: a crafted resume PDF could execute script in the parsing context.
-    Materially mitigated by pdf.js worker isolation, but still the highest-CVSS
-    open advisory.
+  - Risk: **Low in practice, real surface.** The advisory's JS-execution vector
+    is not reached by this app's usage: [`resumeUpload.ts:115-126`](../../src/lib/resumeUpload.ts)
+    only calls `getTextContent()` (never renders, never enables scripting),
+    runs pdf.js in a Web Worker, **and** ships `isEvalSupported: false`
+    (PR #286) to disable the eval()/Function codepath explicitly. A crafted
+    resume PDF is still attacker-controlled input entering the browser, and this
+    is the highest-CVSS open advisory, so the upgrade recommendation stands —
+    but the exposure is materially mitigated by deployed safeguards, not merely
+    by worker isolation. (Matches the 2026-08-22 re-verification,
+    [`2026-08-22:308-316`](./2026-08-22-recurring-hygiene.md).)
   - Recommended fix: bump `pdfjs-dist` to `>=6.2.108` (a 5 → 6 major) behind a
-    resume-upload regression check (PDF **and** DOCX parse paths). Dependabot
-    will open the PR; it needs a human to validate the major.
-  - Owner / next step: Deferred — dependency major, Dependabot-surfaced. Not a
-    lockfile-only fix. No Dependabot PR open for it yet as of this run.
+    real-browser resume-upload regression check (PDF **and** DOCX parse paths).
+    Needs a human to validate the major.
+  - Owner / next step: **Tracked as
+    [PREPIO-140](https://linear.app/qiuyue/issue/PREPIO-140)** (Chore, High,
+    Quality & Maintenance). Deferred — dependency major, not a lockfile-only
+    fix; no upgrade PR open for it yet as of this run.
 
 ### Low / clean-up
 
@@ -147,7 +156,10 @@ test). `npm audit` **3** findings — flat.
   - Recommended fix: none advisory-specific — both resolve with the deferred
     react-router v7 major. Noted so a future run does not read the two-advisory
     count as a new exploitable exposure.
-  - Owner / next step: Deferred — Dependabot-surfaced major. No PR open yet.
+  - Owner / next step: **Tracked as
+    [PREPIO-98](https://linear.app/qiuyue/issue/PREPIO-98)** (major
+    dependency-migration planner, carries the react-router 6 → 7 upgrade).
+    Deferred — major, no PR open yet.
 
 - [ ] **`check-deno-baseline.sh` is a total-count ratchet with an
   import-resolution soundness gap.** *(Carried from 2026-08-22; re-verified.
@@ -170,9 +182,9 @@ None. The one source-touching merge this window (#311) was reviewed and found
 clean, so no corrective change was needed. The remaining open findings are each
 either out-of-scope for a hygiene run and un-validatable in this
 proxy-restricted environment (PREPIO-143 BOLA, an edge-function change needing
-a real Supabase instance) or Dependabot-surfaced dependency majors with no
-lockfile-only fix. Unlike run #25, no dangling Low finding was outstanding to
-fix.
+a real Supabase instance) or dependency majors tracked in Linear
+(PREPIO-140 pdfjs-dist, PREPIO-98 react-router) with no lockfile-only fix.
+Unlike run #25, no dangling Low finding was outstanding to fix.
 
 ## Deferred items
 
@@ -180,10 +192,12 @@ Discrete, actionable items already tracked or explicitly noted-not-filed:
 
 - **PREPIO-143** — `interview-research` `searchId` BOLA fix PR (High). The
   highest-value follow-up. Tracked in Linear.
-- **`pdfjs-dist` 5 → 6 major** (Medium) and **`react-router` v7 major**
-  (Low, covering both react-router advisories). Both are Dependabot-surfaced
-  major bumps needing human validation; no lockfile-only fix, no PR open yet.
-  Not separately filed — Dependabot is the tracker.
+- **`pdfjs-dist` 5 → 6 major** (Medium) — tracked as
+  [PREPIO-140](https://linear.app/qiuyue/issue/PREPIO-140) — and
+  **`react-router` v7 major** (Low, covering both react-router advisories) —
+  tracked as [PREPIO-98](https://linear.app/qiuyue/issue/PREPIO-98). Both are
+  major bumps needing human validation; no lockfile-only fix, no upgrade PR
+  open yet.
 - **`check-deno-baseline.sh` import-resolution soundness hardening** (Low) —
   noted for the ratchet's maintainers, not filed (a CI-gate change beyond the
   hygiene mandate's approval scope).
@@ -192,8 +206,8 @@ Discrete, actionable items already tracked or explicitly noted-not-filed:
   a policy answer).
 
 No **new** Linear issue is owed from this run: no new finding was surfaced —
-the one source change was clean, and every carried open is already tracked
-(PREPIO-143, PREPIO-141) or Dependabot-surfaced.
+the one source change was clean, and every carried open is already tracked in
+Linear (PREPIO-143, PREPIO-141, PREPIO-140, PREPIO-98).
 
 ## Questions for product owner
 
