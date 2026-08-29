@@ -178,13 +178,23 @@ test). `npm audit` **3** findings — flat.
 
 ## Small fixes made in this run
 
-None. The one source-touching merge this window (#311) was reviewed and found
-clean, so no corrective change was needed. The remaining open findings are each
-either out-of-scope for a hygiene run and un-validatable in this
-proxy-restricted environment (PREPIO-143 BOLA, an edge-function change needing
-a real Supabase instance) or dependency majors tracked in Linear
+**No code change.** The one source-touching merge this window (#311) was
+reviewed and found clean, so no corrective change was needed. The remaining
+open findings are each either out-of-scope for a hygiene run and un-validatable
+in this proxy-restricted environment (PREPIO-143 BOLA, an edge-function change
+needing a real Supabase instance) or dependency majors tracked in Linear
 (PREPIO-140 pdfjs-dist, PREPIO-98 react-router) with no lockfile-only fix.
 Unlike run #25, no dangling Low finding was outstanding to fix.
+
+**Process fix — filed [PREPIO-168](https://linear.app/qiuyue/issue/PREPIO-168)
+(Urgent).** The exposed test-account credential rotation — a do-now owner
+security action carried *untracked* since 2026-08-19 (Linear MCP was
+unauthenticated in the prior three runs) — was re-surfaced by Codex on this PR
+as a carried-open my first draft of this note wrongly folded into "everything
+tracked." Linear MCP is authenticated this run, so I filed PREPIO-168
+(Quality & Maintenance; `Chore` + `area:infra` + `area:auth`) to track the
+rotation and the legacy-suite migration, closing the tracking gap the prior
+runs left open. The password rotation itself still requires the owner.
 
 ## Deferred items
 
@@ -204,14 +214,40 @@ Discrete, actionable items already tracked or explicitly noted-not-filed:
 - **PREPIO-141** — observability decision on whether any raw model content
   should be logged at all (the #25 `parseJsonResponse` bound was a limit, not
   a policy answer).
+- **Rotate the exposed test-account credential (still owed from 2026-08-19).**
+  *(Filed this run as [PREPIO-168](https://linear.app/qiuyue/issue/PREPIO-168),
+  Urgent.)* Seven legacy Deno test files committed a real email + password; the
+  code fallback was removed from `HEAD` in #302, but the value **remains in git
+  history and must be treated as compromised**. Nothing merged since (this
+  window is docs + the #311 toast) rotates it, and this run found no
+  confirmation the owner has rotated it. This is a do-now owner security
+  action, **not** covered by the dependency/finding tickets above. Prior runs
+  flagged it as an untracked owner-action they could not file (Linear MCP was
+  unauthenticated); Linear MCP **is** authenticated this run, so I filed
+  PREPIO-168 (Quality & Maintenance; `Chore` + `area:infra` + `area:auth`) to
+  track the rotation and the separate legacy-suite-off-live-credentials
+  migration. The **password rotation itself still requires the owner** — the
+  ticket tracks it but cannot perform it.
 
-No **new** Linear issue is owed from this run: no new finding was surfaced —
-the one source change was clean, and every carried open is already tracked in
-Linear (PREPIO-143, PREPIO-141, PREPIO-140, PREPIO-98).
+Correction to the completeness claim carried in the prior three runs: the
+credential rotation above was a real carried open that earlier notes let slip
+out of the tracked set. It is now tracked as PREPIO-168, so — with that filing
+— every carried open this run is Linear-tracked (PREPIO-143, PREPIO-141,
+PREPIO-140, PREPIO-98, **PREPIO-168**). The rotation *action* remains owed to
+the owner.
 
 ## Questions for product owner
 
-- None blocking. All open findings have an owner or a clear next action.
+- **Rotate the exposed test-account credential (do-now security action, still
+  owed from 2026-08-19; now tracked as
+  [PREPIO-168](https://linear.app/qiuyue/issue/PREPIO-168)).** Seven test files
+  committed a real email + password; the code fallback was removed in #302, but
+  the value is in git history and must be treated as compromised. Please rotate
+  the account password and, if the address is a live personal inbox, review it.
+  This run found no evidence the rotation has happened. The tracking ticket is
+  now filed, but the rotation is an owner action a hygiene run cannot perform.
+- Otherwise none blocking: every re-verified *finding* has an owner or clear
+  next action.
 
 ## Next review focus
 
@@ -224,7 +260,11 @@ Linear (PREPIO-143, PREPIO-141, PREPIO-140, PREPIO-98).
    either yet. If one appears before the next run, spend a review validating
    the resume-upload (PDF + DOCX) and routing/redirect regression surfaces so
    the majors can land instead of accumulating advisories.
-3. **The next source-touching merge.** #311 was a clean, well-tested
+3. **Confirm PREPIO-168 (exposed test-account credential) was rotated.** The
+   tracking issue is now filed (Urgent), but rotation is an owner action; the
+   next run should check the ticket's status and confirm the password was
+   rotated before treating this security item as closed.
+4. **The next source-touching merge.** #311 was a clean, well-tested
    reliability fix; keep re-running the full baseline against each functional
    merge rather than re-verifying carried findings, so a regression is caught
    in the window it lands.
