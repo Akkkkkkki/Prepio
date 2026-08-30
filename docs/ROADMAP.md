@@ -18,9 +18,12 @@ This tracks product reality against the latest `main` branch.
 - The evidence log is built in code from real retrieval; synthesis cites `ev-*` IDs only and
   unresolved IDs are dropped before persistence (PREPIO-78). Evidence recency is captured and
   displayed (PREPIO-52).
-- Synthesis output is schema-validated with one bounded repair pass; a run that still fails
-  persists with an honest `summary.synthesisQuality.degraded` marker instead of silently
-  completing (PREPIO-79).
+- Synthesis output is schema-validated with one bounded repair pass; a plan that is
+  structurally usable but fails content validation persists with an honest
+  `summary.synthesisQuality.degraded` marker instead of silently completing (PREPIO-79).
+  Note the limit: a response that is unparseable or missing `summary` / `stageRoadmap`
+  returns `null` before validation runs, and the caller marks the whole search failed — so
+  "degraded" covers validation failures, not every failed synthesis.
 - `job-analysis` marks stub requirements as synthetic so synthesis cannot present them as
   evidence (PREPIO-82).
 

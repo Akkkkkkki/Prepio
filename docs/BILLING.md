@@ -138,7 +138,7 @@ User resolution: subscription events carry a Stripe customer ID, not our `user_i
 
 ## Frontend flows
 
-The webhook, tables, entitlement readers, Checkout session creator, Customer Portal session creator, and pricing page are implemented. A dedicated Checkout return page remains tracked separately.
+The webhook, tables, entitlement readers, Checkout session creator, Customer Portal session creator, pricing page, and the `/billing/return` post-checkout page are all implemented (`src/pages/BillingReturn.tsx`, routed in `src/App.tsx`; the flow is described at step 5 below). None of it is deployed to production yet — see PREPIO-124.
 
 ### Upgrade
 

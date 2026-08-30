@@ -28,10 +28,11 @@ Baselines measured this run:
 
 Three distinct kinds, worth separating because they have different causes:
 
-1. **Docs behind code.** `docs/RESEARCH_PIPELINE.md` described four shipped issues
-   (PREPIO-40, 79, 80, 82) as open work, and `docs/TESTING.md` quoted a type-error
-   baseline more than six times the real one. Cause: docs updated at design time,
-   not at merge time.
+1. **Docs behind code.** `docs/RESEARCH_PIPELINE.md` described PREPIO-40, 80 and 82 as
+   open work when all three had shipped, and listed PREPIO-79 as open when its validation
+   half had shipped (the staged-synthesis split is still open — PREPIO-149, so "◑" not
+   "✓"). `docs/TESTING.md` quoted a type-error baseline more than six times the real one.
+   Cause: docs updated at design time, not at merge time.
 2. **Linear behind code.** Two epics and three issues were sitting in states their
    own children or the code had already moved past.
 3. **Docs contradicting each other.** `docs/ARCHITECTURE.md` listed
