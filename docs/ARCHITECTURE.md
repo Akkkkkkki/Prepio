@@ -35,7 +35,15 @@ Supabase Edge Functions:
 - `create-portal-session`: creates a Stripe Customer Portal session for self-serve plan management.
 - `stripe-webhook`: syncs Stripe subscription state into Supabase billing tables.
 
-> **Deployment state (live-probed 2026-08-27).** Only `interview-research`,
+> **Deployment state (live-probed 2026-08-27).** Note what an undeployed function does and
+> does not break: `practice-audio-transcribe` being absent does **not** kill voice answers.
+> The `practice-audio` bucket comes from `20260515150000_security_hardening_and_resume_rpc`,
+> which is applied in production, and `Practice.tsx` uploads the recording and persists
+> `audio_path` before invoking transcription asynchronously — so recording and saving work
+> live, and only the transcript is missing. Check the same distinction for the others before
+> assuming a whole feature is dark.
+>
+> Only `interview-research`,
 > `company-research`, `job-analysis`, `cv-analysis`, and `interview-question-generator` are
 > deployed to production. The other seven — `research-preview`, `create-checkout-session`,
 > `create-portal-session`, `stripe-webhook`, `answer-feedback`, `profile-import`,

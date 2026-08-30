@@ -23,7 +23,9 @@ Not shipped yet:
 
 > "Shipped" above means merged to `main`. The production backend has been frozen since
 > 2026-05-15 — guest preview, billing, paid answer feedback, CV import, and voice
-> transcription are not deployed there yet. See `docs/ARCHITECTURE.md` and PREPIO-124.
+> transcription are not deployed there yet. (Recording and saving a voice answer does work
+> in production; only the transcript generation is missing.) See `docs/ARCHITECTURE.md` and
+> PREPIO-124.
 
 ## Stack
 
