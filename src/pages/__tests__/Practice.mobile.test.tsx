@@ -3,6 +3,19 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import Practice from "../Practice";
 
+// Every test in this file renders the full Practice page and waits on question
+// content that only appears after several async settles (search load → session
+// create → question render). On a contended CI runner the vitest worker can be
+// terminated mid-run ("Worker task was terminated" / "relay down") before the
+// tree settles — an environmental flake, not a wrong assertion: the file passes
+// 30/30 locally on repeat. The 5000ms async-util ceiling in vitest.setup.ts
+// already rules out timeout starvation, so a longer wait wouldn't help a killed
+// worker; a retry re-runs the affected test on a fresh one. Applied at the
+// describe level so tests added later inherit it too, replacing the per-test
+// guards that were added one incident at a time (PREPIO-117/142/146/177). See
+// docs/TESTING.md → "Practice suite CI flake policy".
+const CI_FLAKE_RETRY = { retry: 2 } as const;
+
 const UrlSpy = () => {
   const location = useLocation();
   return <div data-testid="url-spy" data-search={location.search} />;
@@ -158,7 +171,7 @@ const startPracticeSession = async () => {
   fireEvent.click(await screen.findByRole("button", { name: "Start practice" }));
 };
 
-describe("Practice mobile layout", () => {
+describe("Practice mobile layout", CI_FLAKE_RETRY, () => {
   beforeEach(() => {
     vi.clearAllMocks();
     MockResizeObserver.reset();
@@ -832,7 +845,7 @@ describe("Practice mobile layout", () => {
   });
 });
 
-describe("Practice keyboard navigation", () => {
+describe("Practice keyboard navigation", CI_FLAKE_RETRY, () => {
   let mathRandomSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -891,9 +904,7 @@ describe("Practice keyboard navigation", () => {
     mathRandomSpy.mockRestore();
   });
 
-  // Timing-sensitive under CI load (full-render + multi-step async navigation);
-  // retry to de-flake, matching the autosave-label tests in this file.
-  it("ArrowLeft navigates back after skipping forward", { retry: 2 }, async () => {
+  it("ArrowLeft navigates back after skipping forward", async () => {
     const questionTexts = [
       "Describe your system design approach.",
       "How do you evaluate ML models in production?",
@@ -930,9 +941,7 @@ describe("Practice keyboard navigation", () => {
     expect(await screen.findByText(initialQuestionText)).toBeInTheDocument();
   });
 
-  // Timing-sensitive under CI load (full-render + multi-step async navigation);
-  // retry to de-flake, matching the autosave-label tests in this file.
-  it("ArrowRight saves the current question after navigating (latest-callback binding)", { retry: 2 }, async () => {
+  it("ArrowRight saves the current question after navigating (latest-callback binding)", async () => {
     const questionIdByText: Record<string, string> = {
       "Describe your system design approach.": "q-1",
       "How do you evaluate ML models in production?": "q-2",
@@ -981,9 +990,7 @@ describe("Practice keyboard navigation", () => {
     );
   });
 
-  // Timing-sensitive under CI load (full-render + multi-step async navigation);
-  // retry to de-flake, matching the autosave-label tests in this file.
-  it("debounces the aria-live question announcement so rapid navigation doesn't flood screen readers", { retry: 2 }, async () => {
+  it("debounces the aria-live question announcement so rapid navigation doesn't flood screen readers", async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
@@ -1011,9 +1018,7 @@ describe("Practice keyboard navigation", () => {
     );
   });
 
-  // Timing-sensitive under CI load (full-render + async flag write); retry to
-  // de-flake, matching the autosave-label tests in this file.
-  it("lets desktop users mark the current in-session question as needs work", { retry: 2 }, async () => {
+  it("lets desktop users mark the current in-session question as needs work", async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
@@ -1041,7 +1046,7 @@ describe("Practice keyboard navigation", () => {
   });
 });
 
-describe("Practice needs-work focus mode", () => {
+describe("Practice needs-work focus mode", CI_FLAKE_RETRY, () => {
   beforeEach(() => {
     vi.clearAllMocks();
     MockResizeObserver.reset();
@@ -1206,7 +1211,7 @@ describe("Practice needs-work focus mode", () => {
   });
 });
 
-describe("Practice autosave label", () => {
+describe("Practice autosave label", CI_FLAKE_RETRY, () => {
   // Mirrors AUTOSAVE_DELAY_MS in src/pages/Practice.tsx; keep a small overshoot.
   const AUTOSAVE_DELAY_OVERSHOOT_MS = 5500;
   let mathRandomSpy: ReturnType<typeof vi.spyOn>;
@@ -1272,7 +1277,7 @@ describe("Practice autosave label", () => {
     return screen.findByPlaceholderText("Capture bullet points or timing cues…");
   };
 
-  it("shows a draft-kept label (no green) after the debounce on the typed answer", { retry: 2 }, async () => {
+  it("shows a draft-kept label (no green) after the debounce on the typed answer", async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
@@ -1297,7 +1302,7 @@ describe("Practice autosave label", () => {
     expect(screen.queryByText("Saved locally")).not.toBeInTheDocument();
   });
 
-  it("shows an Answer-saved label (green) after Save & Continue, never 'Saved locally'", { retry: 2 }, async () => {
+  it("shows an Answer-saved label (green) after Save & Continue, never 'Saved locally'", async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
@@ -1319,7 +1324,7 @@ describe("Practice autosave label", () => {
     expect(screen.queryByText("Saved locally")).not.toBeInTheDocument();
   });
 
-  it("resets the autosave label off the draft state when skipping to the next question", { retry: 2 }, async () => {
+  it("resets the autosave label off the draft state when skipping to the next question", async () => {
     render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
         <Routes>
@@ -1349,7 +1354,7 @@ describe("Practice autosave label", () => {
   });
 });
 
-describe("Practice one-tap entry", () => {
+describe("Practice one-tap entry", CI_FLAKE_RETRY, () => {
   let mathRandomSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {

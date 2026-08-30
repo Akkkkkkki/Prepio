@@ -18,6 +18,27 @@ The Deno files under `tests/` are legacy. `make test` can still be useful as a s
 
 There is no configured coverage report. Do not quote a coverage percentage.
 
+### Practice suite CI flake policy
+
+`src/pages/__tests__/Practice.mobile.test.tsx` renders the full Practice page and
+waits on question content that only appears after several async settles (search
+load → session create → question render). On a contended CI runner the vitest
+worker is occasionally terminated mid-run (`Worker task was terminated` /
+`relay down`) before the tree settles. The assertions are correct — the file
+passes 30/30 locally on repeat — so this is an environmental flake, not a bug in
+a specific test.
+
+The async-util ceiling is already 5000ms (`vitest.setup.ts`) and `testTimeout`
+is 20000ms (`vite.config.ts`), so a longer wait does not help a killed worker.
+The mitigation is a **retry set once at the `describe` level** (`CI_FLAKE_RETRY`
+in that file), which re-runs a failed test on a fresh worker and, crucially,
+**applies to tests added later** — a test author does not need to rediscover the
+convention. This replaced four separate per-test `{ retry: 2 }` guards that had
+been added one incident at a time (PREPIO-117, PREPIO-142, PREPIO-146,
+PREPIO-177). If a new describe block is added to that file, give it
+`CI_FLAKE_RETRY` too. Retry only masks *flaky* failures — a deterministic
+failure still fails on every attempt — so it does not hide real regressions.
+
 ## Most Important Covered Areas
 
 - Search service helpers and resume versioning behavior.
