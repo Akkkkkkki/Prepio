@@ -61,8 +61,9 @@ product-code commits landed** (plus one lockfile chore):
 Both fixes were verified this run: the landing `<h1>` **live** (heading outline is now h1→h2→h2,
 zero out-of-order headings), the transcription toast **in code** (`src/pages/Practice.tsx:1483-1501`;
 the underlying `practice-audio-transcribe` function is still 404, so voice still cannot transcribe —
-but it now **fails honestly** instead of silently). **This is the first week in the recorded series
-where the accessibility score moves** (2 → 3).
+but it now **fails honestly** instead of silently). **Accessibility improves 2 → 3** this week — the
+first *upward* move on that row since it was marked down to 2 on 2026-08-20 (it had also read 3 back
+on 2026-07-05), i.e. a recovery of the recently-lost point, not an all-time first.
 
 ### Edge-function deploy state — freshly probed live (the standing P0)
 
@@ -101,7 +102,8 @@ no horizontal overflow, notes autosave shows a live "Saving draft…", **text-an
 (`201`, progress advanced live), and protected-route redirects now preserve intent
 ("Continue to Practice." on `/auth`). This week's two commits closed both accessibility/honesty
 carries from last review — the landing has a proper `<h1>` and voice transcription fails with an
-honest message — which nudges **Accessibility 2 → 3**, the first score movement in weeks. But the
+honest message — which lifts **Accessibility 2 → 3**, recovering the point booked down on
+2026-08-20. But the
 ~15.5-week deploy freeze still guts both funnels the business depends on: **guest preview fails live**
 ("We couldn't build the preview…"; `research-preview` 404 → CORS block), and by extension checkout,
 the paid feature, structured CV import, and voice are all undeployed. The **Favorite / Needs-work
@@ -292,7 +294,8 @@ are code-confirmed / carried (the form was not re-submitted).
 
 **Composite: up one, on Accessibility.** The deployed core holds at a genuinely good level; the two
 structural anchors — the **P0 deploy freeze** and the **flag write** — are both carried and both
-live-confirmed still open. This is the first week in the series where a score improved.
+live-confirmed still open. Accessibility recovers the point it lost on 2026-08-20; the composite is
+otherwise flat (earlier runs saw larger composite gains — e.g. #13 +2, #15 +3, #17 +4).
 
 ## Regression check
 
