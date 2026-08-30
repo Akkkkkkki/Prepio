@@ -27,10 +27,14 @@ These points override anything in older docs or code comments:
 > **Production is not `main`.** The backend has been frozen since 2026-05-15: 8 migrations
 > are unapplied and 7 edge functions (`research-preview`, `create-checkout-session`,
 > `create-portal-session`, `stripe-webhook`, `answer-feedback`, `profile-import`,
-> `practice-audio-transcribe`) are undeployed. Guest preview, billing, paid answer feedback,
-> CV import, and voice transcription are therefore dead in production even though they are
-> shipped in this repo. Tracked as PREPIO-124 (Urgent). Read "shipped" in this file and in
-> `docs/` as "merged to `main`", not "live".
+> `practice-audio-transcribe`) are undeployed. Guest preview, paid answer feedback, CV import,
+> voice transcription, and the billing purchase flow are therefore dead in production even
+> though they are shipped in this repo. Check what each missing function actually gates
+> before assuming a whole feature is dark: the billing tables and frontend *are* live, so
+> `/pricing`, `/billing/return`, and the entitlement read work and simply always resolve
+> free (see [`docs/BILLING.md`](./docs/BILLING.md)); likewise recording and saving a voice
+> answer works, and only the transcript is missing. Tracked as PREPIO-124 (Urgent). Read
+> "shipped" in this file and in `docs/` as "merged to `main`", not "live".
 
 ## Commands
 
@@ -68,10 +72,24 @@ npm run supabase:status
 
 ### After database changes
 
+The local and production migration histories diverge: two already-applied migrations were
+re-timestamped in the repo (`billing_v1` is `20260514000000` locally vs `20260515131539` in
+production; `security_hardening_and_resume_rpc` is `20260515150000` vs `20260515171733`). A
+blind `db:push` can stop on the unmatched remote version or re-run the local security
+migration as if it were new, so reconcile the histories first:
+
 ```bash
+supabase migration list   # confirm the divergence below still matches the live history
+supabase migration repair --status reverted 20260515131539 20260515171733
+supabase migration repair --status applied  20260514000000 20260515150000
 npm run db:push
 npm run db:pull
 ```
+
+The `reverted` calls drop the two orphan remote entries; the `applied` calls register the
+local filenames as already run, so `db:push` skips them instead of re-running the security
+migration. Verify the four versions against `migration list` output before repairing — do
+not run these from memory. See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) and PREPIO-124.
 
 Keep migration files in [`supabase/migrations`](./supabase/migrations).
 

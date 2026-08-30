@@ -255,7 +255,7 @@ is evidence about process, not about the code.** PREPIO-176 matters most of the 
 two features users can reach render empty, and neither the Done status nor several UX
 review passes caught it, because the UI degrades silently to blank rather than failing.
 
-Two more were **scoping a measurement too narrowly and reporting the result as if it
+Others were **scoping a measurement too narrowly and reporting the result as if it
 were the whole**:
 
 - The radius count was 10 because I scanned only `src/pages` and `src/components`. All
@@ -276,6 +276,28 @@ were the whole**:
 The third of those is the one to learn from: the other two were bad queries, but this
 was a bad *sample frame* — the measurement was fine, it just never covered the thing that
 was wrong. A review that picks its inputs by expectation will confirm expectations.
+
+One was **over-scoping a gap** — the mirror of the above, and the most instructive
+failure in the review because of when it happened:
+
+- Correcting the `docs/BILLING.md` contradiction, I wrote in its place that of the
+  billing work "none of it is deployed to production yet". That is false in the same
+  shape as the errors it replaced. `billing_v1` **is** applied live (established
+  earlier in this very note), and the production frontend tracks `main`, so `/pricing`,
+  `/billing/return`, and `getEntitlement` — a direct client read of
+  `billing_subscriptions` — are all deployed and resolving. What is missing is three
+  edge functions. The read path works and always returns free; the purchase path does
+  not exist. A maintainer executing PREPIO-124 from that sentence would have re-shipped
+  a schema and a frontend that were already there.
+
+The timing is the point. The commit that introduced that sentence is the same commit
+whose message reads *"an undeployed function does not necessarily darken the whole
+feature, so check what each one actually gates before assuming."* Writing the lesson
+down did not stop me applying its inverse two files away in the same change. A lesson
+recorded in prose is not a control; it fires only if something forces it to be checked
+against the code, which is the argument the recurrence section below already makes.
+The same over-scoping had been copied into `CLAUDE.md` and `README.md`, which is how
+this one is also a residue:
 
 And three were **residues**: a claim corrected in one place while its restatements
 elsewhere stood — the Deno file counts, the audit-index row, the two remaining

@@ -22,10 +22,13 @@ Not shipped yet:
 - Lifecycle notifications.
 
 > "Shipped" above means merged to `main`. The production backend has been frozen since
-> 2026-05-15 — guest preview, billing, paid answer feedback, CV import, and voice
-> transcription are not deployed there yet. (Recording and saving a voice answer does work
-> in production; only the transcript generation is missing.) See `docs/ARCHITECTURE.md` and
-> PREPIO-124.
+> 2026-05-15 — guest preview, paid answer feedback, CV import, voice transcription, and the
+> billing purchase flow are not deployed there yet. Each gap is narrower than the feature
+> name suggests: recording and saving a voice answer does work in production, only the
+> transcript generation is missing; and the billing tables and frontend are live, so
+> `/pricing`, `/billing/return`, and the entitlement read work and always resolve free —
+> what is absent is Checkout, the Customer Portal, and the webhook that would write a paid
+> row. See `docs/ARCHITECTURE.md`, `docs/BILLING.md`, and PREPIO-124.
 
 ## Stack
 

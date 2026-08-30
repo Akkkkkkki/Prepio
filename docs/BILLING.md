@@ -138,7 +138,9 @@ User resolution: subscription events carry a Stripe customer ID, not our `user_i
 
 ## Frontend flows
 
-The webhook, tables, entitlement readers, Checkout session creator, Customer Portal session creator, pricing page, and the `/billing/return` post-checkout page are all implemented (`src/pages/BillingReturn.tsx`, routed in `src/App.tsx`; the flow is described at step 5 below). None of it is deployed to production yet — see PREPIO-124.
+The webhook, tables, entitlement readers, Checkout session creator, Customer Portal session creator, pricing page, and the `/billing/return` post-checkout page are all implemented (`src/pages/BillingReturn.tsx`, routed in `src/App.tsx`; the flow is described at step 5 below).
+
+Production splits them. The `billing_v1` migration **is** applied live, so the three `billing_*` tables exist; the production frontend tracks `main`, so `/pricing`, `/billing/return`, and `getEntitlement` (a direct client read of `billing_subscriptions`, [`src/services/entitlements.ts`](../src/services/entitlements.ts)) are deployed and resolve. What is missing is the three edge functions — `create-checkout-session`, `create-portal-session`, and `stripe-webhook` — which are undeployed. So the read path works but always resolves free: nothing can write a subscription row, and there is no way to start a purchase or open the Portal. PREPIO-124 is scoped to deploying those three functions, not to re-shipping the schema or the frontend.
 
 ### Upgrade
 
