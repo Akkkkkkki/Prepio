@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "corpusVersion": "published-reports-v1",
+  "sourceAdapter": "published-report",
+  "cases": [
+    {"id":"tech-junior-documented","roleFamily":"tech","level":"junior","employerEvidence":"well-documented","inputMode":"pasted-jd","profileStrength":"strong","locale":"en-US","evidenceCondition":"normal","expectedStages":["recruiter","technical","behavioral"],"reportedQuestionThemes":["debugging","data-structures","project-tradeoffs"]},
+    {"id":"tech-senior-thin","roleFamily":"tech","level":"senior-ic","employerEvidence":"thin","inputMode":"role-link-only","profileStrength":"sparse","locale":"en-GB","evidenceCondition":"low","expectedStages":["recruiter","system-design","behavioral"],"reportedQuestionThemes":["system-design","technical-leadership"]},
+    {"id":"consulting-mid-documented","roleFamily":"consulting","level":"mid","employerEvidence":"well-documented","inputMode":"pasted-jd","profileStrength":"strong","locale":"en-US","evidenceCondition":"normal","expectedStages":["fit","case"],"reportedQuestionThemes":["market-sizing","profitability","leadership"]},
+    {"id":"consulting-manager-mixed","roleFamily":"consulting","level":"manager","employerEvidence":"thin","inputMode":"minimal","profileStrength":"sparse","locale":"fr-FR/en","evidenceCondition":"low","expectedStages":["fit","case"],"reportedQuestionThemes":["team-leadership","case-structure"]},
+    {"id":"finance-junior-documented","roleFamily":"finance","level":"junior","employerEvidence":"well-documented","inputMode":"role-link-only","profileStrength":"strong","locale":"en-US","evidenceCondition":"normal","expectedStages":["screen","technical","superday"],"reportedQuestionThemes":["valuation","accounting","deal-interest"]},
+    {"id":"finance-senior-contradictory","roleFamily":"finance","level":"senior-ic","employerEvidence":"well-documented","inputMode":"pasted-jd","profileStrength":"sparse","locale":"de-DE/en","evidenceCondition":"contradictory","expectedStages":["screen","technical","leadership"],"reportedQuestionThemes":["risk-judgment","stakeholder-management"]},
+    {"id":"other-manager-documented","roleFamily":"other","level":"manager","employerEvidence":"well-documented","inputMode":"pasted-jd","profileStrength":"strong","locale":"es-ES","evidenceCondition":"normal","expectedStages":["recruiter","portfolio","leadership"],"reportedQuestionThemes":["go-to-market","people-management","prioritization"]},
+    {"id":"other-mid-zero-evidence","roleFamily":"other","level":"mid","employerEvidence":"thin","inputMode":"minimal","profileStrength":"sparse","locale":"en-US","evidenceCondition":"zero","expectedStages":[],"reportedQuestionThemes":[]}
+  ]
+}

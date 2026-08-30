@@ -15,6 +15,7 @@
     "test:answer-feedback-schema": "bash scripts/check-answer-feedback-schema.sh",
     "test:answer-feedback-rpc-db": "bash scripts/check-answer-feedback-rpc-db.sh",
     "test:e2e": "playwright test",
+    "eval:research": "node evals/research/run-eval.mjs",
     "preview": "vite preview",
     "# Remote Development (Recommended)": "",
     "functions:deploy": "supabase functions deploy",

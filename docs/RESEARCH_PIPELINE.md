@@ -7,6 +7,23 @@ grounded evidence architecture** (PREPIO-76) in Quality & Maintenance.
 
 Status: design approved for incremental rollout. Last reviewed 2026-08-06.
 
+## Fixed evaluation baseline (PREPIO-148)
+
+The PII-free `published-reports-v1` corpus and scorer live in
+[`evals/research`](../evals/research/README.md). The captured production-v2 snapshot on
+2026-08-30 established the four headline values below. Cycle 4 exit targets were locked
+the same day in `evals/research/thresholds.json` and must not be lowered.
+
+| Metric | Production-v2 baseline | Cycle 4 target |
+|---|---:|---:|
+| Top-5 hit rate | 1.0000 | >= 0.98 |
+| Citation precision | 0.8235 | >= 0.85 |
+| Stage accuracy | 1.0000 | >= 0.98 |
+| Degraded-run rate | 0.1250 | <= 0.10 |
+
+Run `npm run eval:research` to reproduce the checked-in snapshot, or pass `--candidate`
+to gate a candidate snapshot against both the fixed targets and regression tolerances.
+
 ## The pipeline as shipped (v2)
 
 `interview-research` orchestrates three concurrent gatherers, then one synthesis call:

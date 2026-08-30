@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "cycle4TargetsLockedOn": "2026-08-30",
+  "absolute": {
+    "top5HitRate": {"min": 0.98},
+    "citationPrecision": {"min": 0.85},
+    "stageAccuracy": {"min": 0.98},
+    "degradedRunRate": {"max": 0.10},
+    "unsupportedStageRate": {"max": 0.10},
+    "questionSpecificity": {"min": 0.75},
+    "positioningUsefulness": {"min": 0.75},
+    "weakSignalCalibration": {"min": 0.90},
+    "semanticValidationFailureRate": {"max": 0.20},
+    "semanticRepairRate": {"min": 0.75}
+  },
+  "relative": {
+    "qualityMetricMaxDrop": 0.02,
+    "rateMetricMaxIncrease": 0.02,
+    "p95LatencyMaxIncrease": 0.15,
+    "estimatedCostMaxIncrease": 0.20,
+    "tavilyCreditsMaxIncrease": 0.20
+  }
+}

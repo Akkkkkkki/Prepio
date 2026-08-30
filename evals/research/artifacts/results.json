@@ -1,0 +1,236 @@
+{
+  "schemaVersion": 1,
+  "corpusVersion": "published-reports-v1",
+  "thresholdsLockedOn": "2026-08-30",
+  "baseline": {
+    "runId": "production-v2-baseline-2026-08-30",
+    "metrics": {
+      "caseCount": 8,
+      "top5HitRate": 1,
+      "recallMissCount": 0,
+      "citationPrecision": 0.8235,
+      "citationResolutionRate": 0.9412,
+      "stageAccuracy": 1,
+      "unsupportedStageRate": 0.1364,
+      "degradedRunRate": 0.125,
+      "realQuestionYield": 2.25,
+      "questionSpecificity": 0.725,
+      "semanticValidationFailureRate": 0.375,
+      "semanticRepairRate": 0.6667,
+      "weakSignalCalibration": 1,
+      "positioningUsefulness": 0.775,
+      "latencyMs": {
+        "p50": 54000,
+        "p95": 76000
+      },
+      "modelTokens": {
+        "total": 102800,
+        "average": 12850
+      },
+      "estimatedOpenAICostUsd": {
+        "total": 0.654,
+        "average": 0.0817
+      },
+      "tavily": {
+        "calls": 16,
+        "credits": 16
+      }
+    }
+  },
+  "candidate": {
+    "runId": "production-v2-baseline-2026-08-30",
+    "metrics": {
+      "caseCount": 8,
+      "top5HitRate": 1,
+      "recallMissCount": 0,
+      "citationPrecision": 0.8235,
+      "citationResolutionRate": 0.9412,
+      "stageAccuracy": 1,
+      "unsupportedStageRate": 0.1364,
+      "degradedRunRate": 0.125,
+      "realQuestionYield": 2.25,
+      "questionSpecificity": 0.725,
+      "semanticValidationFailureRate": 0.375,
+      "semanticRepairRate": 0.6667,
+      "weakSignalCalibration": 1,
+      "positioningUsefulness": 0.775,
+      "latencyMs": {
+        "p50": 54000,
+        "p95": 76000
+      },
+      "modelTokens": {
+        "total": 102800,
+        "average": 12850
+      },
+      "estimatedOpenAICostUsd": {
+        "total": 0.654,
+        "average": 0.0817
+      },
+      "tavily": {
+        "calls": 16,
+        "credits": 16
+      }
+    }
+  },
+  "gates": [
+    {
+      "gate": "absolute.top5HitRate",
+      "pass": true,
+      "actual": 1,
+      "threshold": {
+        "min": 0.98
+      }
+    },
+    {
+      "gate": "absolute.citationPrecision",
+      "pass": false,
+      "actual": 0.8235,
+      "threshold": {
+        "min": 0.85
+      }
+    },
+    {
+      "gate": "absolute.stageAccuracy",
+      "pass": true,
+      "actual": 1,
+      "threshold": {
+        "min": 0.98
+      }
+    },
+    {
+      "gate": "absolute.degradedRunRate",
+      "pass": false,
+      "actual": 0.125,
+      "threshold": {
+        "max": 0.1
+      }
+    },
+    {
+      "gate": "absolute.unsupportedStageRate",
+      "pass": false,
+      "actual": 0.1364,
+      "threshold": {
+        "max": 0.1
+      }
+    },
+    {
+      "gate": "absolute.questionSpecificity",
+      "pass": false,
+      "actual": 0.725,
+      "threshold": {
+        "min": 0.75
+      }
+    },
+    {
+      "gate": "absolute.positioningUsefulness",
+      "pass": true,
+      "actual": 0.775,
+      "threshold": {
+        "min": 0.75
+      }
+    },
+    {
+      "gate": "absolute.weakSignalCalibration",
+      "pass": true,
+      "actual": 1,
+      "threshold": {
+        "min": 0.9
+      }
+    },
+    {
+      "gate": "absolute.semanticValidationFailureRate",
+      "pass": false,
+      "actual": 0.375,
+      "threshold": {
+        "max": 0.2
+      }
+    },
+    {
+      "gate": "absolute.semanticRepairRate",
+      "pass": false,
+      "actual": 0.6667,
+      "threshold": {
+        "min": 0.75
+      }
+    },
+    {
+      "gate": "regression.top5HitRate",
+      "pass": true,
+      "actual": 1,
+      "baseline": 1
+    },
+    {
+      "gate": "regression.citationPrecision",
+      "pass": true,
+      "actual": 0.8235,
+      "baseline": 0.8235
+    },
+    {
+      "gate": "regression.stageAccuracy",
+      "pass": true,
+      "actual": 1,
+      "baseline": 1
+    },
+    {
+      "gate": "regression.questionSpecificity",
+      "pass": true,
+      "actual": 0.725,
+      "baseline": 0.725
+    },
+    {
+      "gate": "regression.positioningUsefulness",
+      "pass": true,
+      "actual": 0.775,
+      "baseline": 0.775
+    },
+    {
+      "gate": "regression.weakSignalCalibration",
+      "pass": true,
+      "actual": 1,
+      "baseline": 1
+    },
+    {
+      "gate": "regression.semanticRepairRate",
+      "pass": true,
+      "actual": 0.6667,
+      "baseline": 0.6667
+    },
+    {
+      "gate": "regression.degradedRunRate",
+      "pass": true,
+      "actual": 0.125,
+      "baseline": 0.125
+    },
+    {
+      "gate": "regression.unsupportedStageRate",
+      "pass": true,
+      "actual": 0.1364,
+      "baseline": 0.1364
+    },
+    {
+      "gate": "regression.semanticValidationFailureRate",
+      "pass": true,
+      "actual": 0.375,
+      "baseline": 0.375
+    },
+    {
+      "gate": "regression.p95Latency",
+      "pass": true,
+      "actual": 76000,
+      "baseline": 76000
+    },
+    {
+      "gate": "regression.estimatedCost",
+      "pass": true,
+      "actual": 0.654,
+      "baseline": 0.654
+    },
+    {
+      "gate": "regression.tavilyCredits",
+      "pass": true,
+      "actual": 16,
+      "baseline": 16
+    }
+  ],
+  "passed": false
+}
