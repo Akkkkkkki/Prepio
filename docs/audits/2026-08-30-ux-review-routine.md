@@ -39,7 +39,8 @@ Backend deploy state and the two live failures below were probed live.
 390×844), guest "Preview my prep" attempt, `/auth` (autocomplete + focus probe), login, redirect
 context on a protected-route direct link, `/interviews`, `/new-interview` (research form), practice
 mode (desktop + mobile) — **text-answer save (`201`)**, **Favorite flag write (`400/42P10`)**, notes
-autosave, `/history`, `/profile`, `/pricing`, keyboard-focus pass, 200%-zoom overflow check, and an
+autosave, `/history`, `/profile`, `/pricing` (page viewed for copy; the checkout CTA was **not**
+exercised this run), keyboard-focus pass, 200%-zoom overflow check, and an
 edge-function deploy probe across all twelve functions. Screenshots under
 [`assets/2026-08-30/`](./assets/2026-08-30/). **CV/profile-derived captures were deliberately
 excluded** — the tester account carries a real seeded CV (name, phone, email, LinkedIn visible on
@@ -241,8 +242,11 @@ migration push** clears the P0 and the P1 together.
 - **Text-answer save persists.** `POST practice_answers` → `201`; session progress advanced to
   "1 answered" live. **Save & Continue is correctly disabled on an empty answer** (error prevention).
 - **Protected-route redirects preserve intent.** Logged-out direct links to `/practice` and
-  `/dashboard` both bounce to `/auth` and show *"Continue to Practice."* — the redirect-context
-  pattern the design principles call for.
+  `/dashboard` both bounce to `/auth` with a route-specific banner — `/practice` → *"Continue to
+  Practice."* (banner text captured live); `/dashboard` → *"Continue to Dashboard."* (the intent
+  label from `AUTH_RESUME_LABELS`; only the redirect + `/practice` banner were captured live this
+  run, `/dashboard`'s label is code-confirmed) — the redirect-context pattern the design principles
+  call for.
 - **`/interviews` resumes well.** Cards show state + progress with **Continue practice** and **Plan**
   one click away. [`05-d-interviews.png`](./assets/2026-08-30/05-d-interviews.png)
 - **`/pricing` copy is honest and concrete.** *"Research, prep plans, and practice stay free. Paid
@@ -282,7 +286,7 @@ are code-confirmed / carried (the form was not re-submitted).
 | Mobile usability | 4 | 4 | = | **(live)** Practice-mobile strong: no overflow, ≥44px, fixed bottom bar, question dominates. (Landing/auth targets still <44px — P3.) |
 | Resume/profile trust | 4 | 4 | = | **(live)** Profile shows CV source + honest upgrade copy; inline CV-privacy copy present (PREPIO-37 done). Structured *import* (`profile-import`) undeployed (P0). |
 | Dashboard/history/resume | 3 | 3 | = | **(live)** Interviews cards resume well, but `/history` empty despite in-progress work (P3 #5). |
-| Error/empty states | 4 | 4 | = | **(live)** Guest-preview, checkout, and flag failures show honest recoverable copy; **transcription now fails honestly (#311)** — an improvement within the 4. |
+| Error/empty states | 4 | 4 | = | **(live)** Guest-preview and flag failures show honest recoverable copy **live**; **transcription now fails honestly (#311)** — an improvement within the 4. Checkout's error copy is **carried/code-confirmed, not live this run** — the `/pricing` CTA was not exercised (only `create-checkout-session`'s 404 was probed), so a checkout-UI regression can't be ruled out here. |
 | Accessibility | 2 | **3** | **▲** | **(live)** Landing `<h1>` now present (#315), focus rings visible, redirect context preserved, 200% zoom no overflow — but `/auth` autocomplete null (#3), no practice `<h1>` / mobile no headings (#4) remain. |
 | Copy quality | 4 | 4 | = | **(live)** Research/dashboard/profile/pricing copy honest and specific; "try again in a moment" on a permanent failure is the one off-note (P1 rider). |
 
@@ -302,7 +306,7 @@ Two product-code commits merged to `main` since the last review (`32e28da`, `a96
 | Practice question-as-hero (desktop + mobile) | **Holding** ✅ | No overflow, ≥44px, fixed bottom bar, large bold question on mobile. |
 | Text-answer save | **Holding** ✅ | `201`; progress advanced live. |
 | Notes autosave ("Saving draft…") | **Holding** ✅ | Live indicator, honest device-local copy. |
-| Protected-route redirect context | **Holding** ✅ | `/practice`, `/dashboard` → `/auth` with "Continue to Practice." |
+| Protected-route redirect context | **Holding** ✅ | `/practice`, `/dashboard` → `/auth`; route-specific banner ("Continue to Practice." captured live; "Continue to Dashboard." code-confirmed). |
 | Guest preview | **Still broken** ❌ | `research-preview` 404 → CORS → "We couldn't build the preview." (P0 #1) |
 | Stripe checkout / portal / webhook | **Still broken** ❌ | 404 NOT_FOUND. (P0 #1) |
 | Favorite/Needs-work flag write | **Still broken** ❌ | `400 / 42P10`; fixing migration exists but unapplied. (P1 #2) |
