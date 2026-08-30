@@ -290,6 +290,18 @@ failure in the review because of when it happened:
   not exist. A maintainer executing PREPIO-124 from that sentence would have re-shipped
   a schema and a frontend that were already there.
 
+A later pass added one more turn of the same screw. Asked to review this branch for
+merge readiness, I swept the docs for exactly this residue with
+`grep -E "billing[^.]{0,40}(is|are) (dead|not deployed)"`, found nothing outside the
+corrected files, and reported the sweep clean. `ROADMAP.md` still said guest preview,
+billing, paid feedback, CV import and voice transcription were dead in production —
+the sweep missed it because roughly fifty characters separate "billing" from "are
+dead" there and my window allowed forty. A measurement scoped too narrowly, inside
+the check written to catch measurements scoped too narrowly, reported as a clean
+result rather than as the limit of what it could see. The correct habit is the one
+this note keeps arriving at from different directions: say what the query covered,
+not what the world contains.
+
 The timing is the point. The commit that introduced that sentence is the same commit
 whose message reads *"an undeployed function does not necessarily darken the whole
 feature, so check what each one actually gates before assuming."* Writing the lesson

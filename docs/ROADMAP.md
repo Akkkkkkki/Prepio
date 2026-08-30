@@ -140,12 +140,17 @@ can dead-end on empty states that explain the menu.
   frozen since 2026-05-15: 8 migrations are unapplied and 7 edge functions
   (`research-preview`, `create-checkout-session`, `create-portal-session`, `stripe-webhook`,
   `answer-feedback`, `profile-import`, `practice-audio-transcribe`) are undeployed, so guest
-  preview, billing, paid feedback, CV import, and **voice transcription** are dead in
-  production regardless of what this file says is shipped. Note the precision on the last
-  one: the `practice-audio` bucket comes from a migration that *is* applied, and
-  `Practice.tsx` uploads the recording and saves `audio_path` before invoking transcription
-  asynchronously — so recording and saving a voice answer still work in production, and only
-  transcript generation fails (with the honest notice). Everything else below is downstream
+  preview, the **billing purchase flow**, paid feedback, CV import, and **voice
+  transcription** are dead in production regardless of what this file says is shipped.
+  Note the precision on the last two, because PREPIO-124's smoke-test list is built from
+  these claims and a wholesale "dead" would send it to redeploy working surfaces. The
+  `practice-audio` bucket comes from a migration that *is* applied, and `Practice.tsx`
+  uploads the recording and saves `audio_path` before invoking transcription
+  asynchronously — so recording and saving a voice answer still work, and only transcript
+  generation fails (with the honest notice). Likewise `billing_v1` *is* applied and the
+  frontend tracks `main`, so `/pricing`, `/billing/return` and the `getEntitlement` read
+  are live and simply always resolve free; what is missing is Checkout, the Customer
+  Portal, and the webhook that would write a paid row. Everything else below is downstream
   of this.
 - **Measure before improving (PREPIO-154, PREPIO-148, PREPIO-162).** A backtest corpus, an
   eval harness reporting top-5 hit rate / citation precision / stage accuracy / degradation
