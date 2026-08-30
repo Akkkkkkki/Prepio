@@ -219,17 +219,35 @@ lifted from a title or a header comment rather than measured.
   the migration-repair caveat it uncovered is the more valuable half.
 - **PREPIO-106's design system.** I wrote a Shipped bullet reading "a locked design
   system: 2 radii, 1 accent, ≤2 badge styles" straight from the issue title. Measured:
-  `src/` carries **10 distinct radius values** (`rounded-2xl`, the most common at 82
-  uses, is not even in the documented scale) and `badge.tsx` exposes **4 variants**.
+  `src/` carries **11 distinct non-directional radius values**. `rounded-2xl`, the most
+  common at 82 uses, is not in the documented scale at all; `rounded-3xl`, which
+  `DESIGN_PRINCIPLES.md` explicitly tells you to avoid, is still used 4× in
+  `src/App.tsx`. `badge.tsx` exposes **4 variants**.
   PR #189 shipped the token *policy* into `DESIGN_PRINCIPLES.md` — which is one of
   PREPIO-106's four acceptance criteria, genuinely met — but not the migration its
   other criteria call for ("across the app"). The bullet is now scoped to the policy,
   and the residue is **PREPIO-175**.
 
-The second one is the sharper lesson: this review corrected Linear against code in
-one direction (issues stale relative to shipped work) and then made the opposite
-error in the other direction, trusting a `Done` status as a description of the code.
-A status is evidence about process, not about the tree.
+- **PREPIO-41 and PREPIO-47's practice features.** Same again: I listed the free-tier
+  rubric self-check and follow-up drilling as Shipped from their Done status. The UI did
+  ship, but `interview-research` hardcodes `evaluation_criteria: []` and
+  `follow_up_questions: []` and never writes `good_answer_signals` at all
+  (`index.ts:1030-1032`), so on any question the current pipeline generates there is
+  nothing for either feature to render. Filed as **PREPIO-176**.
+
+Three of the four came from the same move — trusting a `Done` status, an issue title,
+or a header comment as a description of the tree. That is the sharper lesson, and it
+cuts against this review's own premise: it corrected Linear against code in one
+direction (issues stale relative to shipped work) while making the opposite error in
+the other. **A status is evidence about process, not about the code.** PREPIO-176 is the
+one that matters most — two features users can reach render empty, and neither the Done
+status nor several UX review passes caught it, because the UI degrades silently to blank
+rather than failing.
+
+A fourth correction, also from Codex: my radius count was 10 because I scanned only
+`src/pages` and `src/components`. Scanning all of `src/` gives 11 — the miss was
+`rounded-3xl` in `src/App.tsx`, which is one of the two values the design doc names as
+forbidden. Scoping a measurement too narrowly is the same error in a smaller costume.
 
 ## What would stop this recurring
 
