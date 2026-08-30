@@ -323,9 +323,16 @@ live-confirmation updates on the standing issues (done via Linear comments, not 
    Make the question a heading (page `<h1>`, or visually-hidden "Practice" `<h1>` + question `<h2>`)
    and ensure it renders as a heading on the mobile breakpoint. Quality & Maintenance; `Chore` +
    `area:practice`. Cross-link this audit. → **[PREPIO-178](https://linear.app/qiuyue/issue/PREPIO-178)** (filed this run).
-2. **[P0] Deploy the seven missing edge functions + apply the seven pending migrations** — clear the
+2. **[P0] Deploy the seven missing edge functions + apply the pending migrations** — clear the
    gateway `NOT_FOUND` across guest preview, checkout, portal, webhook, answer-feedback,
-   profile-import, transcribe; add a deploy-parity check. → **[PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124)** (existing; confirmed live 2026-08-30).
+   profile-import, transcribe; add a deploy-parity check. **On the migration count:** this run probed
+   *edge-function* presence but did **not** refresh migration history, so do not treat any fixed count
+   as verified. Only `20260710203000_question_flags_per_type.sql` is directly confirmed unapplied
+   (live `42P10`); the 2026-08-13 audit lists **eight** migrations newer than the last known
+   production baseline (including `20260808110000_profile_story_linking`, PREPIO-57) whose applied
+   state is unverified — reconcile with a direct `list_migrations` diff and confirm each rather than
+   assuming a number. → **[PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124)** (existing;
+   confirmed live 2026-08-30).
 3. **[P1] Apply `20260710203000_question_flags_per_type.sql`** so the Favorite/Needs-work upsert
    stops returning `42P10`. → **[PREPIO-170](https://linear.app/qiuyue/issue/PREPIO-170)** (existing;
    confirmed live 2026-08-30).
@@ -345,3 +352,7 @@ live-confirmation updates on the standing issues (done via Linear comments, not 
 - All other findings map to existing open issues (PREPIO-124, -170, -123, -107); no new issues
   needed. PREPIO-171 (landing `<h1>`) and the #311 transcription honesty fix are **Done** — removed
   from the standing carry list.
+
+---
+
+Capability: live browser verified
