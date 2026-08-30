@@ -6,7 +6,8 @@ Prepio is a React/Vite app backed by Supabase Auth, Postgres, Storage, Realtime,
 
 Main areas:
 
-- `src/pages/Home.tsx`: research entry, guest preview, resume upload/paste, auth handoff.
+- `src/pages/Interviews.tsx`: "Your interviews" — the signed-in landing surface (`/interviews`); interview cards with state, answered counter, needs-work count, and one-tap practice.
+- `src/pages/Home.tsx`: research entry, guest preview, resume upload/paste, auth handoff. Serves `/` for guests and `/new-interview` when signed in.
 - `src/components/preview/*`: unauthenticated research preview UI.
 - `src/pages/Practice.tsx`: question practice, notes, audio recording, answer save, completion.
 - `src/pages/Profile.tsx` and `src/pages/profile/*`: canonical candidate profile, resume versions, import/merge flow.
@@ -30,7 +31,17 @@ Supabase Edge Functions:
 - `profile-import`: creates candidate-profile import drafts.
 - `practice-audio-transcribe`: transcribes uploaded practice recordings.
 - `answer-feedback`: paid-only structured coaching for saved practice answers.
+- `create-checkout-session`: creates a Stripe Checkout session from a cadence, server-side price mapping only.
+- `create-portal-session`: creates a Stripe Customer Portal session for self-serve plan management.
 - `stripe-webhook`: syncs Stripe subscription state into Supabase billing tables.
+
+> **Deployment state (live-probed 2026-08-27).** Only `interview-research`,
+> `company-research`, `job-analysis`, `cv-analysis`, and `interview-question-generator` are
+> deployed to production. The other seven — `research-preview`, `create-checkout-session`,
+> `create-portal-session`, `stripe-webhook`, `answer-feedback`, `profile-import`,
+> `practice-audio-transcribe` — return the gateway `404` and have never been deployed. "In
+> this repo" and "in production" are not the same thing for anything in that list. Tracked as
+> PREPIO-124 (Urgent).
 
 Shared function utilities live under `supabase/functions/_shared`.
 
@@ -64,12 +75,19 @@ Core tables:
 - `billing_customers`: user to Stripe customer mapping.
 - `billing_subscriptions`: Stripe subscription state and entitlement source.
 - `billing_events`: Stripe webhook idempotency/audit log.
-- `ops.scraped_urls` and `ops.tavily_searches`: research cache and operational logging.
+- `ops.scraped_urls` and `ops.tavily_searches`: research cache and operational logging. `ops.tavily_searches` is written on every Tavily call; `ops.scraped_urls` is read by `company-research` Phase 0 but **nothing currently writes it** — see [`RESEARCH_PIPELINE.md`](./RESEARCH_PIPELINE.md) and PREPIO-51.
 
 Not yet shipped:
 
 - `usage_events`
 - `notification_jobs`
+
+> `supabase/schema.sql` is a stale `db:pull` snapshot: it predates the billing and
+> guest-preview work and is missing `billing_customers`, `billing_subscriptions`,
+> `billing_events`, `research_previews`, and `research_preview_rate_limits`. Treat
+> [`supabase/migrations/`](../supabase/migrations) as the source of truth for schema until
+> the snapshot is refreshed (which needs PREPIO-124's deploy first, since `db:pull` reads
+> production).
 
 ## Storage
 
@@ -117,7 +135,9 @@ before changing anything under `supabase/functions/interview-research`,
 1. User chooses stages/questions.
 2. Notes autosave locally while practicing.
 3. User can save text, audio, or both.
-4. Audio is uploaded to `practice-audio` and transcribed.
+4. Audio is uploaded to `practice-audio` and transcribed. A failed transcribe call raises a
+   non-blocking "Transcription unavailable. / Your answer was still saved." notice rather
+   than failing silently; a successful-but-empty transcript stays silent.
 5. The answer row stores text, `audio_path`, `transcript_text`, elapsed time, and optional self-rating.
 
 ### Billing
@@ -129,7 +149,9 @@ before changing anything under `supabase/functions/interview-research`,
 5. `billing_events` prevents duplicate processing.
 6. Entitlement reads derive `free` or `paid` from the subscription row.
 
-Checkout and Customer Portal session creation are not implemented yet.
+Checkout and Customer Portal session creation are implemented (`create-checkout-session`,
+`create-portal-session`, both with local handler tests). They are not deployed to production
+yet — see PREPIO-124.
 
 ## Security Model
 

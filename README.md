@@ -21,6 +21,10 @@ Not shipped yet:
 - Readiness scoring based on feedback.
 - Lifecycle notifications.
 
+> "Shipped" above means merged to `main`. The production backend has been frozen since
+> 2026-05-15 — guest preview, billing, paid answer feedback, CV import, and voice
+> transcription are not deployed there yet. See `docs/ARCHITECTURE.md` and PREPIO-124.
+
 ## Stack
 
 - Frontend: React, TypeScript, Vite, Tailwind, shadcn-style UI components, TanStack Query.
@@ -33,11 +37,14 @@ Not shipped yet:
 
 ```bash
 npm test
+npm run typecheck
 npm run build
 make test
 ```
 
-`npm test` is the main local safety net. `make test` runs older Deno files and should not be treated as a release gate until those tests are updated.
+`npm test` and `npm run typecheck` are the main local safety net and both are blocking CI
+steps. `make test` runs older Deno files and should not be treated as a release gate until
+those tests are updated.
 
 ## Key Docs
 
