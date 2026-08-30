@@ -165,13 +165,14 @@ PR carrying this note: PREPIO-175 (finish the design-token migration), **PREPIO-
 fourth flaky test in `Practice.mobile.test.tsx`). PREPIO-174 closed as a duplicate of
 PREPIO-169.
 
-That the review round produced fewer issues than the review *of* the review is worth
-recording plainly rather than smoothing over.
+That the Codex rounds on this PR produced **three** issues against the review's own
+**four** — nearly as many, from reviewing a docs change — is worth recording plainly
+rather than smoothing over.
 
 **Project hygiene.** PREPIO-128 and its seven children (129–135) had **no project**,
 contrary to the CLAUDE.md convention. All eight moved to Quality & Maintenance.
 
-**Scope and root-cause comments (7).** PREPIO-48, 51, 55, 110, 124, 135, 155.
+**Scope and root-cause comments (9).** PREPIO-48, 51, 55, 106, 110, 124, 135, 155, 175.
 
 **Left deliberately alone.** PREPIO-55 stays In Review: CLAUDE.md says not to move
 an issue by hand while a PR exists, and draft PR #247 is the reason for the status.
@@ -216,10 +217,11 @@ Linear by identifier rather than re-described here:
 - **PREPIO-171** (Medium), **PREPIO-173** (Medium), **PREPIO-172** (Low),
   **PREPIO-169** (Low).
 
-### 7. The review's own two errors, caught in Codex review
+### 7. The review's own errors, caught in Codex review
 
 Recorded because the failure mode is the one this whole note is about — a claim
-lifted from a title or a header comment rather than measured.
+lifted from a title, a status, or a header comment rather than measured. Codex ran
+five rounds on the PR carrying this note and found something every time.
 
 - **`schema.sql` root cause.** I gave one reason for five missing tables when there
   are two, and the reason was wrong for three of them. Corrected in finding 2 above;
@@ -242,19 +244,38 @@ lifted from a title or a header comment rather than measured.
   (`index.ts:1030-1032`), so on any question the current pipeline generates there is
   nothing for either feature to render. Filed as **PREPIO-176**.
 
-Three of the four came from the same move — trusting a `Done` status, an issue title,
-or a header comment as a description of the tree. That is the sharper lesson, and it
-cuts against this review's own premise: it corrected Linear against code in one
-direction (issues stale relative to shipped work) while making the opposite error in
-the other. **A status is evidence about process, not about the code.** PREPIO-176 is the
-one that matters most — two features users can reach render empty, and neither the Done
-status nor several UX review passes caught it, because the UI degrades silently to blank
-rather than failing.
+Those three came from one move — trusting a `Done` status, an issue title, or a header
+comment as a description of the tree. That is the sharper lesson, and it cuts against
+this review's own premise: it corrected Linear against code in one direction (issues
+stale relative to shipped work) while making the opposite error in the other. **A status
+is evidence about process, not about the code.** PREPIO-176 matters most of the three —
+two features users can reach render empty, and neither the Done status nor several UX
+review passes caught it, because the UI degrades silently to blank rather than failing.
 
-A fourth correction, also from Codex: my radius count was 10 because I scanned only
-`src/pages` and `src/components`. Scanning all of `src/` gives 11 — the miss was
-`rounded-3xl` in `src/App.tsx`, which is one of the two values the design doc names as
-forbidden. Scoping a measurement too narrowly is the same error in a smaller costume.
+Two more were **scoping a measurement too narrowly and reporting the result as if it
+were the whole**:
+
+- The radius count was 10 because I scanned only `src/pages` and `src/components`. All
+  of `src/` gives 11 — the miss was `rounded-3xl` in `src/App.tsx`, one of the two
+  values the design doc names as forbidden.
+- I reported that CI had produced no run at all for one head and suggested the Actions
+  configuration was broken. It had: I queried `status: completed` while the run was in
+  progress, then `status: queued` after it had started, so it fell between both filters.
+  Absence of evidence from a badly-scoped query, stated as evidence of absence — and
+  stated in the CI section of the very PR arguing against exactly that.
+
+And three were **residues**: a claim corrected in one place while its restatements
+elsewhere stood — the Deno file counts, the audit-index row, the two remaining
+"shipped" sentences for PREPIO-47, and these issue counts. A correction is not finished
+until every place repeating the claim agrees, which is a separate discipline from
+getting the original claim right.
+
+The uncomfortable summary: a review whose subject is claims that quietly stopped being
+true produced, in its own text, claims that were never true, claims that stopped being
+true mid-review, and claims corrected in one place but not another. That is not an
+argument against the review — the findings it produced are real and verified. It is an
+argument that prose is a bad medium for facts that change, and the reason the
+recurrence lessons below lead with measurement rather than with diligence.
 
 ## What would stop this recurring
 
