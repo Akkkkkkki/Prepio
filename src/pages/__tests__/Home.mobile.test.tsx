@@ -363,6 +363,39 @@ describe("Home flow", () => {
     });
   });
 
+  it("gives the guest landing exactly one h1 with a valid heading outline (desktop)", () => {
+    mockUseIsMobile.mockReturnValue(false);
+
+    renderHome();
+
+    // The guest hero must be the single top-level heading so screen-reader
+    // wayfinding has an anchor (WCAG 2.4.6). Built-in matchers only, to keep
+    // this file off the typecheck baseline (docs/TESTING.md).
+    const h1s = document.querySelectorAll("h1");
+    expect(h1s.length).toBe(1);
+    expect(h1s[0].textContent).toContain(
+      "Walk into your next interview knowing exactly what to expect.",
+    );
+
+    // Sections below the hero step down one level at a time — no h1 -> h3 skip.
+    expect(screen.getByText("How it works").tagName).toBe("H2");
+    expect(
+      screen.getByText("How Stripe Senior Product Manager questions look in Prepio").tagName,
+    ).toBe("H2");
+  });
+
+  it("keeps the single guest h1 on mobile", () => {
+    mockUseIsMobile.mockReturnValue(true);
+
+    renderHome();
+
+    const h1s = document.querySelectorAll("h1");
+    expect(h1s.length).toBe(1);
+    expect(h1s[0].textContent).toContain(
+      "Walk into your next interview knowing exactly what to expect.",
+    );
+  });
+
   it("shows the compact teaser for anonymous visitors instead of the full research form", () => {
     mockUseIsMobile.mockReturnValue(false);
 
