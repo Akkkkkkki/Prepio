@@ -5,22 +5,29 @@ import Practice from "../Practice";
 
 // Every test in this file renders the full Practice page and waits on question
 // content that only appears after several async settles (search load → session
-// create → question render). This whole file is prone to CI flakes of one shape
-// — "Unable to find an element with the text …" — and it has two distinct causes
-// that need two different levers:
+// create → question render). This whole file is prone to one CI flake shape —
+// "Unable to find an element with the text …" — with two contributing causes:
 //
-//  1. On a heavily loaded runner the start-up chain itself takes longer than the
-//     5000ms findBy*/waitFor ceiling from vitest.setup.ts, so a single attempt's
-//     `findByText` gives up before the tree settles. The fix is more headroom per
-//     attempt, not more attempts — on a persistently slow runner every retry hits
-//     the same ceiling (observed on PREPIO-177: the aria-live test failed all 3
-//     attempts at exactly 5000ms). So this file raises the ceiling to 10000ms,
-//     still well under the 20000ms testTimeout.
-//  2. The vitest worker is occasionally terminated mid-run ("Worker task was
-//     terminated" / "relay down"); no timeout helps that, only re-running on a
-//     fresh worker. That is CI_FLAKE_RETRY, applied at the describe level so
-//     tests added later inherit it — replacing the per-test guards that were
-//     added one incident at a time (PREPIO-117/142/146/177).
+//  1. PRIMARY, and the one actually reproduced. On a heavily loaded runner the
+//     start-up chain takes longer than the 5000ms findBy*/waitFor ceiling from
+//     vitest.setup.ts, so a single attempt's `findByText` gives up before the
+//     tree settles (observed on PREPIO-177: the aria-live test failed all 3
+//     attempts at exactly 5000ms on a runner ~2x slower than local). The fix is
+//     more headroom per attempt — this file raises the ceiling to 10000ms, still
+//     well under the 20000ms testTimeout. More *attempts* do not help this case:
+//     on a persistently slow runner every retry hits the same ceiling.
+//  2. SECONDARY. A one-off transient hiccup in a *single* attempt (e.g. a GC
+//     pause) that a re-run within the same living worker gets past. That is
+//     CI_FLAKE_RETRY, applied at the describe level so tests added later inherit
+//     it — replacing the per-test guards added one incident at a time
+//     (PREPIO-117/142/146/177).
+//
+// What retry deliberately does NOT claim to fix: an actually terminated worker
+// ("Worker task was terminated" / "relay down"). vitest's `retry` re-runs inside
+// the current worker process, so once that process dies there is nothing left to
+// schedule another attempt — the run fails regardless. Recovering from true
+// worker death needs a runner/job-level retry (a new process), which is a CI
+// workflow change, not a test-file one, and is intentionally out of scope here.
 //
 // The assertions are correct: the file passes 30/30 locally on repeat. See
 // docs/TESTING.md → "Practice suite CI flake policy".
