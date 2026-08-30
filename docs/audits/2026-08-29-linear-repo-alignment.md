@@ -221,8 +221,10 @@ Linear by identifier rather than re-described here:
 ### 7. The review's own errors, caught in Codex review
 
 Recorded because the failure mode is the one this whole note is about — a claim
-lifted from a title, a status, or a header comment rather than measured. Codex ran
-five rounds on the PR carrying this note and found something every time.
+lifted from a title, a status, or a header comment rather than measured. Codex reviewed
+the PR carrying this note round after round and found something on every one — the count
+is deliberately not stated here, because it kept rising and the number itself became one
+more claim that went stale. What matters is the mechanisms, below, not the tally.
 
 - **`schema.sql` root cause.** I gave one reason for five missing tables when there
   are two, and the reason was wrong for three of them. Corrected in finding 2 above;
