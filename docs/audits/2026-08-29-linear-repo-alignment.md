@@ -209,12 +209,37 @@ Linear by identifier rather than re-described here:
 - **PREPIO-171** (Medium), **PREPIO-173** (Medium), **PREPIO-172** (Low),
   **PREPIO-169** (Low).
 
+### 7. The review's own two errors, caught in Codex review
+
+Recorded because the failure mode is the one this whole note is about — a claim
+lifted from a title or a header comment rather than measured.
+
+- **`schema.sql` root cause.** I gave one reason for five missing tables when there
+  are two, and the reason was wrong for three of them. Corrected in finding 2 above;
+  the migration-repair caveat it uncovered is the more valuable half.
+- **PREPIO-106's design system.** I wrote a Shipped bullet reading "a locked design
+  system: 2 radii, 1 accent, ≤2 badge styles" straight from the issue title. Measured:
+  `src/` carries **10 distinct radius values** (`rounded-2xl`, the most common at 82
+  uses, is not even in the documented scale) and `badge.tsx` exposes **4 variants**.
+  PR #189 shipped the token *policy* into `DESIGN_PRINCIPLES.md` — which is one of
+  PREPIO-106's four acceptance criteria, genuinely met — but not the migration its
+  other criteria call for ("across the app"). The bullet is now scoped to the policy,
+  and the residue is **PREPIO-175**.
+
+The second one is the sharper lesson: this review corrected Linear against code in
+one direction (issues stale relative to shipped work) and then made the opposite
+error in the other direction, trusting a `Done` status as a description of the code.
+A status is evidence about process, not about the tree.
+
 ## What would stop this recurring
 
 The drift found here was cheap to fix and expensive to find — six hours of reading
 code to confirm claims that were wrong for months. Two things would have caught most
 of it earlier:
 
+0. **Measure the claim, not the label.** Both errors above came from restating a
+   title, a header comment, or an issue status as a fact about the code. Every claim
+   in this note that was *measured* held up; every one that was *inherited* did not.
 1. **A doc-touch expectation on pipeline PRs.** Every stale claim in
    `RESEARCH_PIPELINE.md` was stale because the PR that made it untrue did not touch
    the doc. The rollout table now has a State column, which is the cheapest possible

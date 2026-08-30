@@ -88,7 +88,14 @@ This tracks product reality against the latest `main` branch.
   (PREPIO-100, PREPIO-105, PREPIO-114, PREPIO-127).
 - The redundant research switchers are gone and the Plan is de-densified to hero + one CTA +
   roadmap + collapsed "Why this plan" (PREPIO-102, PREPIO-103, PREPIO-104).
-- A locked design system: 2 radii, 1 accent, ≤2 badge styles (PREPIO-106).
+- A documented design-token policy — a 2-step radius scale (`rounded-xl` for normal
+  cards, `rounded-[20px]` for prominent panels), one accent, neutral-plus-primary badges,
+  sentence-case micro-labels — written into
+  [`docs/DESIGN_PRINCIPLES.md`](./DESIGN_PRINCIPLES.md) (PREPIO-106). The **policy**
+  shipped; the migration of existing surfaces did not. `src/` still carries 10 distinct
+  radius values (`rounded-2xl` is the most common and is not in the scale) and
+  `badge.tsx` still exposes 4 variants, so read the tokens as the rule for new work
+  rather than a description of the current UI. Residue tracked in PREPIO-175.
 
 ## Current Priorities
 
