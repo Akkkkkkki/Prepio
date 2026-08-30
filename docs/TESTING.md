@@ -142,8 +142,18 @@ and re-measured 2026-08-29 (TypeScript 5.9.3):
 
 There is a third ratchet for the edge functions:
 [`scripts/check-deno-baseline.sh`](../scripts/check-deno-baseline.sh) holds
-`supabase/functions/**` at **19** pre-existing errors, measured across all 38 non-test
-sources in PR #294. Before that script, nothing in CI type-checked that directory at all.
+`supabase/functions/**` at **19** pre-existing errors (`BASELINE=19`). It runs
+`deno check` over **every `.ts` file under `supabase/functions`, with no exclusions** —
+56 files as of 2026-08-29, being 40 sources plus 16 `*.test.ts`. That covers both the
+standalone modules no entrypoint imports (`_shared/duckduckgo-fallback.ts`,
+`_shared/config.example.ts`) and the edge-function tests, so **a change to an
+edge-function test is type-checked by this gate**. Nothing else checks any of it: no
+tsconfig `include` reaches this directory, and vitest's `typecheck` option defaults to
+false and is not enabled in this repo's config.
+
+The `19` itself was measured by CI in PR #294. The script's header comments record that
+measurement and the file counts as they stood then; the tree has grown since, so read
+those numbers as history, not as current coverage.
 
 To see the actual errors, run `npx tsc -p tsconfig.app.json --noEmit`. If your change fixes some of the backlog, lower `APP_BASELINE` in `scripts/check-typecheck-baseline.sh` in the same PR to lock in the improvement. Never raise a baseline without a written justification in the PR — the count-only ratchet cannot tell you *which* errors are new, so compare `npx tsc` output against `main` when the gate trips.
 
