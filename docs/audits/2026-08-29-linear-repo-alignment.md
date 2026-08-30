@@ -264,6 +264,16 @@ were the whole**:
   progress, then `status: queued` after it had started, so it fell between both filters.
   Absence of evidence from a badly-scoped query, stated as evidence of absence — and
   stated in the CI section of the very PR arguing against exactly that.
+- **`docs/BILLING.md` was never opened.** It says a dedicated Checkout return page
+  "remains tracked separately" while its own step 5, the `/billing/return` route in
+  `App.tsx`, and the ROADMAP all describe it working — the *identical* self-contradiction
+  reported as a headline finding against `ARCHITECTURE.md`, sitting in a file this review
+  skipped. The cause: I scoped the pass to the docs I expected to be stale rather than to
+  every doc, then wrote that all of them had been reconciled.
+
+The third of those is the one to learn from: the other two were bad queries, but this
+was a bad *sample frame* — the measurement was fine, it just never covered the thing that
+was wrong. A review that picks its inputs by expectation will confirm expectations.
 
 And three were **residues**: a claim corrected in one place while its restatements
 elsewhere stood — the Deno file counts, the audit-index row, the two remaining
