@@ -1237,8 +1237,8 @@ const Home = () => {
               Research-first interview prep
             </div>
             <div className="space-y-3">
-              <CardTitle className="text-[32px] leading-[1.15] tracking-tight md:text-4xl">
-                Walk into your next interview knowing exactly what to expect.
+              <CardTitle asChild className="text-[32px] leading-[1.15] tracking-tight md:text-4xl">
+                <h1>Walk into your next interview knowing exactly what to expect.</h1>
               </CardTitle>
               <CardDescription className="text-base leading-7">
                 Tell us the company. We research the stages, the likely questions, and how your
@@ -1288,8 +1288,8 @@ const Home = () => {
               <p className="mt-5 text-xs font-medium text-muted-foreground">
                 Tailored preview
               </p>
-              <CardTitle className="mt-3 max-w-md text-2xl tracking-tight">
-                Your {formData.company.trim()} preview will appear here
+              <CardTitle asChild className="mt-3 max-w-md text-2xl tracking-tight">
+                <h2>Your {formData.company.trim()} preview will appear here</h2>
               </CardTitle>
               <CardDescription className="mt-3 max-w-md text-sm leading-6">
                 Select &quot;Preview my prep&quot; to research likely stages and questions for this
@@ -1308,8 +1308,8 @@ const Home = () => {
                   {GUEST_SAMPLE_COMPANY} · {GUEST_SAMPLE_ROLE}
                 </Badge>
               </div>
-              <CardTitle className="text-2xl tracking-tight">
-                How {GUEST_SAMPLE_COMPANY} {GUEST_SAMPLE_ROLE} questions look in Prepio
+              <CardTitle asChild className="text-2xl tracking-tight">
+                <h2>How {GUEST_SAMPLE_COMPANY} {GUEST_SAMPLE_ROLE} questions look in Prepio</h2>
               </CardTitle>
               <CardDescription className="text-sm leading-6">
                 Each question comes with the stage, difficulty, and why it matters for this company.

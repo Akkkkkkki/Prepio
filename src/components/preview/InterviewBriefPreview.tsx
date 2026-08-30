@@ -34,9 +34,11 @@ export const InterviewBriefPreview = ({ preview }: { preview: ResearchPreview })
         )}
       </div>
       <div>
-        <CardTitle className="text-2xl tracking-tight">
-          {preview.company}
-          {preview.role ? ` · ${preview.role}` : ""}
+        <CardTitle asChild className="text-2xl tracking-tight">
+          <h2>
+            {preview.company}
+            {preview.role ? ` · ${preview.role}` : ""}
+          </h2>
         </CardTitle>
         <CardDescription className="mt-2 text-sm leading-6">
           {preview.sourceSummary}
