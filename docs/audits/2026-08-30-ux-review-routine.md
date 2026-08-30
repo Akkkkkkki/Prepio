@@ -189,7 +189,7 @@ migration push** clears the P0 and the P1 together.
 - **Tracking:** [PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123) (Low, Backlog) — confirmed
   live 2026-08-30 (the fix PR #244 was closed unmerged on 2026-08-13; the work needs re-applying).
 
-### 4. **P3 (NEW this run) — Practice mode has no `<h1>`, and on mobile the screen renders *zero* headings**
+### 4. **P3 (CARRIED from 2026-08-27, new mobile evidence) — Practice mode has no `<h1>`, and on mobile the screen renders *zero* headings**
 
 - **Severity:** P3 (WCAG 1.3.1 / 2.4.6 wayfinding; the core screen, but the question is visually
   dominant so functional impact is limited)
@@ -200,6 +200,10 @@ migration push** clears the P0 and the P1 together.
   user gets **no heading anchor at all** on the most important screen. (Aria-live announcement of the
   question was audited separately under [PREPIO-38](https://linear.app/qiuyue/issue/PREPIO-38); this
   is the distinct *heading-structure* gap.)
+- **Provenance:** the desktop *no-`<h1>`, question-as-`<h3>`* half was already recorded as a P3
+  a11y note in the previous report ([`2026-08-27:252`](./2026-08-27-ux-review-routine.md)) but was
+  never ticketed; **what is new this run is the mobile zero-headings measurement.** So this is a
+  carried finding with new evidence, now filed for the first time — not a newly discovered defect.
 - **Why it matters:** heading navigation is a primary SR wayfinding tool; a user who navigates by
   headings finds nothing to jump to on `/practice`, and on mobile the page has no structural outline.
 - **Recommended fix:** make the question the page `<h1>` (or add a visually-hidden "Practice" `<h1>`
@@ -323,10 +327,12 @@ from last review both shipped and are verified; the P0 deploy freeze, the P1 fla
 
 ## Recommended tickets
 
-Most findings are already tracked; filing this run is limited to the one genuinely new item, plus
-live-confirmation updates on the standing issues (done via Linear comments, not new issues).
+Most findings are already tracked; filing this run is limited to the one previously-unticketed item
+(the practice heading-structure gap — carried from 2026-08-27 as a P3 note, now with new mobile
+evidence and filed for the first time), plus live-confirmation updates on the standing issues (done
+via Linear comments, not new issues).
 
-1. **[P3 · a11y · NEW] Practice mode has no `<h1>`; mobile practice renders zero headings.**
+1. **[P3 · a11y · carried from 2026-08-27, first ticketed] Practice mode has no `<h1>`; mobile practice renders zero headings.**
    Make the question a heading (page `<h1>`, or visually-hidden "Practice" `<h1>` + question `<h2>`)
    and ensure it renders as a heading on the mobile breakpoint. Quality & Maintenance; `Chore` +
    `area:practice`. Cross-link this audit. → **[PREPIO-178](https://linear.app/qiuyue/issue/PREPIO-178)** (filed this run).
@@ -353,8 +359,9 @@ live-confirmation updates on the standing issues (done via Linear comments, not 
 
 ### Deferred items (per CLAUDE.md hygiene convention)
 
-- New this run: **practice-mode heading structure** (item 1) — filed as
-  [PREPIO-178](https://linear.app/qiuyue/issue/PREPIO-178) (Quality & Maintenance, `Chore` +
+- Newly ticketed this run: **practice-mode heading structure** (item 1) — a carried finding
+  (desktop no-`<h1>` noted 2026-08-27, plus new mobile zero-headings evidence), filed for the first
+  time as [PREPIO-178](https://linear.app/qiuyue/issue/PREPIO-178) (Quality & Maintenance, `Chore` +
   `area:practice`).
 - All other findings map to existing open issues (PREPIO-124, -170, -123, -107); no new issues
   needed. PREPIO-171 (landing `<h1>`) and the #311 transcription honesty fix are **Done** — removed
