@@ -169,15 +169,16 @@ can dead-end on empty states that explain the menu.
 ## Later
 
 - SEO/content engine and public company interview pages.
-- Real-time conversational mock interviews. (Turn-based follow-up drilling shipped as
-  PREPIO-47; the remaining work is the live conversational layer.)
+- Real-time conversational mock interviews. (Turn-based follow-up drilling has UI but no
+  data — see PREPIO-176 under Next — so the live conversational layer sits behind that.)
 - Speech-pattern feedback after transcription quality and cost are proven.
 - More normalized relational storage for research artifacts.
 
 The practice-enhancement backlog behind the items above is tracked in the **Prepio** Linear
 team under Quality & Maintenance. PREPIO-41 (rubric self-check) and PREPIO-47 (follow-up
-"interviewer mode") have shipped; PREPIO-45 (history progress + readiness) was closed as a
-duplicate and its surface folded into PREPIO-107.
+"interviewer mode") are Done in Linear and their UI shipped, but neither can render on a
+current-pipeline question — that gap is PREPIO-176, listed under Next. PREPIO-45 (history
+progress + readiness) was closed as a duplicate and its surface folded into PREPIO-107.
 
 ## Product Decisions
 

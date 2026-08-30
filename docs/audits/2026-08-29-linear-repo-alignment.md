@@ -157,9 +157,16 @@ suite green at 427/427, and PR #60 fixed it long ago). PREPIO-56 → Done (all t
 children shipped). PREPIO-76 → In Progress (seven children shipped while the epic
 sat in Backlog). PREPIO-128 → In Progress. PREPIO-62 → Done.
 
-**New issues (4 kept).** PREPIO-170 (apply `question_flags_per_type` to production),
-PREPIO-171 (landing `<h1>`), PREPIO-172 (react-router v7), PREPIO-173
-(`schema.sql`). PREPIO-174 closed as a duplicate of PREPIO-169.
+**New issues (7 kept).** Four from the review itself: PREPIO-170 (apply
+`question_flags_per_type` to production), PREPIO-171 (landing `<h1>`), PREPIO-172
+(react-router v7), PREPIO-173 (`schema.sql`). Three more from the Codex rounds on the
+PR carrying this note: PREPIO-175 (finish the design-token migration), **PREPIO-176**
+(High — the rubric and follow-up fields the pipeline never populates), PREPIO-177 (a
+fourth flaky test in `Practice.mobile.test.tsx`). PREPIO-174 closed as a duplicate of
+PREPIO-169.
+
+That the review round produced fewer issues than the review *of* the review is worth
+recording plainly rather than smoothing over.
 
 **Project hygiene.** PREPIO-128 and its seven children (129–135) had **no project**,
 contrary to the CLAUDE.md convention. All eight moved to Quality & Maintenance.
