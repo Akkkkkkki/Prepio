@@ -69,14 +69,45 @@ while the cache does not exist. Filed as a root-cause comment on **PREPIO-51**,
 including a warning not to "fix" it by dropping the guard (the cache key is
 `(url_hash, company_name)`; an empty company would poison the table).
 
-### 2. `supabase/schema.sql` is missing five tables
+### 2. `supabase/schema.sql` is missing five tables — for two different reasons
 
 The checked-in `db:pull` snapshot has no `billing_customers`,
 `billing_subscriptions`, `billing_events`, `research_previews`, or
 `research_preview_rate_limits`, though all five have had migrations since May.
-The file is not corrupt — `db:pull` reads production, and production never received
-those migrations. It is an accurate picture of the wrong database. Filed as
-**PREPIO-173**, blocked on PREPIO-124, with a suggested CI guardrail.
+
+My first reading — "production never received those migrations" — was **wrong for
+three of them**, as Codex pointed out on the PR carrying this note. The live
+`list_migrations` check recorded in
+[`2026-07-30-ux-review-routine.md`](./2026-07-30-ux-review-routine.md) splits them:
+
+- `research_previews` / `research_preview_rate_limits` come from
+  `20260516232408_research_preview_cache`, which **is** genuinely pending. Their
+  absence is explained by the freeze.
+- The three `billing_*` tables come from `billing_v1`, which is **already applied in
+  production** as version `20260515131539`. Those tables exist in the live database,
+  so their absence from the snapshot is *not* explained by the freeze.
+
+That makes the file worse than "an accurate picture of the wrong database": it is not
+a faithful `db:pull` of any database that has existed. Filed as **PREPIO-173**, whose
+first job is now to explain the billing gap rather than assume the deploy will close
+it.
+
+**The deployment hazard this uncovered matters more than the snapshot.** Two
+already-applied migrations were re-timestamped in the repo:
+
+| Migration | Local | Production |
+|---|---|---|
+| `billing_v1` | `20260514000000` | `20260515131539` |
+| `security_hardening_and_resume_rpc` | `20260515150000` | `20260515171733` |
+
+The histories therefore diverge, and a blind `npm run db:push` can stop on the
+unmatched remote version or treat the local security migration as new and re-run it.
+The history needs reconciling (`supabase migration repair`) **before** anything is
+pushed. This caveat was recorded in the 2026-07-30 audit but had not reached
+PREPIO-124 or PREPIO-170; it has now been added to both.
+
+The pending count is unaffected: the 2026-07-30 audit found 7 pending, and
+`20260808110000_profile_story_linking` has landed since, giving the 8 recorded here.
 
 ### 3. Two issues had drifted past their own scope
 

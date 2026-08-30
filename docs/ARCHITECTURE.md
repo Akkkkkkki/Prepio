@@ -82,12 +82,20 @@ Not yet shipped:
 - `usage_events`
 - `notification_jobs`
 
-> `supabase/schema.sql` is a stale `db:pull` snapshot: it predates the billing and
-> guest-preview work and is missing `billing_customers`, `billing_subscriptions`,
-> `billing_events`, `research_previews`, and `research_preview_rate_limits`. Treat
+> `supabase/schema.sql` is a stale snapshot missing `billing_customers`,
+> `billing_subscriptions`, `billing_events`, `research_previews`, and
+> `research_preview_rate_limits`. Only the last two are explained by the deploy freeze;
+> `billing_v1` **is** applied in production (as version `20260515131539`), so the billing
+> tables exist live and the snapshot simply predates them. Treat
 > [`supabase/migrations/`](../supabase/migrations) as the source of truth for schema until
-> the snapshot is refreshed (which needs PREPIO-124's deploy first, since `db:pull` reads
-> production).
+> it is refreshed. See PREPIO-173.
+>
+> **Before any `db:push`:** the local and production migration histories diverge — two
+> already-applied migrations were re-timestamped in the repo (`billing_v1` is
+> `20260514000000` locally vs `20260515131539` in production; `security_hardening_and_resume_rpc`
+> is `20260515150000` vs `20260515171733`). A blind push can stop on the unmatched remote
+> version or re-run the local security migration as if it were new. Reconcile with
+> `supabase migration repair` first. See PREPIO-124.
 
 ## Storage
 
