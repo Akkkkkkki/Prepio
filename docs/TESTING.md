@@ -22,22 +22,32 @@ There is no configured coverage report. Do not quote a coverage percentage.
 
 `src/pages/__tests__/Practice.mobile.test.tsx` renders the full Practice page and
 waits on question content that only appears after several async settles (search
-load → session create → question render). On a contended CI runner the vitest
-worker is occasionally terminated mid-run (`Worker task was terminated` /
-`relay down`) before the tree settles. The assertions are correct — the file
-passes 30/30 locally on repeat — so this is an environmental flake, not a bug in
-a specific test.
+load → session create → question render). The whole file is prone to CI flakes of
+one shape — `Unable to find an element with the text …` — that has **two
+distinct causes needing two levers**:
 
-The async-util ceiling is already 5000ms (`vitest.setup.ts`) and `testTimeout`
-is 20000ms (`vite.config.ts`), so a longer wait does not help a killed worker.
-The mitigation is a **retry set once at the `describe` level** (`CI_FLAKE_RETRY`
-in that file), which re-runs a failed test on a fresh worker and, crucially,
-**applies to tests added later** — a test author does not need to rediscover the
-convention. This replaced four separate per-test `{ retry: 2 }` guards that had
-been added one incident at a time (PREPIO-117, PREPIO-142, PREPIO-146,
-PREPIO-177). If a new describe block is added to that file, give it
-`CI_FLAKE_RETRY` too. Retry only masks *flaky* failures — a deterministic
-failure still fails on every attempt — so it does not hide real regressions.
+1. **Slow settle on a loaded runner.** The start-up chain takes longer than the
+   default findBy*/waitFor ceiling, so a single attempt's `findByText` gives up
+   before the tree settles. `vitest.setup.ts` already raises the global ceiling
+   to 5000ms, but on a ~2× slow runner even that is hit (observed on PREPIO-177:
+   the aria-live test failed all three retry attempts at exactly 5000ms). More
+   attempts don't help here — on a persistently slow runner every retry hits the
+   same ceiling — so the file raises its own ceiling to **10000ms** in a
+   top-level `beforeAll` (still under the 20000ms `testTimeout` in
+   `vite.config.ts`).
+2. **Worker termination.** The vitest worker is occasionally killed mid-run
+   (`Worker task was terminated` / `relay down`); no timeout helps that, only a
+   re-run on a fresh worker. That is a **retry set once at the `describe` level**
+   (`CI_FLAKE_RETRY`), which **applies to tests added later** so a test author
+   doesn't rediscover the convention. It replaced four separate per-test
+   `{ retry: 2 }` guards added one incident at a time (PREPIO-117, PREPIO-142,
+   PREPIO-146, PREPIO-177).
+
+The assertions are correct — the file passes 30/30 locally on repeat — so these
+are environmental flakes, not bugs in a specific test. If a new describe block is
+added to that file, give it `CI_FLAKE_RETRY` too. Retry only masks *flaky*
+failures — a deterministic failure still fails on every attempt — so it does not
+hide real regressions.
 
 ## Most Important Covered Areas
 

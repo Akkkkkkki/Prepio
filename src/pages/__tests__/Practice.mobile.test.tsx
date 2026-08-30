@@ -1,20 +1,40 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import Practice from "../Practice";
 
 // Every test in this file renders the full Practice page and waits on question
 // content that only appears after several async settles (search load → session
-// create → question render). On a contended CI runner the vitest worker can be
-// terminated mid-run ("Worker task was terminated" / "relay down") before the
-// tree settles — an environmental flake, not a wrong assertion: the file passes
-// 30/30 locally on repeat. The 5000ms async-util ceiling in vitest.setup.ts
-// already rules out timeout starvation, so a longer wait wouldn't help a killed
-// worker; a retry re-runs the affected test on a fresh one. Applied at the
-// describe level so tests added later inherit it too, replacing the per-test
-// guards that were added one incident at a time (PREPIO-117/142/146/177). See
+// create → question render). This whole file is prone to CI flakes of one shape
+// — "Unable to find an element with the text …" — and it has two distinct causes
+// that need two different levers:
+//
+//  1. On a heavily loaded runner the start-up chain itself takes longer than the
+//     5000ms findBy*/waitFor ceiling from vitest.setup.ts, so a single attempt's
+//     `findByText` gives up before the tree settles. The fix is more headroom per
+//     attempt, not more attempts — on a persistently slow runner every retry hits
+//     the same ceiling (observed on PREPIO-177: the aria-live test failed all 3
+//     attempts at exactly 5000ms). So this file raises the ceiling to 10000ms,
+//     still well under the 20000ms testTimeout.
+//  2. The vitest worker is occasionally terminated mid-run ("Worker task was
+//     terminated" / "relay down"); no timeout helps that, only re-running on a
+//     fresh worker. That is CI_FLAKE_RETRY, applied at the describe level so
+//     tests added later inherit it — replacing the per-test guards that were
+//     added one incident at a time (PREPIO-117/142/146/177).
+//
+// The assertions are correct: the file passes 30/30 locally on repeat. See
 // docs/TESTING.md → "Practice suite CI flake policy".
 const CI_FLAKE_RETRY = { retry: 2 } as const;
+
+// vitest runs setupFiles per file and isolates module state, so this raise is
+// scoped to this file; restore the shared 5000ms default anyway for belt-and-braces.
+beforeAll(() => {
+  configure({ asyncUtilTimeout: 10000 });
+});
+
+afterAll(() => {
+  configure({ asyncUtilTimeout: 5000 });
+});
 
 const UrlSpy = () => {
   const location = useLocation();
