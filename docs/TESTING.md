@@ -18,6 +18,43 @@ The Deno files under `tests/` are legacy. `make test` can still be useful as a s
 
 There is no configured coverage report. Do not quote a coverage percentage.
 
+### Practice suite CI flake policy
+
+`src/pages/__tests__/Practice.mobile.test.tsx` renders the full Practice page and
+waits on question content that only appears after several async settles (search
+load → session create → question render). The whole file is prone to CI flakes of
+one shape — `Unable to find an element with the text …` — that has **two
+distinct causes needing two levers**:
+
+1. **Slow settle on a loaded runner (primary — the reproduced one).** The
+   start-up chain takes longer than the default findBy*/waitFor ceiling, so a
+   single attempt's `findByText` gives up before the tree settles.
+   `vitest.setup.ts` already raises the global ceiling to 5000ms, but on a ~2×
+   slow runner even that is hit (observed on PREPIO-177: the aria-live test
+   failed all three retry attempts at exactly 5000ms). More *attempts* don't help
+   here — on a persistently slow runner every retry hits the same ceiling — so the
+   file raises its own ceiling to **10000ms** in a top-level `beforeAll` (still
+   under the 20000ms `testTimeout` in `vite.config.ts`).
+2. **Transient single-attempt hiccup (secondary).** A one-off stall in a single
+   attempt (e.g. a GC pause) that a re-run within the same living worker gets
+   past. That is a **retry set once at the `describe` level** (`CI_FLAKE_RETRY`),
+   which **applies to tests added later** so a test author doesn't rediscover the
+   convention. It replaced four separate per-test `{ retry: 2 }` guards added one
+   incident at a time (PREPIO-117, PREPIO-142, PREPIO-146, PREPIO-177).
+
+`CI_FLAKE_RETRY` does **not** recover an actually terminated worker
+(`Worker task was terminated` / `relay down`): vitest's `retry` re-runs inside
+the current worker process, so once it dies there is nothing left to schedule
+another attempt. Recovering from true worker death would need a runner/job-level
+retry that starts a new process (a CI workflow change), which is out of scope for
+a test-file fix.
+
+The assertions are correct — the file passes 30/30 locally on repeat — so these
+are environmental flakes, not bugs in a specific test. If a new describe block is
+added to that file, give it `CI_FLAKE_RETRY` too. Retry only masks *flaky*
+failures — a deterministic failure still fails on every attempt — so it does not
+hide real regressions.
+
 ## Most Important Covered Areas
 
 - Search service helpers and resume versioning behavior.
