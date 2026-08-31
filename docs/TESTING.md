@@ -182,8 +182,9 @@ There is a third ratchet for the edge functions:
 `supabase/functions/**` at **19** pre-existing errors (`BASELINE=19`). It runs
 `deno check` over **every `.ts` file under `supabase/functions`, with no exclusions** —
 56 files as of 2026-08-29, being 40 sources plus 16 `*.test.ts`. That covers both the
-standalone modules no entrypoint imports (`_shared/duckduckgo-fallback.ts`,
-`_shared/config.example.ts`) and the edge-function tests, so **a change to an
+standalone modules no entrypoint imports (`_shared/config.example.ts`; the
+`_shared/duckduckgo-fallback.ts` shim counted here on 2026-08-29 was since deleted
+in PREPIO-155) and the edge-function tests, so **a change to an
 edge-function test is type-checked by this gate**. Nothing else checks any of it: no
 tsconfig `include` reaches this directory, and vitest's `typecheck` option defaults to
 false and is not enabled in this repo's config.
