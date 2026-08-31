@@ -19,10 +19,22 @@ These points override anything in older docs or code comments:
 
 - **Resume upload**: PDF and DOCX supported. Signed-in users upload from Home and Profile. Home can parse files locally before sign-in.
 - **Resume deletion**: Server-backed. Deleting a profile resume removes the saved row and stored files together.
-- **Voice recording**: Recordings are uploaded to the `practice-audio` storage bucket and transcribed via the `practice-audio-transcribe` edge function; `audio_path` and `transcript_text` are saved on the answer row.
+- **Voice recording**: Recordings are uploaded to the `practice-audio` storage bucket and transcribed via the `practice-audio-transcribe` edge function; `audio_path` and `transcript_text` are saved on the answer row. A failed transcribe call raises a non-blocking "Transcription unavailable. / Your answer was still saved." notice; a successful-but-empty transcript stays silent.
 - **Search history**: Available in authenticated navigation.
 - **Practice gestures**: Mobile swipe (60px threshold, 12px vertical suppression) plus explicit button controls.
 - **Auth**: Redirect context shown when bounced to sign-in. Sign-in and sign-up fields are stored separately.
+
+> **Production is not `main`.** The backend has been frozen since 2026-05-15: 8 migrations
+> are unapplied and 7 edge functions (`research-preview`, `create-checkout-session`,
+> `create-portal-session`, `stripe-webhook`, `answer-feedback`, `profile-import`,
+> `practice-audio-transcribe`) are undeployed. Guest preview, paid answer feedback, CV import,
+> voice transcription, and the billing purchase flow are therefore dead in production even
+> though they are shipped in this repo. Check what each missing function actually gates
+> before assuming a whole feature is dark: the billing tables and frontend *are* live, so
+> `/pricing`, `/billing/return`, and the entitlement read work and simply always resolve
+> free (see [`docs/BILLING.md`](./docs/BILLING.md)); likewise recording and saving a voice
+> answer works, and only the transcript is missing. Tracked as PREPIO-124 (Urgent). Read
+> "shipped" in this file and in `docs/` as "merged to `main`", not "live".
 
 ## Commands
 
@@ -31,11 +43,18 @@ These points override anything in older docs or code comments:
 ```bash
 npm install          # Install dependencies
 npm run dev          # Dev server on port 5173
-npm run build        # Production build — cleanest safety check
-npm run lint         # ESLint (has pre-existing failures, don't assume yours caused them)
-npm test             # Vitest test suite
+npm run build        # Production build
+npm run lint         # ESLint (informational in CI; has pre-existing failures, don't assume yours caused them)
+npm test             # Vitest + schema checks — 427 tests / 49 files green on main
+npm run typecheck    # CI gate: tsc error-count ratchet (app baseline 62, node 0)
+npm run typecheck:functions  # CI gate: deno check over supabase/functions (needs egress)
+npm run test:e2e     # Playwright smoke — NOT wired into CI (PREPIO-135)
 npm run preview      # Preview production build
 ```
+
+The blocking CI steps are `typecheck`, `typecheck:functions`, `build`, and `test`. Run
+`npm run typecheck` alongside `npm run build` before pushing — the build alone will not
+catch a ratchet break.
 
 ### Supabase
 
@@ -53,10 +72,24 @@ npm run supabase:status
 
 ### After database changes
 
+The local and production migration histories diverge: two already-applied migrations were
+re-timestamped in the repo (`billing_v1` is `20260514000000` locally vs `20260515131539` in
+production; `security_hardening_and_resume_rpc` is `20260515150000` vs `20260515171733`). A
+blind `db:push` can stop on the unmatched remote version or re-run the local security
+migration as if it were new, so reconcile the histories first:
+
 ```bash
+supabase migration list   # confirm the divergence below still matches the live history
+supabase migration repair --status reverted 20260515131539 20260515171733
+supabase migration repair --status applied  20260514000000 20260515150000
 npm run db:push
 npm run db:pull
 ```
+
+The `reverted` calls drop the two orphan remote entries; the `applied` calls register the
+local filenames as already run, so `db:push` skips them instead of re-running the security
+migration. Verify the four versions against `migration list` output before repairing — do
+not run these from memory. See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) and PREPIO-124.
 
 Keep migration files in [`supabase/migrations`](./supabase/migrations).
 
@@ -226,7 +259,7 @@ identifier rather than re-describing the work.
 
 | Document | Purpose |
 |----------|---------|
-| [`README.md`](./README.md) | Product overview, quick start, routes |
+| [`README.md`](./README.md) | Product overview, shipped/not-shipped status, quick start |
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Stack, data model, edge functions, data flows |
 | [`docs/RESEARCH_PIPELINE.md`](./docs/RESEARCH_PIPELINE.md) | Research pipeline as-shipped (v2), quality gaps, and target grounded-evidence (v3) design |
 | [`docs/PRODUCT_STRATEGY.md`](./docs/PRODUCT_STRATEGY.md) | Vision, users, positioning |

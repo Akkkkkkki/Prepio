@@ -3,7 +3,12 @@
 ## Quick Start
 
 ```bash
-npm test
+npm test                    # vitest + legacy-schema + answer-feedback-schema checks
+npm run typecheck           # CI gate: tsc error-count ratchet over the app/node projects
+npm run typecheck:functions # CI gate: deno check over supabase/functions (needs egress)
+npm run build
+npm run test:e2e            # Playwright smoke — NOT wired into CI (see PREPIO-135)
+
 npx vitest run src/services/entitlements.test.ts src/shared/entitlement-rules.test.ts
 npx vitest run supabase/functions/create-checkout-session/handler.test.ts supabase/functions/create-portal-session/handler.test.ts src/pages/__tests__/BillingReturn.test.tsx
 npx vitest run supabase/functions/stripe-webhook/handlers.test.ts
@@ -12,7 +17,15 @@ make test
 
 ## Current Reality
 
-`npm test` is the main useful suite today. It runs Vitest plus the legacy-schema check.
+`npm test` is the main useful suite today. It runs Vitest plus the legacy-schema and
+answer-feedback-schema checks. As of 2026-08-29 on `main` (`a9640b1`): **427 tests across 49
+files, all passing.**
+
+CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs, in order: lint
+(informational — a rule violation is tolerated, only a fatal parser/config error fails),
+`npm run typecheck`, `npm run typecheck:functions`, `npm run build`, `npm test`. The last
+four are blocking. `npm run test:e2e` is **not** in CI — `playwright.config.ts` and
+`e2e/smoke.spec.ts` exist but no job runs them, which is the gap PREPIO-135 exists to close.
 
 The Deno files under `tests/` are legacy. `make test` can still be useful as a smoke check, but it is not a release gate until those tests are updated and no longer depend on stale schema assumptions or live credentials.
 
@@ -130,10 +143,14 @@ For normal app work:
 
 ```bash
 npm test
+npm run typecheck
 npm run build
 ```
 
-For Supabase or Edge Function changes, add a targeted hosted check because the legacy Deno suite is not a full release gate.
+For Supabase or Edge Function changes also run `npm run typecheck:functions` (it needs
+network egress to `deno.land` / `esm.sh`; in a restricted sandbox it reports `SKIPPED — this
+is not a pass` rather than passing), and add a targeted hosted check because the legacy Deno
+suite is not a full release gate.
 
 ## Manual Stripe Test-Card Flow
 
@@ -151,16 +168,38 @@ Run these only against Stripe test mode and a non-production Supabase project. D
 
 Before 2026-07-10 the script was `tsc --noEmit` against the root `tsconfig.json`, which has `"files": []` and only project references — it type-checked zero files and always passed. The ratchet replaces that no-op (PREPIO-119).
 
-Baselines as of 2026-07-10 (TypeScript 5.9.3):
+Baselines as recorded in [`scripts/check-typecheck-baseline.sh`](../scripts/check-typecheck-baseline.sh)
+and re-measured 2026-08-29 (TypeScript 5.9.3):
 
-- `tsconfig.app.json` — **381** pre-existing errors. New code must not add to this backlog.
-- `tsconfig.node.json` — **0** errors. Kept clean.
+- `tsconfig.app.json` — **62** pre-existing errors (`APP_BASELINE=62`). New code must not add
+  to this backlog. The 2026-07-10 baseline was 381; the drop came from the type
+  regeneration and cleanup that landed with PREPIO-133 and the UX-restructure work, not from
+  a raised baseline.
+- `tsconfig.node.json` — **0** errors (`NODE_BASELINE=0`). Kept clean.
+
+There is a third ratchet for the edge functions:
+[`scripts/check-deno-baseline.sh`](../scripts/check-deno-baseline.sh) holds
+`supabase/functions/**` at **19** pre-existing errors (`BASELINE=19`). It runs
+`deno check` over **every `.ts` file under `supabase/functions`, with no exclusions** —
+56 files as of 2026-08-29, being 40 sources plus 16 `*.test.ts`. That covers both the
+standalone modules no entrypoint imports (`_shared/duckduckgo-fallback.ts`,
+`_shared/config.example.ts`) and the edge-function tests, so **a change to an
+edge-function test is type-checked by this gate**. Nothing else checks any of it: no
+tsconfig `include` reaches this directory, and vitest's `typecheck` option defaults to
+false and is not enabled in this repo's config.
+
+The `19` itself was measured by CI in PR #294. The script's header comments record that
+measurement and the file counts as they stood then; the tree has grown since, so read
+those numbers as history, not as current coverage.
 
 To see the actual errors, run `npx tsc -p tsconfig.app.json --noEmit`. If your change fixes some of the backlog, lower `APP_BASELINE` in `scripts/check-typecheck-baseline.sh` in the same PR to lock in the improvement. Never raise a baseline without a written justification in the PR — the count-only ratchet cannot tell you *which* errors are new, so compare `npx tsc` output against `main` when the gate trips.
 
-Burning down the 381-error backlog is follow-up work, tracked separately from this gate.
+Burning down the remaining backlog is follow-up work, tracked separately from this gate.
 
 ### Backlog triage (2026-08-12, PREPIO-133)
+
+*Historical: the counts below describe the 381-error backlog as it stood on 2026-08-12. The
+app baseline is now 62; the triage conclusions still hold for what remains.*
 
 The 381 errors were bucketed by code and the shipped-`src` subset read line by
 line. PREPIO-133's working hypothesis — 30–60 genuine null/undefined bugs
@@ -189,7 +228,7 @@ are next edited. Baseline unchanged — nothing was fixed in this triage.
 
 ## Lint Baseline
 
-`npm run lint` is informational, not a release gate. As of 2026-07-07 (after the eslint 10 / eslint-plugin-react-hooks 7 upgrade) it reports **54 problems (46 errors, 8 warnings)** from a clean `npm ci`. This section triages what's there so reviewers can tell at a glance whether a new lint hit is signal or noise.
+`npm run lint` is informational, not a release gate. As of 2026-08-29 it reports **51 problems (43 errors, 8 warnings)** from a clean `npm ci` (it was 54 / 46 / 8 on 2026-07-07, right after the eslint 10 / eslint-plugin-react-hooks 7 upgrade). This section triages what's there so reviewers can tell at a glance whether a new lint hit is signal or noise.
 
 When changing code in a file listed here, do not silently "clean up" the pre-existing failures unless that is the explicit goal of the change — keep diffs scoped.
 

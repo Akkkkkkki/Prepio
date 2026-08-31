@@ -21,6 +21,15 @@ Not shipped yet:
 - Readiness scoring based on feedback.
 - Lifecycle notifications.
 
+> "Shipped" above means merged to `main`. The production backend has been frozen since
+> 2026-05-15 — guest preview, paid answer feedback, CV import, voice transcription, and the
+> billing purchase flow are not deployed there yet. Each gap is narrower than the feature
+> name suggests: recording and saving a voice answer does work in production, only the
+> transcript generation is missing; and the billing tables and frontend are live, so
+> `/pricing`, `/billing/return`, and the entitlement read work and always resolve free —
+> what is absent is Checkout, the Customer Portal, and the webhook that would write a paid
+> row. See `docs/ARCHITECTURE.md`, `docs/BILLING.md`, and PREPIO-124.
+
 ## Stack
 
 - Frontend: React, TypeScript, Vite, Tailwind, shadcn-style UI components, TanStack Query.
@@ -33,11 +42,14 @@ Not shipped yet:
 
 ```bash
 npm test
+npm run typecheck
 npm run build
 make test
 ```
 
-`npm test` is the main local safety net. `make test` runs older Deno files and should not be treated as a release gate until those tests are updated.
+`npm test` and `npm run typecheck` are the main local safety net and both are blocking CI
+steps. `make test` runs older Deno files and should not be treated as a release gate until
+those tests are updated.
 
 ## Key Docs
 
