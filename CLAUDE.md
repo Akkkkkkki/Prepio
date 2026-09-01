@@ -276,14 +276,15 @@ anything improved.
 
 **Each run opens by reviewing metric movement.** Before surveying the new
 window, a run first looks at the deferred audit items **filed under this
-contract** (those carrying a declared metric + baseline) that closed since the
-previous run and reports, per item, whether its metric moved from baseline in
-the intended direction — and, where a target was declared, whether it reached
-or passed that target — or notes `no metric (pure cleanup)` where that was the
-declaration. A closed item whose number did not move, or moved the
-wrong way, is itself a finding. Audit issues predating this contract, and
-unrelated product issues, carry no baseline and are out of scope for this check
-— it is not applied retroactively. This is the same trust-but-verify principle
+contract** (those carrying its required declaration — a metric with a baseline,
+or a `no metric (pure cleanup)` mark) that closed since the previous run. For a
+metric-bearing item it reports whether the metric moved from baseline in the
+intended direction and, where a target was declared, whether it reached or
+passed that target; a cleanup item is simply noted as `no metric (pure
+cleanup)`. A closed metric-bearing item whose number did not move, moved the
+wrong way, or fell short of a declared target is itself a finding. Audit issues
+predating this contract, and unrelated product issues, carry no such
+declaration and are out of scope — it is not applied retroactively. This is the same trust-but-verify principle
 applied to the research pipeline, turned on the audit process — see
 [PREPIO-160](https://linear.app/qiuyue/issue/PREPIO-160).
 The UX-review family carries the same closing condition in its own contract
