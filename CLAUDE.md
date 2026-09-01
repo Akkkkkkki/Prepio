@@ -261,9 +261,15 @@ addressed — `npm audit` advisory count, test count, top-5 hit rate, bundle
 KiB, lint problem count, an edge-function p95, a specific error rate — or
 explicitly marks itself `no metric (pure cleanup)` (dead-code deletion, a
 rename, a doc fix). "Improves quality" or "reduces risk" is not a metric. The
-same declaration carries onto the Linear issue so the movement can be checked
-after it closes. This turns the audit cadence away from measuring output by
-issues filed and toward measuring whether anything improved.
+declaration must also record the metric's **current baseline value** — and,
+for a metric that drifts on its own (an edge-function p95, an error rate, a
+top-5 hit rate, a contrast pass rate), the window it was measured over — since
+a later run can only tell whether the number moved if it has the pre-fix value
+to compare against; a named metric with no captured baseline is not a
+verifiable one. The same declaration, baseline included, carries onto the
+Linear issue so the movement can be checked after it closes. This turns the
+audit cadence away from measuring output by issues filed and toward measuring
+whether anything improved.
 
 **Each run opens by reviewing metric movement.** Before surveying the new
 window, a run first looks at the issues closed since the previous run and

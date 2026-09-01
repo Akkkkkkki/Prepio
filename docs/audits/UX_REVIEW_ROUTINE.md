@@ -47,9 +47,14 @@ Every deferred item this routine produces must declare the one verifiable
 number that will move when it is addressed — a composite-scorecard dimension,
 a touch-target pass rate, a contrast ratio, an audit-repeat count that should
 reach zero — or explicitly mark itself `no metric (pure cleanup)`. "Improves
-UX" is not a metric. The same declaration carries onto the Linear issue so the
-movement can be checked after it closes. This mirrors the recurring-hygiene
-closing condition in [`CLAUDE.md`](../../CLAUDE.md) (PREPIO-160).
+UX" is not a metric. The declaration must also record the metric's **current
+baseline value** — and, for a metric that drifts on its own (a contrast pass
+rate, a touch-target pass rate), the window it was measured over — so a later
+run has a pre-fix value to compare against; a named metric with no captured
+baseline is not a verifiable one. The same declaration, baseline included,
+carries onto the Linear issue so the movement can be checked after it closes.
+This mirrors the recurring-hygiene closing condition in
+[`CLAUDE.md`](../../CLAUDE.md) (PREPIO-160).
 
 Each run opens by reviewing the metric movement for items closed since the
 previous run — per closed item, whether its declared number actually moved (or
