@@ -57,8 +57,9 @@ with no captured baseline is not a verifiable one. The declaration must also sta
 improvement, not motion. For a naturally drifting metric, direction alone is not
 enough: declare a target or a minimum meaningful delta, so a move within
 measurement noise does not read as improvement. The full declaration — metric,
-baseline, direction/target — carries onto the Linear issue so the outcome can be
-checked after it closes. This mirrors the recurring-hygiene closing condition in
+baseline and its measurement conditions, expected direction, and target or
+minimum delta — carries onto the Linear issue so the outcome can be checked
+after it closes. This mirrors the recurring-hygiene closing condition in
 [`CLAUDE.md`](../../CLAUDE.md) (PREPIO-160).
 
 Each run opens by reviewing the deferred items **filed under this contract**
