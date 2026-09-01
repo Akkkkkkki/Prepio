@@ -263,10 +263,11 @@ explicitly marks itself `no metric (pure cleanup)` (dead-code deletion, a
 rename, a doc fix). "Improves quality" or "reduces risk" is not a metric. The
 declaration must also record the metric's **current baseline value** — and,
 for a metric that drifts on its own (an edge-function p95, an error rate, a
-top-5 hit rate, a contrast pass rate), the window it was measured over — since
-a later run can only tell whether the number moved if it has the pre-fix value
-to compare against; a named metric with no captured baseline is not a
-verifiable one. The declaration must also state the **expected direction** (and
+top-5 hit rate, a contrast pass rate), the conditions it was measured under —
+window, cohort, and method — since a later run can only tell whether the number
+moved if it has the pre-fix value to compare against and knows the conditions
+to reproduce for a like-for-like reading; a named metric with no captured
+baseline is not a verifiable one. The declaration must also state the **expected direction** (and
 a target or threshold where one applies), because the point is improvement, not
 motion — a p95 that goes 200 ms → 300 ms "moved" but got worse. The full
 declaration — metric, baseline, direction/target — carries onto the Linear

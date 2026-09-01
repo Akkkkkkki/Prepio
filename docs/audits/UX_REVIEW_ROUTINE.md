@@ -49,9 +49,10 @@ a touch-target pass rate, a contrast ratio, an audit-repeat count that should
 reach zero — or explicitly mark itself `no metric (pure cleanup)`. "Improves
 UX" is not a metric. The declaration must also record the metric's **current
 baseline value** — and, for a metric that drifts on its own (a contrast pass
-rate, a touch-target pass rate), the window it was measured over — so a later
-run has a pre-fix value to compare against; a named metric with no captured
-baseline is not a verifiable one. The declaration must also state the
+rate, a touch-target pass rate), the conditions it was measured under (window,
+cohort, and method) — so a later run has a pre-fix value to compare against and
+knows the conditions to reproduce for a like-for-like reading; a named metric
+with no captured baseline is not a verifiable one. The declaration must also state the
 **expected direction** (and a target where one applies), because the point is
 improvement, not motion. The full declaration — metric, baseline,
 direction/target — carries onto the Linear issue so the outcome can be checked
