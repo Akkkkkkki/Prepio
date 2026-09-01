@@ -273,8 +273,9 @@ motion — a p95 that goes 200 ms → 300 ms "moved" but got worse. For a natura
 drifting metric (a p95, an error rate) direction alone is not enough: declare a
 target or a minimum meaningful delta, so a move within measurement noise does
 not read as improvement. The full declaration — metric, baseline and its
-measurement conditions, expected direction, and target or minimum delta —
-carries onto the Linear issue so the outcome can be checked
+measurement conditions, expected direction, and (for a naturally drifting
+metric) a target or minimum delta — carries onto the Linear issue so the
+outcome can be checked
 after it closes. This turns the audit
 cadence away from measuring output by issues filed and toward measuring whether
 anything improved.
