@@ -70,7 +70,7 @@ re-measuring a drifting metric over a window and conditions comparable to its
 recorded baseline, so the comparison is like-for-like; a cleanup item is simply
 noted as `no metric (pure cleanup)`. A closed
 metric-bearing item whose number did not move, moved the wrong way, or fell
-short of a declared target is itself a finding. Items predating this contract
+short of a declared target or minimum delta is itself a finding. Items predating this contract
 carry no such declaration and are out of scope — it is not applied
 retroactively.
 
