@@ -29,6 +29,12 @@ four are blocking. `npm run test:e2e` is **not** in CI — `playwright.config.ts
 
 The Deno files under `tests/` are legacy. `make test` can still be useful as a smoke check, but it is not a release gate until those tests are updated and no longer depend on stale schema assumptions or live credentials.
 
+`make test` requires `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` in `.env.local`.
+Provision a dedicated, disposable user in a local or non-production Supabase project; never
+use a personal account or production credentials because the suite signs in and writes test
+data. The tests fail closed when either variable is missing, and `.env.example` contains safe
+placeholders only.
+
 There is no configured coverage report. Do not quote a coverage percentage.
 
 ### Practice suite CI flake policy
