@@ -41,6 +41,21 @@ capture evidence for at least:
 The report should include the screenshots or a precise note explaining why a
 specific route could not be captured.
 
+## Deferred items must name a metric
+
+Every deferred item this routine produces must declare the one verifiable
+number that will move when it is addressed — a composite-scorecard dimension,
+a touch-target pass rate, a contrast ratio, an audit-repeat count that should
+reach zero — or explicitly mark itself `no metric (pure cleanup)`. "Improves
+UX" is not a metric. The same declaration carries onto the Linear issue so the
+movement can be checked after it closes. This mirrors the recurring-hygiene
+closing condition in [`CLAUDE.md`](../../CLAUDE.md) (PREPIO-160).
+
+Each run opens by reviewing the metric movement for items closed since the
+previous run — per closed item, whether its declared number actually moved (or
+`no metric (pure cleanup)` where that was the declaration). A closed item whose
+number did not move is itself a finding.
+
 ## Report footer
 
 Every routine report should close with one of these capability statements:

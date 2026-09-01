@@ -255,6 +255,26 @@ backlog. Each issue should:
 The audit doc's *Deferred items* section should then list the issues by
 identifier rather than re-describing the work.
 
+**Every deferred item must name a verifiable metric.** A deferred item is not
+done being written until it declares the one number that will move when it is
+addressed — `npm audit` advisory count, test count, top-5 hit rate, bundle
+KiB, lint problem count, an edge-function p95, a specific error rate — or
+explicitly marks itself `no metric (pure cleanup)` (dead-code deletion, a
+rename, a doc fix). "Improves quality" or "reduces risk" is not a metric. The
+same declaration carries onto the Linear issue so the movement can be checked
+after it closes. This turns the audit cadence away from measuring output by
+issues filed and toward measuring whether anything improved.
+
+**Each run opens by reviewing metric movement.** Before surveying the new
+window, a run first looks at the issues closed since the previous run and
+reports, per closed item, whether its declared metric actually moved (or notes
+`no metric (pure cleanup)` where that was the declaration). A closed issue
+whose number did not move is itself a finding. This is the same
+trust-but-verify principle applied to the research pipeline, turned on the
+audit process — see [PREPIO-160](https://linear.app/qiuyue/issue/PREPIO-160).
+The UX-review family carries the same closing condition in its own contract
+([`docs/audits/UX_REVIEW_ROUTINE.md`](./docs/audits/UX_REVIEW_ROUTINE.md)).
+
 ## Docs Map
 
 | Document | Purpose |
