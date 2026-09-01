@@ -51,15 +51,20 @@ UX" is not a metric. The declaration must also record the metric's **current
 baseline value** — and, for a metric that drifts on its own (a contrast pass
 rate, a touch-target pass rate), the window it was measured over — so a later
 run has a pre-fix value to compare against; a named metric with no captured
-baseline is not a verifiable one. The same declaration, baseline included,
-carries onto the Linear issue so the movement can be checked after it closes.
-This mirrors the recurring-hygiene closing condition in
+baseline is not a verifiable one. The declaration must also state the
+**expected direction** (and a target where one applies), because the point is
+improvement, not motion. The full declaration — metric, baseline,
+direction/target — carries onto the Linear issue so the outcome can be checked
+after it closes. This mirrors the recurring-hygiene closing condition in
 [`CLAUDE.md`](../../CLAUDE.md) (PREPIO-160).
 
-Each run opens by reviewing the metric movement for items closed since the
-previous run — per closed item, whether its declared number actually moved (or
-`no metric (pure cleanup)` where that was the declaration). A closed item whose
-number did not move is itself a finding.
+Each run opens by reviewing the deferred items **filed under this contract**
+(those carrying a declared metric + baseline) that closed since the previous
+run — per item, whether its number moved in the intended direction to (or past)
+its target, or `no metric (pure cleanup)` where that was the declaration. A
+closed item whose number did not move, or moved the wrong way, is itself a
+finding. Items predating this contract carry no baseline and are out of scope
+— it is not applied retroactively.
 
 ## Report footer
 

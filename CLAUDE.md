@@ -266,18 +266,25 @@ for a metric that drifts on its own (an edge-function p95, an error rate, a
 top-5 hit rate, a contrast pass rate), the window it was measured over — since
 a later run can only tell whether the number moved if it has the pre-fix value
 to compare against; a named metric with no captured baseline is not a
-verifiable one. The same declaration, baseline included, carries onto the
-Linear issue so the movement can be checked after it closes. This turns the
-audit cadence away from measuring output by issues filed and toward measuring
-whether anything improved.
+verifiable one. The declaration must also state the **expected direction** (and
+a target or threshold where one applies), because the point is improvement, not
+motion — a p95 that goes 200 ms → 300 ms "moved" but got worse. The full
+declaration — metric, baseline, direction/target — carries onto the Linear
+issue so the outcome can be checked after it closes. This turns the audit
+cadence away from measuring output by issues filed and toward measuring whether
+anything improved.
 
 **Each run opens by reviewing metric movement.** Before surveying the new
-window, a run first looks at the issues closed since the previous run and
-reports, per closed item, whether its declared metric actually moved (or notes
-`no metric (pure cleanup)` where that was the declaration). A closed issue
-whose number did not move is itself a finding. This is the same
-trust-but-verify principle applied to the research pipeline, turned on the
-audit process — see [PREPIO-160](https://linear.app/qiuyue/issue/PREPIO-160).
+window, a run first looks at the deferred audit items **filed under this
+contract** (those carrying a declared metric + baseline) that closed since the
+previous run and reports, per item, whether its metric moved in the intended
+direction to (or past) its target — or notes `no metric (pure cleanup)` where
+that was the declaration. A closed item whose number did not move, or moved the
+wrong way, is itself a finding. Audit issues predating this contract, and
+unrelated product issues, carry no baseline and are out of scope for this check
+— it is not applied retroactively. This is the same trust-but-verify principle
+applied to the research pipeline, turned on the audit process — see
+[PREPIO-160](https://linear.app/qiuyue/issue/PREPIO-160).
 The UX-review family carries the same closing condition in its own contract
 ([`docs/audits/UX_REVIEW_ROUTINE.md`](./docs/audits/UX_REVIEW_ROUTINE.md)).
 
