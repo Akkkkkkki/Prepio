@@ -60,8 +60,9 @@ after it closes. This mirrors the recurring-hygiene closing condition in
 
 Each run opens by reviewing the deferred items **filed under this contract**
 (those carrying a declared metric + baseline) that closed since the previous
-run — per item, whether its number moved in the intended direction to (or past)
-its target, or `no metric (pure cleanup)` where that was the declaration. A
+run — per item, whether its number moved from baseline in the intended
+direction (and, where a target was declared, reached or passed it), or
+`no metric (pure cleanup)` where that was the declaration. A
 closed item whose number did not move, or moved the wrong way, is itself a
 finding. Items predating this contract carry no baseline and are out of scope
 — it is not applied retroactively.
