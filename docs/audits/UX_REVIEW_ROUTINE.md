@@ -62,8 +62,10 @@ Each run opens by reviewing the deferred items **filed under this contract**
 (those carrying its required declaration — a metric with a baseline, or a
 `no metric (pure cleanup)` mark) that closed since the previous run. For a
 metric-bearing item, report whether its number moved from baseline in the
-intended direction and, where a target was declared, reached or passed it; a
-cleanup item is simply noted as `no metric (pure cleanup)`. A closed
+intended direction and, where a target was declared, reached or passed it —
+re-measuring a drifting metric over a window and conditions comparable to its
+recorded baseline, so the comparison is like-for-like; a cleanup item is simply
+noted as `no metric (pure cleanup)`. A closed
 metric-bearing item whose number did not move, moved the wrong way, or fell
 short of a declared target is itself a finding. Items predating this contract
 carry no such declaration and are out of scope — it is not applied

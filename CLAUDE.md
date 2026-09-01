@@ -280,8 +280,10 @@ contract** (those carrying its required declaration — a metric with a baseline
 or a `no metric (pure cleanup)` mark) that closed since the previous run. For a
 metric-bearing item it reports whether the metric moved from baseline in the
 intended direction and, where a target was declared, whether it reached or
-passed that target; a cleanup item is simply noted as `no metric (pure
-cleanup)`. A closed metric-bearing item whose number did not move, moved the
+passed that target — re-measuring a drifting metric (a p95, an error rate) over
+a window, cohort, and method comparable to its recorded baseline, so the
+comparison is like-for-like rather than a seven-day baseline against an hour of
+quiet traffic; a cleanup item is simply noted as `no metric (pure cleanup)`. A closed metric-bearing item whose number did not move, moved the
 wrong way, or fell short of a declared target is itself a finding. Audit issues
 predating this contract, and unrelated product issues, carry no such
 declaration and are out of scope — it is not applied retroactively. This is the same trust-but-verify principle
