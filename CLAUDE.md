@@ -269,9 +269,12 @@ moved if it has the pre-fix value to compare against and knows the conditions
 to reproduce for a like-for-like reading; a named metric with no captured
 baseline is not a verifiable one. The declaration must also state the **expected direction** (and
 a target or threshold where one applies), because the point is improvement, not
-motion — a p95 that goes 200 ms → 300 ms "moved" but got worse. The full
-declaration — metric, baseline, direction/target — carries onto the Linear
-issue so the outcome can be checked after it closes. This turns the audit
+motion — a p95 that goes 200 ms → 300 ms "moved" but got worse. For a naturally
+drifting metric (a p95, an error rate) direction alone is not enough: declare a
+target or a minimum meaningful delta, so a move within measurement noise does
+not read as improvement. The full declaration — metric, baseline,
+direction/target — carries onto the Linear issue so the outcome can be checked
+after it closes. This turns the audit
 cadence away from measuring output by issues filed and toward measuring whether
 anything improved.
 
