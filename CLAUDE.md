@@ -149,6 +149,11 @@ Protected-route and `/` redirect behavior: [`src/App.tsx`](./src/App.tsx).
 - **Resume deletion must keep file cleanup and row cleanup in sync.**
 - **Model config is env-driven.** Falls back to `gpt-4o` / `gpt-4o-mini` if `OPENAI_MODEL` is not set.
 - **Edge functions use service role.** All substantive DB writes from edge functions bypass RLS via `SUPABASE_SERVICE_ROLE_KEY`.
+- **User effort budget.** "Minimal effort in, highly accurate prep out" is the product promise. Any surface that collects ground truth must earn the ask — cite this rule in review instead of re-litigating it:
+  - **Value first or value now.** A collection surface must either give value before asking for input, or produce value from the input immediately. There is no third option.
+  - **Always skippable, silently.** Skipping never degrades the experience, and ignoring a prompt once silences it permanently.
+  - **No cost-shifting framing.** No gamification, contribution leaderboards, or streaks, and no "help us improve the product" copy — that phrase externalises our cost onto the user.
+  - **At most two collection points per interview lifecycle:** the pre-interview plan confirmation and the post-interview round debrief. Nothing else.
 - **Re-request Codex review after pushing a fix.** Pushing commits does not re-trigger it. See [Working with Codex PR review](#working-with-codex-pr-review).
 
 ## Working with Codex PR review
