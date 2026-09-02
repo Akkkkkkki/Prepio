@@ -84,7 +84,8 @@ describe("check-deno-baseline.sh", () => {
 
   it("still fails a hard failure that emitted no countable diagnostic", () => {
     // The case the earlier version already caught — kept to prove the
-    // generalized guard did not regress it.
+    // generalized guard did not regress it. A corrupt lockfile aborts before
+    // type checking, so no `Type checking failed.` line is printed.
     const r = run({
       output: "error: failed to load the lockfile 'deno.lock'",
       exit: 1,
@@ -93,6 +94,35 @@ describe("check-deno-baseline.sh", () => {
 
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/did not run to completion/);
+  });
+
+  it("accepts a completed single-error check that prints no 'Found N errors.' summary", () => {
+    // deno 2.9.5 prints the `Found N errors.` summary only for N >= 2. A single
+    // error emits its diagnostic plus `error: Type checking failed.` and no
+    // summary — a completed check, not a hard failure. At baseline 1 it must
+    // pass rather than be rejected as incomplete (the summary-only guard
+    // regressed this; caught by Codex on PR #332).
+    const output = [
+      "TS2322 [ERROR]: Type 'string' is not assignable to type 'number'.",
+      "error: Type checking failed.",
+    ].join("\n");
+
+    const r = run({ output, exit: 1, baseline: 1 });
+
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/at baseline/);
+  });
+
+  it("counts a completed single-error check below a higher baseline as an inspect signal", () => {
+    const output = [
+      "TS2322 [ERROR]: Type 'string' is not assignable to type 'number'.",
+      "error: Type checking failed.",
+    ].join("\n");
+
+    const r = run({ output, exit: 1, baseline: 5 });
+
+    expect(r.status).toBe(0);
+    expect(r.stderr).toMatch(/BELOW the baseline/);
   });
 
   it("passes at baseline when the completion summary explains the nonzero exit", () => {

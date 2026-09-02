@@ -157,18 +157,34 @@ else
   count=$(grep -cE 'TS[0-9]+ \[ERROR\]' <<< "$output" || true)
 fi
 
-# A completed `deno check` always ends with a `Found N errors.` summary (or, at
-# zero errors, exits 0 with no diagnostics at all). So a nonzero exit with no
-# summary line means the check did not run to completion — a syntax error, a
-# corrupt lockfile, a missing local module, or a non-connection import failure
-# that slipped past the network-skip classifier above. That run is untrustworthy
-# even when deno emitted a handful of `TS.. [ERROR]` lines before dying, so
-# counting those and comparing to the baseline would mask the hard failure as
-# "at/below baseline". Reject any such unclassified nonzero exit — not only the
-# count == 0 case the earlier version caught, which let a hard failure that
-# happened to surface 1–19 diagnostics fall through to a false pass (PREPIO-169).
-if (( deno_status != 0 )) && [ -z "$summary" ]; then
-  echo "deno check failed (exit $deno_status) without a 'Found N errors.' completion summary." >&2
+# Did type checking run to completion? A completed `deno check` that finds
+# errors ends with `error: Type checking failed.`, and a clean one exits 0 with
+# no diagnostics at all. deno prints a `Found N errors.` summary only for N >= 2
+# — a single error emits its `TS.. [ERROR]` diagnostic and the `Type checking
+# failed.` line but NO summary (verified on the pinned deno 2.9.5) — so keying
+# completion on the summary alone would reject a legitimate one-error run once
+# the backlog burns down to its last error (or DENO_ERROR_BASELINE=1). Accept
+# either signal.
+#
+# A hard failure aborts *before* type checking and prints a different terminal
+# `error:` line instead — a parse/syntax error, a corrupt lockfile, or a
+# non-connection import-resolution failure that slipped past the network-skip
+# classifier above — none of which carry `Type checking failed.`. (A missing
+# module is not one of these: deno surfaces it as a normal countable TS2307
+# inside a completed check, so it is legitimately counted as a type error.)
+completed=0
+if [ -n "$summary" ] || grep -qE '^error: Type checking failed\.' <<< "$output"; then
+  completed=1
+fi
+
+# A nonzero exit that did not complete a type check is untrustworthy even when a
+# handful of `TS.. [ERROR]` lines leaked out before the abort, so counting those
+# and comparing to the baseline would mask the failure as "at/below baseline".
+# Reject any such unclassified nonzero exit — not only the count == 0 case the
+# earlier version caught, which let a hard failure that happened to surface 1–19
+# diagnostics fall through to a false pass (PREPIO-169).
+if (( deno_status != 0 )) && (( completed == 0 )); then
+  echo "deno check failed (exit $deno_status) without completing a type check (no 'Found N errors.' or 'Type checking failed.' line)." >&2
   echo "This is not a pass — the check did not run to completion. Inspect the output below." >&2
   printf '%s\n' "$output" >&2
   exit 1
