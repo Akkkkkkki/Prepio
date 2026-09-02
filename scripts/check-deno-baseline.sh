@@ -157,11 +157,19 @@ else
   count=$(grep -cE 'TS[0-9]+ \[ERROR\]' <<< "$output" || true)
 fi
 
-# deno failed, but nothing was classified as a network skip or counted as a type
-# diagnostic. Something else broke; surface it instead of reporting "at baseline".
-if (( deno_status != 0 )) && (( count == 0 )); then
-  echo "deno check failed (exit $deno_status) without any countable type diagnostic." >&2
-  echo "This is not a pass — inspect the output below." >&2
+# A completed `deno check` always ends with a `Found N errors.` summary (or, at
+# zero errors, exits 0 with no diagnostics at all). So a nonzero exit with no
+# summary line means the check did not run to completion — a syntax error, a
+# corrupt lockfile, a missing local module, or a non-connection import failure
+# that slipped past the network-skip classifier above. That run is untrustworthy
+# even when deno emitted a handful of `TS.. [ERROR]` lines before dying, so
+# counting those and comparing to the baseline would mask the hard failure as
+# "at/below baseline". Reject any such unclassified nonzero exit — not only the
+# count == 0 case the earlier version caught, which let a hard failure that
+# happened to surface 1–19 diagnostics fall through to a false pass (PREPIO-169).
+if (( deno_status != 0 )) && [ -z "$summary" ]; then
+  echo "deno check failed (exit $deno_status) without a 'Found N errors.' completion summary." >&2
+  echo "This is not a pass — the check did not run to completion. Inspect the output below." >&2
   printf '%s\n' "$output" >&2
   exit 1
 fi
@@ -174,7 +182,16 @@ if (( count > BASELINE )); then
 fi
 
 if (( count < BASELINE )); then
-  echo "supabase/functions: $count type errors, below the baseline of $BASELINE. Lower BASELINE in scripts/check-deno-baseline.sh to lock in the improvement."
+  # Below baseline is not a silent green. With the completion-summary guard
+  # above, a sub-baseline count from a clean run is a genuine improvement — but
+  # the count-only ratchet cannot prove *which* errors went away, so treat it as
+  # a signal to inspect and lock in rather than an automatic pass. It stays
+  # non-fatal (exit 0) to mirror scripts/check-typecheck-baseline.sh and to avoid
+  # failing CI on a legitimate reduction, but the message goes to stderr so it is
+  # not lost in a green log. Left unlocked, the baseline silently re-admits
+  # regressions all the way back up to the old ceiling (PREPIO-169).
+  echo "supabase/functions: $count type errors, BELOW the baseline of $BASELINE — inspect, do not treat as a clean pass." >&2
+  echo "Confirm the drop is real, then lower BASELINE in scripts/check-deno-baseline.sh (or set DENO_ERROR_BASELINE=$count) to lock it in." >&2
 else
   echo "supabase/functions: $count type errors (at baseline)."
 fi
