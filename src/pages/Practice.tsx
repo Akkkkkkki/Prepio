@@ -2815,9 +2815,9 @@ const getInterviewerFocus = (
                 </div>
 
                 <div className="space-y-3">
-                  <p className="break-words text-xl font-semibold leading-8 text-foreground">
+                  <h1 className="break-words text-xl font-semibold leading-8 text-foreground">
                     {currentQuestion.question}
-                  </p>
+                  </h1>
                   {currentQuestion.answered && (
                     <div className="inline-flex items-center gap-2 rounded-full bg-green-500/10 px-3 py-1 text-sm text-green-700">
                       <CheckCircle className="h-4 w-4" />
@@ -3280,8 +3280,10 @@ const getInterviewerFocus = (
                     </Button>
                   </div>
                 </div>
-                <CardTitle className="text-lg sm:text-xl leading-relaxed mb-4">
-                  {currentQuestion.question}
+                <CardTitle asChild>
+                  <h1 className="text-lg sm:text-xl leading-relaxed mb-4">
+                    {currentQuestion.question}
+                  </h1>
                 </CardTitle>
 
                 <div className="flex items-center gap-2">
