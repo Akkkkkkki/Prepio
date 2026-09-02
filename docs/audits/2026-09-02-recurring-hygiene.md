@@ -30,9 +30,12 @@ authorization, or data-flow risk was introduced.** What changed:
   transcript stays silent. Reliability/UX-honesty improvement, aligned to
   `docs/DESIGN_PRINCIPLES.md`; no new data reaches logs or the client.
 - **Dead-code deletion** (#319, PREPIO-155): removed the unused
-  `duckduckgo-fallback` shim and its Deno test. Pure removal; the Vitest suite is
-  unaffected (48 files / 426 tests, was 49/426 — the deleted file was a Deno test,
-  not part of the JS suite).
+  `duckduckgo-fallback` shim and its test from `supabase/functions/_shared/`.
+  That test **was** part of the Vitest run (it imports `vitest` and `vite.config.ts`
+  excludes only `e2e/**`), so its 3 cases came off the suite — the test count held
+  flat at 426 because this window also added 2 `Home.mobile` cases and a net +1
+  `Practice.mobile` case (−7 removed / +8 added), a coverage swap rather than an
+  untouched suite. File count 49 → 48 is the one deleted file.
 - **PII-in-logs bound** (#308): the `parseJsonResponse` raw-response preview cap
   reviewed and fixed in run #25 landed this window
   ([`openai-client.ts:89`](../../supabase/functions/_shared/openai-client.ts)).
@@ -74,12 +77,16 @@ browserslist high is cleared.
   **not runnable in this environment** — the agent proxy blocks `esm.sh` /
   `deno.land`, so Deno cannot resolve the edge functions' remote imports; the
   script reports `SKIPPED — this is not a pass` (exit 0 locally, `exit 1` under
-  `$CI`). No edge-function source changed this window except the run-#25 log
-  bound (plain TS, no new imports), which the real CI `verify` job covers.
+  `$CI`). The edge-function changes this window are the run-#25 log bound (plain
+  TS, no new imports) and the `duckduckgo-fallback` deletion (dead code, no
+  remaining importers) — both covered by the real CI `verify` job, which does run
+  a genuine `deno check`.
 - `npm run build`: **pass** (Vite + PWA, 62 precache entries, **2278.88 KiB**).
   Byte-flat before and after the browserslist fix.
-- `npm test`: **pass** (48 test files, **426 tests**). Re-run after the lockfile
-  fix — still 426/426 green.
+- `npm test`: **pass** (48 test files, **426 tests**; was 49/426 — see the
+  coverage swap in the summary: the deleted Vitest file's 3 cases were offset by
+  new `Home.mobile`/`Practice.mobile` cases). Re-run after the lockfile fix —
+  still 426/426 green.
 - `npm audit`: **3** (2 react-router moderate + 1 pdfjs-dist high) after the fix;
   was **4** (adding the browserslist high) before. `npm audit fix` non-force is a
   no-op for the two remaining runtime advisories (both need a breaking major).
