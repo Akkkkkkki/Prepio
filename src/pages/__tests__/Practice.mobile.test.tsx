@@ -415,6 +415,55 @@ describe("Practice mobile layout", CI_FLAKE_RETRY, () => {
     expect(await screen.findByText("Breathe in...")).toBeTruthy();
   });
 
+  it("marks the current question as the screen's single h1 (mobile)", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Practice setup")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
+
+    // The question is the visual hero, so it must be the page's top-level
+    // heading — screen-reader wayfinding otherwise has no anchor on the core
+    // screen (WCAG 2.4.6). Before this fix the mobile layout rendered zero
+    // headings. Built-in matchers only, to keep this file off the typecheck
+    // baseline (docs/TESTING.md).
+    const question = await screen.findByText(
+      "How did you leverage LLM technology in the AI product evaluation at Hg Capital?",
+    );
+    expect(question.tagName).toBe("H1");
+
+    const h1s = document.querySelectorAll("h1");
+    expect(h1s.length).toBe(1);
+  });
+
+  it("marks the current question as the screen's single h1 (desktop)", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    render(
+      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
+        <Routes>
+          <Route path="/practice" element={<Practice />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByText("Quick Start"));
+
+    // Desktop previously rendered the question as an <h3> with no <h1> above
+    // it; promote it so the outline starts at h1.
+    const question = await screen.findByText(
+      "How did you leverage LLM technology in the AI product evaluation at Hg Capital?",
+    );
+    expect(question.tagName).toBe("H1");
+
+    const h1s = document.querySelectorAll("h1");
+    expect(h1s.length).toBe(1);
+  });
+
   it("starts with notes expanded and preserves them across coach sheet open/close", async () => {
     const { container } = render(
       <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
