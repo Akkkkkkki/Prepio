@@ -4,12 +4,14 @@
 
 Twenty-sixth recurring codebase hygiene & security review for Prepio.
 
-**First functional window since run #22.** Runs #23–#25 were docs-only; the last
-hygiene run (#25, 2026-08-26, base `d0377e8`) explicitly flagged "the next merge
-that touches source is the one to review closely." Since then `main` advanced
-`d0377e8 → 44dca2c` (9 commits) and, unlike the prior three windows, several
-carry real source changes. I reviewed the full functional diff rather than only
-re-verifying carried findings.
+**First functional window since run #23.** The two intervening runs (#24 on
+2026-08-22 and #25 on 2026-08-26) were docs-only — run #23 (2026-08-19) itself
+merged functional commits (#300, #301) plus the in-run credential-removal fix,
+so the docs-only stretch was #24–#25, not #23–#25. The last hygiene run (#25,
+base `d0377e8`) explicitly flagged "the next merge that touches source is the one
+to review closely." Since then `main` advanced `d0377e8 → 44dca2c` (9 commits)
+and, unlike the two docs-only windows, several carry real source changes. I
+reviewed the full functional diff rather than only re-verifying carried findings.
 
 **The merged source changes this window are clean — no new security,
 authorization, or data-flow risk was introduced.** What changed:
@@ -116,7 +118,8 @@ browserslist high is cleared.
 ### Medium
 
 - [ ] **`pdfjs-dist` high-severity advisory (GHSA-hq66-cqwq-w95j) — arbitrary JS
-  execution on opening a malicious PDF.** *(Carried; re-verified.)*
+  execution on opening a malicious PDF.** *(Carried; re-verified. Tracked as
+  [PREPIO-140](https://linear.app/qiuyue/issue/PREPIO-140), Backlog / High.)*
   - Evidence: `npm audit` reports `pdfjs-dist >=5.6.83 <6.2.108` high; the app
     parses user-uploaded resumes client-side via the `pdf-*` chunk.
   - Risk: a crafted resume PDF could execute script in the parsing context.
@@ -125,8 +128,9 @@ browserslist high is cleared.
   - Recommended fix: bump `pdfjs-dist` to `>=6.2.108` (a 5 → 6 major) behind a
     resume-upload regression check (PDF **and** DOCX parse paths). Dependabot will
     open the PR; it needs a human to validate the major.
-  - Owner / next step: Deferred — dependency major, Dependabot-surfaced. Not a
-    lockfile-only fix.
+  - Owner / next step: **PREPIO-140** — dependency major (also Dependabot-surfaced),
+    needs a human to validate the resume-upload (PDF + DOCX) regression surfaces.
+    Not a lockfile-only fix.
 
 ### Low / clean-up
 
@@ -151,7 +155,8 @@ browserslist high is cleared.
 
 - [ ] **Two `react-router` advisories (open-redirect GHSA-wrjc-x8rr-h8h6;
   SSR-hydration constructor injection GHSA-337j-9hxr-rhxg) — moderate.** *(Carried;
-  re-verified. SSR one does not apply to this CSR-only app.)*
+  re-verified. SSR one does not apply to this CSR-only app. Tracked as
+  [PREPIO-172](https://linear.app/qiuyue/issue/PREPIO-172), Backlog / Low.)*
   - Evidence: `npm audit` attaches both to `react-router 6.0.0 - 7.17.0`. Prepio
     ships a client-only `BrowserRouter` SPA (no `hydrateRoot`/`StaticRouter`
     anywhere in `src/`), so the SSR-hydration exploit path does not apply; the
@@ -159,11 +164,13 @@ browserslist high is cleared.
   - Recommended fix: react-router v7 major (`>7.17.0`), outside the `^6.26.2`
     manifest constraint — a breaking bump behind a routing/redirect regression
     check. `npm audit fix` non-force is a no-op.
-  - Owner / next step: Deferred — dependency major, Dependabot-surfaced.
+  - Owner / next step: **PREPIO-172** — dependency major (also Dependabot-surfaced).
 
 - [ ] **`check-deno-baseline.sh` is a total-count ratchet with an
   import-resolution soundness gap.** *(Carried from 2026-08-22; re-verified.
-  Noted for the ratchet's maintainers, not filed.)*
+  Tracked as [PREPIO-169](https://linear.app/qiuyue/issue/PREPIO-169), Backlog /
+  Low — filed during the 2026-08-29 alignment review; the duplicate PREPIO-174
+  was closed on discovery.)*
   - Evidence: the wrapper fails only on `count > BASELINE` (19), a
     network-classified skip under `$CI`, or a nonzero `deno` exit with `count ==
     0`. A non-connection import error whose text misses the network-skip regex,
@@ -173,8 +180,8 @@ browserslist high is cleared.
     false-green.
   - Recommended fix: reject any unclassified nonzero `deno` exit (not just `count
     == 0`), and treat a below-baseline count as inspect-not-pass.
-  - Owner / next step: deferred; a CI-gate hardening change beyond the hygiene
-    mandate's approval scope.
+  - Owner / next step: **PREPIO-169** — a CI-gate hardening change beyond the
+    hygiene mandate's approval scope.
 
 ## Small fixes made in this run
 
@@ -186,26 +193,27 @@ browserslist high is cleared.
 
 ## Deferred items
 
-Discrete, actionable items already tracked or explicitly noted-not-filed:
+Discrete, actionable items, each already tracked in Linear:
 
 - **[PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143)** —
   `interview-research` `searchId` BOLA fix PR (High). Highest-value follow-up.
 - **[PREPIO-144](https://linear.app/qiuyue/issue/PREPIO-144)** — evidence-ledger
   trust grant on unvalidated `roleLinks` (Low). Same object-ownership audit family.
-- **`pdfjs-dist` 5 → 6 major** (Medium) and **`react-router` v7 major** (Low, two
-  advisories). Both Dependabot-surfaced majors needing human validation; no
-  lockfile-only fix. Not separately filed — Dependabot is the tracker.
-- **`check-deno-baseline.sh` import-resolution soundness hardening** (Low) — noted
-  for the ratchet's maintainers, not filed (a CI-gate change beyond the hygiene
-  mandate's approval scope).
-- **PREPIO-141** — observability decision on whether any raw model content should
-  be logged at all. The run-#25 `parseJsonResponse` bound is a bound, not a policy
-  answer.
+- **[PREPIO-140](https://linear.app/qiuyue/issue/PREPIO-140)** — `pdfjs-dist` 5 → 6
+  major (Medium/High), and **[PREPIO-172](https://linear.app/qiuyue/issue/PREPIO-172)**
+  — `react-router` v7 major (Low, two advisories). Both are also Dependabot-surfaced
+  majors needing human validation; no lockfile-only fix.
+- **[PREPIO-169](https://linear.app/qiuyue/issue/PREPIO-169)** —
+  `check-deno-baseline.sh` import-resolution soundness hardening (Low, a CI-gate
+  change beyond the hygiene mandate's approval scope).
+- **[PREPIO-141](https://linear.app/qiuyue/issue/PREPIO-141)** — observability
+  decision on whether any raw model content should be logged at all. The run-#25
+  `parseJsonResponse` bound is a bound, not a policy answer.
 
 No **new** Linear issue is owed from this run: the one item that lacked a fix
-(the browserslist advisory) was fixed rather than filed, and the remaining opens
-are each already tracked (PREPIO-143, PREPIO-144, PREPIO-141) or
-Dependabot-surfaced.
+(the browserslist advisory) was fixed rather than filed, and every remaining open
+is already tracked (PREPIO-143, PREPIO-144, PREPIO-140, PREPIO-172, PREPIO-169,
+PREPIO-141).
 
 ## Questions for product owner
 
@@ -219,11 +227,12 @@ Dependabot-surfaced.
    → invoke flow still passes, then re-audit `company-research`, `job-analysis`,
    and `answer-feedback` (and PREPIO-144's `roleLinks` path) for the same missing
    object-ownership check.
-2. **react-router v7 / pdfjs-dist 6 majors.** If Dependabot has opened the
-   security PRs, spend a review validating the resume-upload (PDF+DOCX) and
-   routing/redirect regression surfaces so the majors can actually land instead of
-   accumulating advisories.
+2. **react-router v7 ([PREPIO-172](https://linear.app/qiuyue/issue/PREPIO-172)) /
+   pdfjs-dist 6 ([PREPIO-140](https://linear.app/qiuyue/issue/PREPIO-140)) majors.**
+   If Dependabot has opened the security PRs, spend a review validating the
+   resume-upload (PDF+DOCX) and routing/redirect regression surfaces so the majors
+   can actually land instead of accumulating advisories.
 3. **Keep watching the functional windows.** This was the first source-touching
-   window in three runs and it was clean; the next merges to review closely are
-   any that touch edge functions, auth, or the research pipeline (where the open
-   BOLA family lives) rather than presentational/UX changes.
+   window since #23 and it was clean; the next merges to review closely are any
+   that touch edge functions, auth, or the research pipeline (where the open BOLA
+   family lives) rather than presentational/UX changes.
