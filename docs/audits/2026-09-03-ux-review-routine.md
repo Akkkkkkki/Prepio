@@ -116,9 +116,10 @@ user sees is strong: the practice question is now the unambiguous hero *and* a p
 desktop and mobile (verified live), every practice control is ≥44px on mobile, there is no horizontal
 overflow, notes autosave shows honest device-local copy, **text-answer save persists** (`201`), and
 protected-route redirects preserve intent ("Continue to Practice."). The 2026-09-02 freeze decision
-also finally resolves the four-month "why is half the app dark" tension: guest preview, billing, paid
-feedback, voice, and import are **deliberately out of scope** for the frozen release, not merely
-un-deployed. **But the frontend has not yet been brought into line with that decision, so today a
+also finally resolves the four-month "why is half the app dark" tension: guest preview, billing, and
+paid feedback are **deliberately out of scope** for the frozen release, not merely un-deployed (voice
+and import deploy only if PREPIO-27 keeps their controls and their smoke tests pass, and are hidden
+otherwise). **But the frontend has not yet been brought into line with that decision, so today a
 real user still hits the pre-freeze breakage:** the guest **Preview my prep** CTA fires a doomed
 `research-preview` call, fails with a CORS error, and *blanks* the page's best pre-signup asset (the
 rich static example); the `/pricing` page still shows live "Choose monthly/quarterly" checkout CTAs
