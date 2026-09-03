@@ -307,12 +307,28 @@ describe("buildQueryPlanLogPayload", () => {
 
     expect(payload.roleFamily).toBe(plan.roleFamily);
     expect(payload.queryCount).toBe(plan.queries.length);
-    expect(payload.targetedSignalCount).toBe(plan.signals.userNote.length);
+    expect(payload.targetedSignalCount).toBe(plan.signals.targetedUserNote.length);
     expect(payload.budget).toEqual(plan.budget);
     // Source categories are the deduped `source` labels, not the query strings.
     expect(payload.sourceCategories).toEqual([
       ...new Set(plan.queries.map((query) => query.source)),
     ]);
     expect(payload.includeDomains).toEqual(plan.includeDomains);
+  });
+
+  it("counts only targeted signals, not contextual-only note topics", () => {
+    const plan = buildResearchQueryPlan({
+      company: "Stripe",
+      role: "Software Engineer",
+      userNote: "Practising system design and case interview questions",
+      maxQueries: 6,
+    });
+
+    // The note produces contextual labels but no person/team target...
+    expect(plan.signals.userNote.length).toBeGreaterThan(0);
+    expect(plan.signals.targetedUserNote).toEqual([]);
+
+    // ...so the logged targeted-signal count must be 0, not the label count.
+    expect(buildQueryPlanLogPayload(plan).targetedSignalCount).toBe(0);
   });
 });
