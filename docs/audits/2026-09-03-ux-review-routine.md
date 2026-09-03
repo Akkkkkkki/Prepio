@@ -42,7 +42,8 @@ re-triggered. Backend deploy state and the two live failures below were probed l
 context on a protected-route direct link, `/interviews`, practice mode (desktop + mobile) —
 **question-as-`<h1>` on both breakpoints**, **text-answer save (`201`)**, **Favorite flag write
 (`400/42P10`)**, notes autosave, `/history`, `/pricing`, `/profile` (copy inspected, **not**
-screenshotted — see PII note), keyboard-focus pass, 200%-zoom overflow check, and an edge-function
+screenshotted — see PII note), keyboard-focus pass, a 720px-viewport reflow check (proxy for 200%
+zoom's effective CSS viewport, not a device-pixel-accurate browser-zoom test), and an edge-function
 deploy probe across all twelve functions. Screenshots under
 [`assets/2026-09-03/`](./assets/2026-09-03/). **The `/profile` screenshot was deliberately excluded**
 — the tester account carries a real seeded CV (`CV_2026_Sharpa.pdf`); the page was inspected for copy
