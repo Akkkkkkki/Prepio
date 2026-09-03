@@ -56,7 +56,10 @@ Supabase Edge Functions:
 > `answer-feedback`. **Two deploy only conditionally:** `profile-import` and
 > `practice-audio-transcribe` ship only if PREPIO-27 keeps their UI and smoke tests pass, and
 > otherwise stay undeployed with their controls hidden (the default freeze expectation). The
-> frontend is locked to a static guest sample with hidden billing/paid controls (PREPIO-27).
+> frontend surface-lock that makes this safe — a static guest sample with hidden billing/paid
+> controls — is **still pending (PREPIO-27 has not landed)**: today the guest preview still calls
+> the missing `research-preview`, and billing controls and public sign-up remain visible, so the
+> lock is required freeze work, not a done state.
 
 Shared function utilities live under `supabase/functions/_shared`.
 
