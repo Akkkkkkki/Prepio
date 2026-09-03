@@ -32,11 +32,49 @@ export interface QueryPlan {
     role: string;
     level: string;
     country: string | null;
+    // All user-note signals kept for query building — targeted (person/team)
+    // names plus contextual topics like "system design" or "case interview".
     userNote: string[];
+    // The person/team subset that drives the targeted LinkedIn/blog/talk
+    // queries. Always a subset of `userNote`.
+    targetedUserNote: string[];
   };
   budget: {
     maxQueries: number;
     plannedQueries: number;
+  };
+}
+
+/**
+ * Structured, PII-free view of a {@link QueryPlan} safe to write to operational
+ * logs. `queries[].query` (full query strings that embed the company, role, and
+ * user note) and `signals` (free-text-derived role/level/country and the parsed
+ * interviewer names in `userNote`) can carry personal data, so they are reduced
+ * to counts and category labels here. Keeps `roleFamily`, the query count, the
+ * source and domain-pack categories, the targeted-signal count, and the budget —
+ * enough to debug query-planning from the logs without persisting the note
+ * content. See PREPIO-141.
+ */
+export interface QueryPlanLogPayload {
+  roleFamily: ResearchRoleFamily;
+  queryCount: number;
+  sourceCategories: string[];
+  includeDomains: string[];
+  targetedSignalCount: number;
+  budget: {
+    maxQueries: number;
+    plannedQueries: number;
+  };
+}
+
+export function buildQueryPlanLogPayload(plan: QueryPlan): QueryPlanLogPayload {
+  return {
+    roleFamily: plan.roleFamily,
+    queryCount: plan.queries.length,
+    sourceCategories: dedupe(plan.queries.map((query) => query.source)),
+    includeDomains: plan.includeDomains,
+    targetedSignalCount: plan.signals.targetedUserNote.length,
+    budget: plan.budget,
   };
 }
 
@@ -411,6 +449,7 @@ export function buildResearchQueryPlan(input: QueryPlanInput): QueryPlan {
       level: levelPhrase || "unknown",
       country: country ?? null,
       userNote: userNoteSignals.labels,
+      targetedUserNote: userNoteSignals.targeted,
     },
     budget: {
       maxQueries,

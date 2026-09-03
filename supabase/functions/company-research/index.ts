@@ -9,7 +9,7 @@ import { authorizeRequest, ensureServiceCaller } from "../_shared/auth.ts";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import { buildResearchFreshness } from "../_shared/research-freshness.ts";
 import { buildSearchPayloads, type SearchPayload } from "./result-aggregation.ts";
-import { buildResearchQueryPlan, type ResearchLevel } from "./query-planner.ts";
+import { buildQueryPlanLogPayload, buildResearchQueryPlan, type ResearchLevel } from "./query-planner.ts";
 
 interface CompanyResearchRequest {
   company: string;
@@ -195,13 +195,10 @@ async function searchCompanyInfo(
         });
         const searchQueries = queryPlan.queries;
 
-        logger?.log('QUERY_PLAN', 'DISCOVERY', {
-          roleFamily: queryPlan.roleFamily,
-          signals: queryPlan.signals,
-          queries: queryPlan.queries,
-          includeDomains: queryPlan.includeDomains,
-          budget: queryPlan.budget,
-        });
+        // Redacted by default (PREPIO-141): the raw `signals` and `queries`
+        // fields can carry the user's free-text note and parsed interviewer
+        // names, so only counts and category labels are logged.
+        logger?.log('QUERY_PLAN', 'DISCOVERY', buildQueryPlanLogPayload(queryPlan));
 
         logger?.logPhaseTransition('CACHE_CHECK', 'DISCOVERY', {
           queriesCount: searchQueries.length,
