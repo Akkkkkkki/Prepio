@@ -365,8 +365,12 @@ that work.) Updates below are recorded via Linear comments, not new issues.
    hide checkout/portal/paid-feedback/voice/import controls, invite-only sign-up, disable PDF upload
    (PREPIO-140), strip copy promising unavailable features, add the guest-makes-zero-calls tests. →
    **[PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27)** (Urgent; confirmed live 2026-09-03).
-2. **[P0] Attended freeze deploy** — reconcile migration history and deploy only the five core
-   functions + pending migrations (explicit manifest, not the all-functions script). →
+2. **[P0] Attended freeze deploy** — reconcile migration history and deploy the five core functions
+   + pending migrations via the explicit per-function manifest (never the all-functions script);
+   also deploy `profile-import` / `practice-audio-transcribe` **only if PREPIO-27 keeps their UI and
+   their smoke tests pass** (otherwise leave them undeployed with controls hidden), and never the five
+   out-for-this-freeze functions (`research-preview`, `create-checkout-session`,
+   `create-portal-session`, `stripe-webhook`, `answer-feedback`). →
    **[PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124)** (Urgent; confirmed live 2026-09-03).
 3. **[P1] Apply `20260710203000_question_flags_per_type.sql`** in the freeze window so the
    Favorite/Needs-work upsert stops returning `42P10`. →
