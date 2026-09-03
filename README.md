@@ -22,13 +22,19 @@ Not shipped yet:
 - Lifecycle notifications.
 
 > "Shipped" above means merged to `main`. The production backend has been frozen since
-> 2026-05-15 — guest preview, paid answer feedback, CV import, voice transcription, and the
-> billing purchase flow are not deployed there yet. Each gap is narrower than the feature
-> name suggests: recording and saving a voice answer does work in production, only the
-> transcript generation is missing; and the billing tables and frontend are live, so
-> `/pricing`, `/billing/return`, and the entitlement read work and always resolve free —
-> what is absent is Checkout, the Customer Portal, and the webhook that would write a paid
-> row. See `docs/ARCHITECTURE.md`, `docs/BILLING.md`, and PREPIO-124.
+> 2026-05-15, and per the **2026-09-02 freeze decision** that gap is now a deliberate release
+> scope, not a deploy backlog: the frozen release is an invite-only, free, authenticated core.
+> PREPIO-124 deploys **only** the five core research functions + pending migrations; **five
+> functions never deploy for this freeze** (guest preview, Checkout, Customer Portal, the Stripe
+> webhook, paid answer feedback — restoring live billing is a later product decision), and **two
+> deploy only conditionally** (CV import, voice transcription — only if PREPIO-27 keeps their UI
+> and smoke tests pass, otherwise undeployed with controls hidden). The frontend is being locked
+> to match (PREPIO-27): a static guest sample, hidden billing/paid controls, invite-only sign-up.
+> Each gap is narrower than the feature name suggests: recording and saving a voice answer does
+> work in production, only transcript generation is missing; and the billing tables and frontend
+> are live, so `/pricing`, `/billing/return`, and the entitlement read work and always resolve
+> free — what is absent is Checkout, the Customer Portal, and the webhook that would write a paid
+> row. See `docs/ARCHITECTURE.md`, `docs/BILLING.md`, PREPIO-124, and PREPIO-27.
 
 ## Stack
 

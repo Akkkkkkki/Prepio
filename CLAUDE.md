@@ -33,8 +33,26 @@ These points override anything in older docs or code comments:
 > before assuming a whole feature is dark: the billing tables and frontend *are* live, so
 > `/pricing`, `/billing/return`, and the entitlement read work and simply always resolve
 > free (see [`docs/BILLING.md`](./docs/BILLING.md)); likewise recording and saving a voice
-> answer works, and only the transcript is missing. Tracked as PREPIO-124 (Urgent). Read
-> "shipped" in this file and in `docs/` as "merged to `main`", not "live".
+> answer works, and only the transcript is missing. Read "shipped" in this file and in
+> `docs/` as "merged to `main`", not "live".
+>
+> **Deploy decision (2026-09-02): this is now a deliberate freeze, not a deploy backlog.**
+> [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124) (Urgent) deploys **only** the five
+> core research functions (`interview-research`, `company-research`, `job-analysis`,
+> `cv-analysis`, `interview-question-generator`) plus the pending migrations — nothing is
+> brought "to parity with `main`". The frozen release is an invite-only, free, authenticated
+> core with no live billing and no unauthenticated AI endpoint, and the remaining functions are
+> handled in two groups, not deployed wholesale. **Five never deploy for this freeze:**
+> `research-preview`, `create-checkout-session`, `create-portal-session`, `stripe-webhook`, and
+> `answer-feedback`. **Two deploy only conditionally:** `profile-import` and
+> `practice-audio-transcribe` ship **only** if [PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27)
+> deliberately keeps their UI and their smoke tests pass; otherwise they stay undeployed and their
+> controls are hidden (the default expectation for the freeze). The frontend is being locked to
+> match (PREPIO-27): the guest preview becomes a static checked-in sample (no `research-preview`
+> call), Checkout/Portal/paid-feedback controls are hidden, sign-up goes invite-only, and PDF upload
+> is disabled while the `pdfjs-dist` advisory (PREPIO-140) is open. Voice/import controls are hidden
+> too **by default**, kept only under the conditional above (their functions deployed with passing
+> smoke tests).
 
 ## Commands
 
@@ -61,14 +79,25 @@ catch a ratchet break.
 ```bash
 npm run functions:serve          # Serve edge functions locally
 npm run functions:serve-debug    # Serve with debug logging
-npm run functions:deploy         # Deploy all edge functions
-npm run functions:deploy-single FUNCTION_NAME
+npm run functions:deploy         # Deploy ALL edge functions — do NOT use for the freeze (see note below)
+npm run functions:deploy-single FUNCTION_NAME  # Freeze deploy uses this, once per core function
 npm run db:push                  # Push migrations
 npm run db:pull                  # Pull remote schema
 npm run supabase:start           # Start local Supabase
 npm run supabase:stop
 npm run supabase:status
 ```
+
+> **Freeze deploy (PREPIO-124): do not run `npm run functions:deploy`.** It expands to the
+> unscoped `supabase functions deploy` and would push every function, including the ones the
+> freeze intentionally keeps undeployed (see the "Deploy decision" note above). Deploy the freeze
+> manifest with `npm run functions:deploy-single` once per core function
+> (`interview-research`, `company-research`, `job-analysis`, `cv-analysis`,
+> `interview-question-generator`) — and, **only if PREPIO-27 keeps their UI and their smoke tests
+> pass**, once more each for `profile-import` and `practice-audio-transcribe` (otherwise those two
+> stay undeployed and their controls hidden). Never deploy the five that are out for this freeze
+> (`research-preview`, `create-checkout-session`, `create-portal-session`, `stripe-webhook`,
+> `answer-feedback`).
 
 ### After database changes
 

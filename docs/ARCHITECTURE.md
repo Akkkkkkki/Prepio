@@ -49,7 +49,17 @@ Supabase Edge Functions:
 > `create-portal-session`, `stripe-webhook`, `answer-feedback`, `profile-import`,
 > `practice-audio-transcribe` — return the gateway `404` and have never been deployed. "In
 > this repo" and "in production" are not the same thing for anything in that list. Tracked as
-> PREPIO-124 (Urgent).
+> PREPIO-124 (Urgent) — but per the **2026-09-02 freeze decision** this is scope, not a deploy
+> backlog: PREPIO-124 deploys only the five core functions above plus the pending migrations, and
+> the remaining functions are handled in two groups. **Five never deploy for the freeze:**
+> `research-preview`, `create-checkout-session`, `create-portal-session`, `stripe-webhook`,
+> `answer-feedback`. **Two deploy only conditionally:** `profile-import` and
+> `practice-audio-transcribe` ship only if PREPIO-27 keeps their UI and smoke tests pass, and
+> otherwise stay undeployed with their controls hidden (the default freeze expectation). The
+> frontend surface-lock that makes this safe — a static guest sample with hidden billing/paid
+> controls — is **still pending (PREPIO-27 has not landed)**: today the guest preview still calls
+> the missing `research-preview`, and billing controls and public sign-up remain visible, so the
+> lock is required freeze work, not a done state.
 
 Shared function utilities live under `supabase/functions/_shared`.
 
@@ -166,8 +176,11 @@ before changing anything under `supabase/functions/interview-research`,
 6. Entitlement reads derive `free` or `paid` from the subscription row.
 
 Checkout and Customer Portal session creation are implemented (`create-checkout-session`,
-`create-portal-session`, both with local handler tests). They are not deployed to production
-yet — see PREPIO-124.
+`create-portal-session`, both with local handler tests). They are **not deployed to production,
+and are intentionally excluded from the freeze** (2026-09-02 decision): the frozen release ships
+with no live billing, and PREPIO-27 hides the Checkout/Portal controls rather than exposing a
+button that points at an undeployed function. Restoring live billing is a separate, later product
+decision — see PREPIO-124 (freeze manifest) and PREPIO-27 (surface lock).
 
 ## Security Model
 

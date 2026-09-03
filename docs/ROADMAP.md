@@ -136,14 +136,23 @@ can dead-end on empty states that explain the menu.
 
 ## Next
 
-- **Deploy the backend to parity with `main` (PREPIO-124, Urgent).** Production has been
-  frozen since 2026-05-15: 8 migrations are unapplied and 7 edge functions
+- **Ship the frozen release: core deploy + surface lock (PREPIO-124 + PREPIO-27, Urgent).**
+  Production has been frozen since 2026-05-15: 8 migrations are unapplied and 7 edge functions
   (`research-preview`, `create-checkout-session`, `create-portal-session`, `stripe-webhook`,
   `answer-feedback`, `profile-import`, `practice-audio-transcribe`) are undeployed, so guest
   preview, the **billing purchase flow**, paid feedback, CV import, and **voice
   transcription** are dead in production regardless of what this file says is shipped.
-  Note the precision on the last two, because PREPIO-124's smoke-test list is built from
-  these claims and a wholesale "dead" would send it to redeploy working surfaces. The
+  **Deploy decision (2026-09-02): this is not a "deploy to parity" task.** The frozen release is
+  an invite-only, free, authenticated core. PREPIO-124 deploys **only** the five core research
+  functions (`interview-research`, `company-research`, `job-analysis`, `cv-analysis`,
+  `interview-question-generator`) plus the pending migrations — **not** `research-preview`,
+  `create-checkout-session`, `create-portal-session`, `stripe-webhook`, or `answer-feedback`
+  (`profile-import` / `practice-audio-transcribe` only if their UI is kept and smoke tests pass).
+  PREPIO-27 then locks the frontend to match: static guest sample (no `research-preview` call),
+  hidden Checkout/Portal/paid-feedback controls, invite-only sign-up, PDF upload disabled while
+  PREPIO-140 is open. Voice/import controls are hidden too **by default**, kept only under the
+  conditional above (their functions deployed with passing smoke tests). The precision below still matters for the core deploy's
+  smoke-test list, because a wholesale "dead" would send it to redeploy working surfaces. The
   `practice-audio` bucket comes from a migration that *is* applied, and `Practice.tsx`
   uploads the recording and saves `audio_path` before invoking transcription
   asynchronously — so recording and saving a voice answer still work, and only transcript
