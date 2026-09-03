@@ -49,8 +49,10 @@ These points override anything in older docs or code comments:
 > deliberately keeps their UI and their smoke tests pass; otherwise they stay undeployed and their
 > controls are hidden (the default expectation for the freeze). The frontend is being locked to
 > match (PREPIO-27): the guest preview becomes a static checked-in sample (no `research-preview`
-> call), Checkout/Portal/paid-feedback/voice/import controls are hidden, sign-up goes invite-only,
-> and PDF upload is disabled while the `pdfjs-dist` advisory (PREPIO-140) is open.
+> call), Checkout/Portal/paid-feedback controls are hidden, sign-up goes invite-only, and PDF upload
+> is disabled while the `pdfjs-dist` advisory (PREPIO-140) is open. Voice/import controls are hidden
+> too **by default**, kept only under the conditional above (their functions deployed with passing
+> smoke tests).
 
 ## Commands
 

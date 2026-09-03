@@ -149,8 +149,9 @@ can dead-end on empty states that explain the menu.
   `create-checkout-session`, `create-portal-session`, `stripe-webhook`, or `answer-feedback`
   (`profile-import` / `practice-audio-transcribe` only if their UI is kept and smoke tests pass).
   PREPIO-27 then locks the frontend to match: static guest sample (no `research-preview` call),
-  hidden Checkout/Portal/paid-feedback/voice/import controls, invite-only sign-up, PDF upload
-  disabled while PREPIO-140 is open. The precision below still matters for the core deploy's
+  hidden Checkout/Portal/paid-feedback controls, invite-only sign-up, PDF upload disabled while
+  PREPIO-140 is open. Voice/import controls are hidden too **by default**, kept only under the
+  conditional above (their functions deployed with passing smoke tests). The precision below still matters for the core deploy's
   smoke-test list, because a wholesale "dead" would send it to redeploy working surfaces. The
   `practice-audio` bucket comes from a migration that *is* applied, and `Practice.tsx`
   uploads the recording and saves `audio_path` before invoking transcription
