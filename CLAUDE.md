@@ -91,7 +91,11 @@ npm run supabase:status
 > freeze intentionally keeps undeployed (see the "Deploy decision" note above). Deploy the freeze
 > manifest with `npm run functions:deploy-single` once per core function
 > (`interview-research`, `company-research`, `job-analysis`, `cv-analysis`,
-> `interview-question-generator`).
+> `interview-question-generator`) — and, **only if PREPIO-27 keeps their UI and their smoke tests
+> pass**, once more each for `profile-import` and `practice-audio-transcribe` (otherwise those two
+> stay undeployed and their controls hidden). Never deploy the five that are out for this freeze
+> (`research-preview`, `create-checkout-session`, `create-portal-session`, `stripe-webhook`,
+> `answer-feedback`).
 
 ### After database changes
 
