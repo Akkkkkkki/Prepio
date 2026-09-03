@@ -176,8 +176,11 @@ before changing anything under `supabase/functions/interview-research`,
 6. Entitlement reads derive `free` or `paid` from the subscription row.
 
 Checkout and Customer Portal session creation are implemented (`create-checkout-session`,
-`create-portal-session`, both with local handler tests). They are not deployed to production
-yet — see PREPIO-124.
+`create-portal-session`, both with local handler tests). They are **not deployed to production,
+and are intentionally excluded from the freeze** (2026-09-02 decision): the frozen release ships
+with no live billing, and PREPIO-27 hides the Checkout/Portal controls rather than exposing a
+button that points at an undeployed function. Restoring live billing is a separate, later product
+decision — see PREPIO-124 (freeze manifest) and PREPIO-27 (surface lock).
 
 ## Security Model
 
