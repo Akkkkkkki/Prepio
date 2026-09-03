@@ -281,14 +281,16 @@ freeze window (PREPIO-170).
 - **`/practice` with no active search shows an honest empty state.** The bare `/practice` nav link
   (no `searchId`) renders *"No Search Selected / Select a search to start practicing…"* with **Go to
   Dashboard** and **Prep a new interview** — a clean recovery, not a dead end.
-- **Keyboard focus is visible; 200% zoom reflows cleanly.** Tab order on landing is Skip-link → nav →
-  Pricing → "Sign in or create account" → form inputs, each interactive control with a visible focus
-  ring (2px solid outline + box-shadow ring). The 200%-zoom check was re-run this way (the earlier
-  `body{zoom:2}` measurement doesn't reproduce browser zoom, since the CSS viewport and media-query
-  breakpoints stay at 1440px): loading at a **720px viewport — the effective CSS viewport a 1440px
-  window produces at 200% browser zoom, where the responsive breakpoints actually re-evaluate** —
-  landing, `/auth`, and `/pricing` all reflow with **no horizontal scroll** (`scrollWidth == clientWidth
-  == 720` on each).
+- **Keyboard focus is visible; narrow-viewport reflow is clean.** Tab order on landing is Skip-link →
+  nav → Pricing → "Sign in or create account" → form inputs, each interactive control with a visible
+  focus ring (2px solid outline + box-shadow ring). **On the zoom check, read this narrowly:** it is a
+  **720px-viewport reflow check**, not a device-pixel-accurate 200%-browser-zoom test. 720px is the
+  effective CSS viewport a 1440px window produces at 200% zoom — so it exercises the responsive
+  breakpoints, and landing, `/auth`, and `/pricing` all reflow with **no horizontal scroll**
+  (`scrollWidth == clientWidth == 720` on each) — but it does **not** reproduce the page-scale /
+  device-pixel-ratio / text-scaling behavior of real browser zoom, which this environment's headless
+  Chromium can't drive cleanly. (The earlier `body{zoom:2}` measurement was weaker still — the CSS
+  viewport and breakpoints stayed at 1440px — so this is an improvement, not a full attestation.)
 
 ### Freeze-surface items to fold into PREPIO-27 (observed live)
 
@@ -322,7 +324,7 @@ code-confirmed / carried (the form was not re-submitted).
 | Resume/profile trust | 4 | 4 | = | **(live)** Profile shows CV source + honest upgrade copy. PDF-upload should be disabled under the freeze (PREPIO-27/PREPIO-140) — a surface item, not a trust regression. |
 | Dashboard/history/resume | 3 | 3 | = | **(live)** Interviews cards resume well, but `/history` empty despite in-progress work (P3 #4). |
 | Error/empty states | 4 | 4 | = | **(live)** Flag failure and `/practice` no-search state are honest; transcription fails honestly. Held at 4 by the guest-preview **blanking** the static example (P0 #1). |
-| Accessibility | 3 | **4** | **▲** | **(live)** Practice screen now has `<h1>` on desktop **and** mobile (#329), focus rings visible, redirect context preserved, 200% zoom reflows with no horizontal scroll (re-measured at a 720px effective CSS viewport). Remaining: `/auth` autocomplete null (#3), sub-44px landing/auth targets (#5). |
+| Accessibility | 3 | **4** | **▲** | **(live)** Practice screen now has `<h1>` on desktop **and** mobile (#329), focus rings visible, redirect context preserved, clean reflow at a 720px viewport (a proxy for 200% zoom's effective CSS viewport, not a device-pixel-accurate browser-zoom test). Remaining: `/auth` autocomplete null (#3), sub-44px landing/auth targets (#5). |
 | Copy quality | 4 | 4 | = | **(live)** Research/dashboard/profile/pricing copy honest and specific. The freeze will need a copy pass to drop promises of unavailable features (PREPIO-27). |
 
 **Composite: up one, on Accessibility.** The deployed core holds at a genuinely good level and picks
