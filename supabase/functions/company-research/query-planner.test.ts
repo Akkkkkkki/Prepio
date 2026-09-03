@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildResearchQueryPlan, classifyRoleFamily } from "./query-planner.ts";
+import { buildQueryPlanLogPayload, buildResearchQueryPlan, classifyRoleFamily } from "./query-planner.ts";
 
 describe("classifyRoleFamily", () => {
   it("classifies consulting and finance before the generic tech fallback", () => {
@@ -263,5 +263,56 @@ describe("buildResearchQueryPlan", () => {
     expect(sources).toEqual(expect.arrayContaining(["blind", "leetcode", "levels", "user-note-linkedin"]));
     expect(targeted?.query).toMatch(/"Alex Chen"/);
     expect(targeted?.query).toMatch(/"Payments team"/);
+  });
+});
+
+describe("buildQueryPlanLogPayload", () => {
+  const noteWithPII =
+    "Meeting Alex Chen from the Payments team; she has recent conference talks and blog posts.";
+
+  it("drops the raw signals and queries so no free-text note content is logged", () => {
+    const plan = buildResearchQueryPlan({
+      company: "Stripe",
+      role: "Product Manager",
+      country: "United States",
+      userNote: noteWithPII,
+      maxQueries: 6,
+    });
+
+    // The plan itself still carries the free-text-derived data the pipeline needs...
+    expect(plan.signals.userNote).toContain("Alex Chen");
+
+    const payload = buildQueryPlanLogPayload(plan);
+
+    // ...but the log payload must not expose the raw signals/queries fields.
+    expect(payload).not.toHaveProperty("signals");
+    expect(payload).not.toHaveProperty("queries");
+
+    const serialized = JSON.stringify(payload);
+    expect(serialized).not.toContain("Alex Chen");
+    expect(serialized).not.toContain("Payments team");
+    // No full query strings leak through either.
+    expect(serialized).not.toContain(plan.queries[0].query);
+  });
+
+  it("keeps roleFamily, counts, and category labels for debuggability", () => {
+    const plan = buildResearchQueryPlan({
+      company: "Stripe",
+      role: "Product Manager",
+      userNote: noteWithPII,
+      maxQueries: 6,
+    });
+
+    const payload = buildQueryPlanLogPayload(plan);
+
+    expect(payload.roleFamily).toBe(plan.roleFamily);
+    expect(payload.queryCount).toBe(plan.queries.length);
+    expect(payload.targetedSignalCount).toBe(plan.signals.userNote.length);
+    expect(payload.budget).toEqual(plan.budget);
+    // Source categories are the deduped `source` labels, not the query strings.
+    expect(payload.sourceCategories).toEqual([
+      ...new Set(plan.queries.map((query) => query.source)),
+    ]);
+    expect(payload.includeDomains).toEqual(plan.includeDomains);
   });
 });

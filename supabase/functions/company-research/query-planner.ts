@@ -40,6 +40,39 @@ export interface QueryPlan {
   };
 }
 
+/**
+ * Structured, PII-free view of a {@link QueryPlan} safe to write to operational
+ * logs. `queries[].query` (full query strings that embed the company, role, and
+ * user note) and `signals` (free-text-derived role/level/country and the parsed
+ * interviewer names in `userNote`) can carry personal data, so they are reduced
+ * to counts and category labels here. Keeps `roleFamily`, the query count, the
+ * source and domain-pack categories, the targeted-signal count, and the budget —
+ * enough to debug query-planning from the logs without persisting the note
+ * content. See PREPIO-141.
+ */
+export interface QueryPlanLogPayload {
+  roleFamily: ResearchRoleFamily;
+  queryCount: number;
+  sourceCategories: string[];
+  includeDomains: string[];
+  targetedSignalCount: number;
+  budget: {
+    maxQueries: number;
+    plannedQueries: number;
+  };
+}
+
+export function buildQueryPlanLogPayload(plan: QueryPlan): QueryPlanLogPayload {
+  return {
+    roleFamily: plan.roleFamily,
+    queryCount: plan.queries.length,
+    sourceCategories: dedupe(plan.queries.map((query) => query.source)),
+    includeDomains: plan.includeDomains,
+    targetedSignalCount: plan.signals.userNote.length,
+    budget: plan.budget,
+  };
+}
+
 const DOMAIN_PACKS: Record<ResearchRoleFamily | "common", string[]> = {
   common: [
     "glassdoor.com",
