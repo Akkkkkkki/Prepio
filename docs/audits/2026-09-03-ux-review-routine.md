@@ -362,9 +362,11 @@ replaces the whole guest network path with a static sample; filing a narrower ti
 that work.) Updates below are recorded via Linear comments, not new issues.
 
 1. **[P0] Lock the frozen guest/billing/auth surface** — static guest sample (no Edge Function call),
-   hide checkout/portal/paid-feedback/voice/import controls, invite-only sign-up, disable PDF upload
-   (PREPIO-140), strip copy promising unavailable features, add the guest-makes-zero-calls tests. →
-   **[PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27)** (Urgent; confirmed live 2026-09-03).
+   hide checkout/portal/paid-feedback controls, invite-only sign-up, disable PDF upload
+   (PREPIO-140), strip copy promising unavailable features, add the guest-makes-zero-calls tests.
+   Hide voice/import controls **unless PREPIO-27 deliberately retains them and their functions are
+   deployed with passing smoke tests** (the ticket #2 conditional) — don't remove an approved freeze
+   feature. → **[PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27)** (Urgent; confirmed live 2026-09-03).
 2. **[P0] Attended freeze deploy** — reconcile migration history and deploy the five core functions
    + pending migrations via the explicit per-function manifest (never the all-functions script);
    also deploy `profile-import` / `practice-audio-transcribe` **only if PREPIO-27 keeps their UI and
