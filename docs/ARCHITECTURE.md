@@ -49,7 +49,11 @@ Supabase Edge Functions:
 > `create-portal-session`, `stripe-webhook`, `answer-feedback`, `profile-import`,
 > `practice-audio-transcribe` — return the gateway `404` and have never been deployed. "In
 > this repo" and "in production" are not the same thing for anything in that list. Tracked as
-> PREPIO-124 (Urgent).
+> PREPIO-124 (Urgent) — but per the **2026-09-02 freeze decision** this is scope, not a deploy
+> backlog: PREPIO-124 deploys only the five core functions above plus the pending migrations,
+> and the other seven stay undeployed on purpose while the frontend is locked to a static guest
+> sample with hidden billing/paid/voice/import controls (PREPIO-27). Do not deploy the billing,
+> preview, or answer-feedback functions for the freeze.
 
 Shared function utilities live under `supabase/functions/_shared`.
 

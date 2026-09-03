@@ -33,8 +33,22 @@ These points override anything in older docs or code comments:
 > before assuming a whole feature is dark: the billing tables and frontend *are* live, so
 > `/pricing`, `/billing/return`, and the entitlement read work and simply always resolve
 > free (see [`docs/BILLING.md`](./docs/BILLING.md)); likewise recording and saving a voice
-> answer works, and only the transcript is missing. Tracked as PREPIO-124 (Urgent). Read
-> "shipped" in this file and in `docs/` as "merged to `main`", not "live".
+> answer works, and only the transcript is missing. Read "shipped" in this file and in
+> `docs/` as "merged to `main`", not "live".
+>
+> **Deploy decision (2026-09-02): this is now a deliberate freeze, not a deploy backlog.**
+> [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124) (Urgent) deploys **only** the five
+> core research functions (`interview-research`, `company-research`, `job-analysis`,
+> `cv-analysis`, `interview-question-generator`) plus the pending migrations. The other seven
+> stay undeployed **on purpose** — the frozen release is an invite-only, free, authenticated
+> core with no live billing and no unauthenticated AI endpoint. The frontend is being locked to
+> match ([PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27)): the guest preview becomes a
+> static checked-in sample (no `research-preview` call), Checkout/Portal/paid-feedback/voice/
+> import controls are hidden, sign-up goes invite-only, and PDF upload is disabled while the
+> `pdfjs-dist` advisory (PREPIO-140) is open. Do **not** deploy `research-preview`,
+> `create-checkout-session`, `create-portal-session`, `stripe-webhook`, or `answer-feedback` for
+> this freeze; deploy `profile-import` / `practice-audio-transcribe` only if their UI is kept and
+> their smoke tests pass.
 
 ## Commands
 
