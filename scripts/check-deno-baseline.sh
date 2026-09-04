@@ -157,11 +157,35 @@ else
   count=$(grep -cE 'TS[0-9]+ \[ERROR\]' <<< "$output" || true)
 fi
 
-# deno failed, but nothing was classified as a network skip or counted as a type
-# diagnostic. Something else broke; surface it instead of reporting "at baseline".
-if (( deno_status != 0 )) && (( count == 0 )); then
-  echo "deno check failed (exit $deno_status) without any countable type diagnostic." >&2
-  echo "This is not a pass — inspect the output below." >&2
+# Did type checking run to completion? A completed `deno check` that finds
+# errors ends with `error: Type checking failed.`, and a clean one exits 0 with
+# no diagnostics at all. deno prints a `Found N errors.` summary only for N >= 2
+# — a single error emits its `TS.. [ERROR]` diagnostic and the `Type checking
+# failed.` line but NO summary (verified on the pinned deno 2.9.5) — so keying
+# completion on the summary alone would reject a legitimate one-error run once
+# the backlog burns down to its last error (or DENO_ERROR_BASELINE=1). Accept
+# either signal.
+#
+# A hard failure aborts *before* type checking and prints a different terminal
+# `error:` line instead — a parse/syntax error, a corrupt lockfile, or a
+# non-connection import-resolution failure that slipped past the network-skip
+# classifier above — none of which carry `Type checking failed.`. (A missing
+# module is not one of these: deno surfaces it as a normal countable TS2307
+# inside a completed check, so it is legitimately counted as a type error.)
+completed=0
+if [ -n "$summary" ] || grep -qE '^error: Type checking failed\.' <<< "$output"; then
+  completed=1
+fi
+
+# A nonzero exit that did not complete a type check is untrustworthy even when a
+# handful of `TS.. [ERROR]` lines leaked out before the abort, so counting those
+# and comparing to the baseline would mask the failure as "at/below baseline".
+# Reject any such unclassified nonzero exit — not only the count == 0 case the
+# earlier version caught, which let a hard failure that happened to surface 1–19
+# diagnostics fall through to a false pass (PREPIO-169).
+if (( deno_status != 0 )) && (( completed == 0 )); then
+  echo "deno check failed (exit $deno_status) without completing a type check (no 'Found N errors.' or 'Type checking failed.' line)." >&2
+  echo "This is not a pass — the check did not run to completion. Inspect the output below." >&2
   printf '%s\n' "$output" >&2
   exit 1
 fi
@@ -174,7 +198,16 @@ if (( count > BASELINE )); then
 fi
 
 if (( count < BASELINE )); then
-  echo "supabase/functions: $count type errors, below the baseline of $BASELINE. Lower BASELINE in scripts/check-deno-baseline.sh to lock in the improvement."
+  # Below baseline is not a silent green. With the completion-summary guard
+  # above, a sub-baseline count from a clean run is a genuine improvement — but
+  # the count-only ratchet cannot prove *which* errors went away, so treat it as
+  # a signal to inspect and lock in rather than an automatic pass. It stays
+  # non-fatal (exit 0) to mirror scripts/check-typecheck-baseline.sh and to avoid
+  # failing CI on a legitimate reduction, but the message goes to stderr so it is
+  # not lost in a green log. Left unlocked, the baseline silently re-admits
+  # regressions all the way back up to the old ceiling (PREPIO-169).
+  echo "supabase/functions: $count type errors, BELOW the baseline of $BASELINE — inspect, do not treat as a clean pass." >&2
+  echo "Confirm the drop is real, then lower BASELINE in scripts/check-deno-baseline.sh (or set DENO_ERROR_BASELINE=$count) to lock it in." >&2
 else
   echo "supabase/functions: $count type errors (at baseline)."
 fi
