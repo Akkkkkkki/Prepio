@@ -214,6 +214,41 @@ describe("buildEvidenceLedger", () => {
     });
   });
 
+  it("matches the whole compact brand identity, not individual name fragments", () => {
+    const ledger = buildEvidenceLedger({
+      company: "H&M",
+      jobRawData: {
+        results: [
+          // The compact brand identity `hm` is the employer's domain.
+          {
+            title: "Retail Data Analyst",
+            url: "https://hm.com/careers/retail-data-analyst",
+            raw_content: "Own merchandising analytics across regions.",
+          },
+          // A fragment of the name (`m`) must not grant trust to an unrelated
+          // domain that merely happens to be a single-letter host.
+          {
+            title: "Not H&M",
+            url: "https://m.com/careers/retail-data-analyst",
+            content: "An unrelated single-letter host, not the employer.",
+          },
+        ],
+      },
+    });
+
+    expect(ledger).toHaveLength(2);
+    expect(ledger[0]).toMatchObject({
+      sourceType: "official_company",
+      platform: "hm.com",
+      trustWeight: "high",
+    });
+    expect(ledger[1]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "m.com",
+      trustWeight: "low",
+    });
+  });
+
   it("deduplicates URLs and keeps the richest retrieved snippet", () => {
     const ledger = buildEvidenceLedger({
       company: "Acme",

@@ -128,21 +128,21 @@ function companyTokens(company: string): string[] {
   return Array.from(new Set(compact ? [...words, compact] : words));
 }
 
-// Name labels for exact registrable-label matching, INCLUDING short ones
-// (X, BP, 3M) that companyTokens drops at the >=3-char threshold. These are only
-// ever compared for exact equality against a host's registrable label, never as
-// a substring, so a 2-char name can't match inside an unrelated domain or via an
-// attacker-controlled subdomain (e.g. `bp` never matches `bp.evil.com`, whose
-// registrable label is `evil`).
-function companyDomainLabels(company: string): string[] {
-  return Array.from(
-    new Set(
-      company
-        .toLowerCase()
-        .split(/[^a-z0-9]+/)
-        .filter((word) => word.length >= 1 && !COMPANY_SUFFIXES.has(word)),
-    ),
-  );
+// The compact brand identity of a company name, for exact registrable-label
+// matching — the whole name minus corporate suffixes, joined ("H&M" -> "hm",
+// "BP" -> "bp", "3M" -> "3m"). It covers short names companyTokens drops at the
+// >=3-char threshold, and it is matched only for exact equality against a host's
+// registrable label — never per-token and never as a substring — so a multi-part
+// short name can't grant trust to one of its fragments (H&M does not match
+// `m.com`) and a 2-char name can't match via a subdomain (`bp` never matches
+// `bp.evil.com`, whose registrable label is `evil`). Empty when the name is only
+// corporate suffixes.
+function companyDomainIdentity(company: string): string {
+  return company
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length >= 1 && !COMPANY_SUFFIXES.has(word))
+    .join("");
 }
 
 // Common multi-label public suffixes. Deliberately NOT the full Public Suffix
@@ -226,7 +226,8 @@ function classifyRetrievedSource(
   // >=3-char substring check above misses — a legitimate posting on the
   // employer root domain should keep employer trust, not fall to a low-trust
   // heuristic. Exact registrable-label equality only, so it stays safe.
-  if (companyDomainLabels(company).includes(registrableLabel(host))) {
+  const identity = companyDomainIdentity(company);
+  if (identity && identity === registrableLabel(host)) {
     return "official_company";
   }
 
