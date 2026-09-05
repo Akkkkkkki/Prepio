@@ -45,7 +45,7 @@ describe("buildEvidenceLedger", () => {
         results: [
           {
             title: "Staff Engineer posting",
-            url: "https://jobs.example-ats.com/acme/staff-engineer",
+            url: "https://boards.greenhouse.io/acme/jobs/4012",
             raw_content: "The role requires API design, debugging, and mentoring.",
           },
         ],
@@ -89,21 +89,21 @@ describe("buildEvidenceLedger", () => {
     });
     expect(ledger[5]).toMatchObject({
       sourceType: "official_job",
-      platform: "jobs.example-ats.com",
+      platform: "boards.greenhouse.io",
       trustWeight: "high",
     });
     expect(ledger.some((entry) => entry.url?.startsWith("javascript:"))).toBe(false);
   });
 
-  it("classifies retrieved job rows by origin instead of trusting them all as official_job", () => {
+  it("grants official_job only to known ATS hosts, not caller-shaped URLs", () => {
     const ledger = buildEvidenceLedger({
       company: "Acme",
       jobRawData: {
         results: [
-          // A real posting on a known ATS host still resolves to official_job.
+          // A real posting on a known ATS host resolves to official_job.
           {
             title: "Staff Engineer posting",
-            url: "https://jobs.example-ats.com/acme/staff-engineer",
+            url: "https://boards.greenhouse.io/acme/jobs/4012",
             raw_content: "The role requires API design and mentoring.",
           },
           // An unrelated URL pasted as a roleLink must not inherit official_job
@@ -120,14 +120,21 @@ describe("buildEvidenceLedger", () => {
             url: "https://unrelated.example/jobs/opinion",
             content: "An opinion column that merely has a jobs-shaped path.",
           },
+          // A `jobs.` subdomain is caller-controllable too — an attacker can
+          // serve a posting from jobs.attacker.example, so it stays low trust.
+          {
+            title: "Lookalike posting",
+            url: "https://jobs.attacker.example/acme/staff-engineer",
+            content: "A posting-shaped page on an attacker-controlled subdomain.",
+          },
         ],
       },
     });
 
-    expect(ledger).toHaveLength(3);
+    expect(ledger).toHaveLength(4);
     expect(ledger[0]).toMatchObject({
       sourceType: "official_job",
-      platform: "jobs.example-ats.com",
+      platform: "boards.greenhouse.io",
       trustWeight: "high",
     });
     expect(ledger[1]).toMatchObject({
@@ -138,6 +145,11 @@ describe("buildEvidenceLedger", () => {
     expect(ledger[2]).toMatchObject({
       sourceType: "market_heuristic",
       platform: "unrelated.example",
+      trustWeight: "low",
+    });
+    expect(ledger[3]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "jobs.attacker.example",
       trustWeight: "low",
     });
   });

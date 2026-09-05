@@ -167,21 +167,17 @@ const JOB_POSTING_HOSTS = [
   "smartrecruiters.com",
 ];
 
-// Decide job-origin trust from the hostname alone. The path and title are
-// caller-controlled, so matching a `/jobs/` path segment or a "careers" title
-// substring would let a URL like https://unrelated.example/jobs/opinion inherit
-// official_job/high trust. Only a known ATS host or an employer `jobs.` /
-// `careers.` subdomain counts here; an employer's own careers page on the
-// company domain is already classified official_company before this runs.
+// Grant job-origin trust only for known ATS hosts. Path, title, and even a
+// `jobs.`/`careers.` subdomain are all caller-controllable — an attacker can
+// serve a posting-shaped page from `jobs.attacker.com` — so none of them
+// qualify. An employer's own domain, including a `jobs.`/`careers.` subdomain
+// of it, is already classified official_company by classifyRetrievedSource
+// (name-token or exact second-level-label match) before this runs.
 function isJobPosting(url: string): boolean {
   const host = hostFor(url);
-  if (
-    JOB_POSTING_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`))
-  ) {
-    return true;
-  }
-  const firstLabel = host.split(".")[0];
-  return firstLabel === "jobs" || firstLabel === "careers";
+  return JOB_POSTING_HOSTS.some(
+    (domain) => host === domain || host.endsWith(`.${domain}`),
+  );
 }
 
 function classifyRetrievedSource(
