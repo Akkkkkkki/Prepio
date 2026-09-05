@@ -33,4 +33,27 @@ describe("MobileCoachModal", () => {
     expect(screen.getByText("Answer guide")).toBeInTheDocument();
     expect(screen.getByText(/For this question:/)).toBeInTheDocument();
   });
+
+  // PREPIO-176: opening the sheet for a fresh question with no guidance would
+  // otherwise present an "Answer guide" sheet with an empty body — a dead control.
+  it("renders nothing when the guidance is empty", () => {
+    const { container } = render(
+      <MobileCoachModal
+        open
+        onOpenChange={() => undefined}
+        question="Walk me through a cross-team collaboration."
+        insights={{
+          summary: null,
+          goodSignals: [],
+          weakSignals: [],
+          answerApproach: "",
+          followUps: [],
+          meta: { company: "Tencent", role: "Machine Learning Engineer", difficulty: "Medium" },
+        }}
+      />,
+    );
+
+    expect(container.firstChild).toBeNull();
+    expect(screen.queryByText("What strong answers show")).not.toBeInTheDocument();
+  });
 });

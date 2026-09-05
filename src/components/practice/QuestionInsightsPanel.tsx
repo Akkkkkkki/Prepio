@@ -32,8 +32,35 @@ interface QuestionInsightsPanelProps {
   hideHeader?: boolean;
 }
 
+/**
+ * True when the panel has at least one substantive guidance section to render.
+ *
+ * On a fresh research run `interview-research` hardcodes `evaluation_criteria`,
+ * `follow_up_questions`, and `suggested_answer_approach` empty and never writes
+ * `good_answer_signals` (PREPIO-176), so `questionInsights` is an object made of
+ * chrome — the "Interviewer focus / Answer guide" title, the company/role line,
+ * the difficulty badge — with no answer guidance underneath. Rendering the panel
+ * or its "Answer guide" trigger for that shape is a dead control. Gate every
+ * consumer on this predicate so the surface only appears when it would actually
+ * show a body section. Keep it in sync with the sections rendered below.
+ */
+export const hasQuestionInsightsContent = (
+  data?: QuestionInsightsData | null,
+): boolean => {
+  if (!data) return false;
+  return Boolean(
+    data.summary?.trim() ||
+      (data.goodSignals?.length ?? 0) > 0 ||
+      (data.weakSignals?.length ?? 0) > 0 ||
+      data.answerApproach?.trim() ||
+      (data.followUps?.length ?? 0) > 0 ||
+      data.linkedStoryText?.trim() ||
+      data.sampleAnswerOutline?.trim(),
+  );
+};
+
 export const QuestionInsightsPanel = ({ data, className, hideHeader = false }: QuestionInsightsPanelProps) => {
-  if (!data) return null;
+  if (!data || !hasQuestionInsightsContent(data)) return null;
 
   const hasSignals = (data.goodSignals?.length ?? 0) > 0 || (data.weakSignals?.length ?? 0) > 0;
   const hasFollowUps = (data.followUps?.length ?? 0) > 0;
