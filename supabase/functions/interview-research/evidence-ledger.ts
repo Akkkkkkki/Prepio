@@ -223,19 +223,21 @@ function classifyRetrievedSource(
   company: string,
 ): EvidenceSourceType {
   const host = hostFor(url);
+
+  // Exact employer-domain ownership wins even over the community-host shortcut,
+  // so an employer that is itself a community host (researching a role *at*
+  // Glassdoor, Reddit, …) keeps first-party trust on its own domain. Exact
+  // registrable-label equality only, so a third-party community listing that
+  // merely mentions the company name still falls through to public_report.
+  const identity = companyDomainIdentity(company);
+  if (identity && identity === registrableLabel(host)) {
+    return "official_company";
+  }
+
   if (isCommunityHost(host)) return "public_report";
 
   const normalizedHost = host.replace(/[^a-z0-9]/g, "");
   if (companyTokens(company).some((token) => normalizedHost.includes(token))) {
-    return "official_company";
-  }
-
-  // Catch short employer names (X, BP, 3M) on their own domain that the
-  // >=3-char substring check above misses — a legitimate posting on the
-  // employer root domain should keep employer trust, not fall to a low-trust
-  // heuristic. Exact registrable-label equality only, so it stays safe.
-  const identity = companyDomainIdentity(company);
-  if (identity && identity === registrableLabel(host)) {
     return "official_company";
   }
 
