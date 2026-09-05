@@ -33,24 +33,29 @@ interface QuestionInsightsPanelProps {
 }
 
 /**
- * True when the panel has at least one substantive guidance section to render.
+ * True when the panel has at least one substantive *answer-guidance* section to
+ * render — the coaching payload, not the surrounding chrome.
  *
  * On a fresh research run `interview-research` hardcodes `evaluation_criteria`,
  * `follow_up_questions`, and `suggested_answer_approach` empty and never writes
- * `good_answer_signals` (PREPIO-176), so `questionInsights` is an object made of
- * chrome — the "Interviewer focus / Answer guide" title, the company/role line,
- * the difficulty badge — with no answer guidance underneath. Rendering the panel
- * or its "Answer guide" trigger for that shape is a dead control. Gate every
- * consumer on this predicate so the surface only appears when it would actually
- * show a body section. Keep it in sync with the sections rendered below.
+ * `good_answer_signals` (PREPIO-176), so the coach surface would otherwise be a
+ * titled "Answer guide" card / trigger with no guidance underneath — a dead
+ * control. Gate every consumer on this predicate so the surface only appears
+ * when it would actually coach the answer.
+ *
+ * `summary` is deliberately excluded: it is fed by the question `rationale`
+ * (`interview-research` writes `rationale: q.reason`), which a generated question
+ * normally has, so counting it would keep the panel and "Answer guide" button
+ * visible for exactly the fresh-run shape we are hiding. The summary still
+ * *renders* when other guidance keeps the panel open; it just cannot hold the
+ * panel open by itself. Keep the section list in sync with what renders below.
  */
 export const hasQuestionInsightsContent = (
   data?: QuestionInsightsData | null,
 ): boolean => {
   if (!data) return false;
   return Boolean(
-    data.summary?.trim() ||
-      (data.goodSignals?.length ?? 0) > 0 ||
+    (data.goodSignals?.length ?? 0) > 0 ||
       (data.weakSignals?.length ?? 0) > 0 ||
       data.answerApproach?.trim() ||
       (data.followUps?.length ?? 0) > 0 ||

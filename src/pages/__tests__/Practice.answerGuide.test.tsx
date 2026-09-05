@@ -136,13 +136,16 @@ describe("Practice answer-guide surface", () => {
     });
   });
 
-  it("renders no coach panel for a fresh question whose guidance fields are all empty", async () => {
+  it("renders no coach panel for a fresh question in the current pipeline shape", async () => {
+    // The real fresh-run shape: interview-research writes `rationale: q.reason`
+    // (normally populated) but leaves every guidance field empty and never
+    // writes good_answer_signals. The rationale must not keep the surface alive.
     mockSearchResults({
       id: "q-1",
       question: FRESH_QUESTION,
       created_at: "2026-03-31T00:00:00.000Z",
       difficulty: "Medium",
-      rationale: "",
+      rationale: "They want to see how you scope ambiguous, end-to-end systems.",
       suggested_answer_approach: "",
       evaluation_criteria: [],
       follow_up_questions: [],

@@ -66,9 +66,24 @@ describe("QuestionInsightsPanel", () => {
     expect(screen.queryByText("What strong answers show")).not.toBeInTheDocument();
   });
 
-  it("still renders when the only populated section is the interviewer-focus summary", () => {
-    render(<QuestionInsightsPanel data={{ summary: "Why they ask this.", meta: {} }} />);
+  // The summary is fed by the pipeline rationale, which fresh runs normally have.
+  // It must not hold the panel open by itself, or the surface stays visible for
+  // exactly the fresh-run shape PREPIO-176 hides.
+  it("renders nothing when the only populated field is the pipeline rationale/summary", () => {
+    const { container } = render(
+      <QuestionInsightsPanel data={{ summary: "Why they ask this.", meta: {} }} />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("still renders the summary when another guidance section keeps the panel open", () => {
+    render(
+      <QuestionInsightsPanel
+        data={{ summary: "Why they ask this.", goodSignals: ["Names the team"], meta: {} }}
+      />,
+    );
     expect(screen.getByText("Why they ask this.")).toBeInTheDocument();
+    expect(screen.getByText("Names the team")).toBeInTheDocument();
   });
 
   it("omits the panel header when hideHeader is set, keeping the depth badge", () => {
@@ -100,8 +115,13 @@ describe("hasQuestionInsightsContent", () => {
     ).toBe(false);
   });
 
+  it("is false when the only field is the pipeline rationale/summary", () => {
+    // Fresh runs normally populate `rationale` -> `summary`, so it must not
+    // count as guidance on its own (Codex P1 on PR #338).
+    expect(hasQuestionInsightsContent({ summary: "Why they ask this." })).toBe(false);
+  });
+
   it("is true when any substantive guidance section is present", () => {
-    expect(hasQuestionInsightsContent({ summary: "Why they ask this." })).toBe(true);
     expect(hasQuestionInsightsContent({ goodSignals: ["Names the team"] })).toBe(true);
     expect(hasQuestionInsightsContent({ weakSignals: ["Restates the prompt"] })).toBe(true);
     expect(hasQuestionInsightsContent({ answerApproach: "Outline the plan." })).toBe(true);
