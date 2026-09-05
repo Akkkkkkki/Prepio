@@ -132,26 +132,35 @@ function isCommunityHost(host: string): boolean {
   return COMMUNITY_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`));
 }
 
-function isJobPosting(url: string, title: string): boolean {
-  const parsed = new URL(url);
-  const haystack = `${parsed.hostname} ${parsed.pathname} ${title}`.toLowerCase();
-  return [
-    "ashbyhq.com",
-    "greenhouse.io",
-    "jobs.",
-    "/jobs/",
-    "/job/",
-    "careers.",
-    "/careers/",
-    "lever.co",
-    "myworkdayjobs.com",
-    "smartrecruiters.com",
-  ].some((token) => haystack.includes(token));
+// Known applicant-tracking-system hosts. A retrieved row on one of these is a
+// job origin regardless of its path.
+const JOB_POSTING_HOSTS = [
+  "ashbyhq.com",
+  "greenhouse.io",
+  "lever.co",
+  "myworkdayjobs.com",
+  "smartrecruiters.com",
+];
+
+// Decide job-origin trust from the hostname alone. The path and title are
+// caller-controlled, so matching a `/jobs/` path segment or a "careers" title
+// substring would let a URL like https://unrelated.example/jobs/opinion inherit
+// official_job/high trust. Only a known ATS host or an employer `jobs.` /
+// `careers.` subdomain counts here; an employer's own careers page on the
+// company domain is already classified official_company before this runs.
+function isJobPosting(url: string): boolean {
+  const host = hostFor(url);
+  if (
+    JOB_POSTING_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`))
+  ) {
+    return true;
+  }
+  const firstLabel = host.split(".")[0];
+  return firstLabel === "jobs" || firstLabel === "careers";
 }
 
 function classifyRetrievedSource(
   url: string,
-  title: string,
   company: string,
 ): EvidenceSourceType {
   const host = hostFor(url);
@@ -162,7 +171,7 @@ function classifyRetrievedSource(
     return "official_company";
   }
 
-  if (isJobPosting(url, title)) return "official_job";
+  if (isJobPosting(url)) return "official_job";
   return "market_heuristic";
 }
 
@@ -272,7 +281,6 @@ function addRetrievedRows(
   indexByKey: Map<string, number>,
   company: string,
   rows: Record<string, unknown>[],
-  forcedSourceType?: EvidenceSourceType,
 ) {
   rows.forEach((row) => {
     const url = normalizeHttpUrl(row.url);
@@ -282,7 +290,7 @@ function addRetrievedRows(
     if (!snippet) return;
 
     const title = compactText(row.title, 180) || hostFor(url);
-    const sourceType = forcedSourceType ?? classifyRetrievedSource(url, title, company);
+    const sourceType = classifyRetrievedSource(url, company);
     appendDraft(drafts, indexByKey, `url:${url}`, {
       sourceType,
       sourceLabel: title,

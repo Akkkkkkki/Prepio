@@ -113,11 +113,18 @@ describe("buildEvidenceLedger", () => {
             url: "https://random-blog.example.net/opinions/hiring",
             content: "An unrelated article that is neither a posting nor Acme.",
           },
+          // A caller-controlled `/jobs/` path on an unrelated host must not be
+          // enough on its own — job origin is decided by hostname, not path.
+          {
+            title: "Careers hot takes",
+            url: "https://unrelated.example/jobs/opinion",
+            content: "An opinion column that merely has a jobs-shaped path.",
+          },
         ],
       },
     });
 
-    expect(ledger).toHaveLength(2);
+    expect(ledger).toHaveLength(3);
     expect(ledger[0]).toMatchObject({
       sourceType: "official_job",
       platform: "jobs.example-ats.com",
@@ -126,6 +133,11 @@ describe("buildEvidenceLedger", () => {
     expect(ledger[1]).toMatchObject({
       sourceType: "market_heuristic",
       platform: "random-blog.example.net",
+      trustWeight: "low",
+    });
+    expect(ledger[2]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "unrelated.example",
       trustWeight: "low",
     });
   });
