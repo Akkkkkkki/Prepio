@@ -95,6 +95,41 @@ describe("buildEvidenceLedger", () => {
     expect(ledger.some((entry) => entry.url?.startsWith("javascript:"))).toBe(false);
   });
 
+  it("classifies retrieved job rows by origin instead of trusting them all as official_job", () => {
+    const ledger = buildEvidenceLedger({
+      company: "Acme",
+      jobRawData: {
+        results: [
+          // A real posting on a known ATS host still resolves to official_job.
+          {
+            title: "Staff Engineer posting",
+            url: "https://jobs.example-ats.com/acme/staff-engineer",
+            raw_content: "The role requires API design and mentoring.",
+          },
+          // An unrelated URL pasted as a roleLink must not inherit official_job
+          // high trust just because it arrived through the job pipeline.
+          {
+            title: "Random blog post",
+            url: "https://random-blog.example.net/opinions/hiring",
+            content: "An unrelated article that is neither a posting nor Acme.",
+          },
+        ],
+      },
+    });
+
+    expect(ledger).toHaveLength(2);
+    expect(ledger[0]).toMatchObject({
+      sourceType: "official_job",
+      platform: "jobs.example-ats.com",
+      trustWeight: "high",
+    });
+    expect(ledger[1]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "random-blog.example.net",
+      trustWeight: "low",
+    });
+  });
+
   it("deduplicates URLs and keeps the richest retrieved snippet", () => {
     const ledger = buildEvidenceLedger({
       company: "Acme",

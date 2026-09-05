@@ -325,13 +325,20 @@ export function buildEvidenceLedger(input: EvidenceLedgerInput): EvidenceLedgerE
     asRecords(companyResearch?.extracted_content),
   );
 
+  // `jobRawData.results` are rows retrieved from caller-supplied `roleLinks`,
+  // which `job-analysis` extracts without host/origin validation. Forcing them
+  // all to `official_job` (high trust) would let any pasted URL be cited as
+  // official job evidence via a valid ev-* ID, classifying by which pipeline
+  // produced the row rather than by whether the URL is an employer/job origin.
+  // Let per-row classification decide instead: a real posting on a known ATS or
+  // careers host still resolves to official_job/official_company, and an
+  // unrelated URL falls back to market_heuristic (low trust).
   const jobRawData = asRecord(input.jobRawData);
   addRetrievedRows(
     drafts,
     indexByKey,
     input.company,
     asRecords(jobRawData?.results),
-    "official_job",
   );
 
   return drafts.map((entry, index) => ({ ...entry, id: `ev-${index + 1}` }));
