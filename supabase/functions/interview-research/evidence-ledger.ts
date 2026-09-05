@@ -119,11 +119,21 @@ function hostFor(url: string | null): string {
   }
 }
 
-function companyTokens(company: string): string[] {
-  const words = company
+// Fold a company name to lowercase ASCII a-z0-9 words. Diacritics are stripped
+// via NFKD rather than dropped, so an accented brand matches its ASCII domain
+// ("L'Oréal" -> ["oreal"] against loreal.com, not ["l","oral"] against "loral").
+function companyWords(company: string): string[] {
+  return company
     .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((word) => word.length >= 3 && !COMPANY_SUFFIXES.has(word));
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z0-9]+/);
+}
+
+function companyTokens(company: string): string[] {
+  const words = companyWords(company).filter(
+    (word) => word.length >= 3 && !COMPANY_SUFFIXES.has(word),
+  );
   const compact = words.join("");
   return Array.from(new Set(compact ? [...words, compact] : words));
 }
@@ -132,26 +142,31 @@ function isCommunityHost(host: string): boolean {
   return COMMUNITY_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`));
 }
 
-function isJobPosting(url: string, title: string): boolean {
-  const parsed = new URL(url);
-  const haystack = `${parsed.hostname} ${parsed.pathname} ${title}`.toLowerCase();
-  return [
-    "ashbyhq.com",
-    "greenhouse.io",
-    "jobs.",
-    "/jobs/",
-    "/job/",
-    "careers.",
-    "/careers/",
-    "lever.co",
-    "myworkdayjobs.com",
-    "smartrecruiters.com",
-  ].some((token) => haystack.includes(token));
+// Known applicant-tracking-system hosts. A retrieved row on one of these is a
+// job origin regardless of its path.
+const JOB_POSTING_HOSTS = [
+  "ashbyhq.com",
+  "greenhouse.io",
+  "lever.co",
+  "myworkdayjobs.com",
+  "smartrecruiters.com",
+];
+
+// Grant job-origin trust only for known ATS hosts. Path, title, and even a
+// `jobs.`/`careers.` subdomain are all caller-controllable — an attacker can
+// serve a posting-shaped page from `jobs.attacker.com` — so none of them
+// qualify. An employer's own domain, including a `jobs.`/`careers.` subdomain
+// of it, is already classified official_company by classifyRetrievedSource
+// (name-token or exact registrable-label match) before this runs.
+function isJobPosting(url: string): boolean {
+  const host = hostFor(url);
+  return JOB_POSTING_HOSTS.some(
+    (domain) => host === domain || host.endsWith(`.${domain}`),
+  );
 }
 
 function classifyRetrievedSource(
   url: string,
-  title: string,
   company: string,
 ): EvidenceSourceType {
   const host = hostFor(url);
@@ -162,7 +177,15 @@ function classifyRetrievedSource(
     return "official_company";
   }
 
-  if (isJobPosting(url, title)) return "official_job";
+  // A short employer name (X, BP, 3M) on its own root domain can't be matched
+  // reliably here: companyTokens drops sub-3-char tokens, and comparing the name
+  // to a host's registrable label needs full Public Suffix List parsing to be
+  // sound — a hand-rolled suffix list mis-reads unlisted multipart suffixes
+  // (e.g. digital.go.jp would read `go`, colliding with company "GO"). Rather
+  // than risk that over-trust, such rows fall through to market_heuristic. PSL-
+  // aware short-name/employer-domain matching is tracked as follow-up work.
+
+  if (isJobPosting(url)) return "official_job";
   return "market_heuristic";
 }
 
@@ -272,7 +295,6 @@ function addRetrievedRows(
   indexByKey: Map<string, number>,
   company: string,
   rows: Record<string, unknown>[],
-  forcedSourceType?: EvidenceSourceType,
 ) {
   rows.forEach((row) => {
     const url = normalizeHttpUrl(row.url);
@@ -282,7 +304,7 @@ function addRetrievedRows(
     if (!snippet) return;
 
     const title = compactText(row.title, 180) || hostFor(url);
-    const sourceType = forcedSourceType ?? classifyRetrievedSource(url, title, company);
+    const sourceType = classifyRetrievedSource(url, company);
     appendDraft(drafts, indexByKey, `url:${url}`, {
       sourceType,
       sourceLabel: title,
@@ -325,13 +347,20 @@ export function buildEvidenceLedger(input: EvidenceLedgerInput): EvidenceLedgerE
     asRecords(companyResearch?.extracted_content),
   );
 
+  // `jobRawData.results` are rows retrieved from caller-supplied `roleLinks`,
+  // which `job-analysis` extracts without host/origin validation. Forcing them
+  // all to `official_job` (high trust) would let any pasted URL be cited as
+  // official job evidence via a valid ev-* ID, classifying by which pipeline
+  // produced the row rather than by whether the URL is an employer/job origin.
+  // Let per-row classification decide instead: a real posting on a known ATS or
+  // careers host still resolves to official_job/official_company, and an
+  // unrelated URL falls back to market_heuristic (low trust).
   const jobRawData = asRecord(input.jobRawData);
   addRetrievedRows(
     drafts,
     indexByKey,
     input.company,
     asRecords(jobRawData?.results),
-    "official_job",
   );
 
   return drafts.map((entry, index) => ({ ...entry, id: `ev-${index + 1}` }));
