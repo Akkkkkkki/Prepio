@@ -166,6 +166,13 @@ describe("buildEvidenceLedger", () => {
             url: "https://bp.com/careers/refinery-engineer",
             raw_content: "Own refinery reliability and process safety.",
           },
+          // The same short name on a multi-label public suffix (bp.co.uk) must
+          // resolve to the registrable label `bp`, not the suffix `co`.
+          {
+            title: "UK Refinery Engineer",
+            url: "https://bp.co.uk/careers/uk-refinery-engineer",
+            content: "Own UK refinery reliability and process safety.",
+          },
           // A short name must not match as an attacker-controlled subdomain:
           // the registrable label of bp.evil.example is `evil`, not `bp`.
           {
@@ -173,19 +180,36 @@ describe("buildEvidenceLedger", () => {
             url: "https://bp.evil.example/careers/refinery-engineer",
             content: "A lookalike host that is not the employer's domain.",
           },
+          // Nor as a subdomain on a country domain: the registrable label of
+          // bp.attacker.co.uk is `attacker`, not `bp`.
+          {
+            title: "Also not BP",
+            url: "https://bp.attacker.co.uk/careers/refinery-engineer",
+            content: "Another lookalike host that is not the employer's domain.",
+          },
         ],
       },
     });
 
-    expect(ledger).toHaveLength(2);
+    expect(ledger).toHaveLength(4);
     expect(ledger[0]).toMatchObject({
       sourceType: "official_company",
       platform: "bp.com",
       trustWeight: "high",
     });
     expect(ledger[1]).toMatchObject({
+      sourceType: "official_company",
+      platform: "bp.co.uk",
+      trustWeight: "high",
+    });
+    expect(ledger[2]).toMatchObject({
       sourceType: "market_heuristic",
       platform: "bp.evil.example",
+      trustWeight: "low",
+    });
+    expect(ledger[3]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "bp.attacker.co.uk",
       trustWeight: "low",
     });
   });

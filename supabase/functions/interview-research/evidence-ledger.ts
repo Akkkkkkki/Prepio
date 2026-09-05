@@ -128,12 +128,12 @@ function companyTokens(company: string): string[] {
   return Array.from(new Set(compact ? [...words, compact] : words));
 }
 
-// Name labels for exact second-level-domain matching, INCLUDING short ones
+// Name labels for exact registrable-label matching, INCLUDING short ones
 // (X, BP, 3M) that companyTokens drops at the >=3-char threshold. These are only
 // ever compared for exact equality against a host's registrable label, never as
 // a substring, so a 2-char name can't match inside an unrelated domain or via an
 // attacker-controlled subdomain (e.g. `bp` never matches `bp.evil.com`, whose
-// second-level label is `evil`).
+// registrable label is `evil`).
 function companyDomainLabels(company: string): string[] {
   return Array.from(
     new Set(
@@ -145,12 +145,42 @@ function companyDomainLabels(company: string): string[] {
   );
 }
 
-// The registrable label of a host — `bp` for `bp.com`, `bp.evil.com`, and
-// `jobs.bp.com` alike. A tld-agnostic approximation (it reads `co` for
-// `bp.co.uk`), which only ever costs a conservative miss, never a false match.
-function secondLevelLabel(host: string): string {
+// Common multi-label public suffixes. Deliberately NOT the full Public Suffix
+// List (thousands of rules, too heavy for an edge function) — just enough that a
+// short employer name on a common country domain (bp.co.uk) resolves to its
+// registrable label instead of the suffix. An unlisted suffix only costs a
+// conservative miss, never a false match.
+const MULTIPART_PUBLIC_SUFFIXES = new Set([
+  "co.uk",
+  "org.uk",
+  "gov.uk",
+  "ac.uk",
+  "com.au",
+  "net.au",
+  "org.au",
+  "co.nz",
+  "co.jp",
+  "co.kr",
+  "co.in",
+  "co.za",
+  "com.br",
+  "com.cn",
+  "com.hk",
+  "com.sg",
+  "com.mx",
+]);
+
+// The registrable label of a host — `bp` for `bp.com`, `bp.co.uk`,
+// `bp.evil.com`, and `jobs.bp.com` alike. Strips a known multi-label public
+// suffix first, then a single-label TLD. Only ever costs a conservative miss on
+// an unlisted suffix, never a false match (bp.evil.example → `evil`,
+// bp.attacker.co.uk → `attacker`).
+function registrableLabel(host: string): string {
   const labels = host.split(".");
-  return labels.length >= 2 ? labels[labels.length - 2] : labels[0];
+  if (labels.length <= 1) return labels[0] ?? "";
+  const lastTwo = labels.slice(-2).join(".");
+  const suffixLength = MULTIPART_PUBLIC_SUFFIXES.has(lastTwo) ? 3 : 2;
+  return labels[labels.length - suffixLength] ?? labels[0];
 }
 
 function isCommunityHost(host: string): boolean {
@@ -172,7 +202,7 @@ const JOB_POSTING_HOSTS = [
 // serve a posting-shaped page from `jobs.attacker.com` — so none of them
 // qualify. An employer's own domain, including a `jobs.`/`careers.` subdomain
 // of it, is already classified official_company by classifyRetrievedSource
-// (name-token or exact second-level-label match) before this runs.
+// (name-token or exact registrable-label match) before this runs.
 function isJobPosting(url: string): boolean {
   const host = hostFor(url);
   return JOB_POSTING_HOSTS.some(
@@ -196,7 +226,7 @@ function classifyRetrievedSource(
   // >=3-char substring check above misses — a legitimate posting on the
   // employer root domain should keep employer trust, not fall to a low-trust
   // heuristic. Exact registrable-label equality only, so it stays safe.
-  if (companyDomainLabels(company).includes(secondLevelLabel(host))) {
+  if (companyDomainLabels(company).includes(registrableLabel(host))) {
     return "official_company";
   }
 
