@@ -142,6 +142,42 @@ describe("buildEvidenceLedger", () => {
     });
   });
 
+  it("keeps employer trust for short company names on their own domain", () => {
+    const ledger = buildEvidenceLedger({
+      company: "BP",
+      jobRawData: {
+        results: [
+          // Root-domain posting for a short name the >=3-char token heuristic
+          // can't match — an exact second-level-label match keeps employer trust.
+          {
+            title: "Refinery Engineer",
+            url: "https://bp.com/careers/refinery-engineer",
+            raw_content: "Own refinery reliability and process safety.",
+          },
+          // A short name must not match as an attacker-controlled subdomain:
+          // the registrable label of bp.evil.example is `evil`, not `bp`.
+          {
+            title: "Not really BP",
+            url: "https://bp.evil.example/careers/refinery-engineer",
+            content: "A lookalike host that is not the employer's domain.",
+          },
+        ],
+      },
+    });
+
+    expect(ledger).toHaveLength(2);
+    expect(ledger[0]).toMatchObject({
+      sourceType: "official_company",
+      platform: "bp.com",
+      trustWeight: "high",
+    });
+    expect(ledger[1]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "bp.evil.example",
+      trustWeight: "low",
+    });
+  });
+
   it("deduplicates URLs and keeps the richest retrieved snippet", () => {
     const ledger = buildEvidenceLedger({
       company: "Acme",

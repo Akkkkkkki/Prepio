@@ -128,6 +128,31 @@ function companyTokens(company: string): string[] {
   return Array.from(new Set(compact ? [...words, compact] : words));
 }
 
+// Name labels for exact second-level-domain matching, INCLUDING short ones
+// (X, BP, 3M) that companyTokens drops at the >=3-char threshold. These are only
+// ever compared for exact equality against a host's registrable label, never as
+// a substring, so a 2-char name can't match inside an unrelated domain or via an
+// attacker-controlled subdomain (e.g. `bp` never matches `bp.evil.com`, whose
+// second-level label is `evil`).
+function companyDomainLabels(company: string): string[] {
+  return Array.from(
+    new Set(
+      company
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((word) => word.length >= 1 && !COMPANY_SUFFIXES.has(word)),
+    ),
+  );
+}
+
+// The registrable label of a host — `bp` for `bp.com`, `bp.evil.com`, and
+// `jobs.bp.com` alike. A tld-agnostic approximation (it reads `co` for
+// `bp.co.uk`), which only ever costs a conservative miss, never a false match.
+function secondLevelLabel(host: string): string {
+  const labels = host.split(".");
+  return labels.length >= 2 ? labels[labels.length - 2] : labels[0];
+}
+
 function isCommunityHost(host: string): boolean {
   return COMMUNITY_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`));
 }
@@ -168,6 +193,14 @@ function classifyRetrievedSource(
 
   const normalizedHost = host.replace(/[^a-z0-9]/g, "");
   if (companyTokens(company).some((token) => normalizedHost.includes(token))) {
+    return "official_company";
+  }
+
+  // Catch short employer names (X, BP, 3M) on their own domain that the
+  // >=3-char substring check above misses — a legitimate posting on the
+  // employer root domain should keep employer trust, not fall to a low-trust
+  // heuristic. Exact registrable-label equality only, so it stays safe.
+  if (companyDomainLabels(company).includes(secondLevelLabel(host))) {
     return "official_company";
   }
 
