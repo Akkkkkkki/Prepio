@@ -138,59 +138,6 @@ function companyTokens(company: string): string[] {
   return Array.from(new Set(compact ? [...words, compact] : words));
 }
 
-// The compact brand identity of a company name, for exact registrable-label
-// matching — the whole name minus corporate suffixes, joined ("H&M" -> "hm",
-// "BP" -> "bp", "3M" -> "3m"). It covers short names companyTokens drops at the
-// >=3-char threshold, and it is matched only for exact equality against a host's
-// registrable label — never per-token and never as a substring — so a multi-part
-// short name can't grant trust to one of its fragments (H&M does not match
-// `m.com`) and a 2-char name can't match via a subdomain (`bp` never matches
-// `bp.evil.com`, whose registrable label is `evil`). Empty when the name is only
-// corporate suffixes.
-function companyDomainIdentity(company: string): string {
-  return companyWords(company)
-    .filter((word) => word.length >= 1 && !COMPANY_SUFFIXES.has(word))
-    .join("");
-}
-
-// Common multi-label public suffixes. Deliberately NOT the full Public Suffix
-// List (thousands of rules, too heavy for an edge function) — just enough that a
-// short employer name on a common country domain (bp.co.uk) resolves to its
-// registrable label instead of the suffix. An unlisted suffix only costs a
-// conservative miss, never a false match.
-const MULTIPART_PUBLIC_SUFFIXES = new Set([
-  "co.uk",
-  "org.uk",
-  "gov.uk",
-  "ac.uk",
-  "com.au",
-  "net.au",
-  "org.au",
-  "co.nz",
-  "co.jp",
-  "co.kr",
-  "co.in",
-  "co.za",
-  "com.br",
-  "com.cn",
-  "com.hk",
-  "com.sg",
-  "com.mx",
-]);
-
-// The registrable label of a host — `bp` for `bp.com`, `bp.co.uk`,
-// `bp.evil.com`, and `jobs.bp.com` alike. Strips a known multi-label public
-// suffix first, then a single-label TLD. Only ever costs a conservative miss on
-// an unlisted suffix, never a false match (bp.evil.example → `evil`,
-// bp.attacker.co.uk → `attacker`).
-function registrableLabel(host: string): string {
-  const labels = host.split(".");
-  if (labels.length <= 1) return labels[0] ?? "";
-  const lastTwo = labels.slice(-2).join(".");
-  const suffixLength = MULTIPART_PUBLIC_SUFFIXES.has(lastTwo) ? 3 : 2;
-  return labels[labels.length - suffixLength] ?? labels[0];
-}
-
 function isCommunityHost(host: string): boolean {
   return COMMUNITY_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`));
 }
@@ -230,14 +177,13 @@ function classifyRetrievedSource(
     return "official_company";
   }
 
-  // Catch short employer names (X, BP, 3M) on their own domain that the
-  // >=3-char substring check above misses — a legitimate posting on the
-  // employer root domain should keep employer trust, not fall to a low-trust
-  // heuristic. Exact registrable-label equality only, so it stays safe.
-  const identity = companyDomainIdentity(company);
-  if (identity && identity === registrableLabel(host)) {
-    return "official_company";
-  }
+  // A short employer name (X, BP, 3M) on its own root domain can't be matched
+  // reliably here: companyTokens drops sub-3-char tokens, and comparing the name
+  // to a host's registrable label needs full Public Suffix List parsing to be
+  // sound — a hand-rolled suffix list mis-reads unlisted multipart suffixes
+  // (e.g. digital.go.jp would read `go`, colliding with company "GO"). Rather
+  // than risk that over-trust, such rows fall through to market_heuristic. PSL-
+  // aware short-name/employer-domain matching is tracked as follow-up work.
 
   if (isJobPosting(url)) return "official_job";
   return "market_heuristic";
