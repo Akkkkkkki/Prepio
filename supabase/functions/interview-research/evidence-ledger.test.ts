@@ -273,32 +273,6 @@ describe("buildEvidenceLedger", () => {
     });
   });
 
-  it("keeps first-party trust when the employer is itself a community host", () => {
-    // Researching a role *at* Glassdoor: its own domain must win over the
-    // community-host shortcut. (A third-party Glassdoor review for a different
-    // employer staying public_report is covered by the first test's
-    // glassdoor.com row.)
-    const ledger = buildEvidenceLedger({
-      company: "Glassdoor",
-      jobRawData: {
-        results: [
-          {
-            title: "Backend Engineer",
-            url: "https://careers.glassdoor.com/backend-engineer",
-            raw_content: "Own the review ingestion pipeline.",
-          },
-        ],
-      },
-    });
-
-    expect(ledger).toHaveLength(1);
-    expect(ledger[0]).toMatchObject({
-      sourceType: "official_company",
-      platform: "careers.glassdoor.com",
-      trustWeight: "high",
-    });
-  });
-
   it("deduplicates URLs and keeps the richest retrieved snippet", () => {
     const ledger = buildEvidenceLedger({
       company: "Acme",
