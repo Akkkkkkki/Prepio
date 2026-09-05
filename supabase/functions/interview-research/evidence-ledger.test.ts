@@ -249,6 +249,30 @@ describe("buildEvidenceLedger", () => {
     });
   });
 
+  it("matches accented employer names against their ASCII domain", () => {
+    const ledger = buildEvidenceLedger({
+      company: "L'Oréal",
+      jobRawData: {
+        results: [
+          // The accented name must fold to `loreal` and match loreal.com,
+          // not be split into fragments by dropping the é.
+          {
+            title: "Data Scientist",
+            url: "https://loreal.com/careers/data-scientist",
+            raw_content: "Own consumer analytics across beauty brands.",
+          },
+        ],
+      },
+    });
+
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toMatchObject({
+      sourceType: "official_company",
+      platform: "loreal.com",
+      trustWeight: "high",
+    });
+  });
+
   it("deduplicates URLs and keeps the richest retrieved snippet", () => {
     const ledger = buildEvidenceLedger({
       company: "Acme",

@@ -119,11 +119,21 @@ function hostFor(url: string | null): string {
   }
 }
 
-function companyTokens(company: string): string[] {
-  const words = company
+// Fold a company name to lowercase ASCII a-z0-9 words. Diacritics are stripped
+// via NFKD rather than dropped, so an accented brand matches its ASCII domain
+// ("L'Oréal" -> ["oreal"] against loreal.com, not ["l","oral"] against "loral").
+function companyWords(company: string): string[] {
+  return company
     .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((word) => word.length >= 3 && !COMPANY_SUFFIXES.has(word));
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z0-9]+/);
+}
+
+function companyTokens(company: string): string[] {
+  const words = companyWords(company).filter(
+    (word) => word.length >= 3 && !COMPANY_SUFFIXES.has(word),
+  );
   const compact = words.join("");
   return Array.from(new Set(compact ? [...words, compact] : words));
 }
@@ -138,9 +148,7 @@ function companyTokens(company: string): string[] {
 // `bp.evil.com`, whose registrable label is `evil`). Empty when the name is only
 // corporate suffixes.
 function companyDomainIdentity(company: string): string {
-  return company
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
+  return companyWords(company)
     .filter((word) => word.length >= 1 && !COMPANY_SUFFIXES.has(word))
     .join("");
 }
