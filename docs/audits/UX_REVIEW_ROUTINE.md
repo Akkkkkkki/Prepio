@@ -41,6 +41,27 @@ capture evidence for at least:
 The report should include the screenshots or a precise note explaining why a
 specific route could not be captured.
 
+## Captured evidence must not leak PII
+
+Screenshots of any surface that renders a loaded CV expose real résumé PII and
+must never be committed unredacted. The high-risk surfaces are `/profile` (the
+"About" block, the `Current source: <filename>` line, and the sidebar source
+box) and `/new-interview` (the "Add your CV" textarea once a CV is loaded). Note
+that the CV *filename* is itself PII — it embeds the candidate's name — so the
+`Current source` line has to be covered too, not just the free-text blocks.
+
+Before committing evidence from these surfaces, do one of:
+
+- Capture with a throwaway account that has no real CV loaded, or
+- Blur / black-bar the About block, the CV textarea, and every `Current source`
+  filename before saving the PNG.
+
+A committed screenshot is a binary blob that stays in Git history forever, so a
+working-tree replacement is necessary but not sufficient once raw PII has
+landed. If an unredacted shot is discovered after the fact, replace the
+working-tree blobs and escalate for an owner-attended history purge — see
+[PREPIO-145](https://linear.app/qiuyue/issue/PREPIO-145).
+
 ## Report footer
 
 Every routine report should close with one of these capability statements:
