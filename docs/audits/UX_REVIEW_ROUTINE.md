@@ -56,6 +56,11 @@ Before committing evidence from these surfaces, do one of:
 - Blur / black-bar the About block, the CV textarea, and every `Current source`
   filename before saving the PNG.
 
+The same rule applies to the report **prose**, not just the images: do not
+transcribe the CV filename, name, or contact details into the note body when
+quoting a surface (e.g. a `Current source: <filename>` line) — strip the
+name-bearing part first.
+
 A committed screenshot is a binary blob that stays in Git history forever, so a
 working-tree replacement is necessary but not sufficient once raw PII has
 landed. If an unredacted shot is discovered after the fact, replace the
