@@ -44,21 +44,24 @@ specific route could not be captured.
 ## Captured evidence must not leak PII
 
 Screenshots of any surface that renders a loaded CV expose real résumé PII and
-must never be committed unredacted. The high-risk surfaces are `/profile` (the
-"About" block, the `Current source: <filename>` line, and the sidebar source
-box) and `/new-interview` (the "Add your CV" textarea once a CV is loaded). Note
-that the CV *filename* is itself PII — it embeds the candidate's name — so the
-`Current source` line has to be covered too, not just the free-text blocks.
+must never be committed unredacted. On `/profile` a populated imported CV drives
+*many* fields — the headline (employment history), location, profile links, the
+"About" block, experience, education, projects, licences/credentials, and the
+`Current source: <filename>` line (the filename is itself PII: it embeds the
+candidate's name). `/new-interview` renders the same CV in the "Add your CV"
+textarea. Treat **every** CV-derived field as PII, not just the free-text blocks
+— location and headline count.
 
 Before committing evidence from these surfaces, do one of:
 
 - Capture with a throwaway account that has no real CV loaded, or
-- Cover the About block, the CV textarea, and every `Current source` filename
-  with an **opaque, flattened** redaction before saving the PNG — a solid black
-  bar over the region, or a full-image placeholder. **Do not blur.** Blur (and
-  pixelation) on small high-contrast text is often reversible or still legible,
-  so it can leave the exact PII recoverable; only an irreversible opaque cover
-  is acceptable.
+- Replace the whole image with an opaque placeholder (**preferred** — a
+  full-image cover cannot miss a field), or cover **every** populated CV-derived
+  field with a solid black bar. A partial pass that bars the About block but
+  leaves the headline, location, or links readable still publishes PII, so when
+  in doubt replace the entire image. **Do not blur** — blur and pixelation on
+  small high-contrast text are often reversible or still legible; only an
+  irreversible opaque cover is acceptable.
 
 The same rule applies to the report **prose**, not just the images: do not
 transcribe the CV filename, name, or contact details into the note body when
