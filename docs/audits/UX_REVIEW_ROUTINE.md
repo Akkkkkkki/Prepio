@@ -53,8 +53,12 @@ that the CV *filename* is itself PII — it embeds the candidate's name — so t
 Before committing evidence from these surfaces, do one of:
 
 - Capture with a throwaway account that has no real CV loaded, or
-- Blur / black-bar the About block, the CV textarea, and every `Current source`
-  filename before saving the PNG.
+- Cover the About block, the CV textarea, and every `Current source` filename
+  with an **opaque, flattened** redaction before saving the PNG — a solid black
+  bar over the region, or a full-image placeholder. **Do not blur.** Blur (and
+  pixelation) on small high-contrast text is often reversible or still legible,
+  so it can leave the exact PII recoverable; only an irreversible opaque cover
+  is acceptable.
 
 The same rule applies to the report **prose**, not just the images: do not
 transcribe the CV filename, name, or contact details into the note body when
