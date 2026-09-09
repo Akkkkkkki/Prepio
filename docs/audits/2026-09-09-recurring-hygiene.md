@@ -10,15 +10,20 @@ were docs-only. Since run #25's base (`d0377e8`, 2026-08-22), `main` advanced to
 reviewed directly this run:
 
 - **[PREPIO-141] Redact free-text-derived fields from the `QUERY_PLAN` log
-  (#333)** — a *security improvement*. `company-research` previously wrote the raw
-  `signals` object (role/level/country and interviewer names parsed from the user's
-  note) and full query strings to edge-function logs. It now logs only a PII-free
-  view (`roleFamily`, query count, source/domain-pack categories, targeted-signal
-  count) via a pure `buildQueryPlanLogPayload` helper. Verified landed at
+  (#333)** — a *partial* security improvement. `company-research` previously wrote
+  the raw `signals` object (role/level/country and interviewer names parsed from the
+  user's note) and full query strings to the `QUERY_PLAN` log. That **one** log site
+  now emits a PII-free view (`roleFamily`, query count, source/domain-pack
+  categories, targeted-signal count) via a pure `buildQueryPlanLogPayload` helper —
+  verified landed at
   [`company-research/index.ts:201`](../../supabase/functions/company-research/index.ts)
   with focused test coverage in
-  [`query-planner.test.ts`](../../supabase/functions/company-research/query-planner.test.ts)
-  asserting no free-text leaks. No query, data-access, or auth behavior changed.
+  [`query-planner.test.ts`](../../supabase/functions/company-research/query-planner.test.ts).
+  **It does not close the PII-in-logs class**, though: the per-search
+  `TAVILY_SEARCH_*` / `logTavilySearch` calls (index.ts:212–266) still log the full
+  `query.query` string, which embeds the note-derived interviewer/team names verbatim
+  (`query-planner.ts:382–405`). Recorded as a new Medium finding below (caught via
+  Codex P1 on this PR). No query, data-access, or auth behavior changed.
 - **[PREPIO-155] Delete the dead DuckDuckGo fallback shim (#319)** — dead-code
   removal; no runtime path imported it. Reduces surface area. Clean.
 - **Surface an honest note when practice transcription fails (#311)** — a
@@ -109,6 +114,35 @@ lockfile fix.
 
 ### Medium
 
+- [ ] **Per-search `TAVILY_SEARCH_*` logs still write note-derived interviewer/team
+  names — PII-in-logs the PREPIO-141 `QUERY_PLAN` redaction did not cover.**
+  *(New this window; surfaced by Codex P1 on this PR and confirmed against the code.)*
+  - Evidence: `buildFamilyQueries`
+    ([`query-planner.ts:382–405`](../../supabase/functions/company-research/query-planner.ts))
+    embeds the targeted user-note signals (interviewer/team names parsed from the
+    free-text note) verbatim into the `user-note-linkedin` / `-blog` / `-talk` and
+    contextual query strings. In
+    [`company-research/index.ts`](../../supabase/functions/company-research/index.ts)
+    five per-search log calls then write that full `query.query` string:
+    `TAVILY_SEARCH_START` (:213), `logTavilySearch` DISCOVERY_SUCCESS (:234),
+    `TAVILY_SEARCH_EMPTY` (:237), `logTavilySearch` DISCOVERY_ERROR (:260), and
+    `TAVILY_SEARCH_FALLBACK_UNAVAILABLE` (:262). PREPIO-141 sanitized only the
+    `QUERY_PLAN` log at :201, so those names still reach `console` / `SearchLogger`.
+  - Risk: names of real third parties the user mentioned in their note are persisted
+    to edge-function logs. Same PII-in-logs class PREPIO-141 set out to reduce; the
+    freeze's structured logging makes it durable, not transient.
+  - Recommended fix: log `query.source` + the query **count/index** (and `roleFamily`,
+    already present) instead of the raw `query.query` string across those five sites,
+    mirroring the `buildQueryPlanLogPayload` approach; or gate the raw query behind
+    the same `logContentSamples` flag. Land with a test asserting no free-text query
+    string reaches the logger, and confirm Tavily debugging is still tractable from
+    `source`+index.
+  - Owner / next step: **PREPIO-179** (filed this run; `Chore` +
+    `area:research-pipeline`, Quality & Maintenance, related to PREPIO-141,
+    cross-linked to this audit and PR #333/#343). A substantive multi-site change to
+    a service-role edge function, out of scope for a hygiene run and not validatable
+    in this proxy-limited environment.
+
 - [ ] **`pdfjs-dist` high-severity advisory (GHSA-hq66-cqwq-w95j) — arbitrary JS
   execution on opening a malicious PDF.** *(Carried; re-verified. Needs a 5 → 6
   major, so not fixable in this lockfile-only run.)*
@@ -193,9 +227,14 @@ Already tracked or explicitly noted-not-filed:
 - **`vitest` ≥ 4.1.11 for the `@vitest/mocker` advisory** (Low, dev-only). Left to
   Dependabot's monthly `vitest` bump; not manifest-surgery-worthy this run.
 - **`npm audit` as a non-blocking CI step** (Low, process). Noted for maintainers.
+- **PREPIO-179** — per-search `TAVILY_SEARCH_*` query-string redaction (Medium, new).
+  The interviewer/team-name PII-in-logs gap PREPIO-141 left uncovered. Filed this run
+  (`Chore` + `area:research-pipeline`, Quality & Maintenance, related to PREPIO-141).
 
-No **new** Linear issue is owed: the one fixable item was fixed rather than filed,
-and every remaining open is already tracked (PREPIO-143) or Dependabot-surfaced.
+One **new** Linear issue was filed this run: **PREPIO-179** for the per-search
+query-string logging gap that Codex surfaced. The one fixable item (the dependency
+advisories) was fixed rather than filed. The remaining opens are already tracked
+(PREPIO-143, PREPIO-179) or Dependabot-surfaced.
 
 ## Questions for product owner
 
@@ -211,6 +250,11 @@ and every remaining open is already tracked (PREPIO-143) or Dependabot-surfaced.
    spend a review validating the resume-upload (PDF+DOCX) and routing/redirect
    surfaces so the two majors can land instead of accumulating; the `vitest` bump is
    a rubber-stamp once the resolver lets it through outside this sandbox.
-3. **Next source-touching merge.** Re-run the full baseline against it rather than
+3. **Per-search `TAVILY_SEARCH_*` query-string redaction (new Medium).** The
+   complement to PREPIO-141 — redact the raw `query.query` from the five per-search
+   log sites so note-derived interviewer/team names stop reaching edge-function logs.
+   Verify a test asserts no free-text query reaches the logger and that Tavily
+   debugging stays tractable from `source`+index.
+4. **Next source-touching merge.** Re-run the full baseline against it rather than
    re-verifying carried findings — same posture that caught this window's new
    advisories early.
