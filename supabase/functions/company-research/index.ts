@@ -209,8 +209,9 @@ async function searchCompanyInfo(
         // Phase 1: Discovery - collect URLs with comprehensive search for quality forum content
         const searchPromises = searchQueries.map(async (query, index) => {
           const startTime = Date.now();
+          // PREPIO-179: log the query's source label + position, never the raw
+          // `query.query` (it can embed note-derived interviewer/team names).
           logger?.log('TAVILY_SEARCH_START', 'DISCOVERY', {
-            query: query.query,
             source: query.source,
             index: index + 1,
             total: searchQueries.length,
@@ -231,11 +232,13 @@ async function searchCompanyInfo(
             const result = await searchTavily(tavilyApiKey, request, searchId, userId, supabase);
             const duration = Date.now() - startTime;
 
-            logger?.logTavilySearch(query.query, 'DISCOVERY_SUCCESS', request, result, undefined, duration);
+            logger?.logTavilySearch(query.source, 'DISCOVERY_SUCCESS', request, result, undefined, duration);
             if (!result?.results?.length) {
               logger?.log('TAVILY_SEARCH_EMPTY', 'DISCOVERY', {
-                query: query.query,
                 source: query.source,
+                index: index + 1,
+                total: searchQueries.length,
+                roleFamily: queryPlan.roleFamily,
                 fallbackEngaged: false,
                 reason: 'duckduckgo_instant_answer_fallback_removed',
               });
@@ -257,10 +260,12 @@ async function searchCompanyInfo(
           } catch (error) {
             const duration = Date.now() - startTime;
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-            logger?.logTavilySearch(query.query, 'DISCOVERY_ERROR', request, undefined, errorMsg, duration);
+            logger?.logTavilySearch(query.source, 'DISCOVERY_ERROR', request, undefined, errorMsg, duration);
             logger?.log('TAVILY_SEARCH_FALLBACK_UNAVAILABLE', 'DISCOVERY', {
-              query: query.query,
               source: query.source,
+              index: index + 1,
+              total: searchQueries.length,
+              roleFamily: queryPlan.roleFamily,
               fallbackEngaged: false,
               reason: 'duckduckgo_instant_answer_fallback_removed',
             }, errorMsg);
