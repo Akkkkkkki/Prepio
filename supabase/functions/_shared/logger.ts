@@ -70,10 +70,16 @@ export class SearchLogger {
     }
   }
 
-  logTavilySearch(query: string, phase: string, requestPayload: any, response?: any, error?: string, duration?: number): void {
+  logTavilySearch(querySource: string, phase: string, requestPayload: any, response?: any, error?: string, duration?: number): void {
+    // PREPIO-179: the raw Tavily `query` embeds note-derived interviewer/team
+    // names parsed from the user's free-text note, so it must never reach the
+    // logs — not as a top-level field and not nested inside `requestPayload`.
+    // Callers pass the query's `source` label instead; strip `query` from the
+    // request before logging the remaining (non-sensitive) search parameters.
+    const { query: _redactedQuery, ...redactedRequest } = requestPayload ?? {};
     this.log('TAVILY_SEARCH', phase, {
-      query,
-      requestPayload,
+      source: querySource,
+      requestPayload: redactedRequest,
       response: response ? {
         status: response.status || 'unknown',
         resultsCount: response.results?.length || 0,
