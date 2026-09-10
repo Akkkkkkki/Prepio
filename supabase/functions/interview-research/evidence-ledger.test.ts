@@ -45,7 +45,7 @@ describe("buildEvidenceLedger", () => {
         results: [
           {
             title: "Staff Engineer posting",
-            url: "https://jobs.example-ats.com/acme/staff-engineer",
+            url: "https://boards.greenhouse.io/acme/jobs/4012",
             raw_content: "The role requires API design, debugging, and mentoring.",
           },
         ],
@@ -89,10 +89,93 @@ describe("buildEvidenceLedger", () => {
     });
     expect(ledger[5]).toMatchObject({
       sourceType: "official_job",
-      platform: "jobs.example-ats.com",
+      platform: "boards.greenhouse.io",
       trustWeight: "high",
     });
     expect(ledger.some((entry) => entry.url?.startsWith("javascript:"))).toBe(false);
+  });
+
+  it("grants official_job only to known ATS hosts, not caller-shaped URLs", () => {
+    const ledger = buildEvidenceLedger({
+      company: "Acme",
+      jobRawData: {
+        results: [
+          // A real posting on a known ATS host resolves to official_job.
+          {
+            title: "Staff Engineer posting",
+            url: "https://boards.greenhouse.io/acme/jobs/4012",
+            raw_content: "The role requires API design and mentoring.",
+          },
+          // An unrelated URL pasted as a roleLink must not inherit official_job
+          // high trust just because it arrived through the job pipeline.
+          {
+            title: "Random blog post",
+            url: "https://random-blog.example.net/opinions/hiring",
+            content: "An unrelated article that is neither a posting nor Acme.",
+          },
+          // A caller-controlled `/jobs/` path on an unrelated host must not be
+          // enough on its own — job origin is decided by hostname, not path.
+          {
+            title: "Careers hot takes",
+            url: "https://unrelated.example/jobs/opinion",
+            content: "An opinion column that merely has a jobs-shaped path.",
+          },
+          // A `jobs.` subdomain is caller-controllable too — an attacker can
+          // serve a posting from jobs.attacker.example, so it stays low trust.
+          {
+            title: "Lookalike posting",
+            url: "https://jobs.attacker.example/acme/staff-engineer",
+            content: "A posting-shaped page on an attacker-controlled subdomain.",
+          },
+        ],
+      },
+    });
+
+    expect(ledger).toHaveLength(4);
+    expect(ledger[0]).toMatchObject({
+      sourceType: "official_job",
+      platform: "boards.greenhouse.io",
+      trustWeight: "high",
+    });
+    expect(ledger[1]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "random-blog.example.net",
+      trustWeight: "low",
+    });
+    expect(ledger[2]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "unrelated.example",
+      trustWeight: "low",
+    });
+    expect(ledger[3]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "jobs.attacker.example",
+      trustWeight: "low",
+    });
+  });
+
+  it("matches accented employer names against their ASCII domain", () => {
+    const ledger = buildEvidenceLedger({
+      company: "L'Oréal",
+      jobRawData: {
+        results: [
+          // The accented name must fold to `loreal` and match loreal.com,
+          // not be split into fragments by dropping the é.
+          {
+            title: "Data Scientist",
+            url: "https://loreal.com/careers/data-scientist",
+            raw_content: "Own consumer analytics across beauty brands.",
+          },
+        ],
+      },
+    });
+
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toMatchObject({
+      sourceType: "official_company",
+      platform: "loreal.com",
+      trustWeight: "high",
+    });
   });
 
   it("deduplicates URLs and keeps the richest retrieved snippet", () => {
