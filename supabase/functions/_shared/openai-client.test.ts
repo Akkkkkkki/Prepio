@@ -34,31 +34,30 @@ describe("parseJsonResponse", () => {
     });
   });
 
-  it("returns the fallback and logs only a bounded raw-response preview", () => {
+  it.each([
+    "candidate@example.test private interview answer",
+    `${"x".repeat(500)}candidate@example.test private interview answer`,
+    '{"email":"candidate@example.test", broken}',
+  ])("returns the fallback without logging model content or parser excerpts", (invalidResponse) => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const fallback = { status: "fallback" };
-    const sensitiveTail = "candidate@example.test private interview answer";
-    const invalidResponse = `${"x".repeat(500)}${sensitiveTail}`;
 
-    const result = parseJsonResponse(invalidResponse, fallback);
-
-    expect(result).toBe(fallback);
-    expect(consoleErrorSpy).toHaveBeenCalledTimes(2);
-    expect(consoleErrorSpy.mock.calls[1][0]).toBe("Raw response (preview):");
-    expect(consoleErrorSpy.mock.calls[1][1]).toContain("x".repeat(500));
-    expect(consoleErrorSpy.mock.calls[1][1]).toContain(
-      `[truncated, ${invalidResponse.length} chars total]`,
+    expect(parseJsonResponse(invalidResponse, fallback)).toBe(fallback);
+    expect(consoleErrorSpy).toHaveBeenCalledExactlyOnceWith(
+      "Failed to parse OpenAI JSON response",
+      { contentType: "string", contentLength: invalidResponse.length },
     );
-    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain(sensitiveTail);
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain("candidate@example.test");
   });
 
   it("still returns the fallback when the model content is missing", () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const fallback = { stages: [] };
 
-    const result = parseJsonResponse(undefined as unknown as string, fallback);
-
-    expect(result).toBe(fallback);
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Raw response (preview):", "undefined");
+    expect(parseJsonResponse(undefined as unknown as string, fallback)).toBe(fallback);
+    expect(consoleErrorSpy).toHaveBeenCalledExactlyOnceWith(
+      "Failed to parse OpenAI JSON response",
+      { contentType: "undefined", contentLength: 0 },
+    );
   });
 });

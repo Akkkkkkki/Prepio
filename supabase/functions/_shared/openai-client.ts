@@ -88,23 +88,13 @@ export function parseJsonResponse<T>(content: string, fallback: T): T {
     // Strip markdown code blocks if present
     const cleaned = stripMarkdownCodeBlocks(content);
     return JSON.parse(cleaned);
-  } catch (parseError) {
-    // Bound the logged raw response to a short preview. The model output can
-    // echo user PII (CV text, interview answers, imported profile data) for the
-    // cv-analysis / answer-feedback / profile-import callers, so we log only a
-    // sample rather than the whole payload — matching the "first 500 chars"
-    // content-sampling convention in RESEARCH_CONFIG.logging.logContentSamples.
-    // `content` can be undefined when a successful response lacks
-    // choices[0].message.content, so coerce defensively — this catch block must
-    // still return the fallback rather than throwing on a non-string value.
-    const RAW_PREVIEW_CHARS = 500;
-    const raw = typeof content === "string" ? content : String(content);
-    const preview =
-      raw.length > RAW_PREVIEW_CHARS
-        ? `${raw.slice(0, RAW_PREVIEW_CHARS)}… [truncated, ${raw.length} chars total]`
-        : raw;
-    console.error("Failed to parse OpenAI JSON response:", parseError);
-    console.error("Raw response (preview):", preview);
+  } catch {
+    // Model output and JSON.parse error messages can contain CVs or answers.
+    // Log only structural metadata, never a raw preview or the parse exception.
+    console.error("Failed to parse OpenAI JSON response", {
+      contentType: typeof content,
+      contentLength: typeof content === "string" ? content.length : 0,
+    });
     return fallback;
   }
 }
