@@ -79,7 +79,12 @@ Core tables:
 - `profiles`: auth-linked user metadata and seniority level.
 - `searches`: research jobs, progress, role/company inputs, status.
 - `interview_stages`: likely interview rounds for a search.
-- `interview_questions`: generated questions and guidance fields.
+- `interview_questions`: generated questions and guidance fields. The current
+  `interview-research` synthesis leaves `evaluation_criteria`, `follow_up_questions`,
+  and `suggested_answer_approach` empty and never writes `good_answer_signals`
+  (PREPIO-176); the Practice coach panel and its "Answer guide" affordance are
+  gated on `hasQuestionInsightsContent` so they stay hidden rather than rendering
+  an empty control when those fields are blank.
 - `prep_plans`: structured prep plan JSON for a search.
 - `practice_sessions`: one user practice run for one search.
 - `practice_answers`: text answers, audio path, transcript text, timing, self-rating.

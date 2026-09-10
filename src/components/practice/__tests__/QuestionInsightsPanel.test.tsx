@@ -1,6 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { QuestionInsightsPanel } from "../QuestionInsightsPanel";
+import {
+  QuestionInsightsPanel,
+  hasQuestionInsightsContent,
+} from "../QuestionInsightsPanel";
 
 const sampleData = {
   summary: "This scenario probes collaboration with Tencent's senior ICs.",
@@ -42,6 +45,47 @@ describe("QuestionInsightsPanel", () => {
     expect(container.firstChild).toBeNull();
   });
 
+  // PREPIO-176: a fresh research run leaves every guidance field empty, so the
+  // panel would otherwise render as a titled card of pure chrome — a dead control.
+  it("renders nothing when only chrome is present and every guidance field is empty", () => {
+    const { container } = render(
+      <QuestionInsightsPanel
+        data={{
+          summary: null,
+          goodSignals: [],
+          weakSignals: [],
+          answerApproach: "",
+          followUps: [],
+          depthLabel: "Mid-senior depth expected",
+          seniorityExpectation: "Mid+ candidates should plan collaboratively.",
+          meta: { company: "Tencent", role: "Machine Learning Engineer", difficulty: "Medium" },
+        }}
+      />,
+    );
+    expect(container.firstChild).toBeNull();
+    expect(screen.queryByText("What strong answers show")).not.toBeInTheDocument();
+  });
+
+  // The summary is fed by the pipeline rationale, which fresh runs normally have.
+  // It must not hold the panel open by itself, or the surface stays visible for
+  // exactly the fresh-run shape PREPIO-176 hides.
+  it("renders nothing when the only populated field is the pipeline rationale/summary", () => {
+    const { container } = render(
+      <QuestionInsightsPanel data={{ summary: "Why they ask this.", meta: {} }} />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("still renders the summary when another guidance section keeps the panel open", () => {
+    render(
+      <QuestionInsightsPanel
+        data={{ summary: "Why they ask this.", goodSignals: ["Names the team"], meta: {} }}
+      />,
+    );
+    expect(screen.getByText("Why they ask this.")).toBeInTheDocument();
+    expect(screen.getByText("Names the team")).toBeInTheDocument();
+  });
+
   it("omits the panel header when hideHeader is set, keeping the depth badge", () => {
     render(<QuestionInsightsPanel data={sampleData} hideHeader />);
 
@@ -50,5 +94,39 @@ describe("QuestionInsightsPanel", () => {
     expect(screen.getByText(sampleData.depthLabel)).toBeInTheDocument();
     // Body content should still render so the panel remains useful.
     expect(screen.getByText("Great answers include")).toBeInTheDocument();
+  });
+});
+
+describe("hasQuestionInsightsContent", () => {
+  it("is false for null, undefined, or an all-empty-guidance shape", () => {
+    expect(hasQuestionInsightsContent(null)).toBe(false);
+    expect(hasQuestionInsightsContent(undefined)).toBe(false);
+    expect(
+      hasQuestionInsightsContent({
+        summary: "   ",
+        goodSignals: [],
+        weakSignals: [],
+        answerApproach: "",
+        followUps: [],
+        depthLabel: "Mid depth",
+        seniorityExpectation: "Mid+",
+        meta: { company: "Tencent", role: "ML", difficulty: "Medium" },
+      }),
+    ).toBe(false);
+  });
+
+  it("is false when the only field is the pipeline rationale/summary", () => {
+    // Fresh runs normally populate `rationale` -> `summary`, so it must not
+    // count as guidance on its own (Codex P1 on PR #338).
+    expect(hasQuestionInsightsContent({ summary: "Why they ask this." })).toBe(false);
+  });
+
+  it("is true when any substantive guidance section is present", () => {
+    expect(hasQuestionInsightsContent({ goodSignals: ["Names the team"] })).toBe(true);
+    expect(hasQuestionInsightsContent({ weakSignals: ["Restates the prompt"] })).toBe(true);
+    expect(hasQuestionInsightsContent({ answerApproach: "Outline the plan." })).toBe(true);
+    expect(hasQuestionInsightsContent({ followUps: ["How did you escalate?"] })).toBe(true);
+    expect(hasQuestionInsightsContent({ linkedStoryText: "An incident rollout." })).toBe(true);
+    expect(hasQuestionInsightsContent({ sampleAnswerOutline: "Context • Plan • Impact" })).toBe(true);
   });
 });

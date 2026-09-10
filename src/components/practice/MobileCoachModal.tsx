@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   QuestionInsightsPanel,
+  hasQuestionInsightsContent,
   type QuestionInsightsData,
 } from "@/components/practice/QuestionInsightsPanel";
 
@@ -23,7 +24,7 @@ export const MobileCoachModal = ({
   question,
   insights,
 }: MobileCoachModalProps) => {
-  if (!insights) return null;
+  if (!hasQuestionInsightsContent(insights)) return null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

@@ -59,7 +59,7 @@ import { QuestionFrame } from "@/components/practice/QuestionFrame";
 import { HintBanner } from "@/components/practice/HintBanner";
 import { BottomPracticeNav } from "@/components/practice/BottomPracticeNav";
 import { PracticeHelperDrawer } from "@/components/practice/PracticeHelperDrawer";
-import { QuestionInsightsPanel } from "@/components/practice/QuestionInsightsPanel";
+import { QuestionInsightsPanel, hasQuestionInsightsContent } from "@/components/practice/QuestionInsightsPanel";
 import { MobileCoachModal } from "@/components/practice/MobileCoachModal";
 import { CompletionCheckmark } from "@/components/practice/CompletionCheckmark";
 import { BreathingBreak } from "@/components/practice/BreathingBreak";
@@ -2874,7 +2874,7 @@ const getInterviewerFocus = (
                     {needsWorkActive ? "Needs work flagged" : "Needs work"}
                   </Button>
 
-                  {questionInsights && (
+                  {hasQuestionInsightsContent(questionInsights) && (
                     <Button
                       type="button"
                       variant="outline"
