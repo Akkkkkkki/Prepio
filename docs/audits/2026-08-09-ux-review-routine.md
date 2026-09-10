@@ -133,7 +133,7 @@ while the one blocking infra step sits in Backlog.
 - **Touch targets all ≥44px on mobile Q1** — measured: Back 44×44, Practice-actions 44×44, *Favorite* 112×44, *Needs work* 138×44, *Answer guide* 126×44, *Record answer* 217×48, *Notes* 103×48, *Skip* 173×48, *Save & Continue* 173×48.
 - **Pricing copy honest** — *"Research, prep plans, and practice stay free. Paid subscriptions unlock AI feedback on saved practice answers…"* three cadences (monthly/quarterly/annual). Logged-out *Choose monthly* routes to `/auth` with no console error ([`11-d-checkout-attempt.png`](./assets/2026-08-09/11-d-checkout-attempt.png)).
 - **`/dashboard` logged-out → `/auth`** with redirect context *"Continue to Dashboard."* — protected-route redirect correct.
-- **Profile memory intact** — `/profile` shows *"Current source: Qiuyue_ZHANG_CV_2026_Sharpa.pdf"*, *"We prefilled this profile from the last parsed resume."*, Free-plan subscription block, *Profile completeness 20%*. [`33-d-profile.png`](./assets/2026-08-09/33-d-profile.png).
+- **Profile memory intact** — `/profile` shows *"Current source: CV_2026_Sharpa.pdf"* (candidate name redacted from the filename, PREPIO-145), *"We prefilled this profile from the last parsed resume."*, Free-plan subscription block, *Profile completeness 20%*. [`33-d-profile.png`](./assets/2026-08-09/33-d-profile.png).
 
 ### Tracked repeats confirmed live
 
