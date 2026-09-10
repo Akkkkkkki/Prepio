@@ -12,7 +12,7 @@ const RAW_QUERY = `"Acme" Staff Engineer "${SENSITIVE_SIGNAL}" interview site:li
 
 function serializeCalls(spy: ReturnType<typeof vi.spyOn>): string {
   return spy.mock.calls
-    .map((args) => args.map((arg) => JSON.stringify(arg)).join(" "))
+    .map((args: unknown[]) => args.map((arg: unknown) => JSON.stringify(arg)).join(" "))
     .join("\n");
 }
 
