@@ -32,11 +32,11 @@ const RouteFallback = () => (
         <Skeleton className="h-8 w-32" />
         <Skeleton className="h-10 w-28" />
       </div>
-      <Skeleton className="h-28 rounded-3xl" />
+      <Skeleton className="h-28 rounded-[20px]" />
       <div className="grid gap-4 md:grid-cols-3">
-        <Skeleton className="h-40 rounded-3xl" />
-        <Skeleton className="h-40 rounded-3xl" />
-        <Skeleton className="h-40 rounded-3xl" />
+        <Skeleton className="h-40 rounded-[20px]" />
+        <Skeleton className="h-40 rounded-[20px]" />
+        <Skeleton className="h-40 rounded-[20px]" />
       </div>
     </div>
   </div>
