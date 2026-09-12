@@ -95,9 +95,11 @@ access-control regression.** Adversarial Codex review of this audit PR was, howe
 unusually productive: it corrected **four** over-claims in an initial draft of this
 note and surfaced two **pre-existing** Mediums the draft had described as closed —
 (1) the evidence-ledger `official_company` attacker-subdomain over-trust, which #340
-did not touch, and (2) an **incomplete PREPIO-179 redaction**: raw note-derived query
-strings still reach both the `SEARCH_COMPLETE` console log and — more durably — the
-persistent `ops.tavily_searches` DB table. Both are now recorded accurately below. **No code change was warranted this run** — the one small
+did not touch, and (2) an **incomplete PREPIO-179 redaction**: the `SEARCH_COMPLETE`
+console log still leaks raw note-derived query strings (confirmed), and a second
+`ops.tavily_searches` DB-writer path attempts the same but is blocked by the
+checked-in schema (missing columns — inert unless prod has drifted). Both are now
+recorded accurately below. **No code change was warranted this run** — the one small
 dependency candidate (a `vitest` patch bump for the dev-only `@vitest/mocker`
 advisory) is blocked by the known npm `edgesOut` resolver bug and is not worth manual
 lockfile surgery, and the substantive findings (`official_company` over-trust, the
@@ -253,14 +255,14 @@ window.
     scope for a docs-only hygiene run and not validatable in this proxy-limited
     environment.
 
-- [ ] **PII-in-logs is only partially closed — raw note-derived query strings still
-  reach both the `SEARCH_COMPLETE` console log and a persistent DB table
-  (PREPIO-179 follow-up).** *(New this run; surfaced by Codex on this PR across two
-  rounds and code-verified. Same class as PREPIO-141/179, deeper — and now including
-  durable storage, not just logs.)*
+- [ ] **PII-in-logs is only partially closed — the `SEARCH_COMPLETE` console log
+  still leaks raw note-derived query strings; a second DB-writer path is
+  attempted-but-schema-blocked (PREPIO-179 follow-up).** *(New this run; surfaced by
+  Codex on this PR across three rounds and code-verified. Same class as
+  PREPIO-141/179, deeper. Scoped down after verifying the checked-in DB schema.)*
   - Evidence: PREPIO-179 (#344) redacted the five direct per-search log sites and
-    `logTavilySearch`, but two other paths still write the raw query:
-    - **Console/log store:** in
+    `logTavilySearch`, but two other code paths still reference the raw query:
+    - **Confirmed — console/log store:** in
       [`company-research/index.ts`](../../supabase/functions/company-research/index.ts),
       line 248 builds `SearchPayload` with `query: result.query` (the raw Tavily
       query, which for `user-note-*`/contextual queries embeds note-derived
@@ -268,25 +270,36 @@ window.
       and line 317 calls `logger.log('SEARCH_COMPLETE', 'COMPANY_INFO', result)`. The
       generic `SearchLogger.log`
       ([`_shared/logger.ts`](../../supabase/functions/_shared/logger.ts)) does **not**
-      strip `query` (only `logTavilySearch` does) and `console.log`s the whole payload.
-    - **Persistent database (more durable than logs):** `searchTavily`
+      strip `query` (only `logTavilySearch` does) and `console.log`s the whole
+      payload. This path executes on every run — the confirmed remaining leak.
+    - **Conditional — DB writer, blocked by the checked-in schema:** `searchTavily`
       ([`_shared/tavily-client.ts`](../../supabase/functions/_shared/tavily-client.ts),
-      the success insert ~lines 93–104 and the error insert ~lines 170–180) writes
-      `query_text: request.query` — the raw query — into the `ops.tavily_searches`
-      operational table on **both** success and failure, and also stores the full
-      `response_payload` (which echoes the query). This persists the interviewer/team
-      names to a queryable table, not just transient logs.
+      the success insert ~lines 93–104 and error insert ~lines 170–180) *attempts* to
+      write `query_text: request.query` (and `response_payload`) into
+      `ops.tavily_searches` on both paths. **But the checked-in schema
+      ([`20260329000000_v2_clean_schema.sql`](../../supabase/migrations/20260329000000_v2_clean_schema.sql),
+      moved to `ops` by `20260409000000`) has no `user_id` or `response_payload`
+      column** (columns are `id, search_id, api_type, query_text, response_status,
+      results_count, request_duration_ms, credits_used, error_message, created_at`;
+      no migration adds the missing two). So against the checked-in schema this insert
+      fails (`user_id`/`response_payload` don't exist) and, being wrapped in a
+      swallowing try/catch, persists **nothing** — durable PII persistence here is
+      **not established** without production schema drift. (This code/migration
+      mismatch is itself a reliability gap — either Tavily op-logging silently fails
+      in production, or the prod schema has drifted out of the migration history.)
     `logger.test.ts` covers only `logTavilySearch`, neither of these paths.
-  - Risk: the exact PII-in-logs class PREPIO-141 → PREPIO-179 set out to close, still
-    live via the aggregate console log **and** durably persisted in `ops.tavily_searches`.
-    Same interviewer/team-name exposure; the DB writer is the more serious of the two
-    because the data is retained and queryable, not ephemeral.
+  - Risk: the PII-in-logs class PREPIO-141 → PREPIO-179 set out to close is still live
+    via the aggregate console log (confirmed). The DB path would additionally persist
+    it to a queryable table **iff** production schema has the extra columns; on the
+    checked-in schema it is inert. Same interviewer/team-name exposure.
   - Recommended fix: (a) redact `query` from each `search_results[]` entry before the
-    `SEARCH_COMPLETE` log; (b) stop persisting the raw query in
-    `ops.tavily_searches.query_text` — store the query `source`/hash or a redacted
-    form, and redact `response_payload.query` — on both the success and error inserts;
-    (c) add tests asserting no free-text query reaches the logger or the DB writer.
-    Audit any other generic `logger.log` site or DB writer carrying `query`.
+    `SEARCH_COMPLETE` log (or log counts/sources only); (b) when the DB writer is
+    reconciled with the schema, store the query `source`/hash rather than the raw
+    string in `query_text`/`response_payload` on both inserts; (c) separately,
+    reconcile `searchTavily`'s insert with the `ops.tavily_searches` schema (the
+    `user_id`/`response_payload` mismatch); (d) add tests asserting no free-text query
+    reaches the logger or a DB writer. Audit other generic `logger.log`/DB writers
+    carrying `query`.
   - Owner / next step: **reopen PREPIO-179** (its #344 fix is partial) or file a
     follow-up — **blocked this run by the Linear free-issue cap**, so recorded here in
     full. A service-role edge-function change, out of scope for a docs-only hygiene
@@ -396,21 +409,23 @@ Tracked, Dependabot-surfaced, or filed this run:
   cleanup, not filed.
 - **PDF surface-lock (PREPIO-27/PREPIO-140)** — landing it would remove the live
   `pdfjs-dist` exposure in the interim before the 5 → 6 major; already tracked.
-- **PREPIO-179 follow-up — raw query strings still leak via the `SEARCH_COMPLETE`
-  console log and the persistent `ops.tavily_searches` DB table** (Medium, new this
-  run — Codex-surfaced across two rounds). PREPIO-179's #344 redaction is partial; the
-  DB writer (`query_text: request.query` on both success and error, plus
-  `response_payload`) is the more durable exposure. **Reopen PREPIO-179 or file a
-  follow-up — blocked this run by the Linear free-issue cap**; recorded in full above.
+- **PREPIO-179 follow-up — the `SEARCH_COMPLETE` console log still leaks raw query
+  strings (confirmed); the `ops.tavily_searches` DB writer attempts the same but is
+  blocked by the checked-in schema** (Medium, new this run — Codex-surfaced across
+  three rounds). PREPIO-179's #344 redaction is partial. Also flags a code/migration
+  mismatch (the insert's `user_id`/`response_payload` columns are absent from the
+  checked-in schema). **Reopen PREPIO-179 or file a follow-up — blocked this run by
+  the Linear free-issue cap**; recorded in full above.
 
 ## Questions for product owner
 
 - **Linear is at its free-issue cap**, so the **two new Medium findings** surfaced
   this run could not be filed — both are recorded in full in this note instead:
   (1) the evidence-ledger `official_company` attacker-subdomain over-trust, and
-  (2) the PREPIO-179 follow-up (raw note-derived query strings still leak via the
-  `SEARCH_COMPLETE` console log **and** the persistent `ops.tavily_searches` DB table
-  — reopen PREPIO-179 or file a follow-up). The same
+  (2) the PREPIO-179 follow-up (the `SEARCH_COMPLETE` console log still leaks raw
+  note-derived query strings, confirmed; the `ops.tavily_searches` DB writer attempts
+  the same but is schema-blocked on the checked-in migrations — reopen PREPIO-179 or
+  file a follow-up). The same
   intake blocker was noted on 2026-07-29. Upgrading or clearing the cap would let
   hygiene findings be tracked in Linear rather than only in the audit trail. Not
   otherwise blocking: both High findings have owners and active Linear tracking
@@ -432,11 +447,11 @@ Tracked, Dependabot-surfaced, or filed this run:
    (PSL-aware) fix with adversarial `company-token.attacker.example` tests, fold in
    the deferred `official_job` short-name/employer-domain follow-up, and re-audit the
    whole `classifyRetrievedSource` trust map. (b) PREPIO-179 follow-up — redact
-   `query` from the `SEARCH_COMPLETE` aggregate log **and** stop persisting
-   `request.query` in `ops.tavily_searches.query_text`/`response_payload` (both the
-   success and error inserts in `tavily-client.ts`); audit every generic `logger.log`
-   payload and DB writer carrying `query`, with tests on both paths. Both compound
-   with the open `searchId` BOLA (PREPIO-143).
+   `query` from the `SEARCH_COMPLETE` aggregate log (the confirmed leak), reconcile
+   the `searchTavily` → `ops.tavily_searches` insert with the checked-in schema (the
+   `user_id`/`response_payload` mismatch) and redact `query_text` when doing so, and
+   audit every generic `logger.log` payload and DB writer carrying `query`, with
+   tests on each path. Both compound with the open `searchId` BOLA (PREPIO-143).
 4. **`pdfjs-dist` 6 / `react-router` v7 / `vitest` ≥ 4.1.11 Dependabot PRs, and the
    PREPIO-27 PDF surface-lock.** PDF upload is live and reaches the vulnerable parser
    (guests included), so landing the surface-lock is the interim mitigation; validate
