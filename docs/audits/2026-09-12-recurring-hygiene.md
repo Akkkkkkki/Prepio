@@ -43,7 +43,18 @@ each is security-neutral-to-positive:
   `query` from `requestPayload` before logging via non-mutating rest-destructure,
   closing the second leak path. Tested in `_shared/logger.test.ts` (no free-text
   query reaches the logger on success or error; source label still logged; caller
-  request not mutated). **Closes the run #26 PII-in-logs Medium.**
+  request not mutated). **Correction (after Codex review of this PR): this does NOT
+  fully close the run #26 PII-in-logs Medium.** #344 redacted the five direct
+  per-search sites and `logTavilySearch`, but the aggregate
+  `logger.log('SEARCH_COMPLETE', 'COMPANY_INFO', result)` at
+  [`company-research/index.ts:317`](../../supabase/functions/company-research/index.ts)
+  still logs the full `result`, whose `search_results[].query` retains the raw Tavily
+  query string (`SearchPayload.query = result.query`, index.ts:248 — embeds the
+  note-derived interviewer/team names). The generic `SearchLogger.log`
+  ([`_shared/logger.ts`](../../supabase/functions/_shared/logger.ts)) does **not**
+  strip `query` (only `logTavilySearch` does) and `console.log`s the whole payload,
+  so the names still reach edge-function logs. Recorded as an **open Medium** below;
+  PREPIO-179's redaction is partial, not complete.
 - **[PREPIO-144] Classify retrieved job rows by origin, not pipeline channel
   (#340)** — **security-positive** for the scope PREPIO-144 actually covered.
   In [`interview-research/evidence-ledger.ts`](../../supabase/functions/interview-research/evidence-ledger.ts)
@@ -80,15 +91,18 @@ each is security-neutral-to-positive:
 
 **Headline: all five source-touching merges in the range are
 security-neutral-to-positive, and none introduced a new secret, PII-in-logs, or
-access-control regression.** Codex review of this audit PR did, however, surface a
-**pre-existing** Medium (the evidence-ledger `official_company` attacker-subdomain
-over-trust — see below), which #340 did not touch and which this note initially
-mis-described as fixed; it is now recorded accurately. **No code change was warranted
-this run** — the one small dependency candidate (a `vitest` patch bump for the
-dev-only `@vitest/mocker` advisory) is blocked by the known npm `edgesOut` resolver
-bug and is not worth manual lockfile surgery, and the two substantive findings
-(`official_company` over-trust; the live PDF surface) are service-source changes out
-of scope for a docs-only hygiene run.
+access-control regression.** Adversarial Codex review of this audit PR was, however,
+unusually productive: it corrected **four** over-claims in an initial draft of this
+note and surfaced two **pre-existing** Mediums the draft had described as closed —
+(1) the evidence-ledger `official_company` attacker-subdomain over-trust, which #340
+did not touch, and (2) an **incomplete PREPIO-179 redaction**: the `SEARCH_COMPLETE`
+aggregate log still writes raw note-derived query strings. Both are now recorded
+accurately below. **No code change was warranted this run** — the one small
+dependency candidate (a `vitest` patch bump for the dev-only `@vitest/mocker`
+advisory) is blocked by the known npm `edgesOut` resolver bug and is not worth manual
+lockfile surgery, and the substantive findings (`official_company` over-trust, the
+`SEARCH_COMPLETE` PII leak, the live PDF surface) are service-source changes out of
+scope for a docs-only hygiene run.
 
 Baselines (measured against HEAD `e3a283b`; deltas vs 2026-09-09):
 lint **52** problems (43 errors, **9** warnings; **the +1 warning is a new
@@ -239,6 +253,35 @@ window.
     scope for a docs-only hygiene run and not validatable in this proxy-limited
     environment.
 
+- [ ] **PII-in-logs is only partially closed — the `SEARCH_COMPLETE` aggregate log
+  still writes raw note-derived query strings (PREPIO-179 follow-up).** *(New this
+  run; surfaced by Codex on this PR and code-verified. Same class as PREPIO-141/179,
+  one layer deeper.)*
+  - Evidence: PREPIO-179 (#344) redacted the five direct per-search log sites and
+    `logTavilySearch`, but not the aggregate log. In
+    [`company-research/index.ts`](../../supabase/functions/company-research/index.ts):
+    line 248 builds `SearchPayload` with `query: result.query` (the raw Tavily query,
+    which for `user-note-*`/contextual queries embeds the note-derived interviewer/
+    team names), line ~311 rolls those payloads into `result.search_results`, and
+    line 317 calls `logger.log('SEARCH_COMPLETE', 'COMPANY_INFO', result)`. The
+    generic `SearchLogger.log`
+    ([`_shared/logger.ts`](../../supabase/functions/_shared/logger.ts)) stores the
+    object and `console.log`s the whole payload — it does **not** strip `query` (only
+    `logTavilySearch` does), so the names still reach the edge-function console/log
+    store. `logger.test.ts` covers only `logTavilySearch`, not this path.
+  - Risk: the exact PII-in-logs class PREPIO-141 → PREPIO-179 set out to close, still
+    live via the aggregate log. The freeze's structured logging makes it durable.
+    Same interviewer/team-name exposure, first-party edge-function logs.
+  - Recommended fix: strip/redact `query` from each `search_results[]` entry before
+    the `SEARCH_COMPLETE` log (or log only counts/sources there, mirroring the
+    per-search redaction), and add a test asserting no free-text query reaches the
+    logger on the aggregate path. Audit any other generic `logger.log` site that
+    passes a payload carrying `query`.
+  - Owner / next step: **reopen PREPIO-179** (its #344 fix is partial) or file a
+    follow-up — **blocked this run by the Linear free-issue cap**, so recorded here in
+    full. A service-role edge-function change, out of scope for a docs-only hygiene
+    run and not validatable in this proxy-limited environment.
+
 ### Low / clean-up
 
 - [ ] **New `react-refresh/only-export-components` lint warning from #338.** *(New
@@ -309,10 +352,12 @@ window.
   to state the true `132816b..e3a283b` range and per-commit review outcome (was
   mis-scoped to a "single source-touching merge"); added the missing 2026-09-12 row
   to [`docs/audits/README.md`](./README.md); attributed the +1 lint warning to #338;
-  and corrected two over-claims Codex code-verified — the `pdfjs-dist` finding (PDF
-  upload is still live, surface-lock pending, not "disabled by the freeze") and the
+  and corrected three over-claims Codex code-verified — the `pdfjs-dist` finding (PDF
+  upload is still live, surface-lock pending, not "disabled by the freeze"), the
   `#340`/PREPIO-144 bullet (the `official_company` loose-`.includes()` over-trust is
-  not fixed; recorded as a new Medium). Documentation-only; no product source touched.
+  not fixed; new Medium), and the PREPIO-179 bullet (the `SEARCH_COMPLETE` aggregate
+  log still leaks raw query strings; PREPIO-179 partial, new Medium).
+  Documentation-only; no product source touched.
 
 ## Deferred items
 
@@ -341,6 +386,10 @@ Tracked, Dependabot-surfaced, or filed this run:
   cleanup, not filed.
 - **PDF surface-lock (PREPIO-27/PREPIO-140)** — landing it would remove the live
   `pdfjs-dist` exposure in the interim before the 5 → 6 major; already tracked.
+- **PREPIO-179 follow-up — `SEARCH_COMPLETE` aggregate log still leaks raw query
+  strings** (Medium, new this run — Codex-surfaced). PREPIO-179's #344 redaction is
+  partial. **Reopen PREPIO-179 or file a follow-up — blocked this run by the Linear
+  free-issue cap**; recorded in full in the finding above.
 
 ## Questions for product owner
 
@@ -362,11 +411,14 @@ Tracked, Dependabot-surfaced, or filed this run:
    PII is still publicly fetchable from history. Track the owner-attended
    filter-repo/BFG + force-push and verify the identified blobs are gone from all
    refs afterward.
-3. **Evidence-ledger `official_company` over-trust (new Medium).** File it once the
-   Linear cap clears, then land the registrable-label (PSL-aware) fix with adversarial
-   `company-token.attacker.example` tests. Fold in the still-open `official_job`
-   short-name/employer-domain follow-up the code comment defers, and re-audit the
-   whole `classifyRetrievedSource` trust map while there.
+3. **Two new research-pipeline Mediums (file once the Linear cap clears).**
+   (a) Evidence-ledger `official_company` over-trust — land the registrable-label
+   (PSL-aware) fix with adversarial `company-token.attacker.example` tests, fold in
+   the deferred `official_job` short-name/employer-domain follow-up, and re-audit the
+   whole `classifyRetrievedSource` trust map. (b) PREPIO-179 follow-up — redact
+   `query` from the `SEARCH_COMPLETE` aggregate log (and audit every generic
+   `logger.log` payload carrying `query`), with a test on the aggregate path. Both
+   compound with the open `searchId` BOLA (PREPIO-143).
 4. **`pdfjs-dist` 6 / `react-router` v7 / `vitest` ≥ 4.1.11 Dependabot PRs, and the
    PREPIO-27 PDF surface-lock.** PDF upload is live and reaches the vulnerable parser
    (guests included), so landing the surface-lock is the interim mitigation; validate
