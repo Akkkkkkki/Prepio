@@ -4,10 +4,20 @@
 
 Twenty-seventh recurring codebase hygiene & security review for Prepio.
 
-**Low-drift window.** Base `132816b` (run #26, 2026-09-09) advanced to HEAD
-`e3a283b` with a **single source-touching merge**, reviewed directly this run:
+**Coverage note — the full range is broader than one merge (corrected after Codex
+review of this PR).** Run #26 (2026-09-09) explicitly *measured* against base
+`132816b` — which is the **2026-09-03 UX-review-routine doc (#334)**, not run #26's
+own note commit. Run #26 only reviewed the source merges that had landed at or
+before `132816b`. Its note PR (#343, `9d18206`) was branched from `132816b`, so the
+merges that landed on `main` *between* `132816b` and `9d18206` were reviewed by
+**neither** run #26 nor an earlier draft of this note. `git log 132816b..e3a283b`
+therefore contains **eight commits**, of which **five touch source** (`src/` or
+`supabase/functions/`, excluding tests): #335, #344, #340, #338, #336 (plus #332,
+scripts-only, and #342, docs/assets, reviewed as the PREPIO-145 High below; #343 is
+run #26's own note). **All five source-touching merges were reviewed this run** —
+each is security-neutral-to-positive:
 
-- **`fix: redact model content from JSON parser failure logs` (#335)** — a clean,
+- **`fix: redact model content from JSON parser failure logs` (#335)** — clean,
   well-tested **security improvement**. `parseJsonResponse`
   ([`_shared/openai-client.ts:88`](../../supabase/functions/_shared/openai-client.ts))
   previously logged a 500-char preview of the raw model output **and** the
@@ -22,20 +32,48 @@ Twenty-seventh recurring codebase hygiene & security review for Prepio.
   PII email in the raw content never reaches the logged calls. No query,
   data-access, or auth behavior changed. **Closes the same PII-in-logs class the
   PREPIO-141/179 work targeted, for the JSON-parser path.**
+- **[PREPIO-179] Redact raw Tavily query strings from per-search discovery logs
+  (#344)** — **security-positive**, and the exact "next review focus" item run #26
+  left open. All five per-search discovery log sites in
+  [`company-research/index.ts`](../../supabase/functions/company-research/index.ts)
+  now emit the query's `source` label + position (`index`/`total`/`roleFamily`)
+  instead of the raw `query.query` (which embeds note-derived interviewer/team
+  names); the shared `SearchLogger.logTavilySearch`
+  ([`_shared/logger.ts`](../../supabase/functions/_shared/logger.ts)) also strips
+  `query` from `requestPayload` before logging via non-mutating rest-destructure,
+  closing the second leak path. Tested in `_shared/logger.test.ts` (no free-text
+  query reaches the logger on success or error; source label still logged; caller
+  request not mutated). **Closes the run #26 PII-in-logs Medium.**
+- **[PREPIO-144] Classify retrieved job rows by origin, not pipeline channel
+  (#340)** — **security-positive** trust-boundary hardening in
+  [`interview-research/evidence-ledger.ts`](../../supabase/functions/interview-research/evidence-ledger.ts).
+  Removed a blanket `forcedSourceType` that granted every caller-supplied `roleLink`
+  row `official_job`/high trust; classification is now per-row by hostname (known-ATS
+  allowlist, exact registrable-label employer match with public-suffix stripping and
+  NFKD folding, lookalike-subdomain safety). Went through multiple adversarial Codex
+  rounds; unrelated/attacker-controlled URLs correctly fall to `market_heuristic`/low.
+  This is the PREPIO-144 Low from the 2026-08-12 audit, now fixed.
+- **[PREPIO-176] Hide the practice coach panel when a question has no guidance
+  (#338)** — UI-only conditional render in
+  [`Practice.tsx`](../../src/pages/Practice.tsx) / `QuestionInsightsPanel` /
+  `MobileCoachModal`, well test-covered (+ answer-guide tests). No data flow, PII,
+  or access surface.
+- **[PREPIO-175] Remove forbidden rounded-3xl tokens from the route skeleton
+  (#336)** — design-token cleanup in [`App.tsx`](../../src/App.tsx) + a
+  `check-design-tokens.sh` guard. Cosmetic; no security/data surface.
+- **[PREPIO-169] Harden check-deno-baseline.sh against masked hard failures (#332)**
+  — CI/DX hardening of the Deno typecheck wrapper (scripts-only, + a test).
+  Reduces the risk of a masked hard failure in the `verify` gate; positive.
+- **[PREPIO-145] Redact production CV PII from historical audit screenshots
+  (working-tree slice) (#342)** — reviewed as the High finding below (working-tree
+  redaction landed; the owner-attended Git-history purge is still pending).
 
-**Also confirmed landed since run #26** (all merged before the last note but worth
-recording as resolved): **PREPIO-179 (#344)** redacted the raw `query.query` string
-from the five per-search `TAVILY_SEARCH_*` discovery log sites — the exact "next
-review focus" item run #26 left open; the interviewer/team-name PII-in-logs Medium
-is now **closed**. **PREPIO-145 (#342)** replaced ten unredacted production-CV
-screenshots in the working tree with placeholders (history purge still pending —
-see High finding below).
-
-**Headline: the new source this window is security-positive, and no new secret,
-PII-in-logs, or access-control regression was introduced. No code change was
-warranted this run** — the one small candidate (a `vitest` patch bump for the
-dev-only `@vitest/mocker` advisory) is blocked by the known npm `edgesOut`
-resolver bug and is not worth manual lockfile surgery for a dev-only finding.
+**Headline: all five source-touching merges in the range are
+security-neutral-to-positive, and no new secret, PII-in-logs, or access-control
+regression was introduced. No code change was warranted this run** — the one small
+candidate (a `vitest` patch bump for the dev-only `@vitest/mocker` advisory) is
+blocked by the known npm `edgesOut` resolver bug and is not worth manual lockfile
+surgery for a dev-only finding.
 
 Baselines (measured against HEAD `e3a283b`; deltas vs 2026-09-09):
 lint **52** problems (43 errors, **9** warnings; +1 warning, pre-existing).
@@ -60,8 +98,9 @@ window.
   **not runnable in this environment** — the agent proxy blocks `esm.sh` /
   `deno.land`, so Deno cannot resolve the edge functions' remote imports; the
   script reports `SKIPPED — this is not a pass` (exit 0 locally, `exit 1` under
-  `$CI`). This run changed no `supabase/functions` source, and the one new merge
-  (#335) already passed the real CI `verify` gate at merge time.
+  `$CI`). This run pushes no new `supabase/functions` source; the range's
+  edge-function merges (#335, #344) each passed the real CI `verify` gate at merge
+  time (the #344 note records restoring the deno ratchet to baseline).
 - `npm run build`: **pass** (Vite + PWA, 62 precache entries, **2280.54 KiB**).
 - `npm test`: **pass** (**52 files, 461 tests**), incl. the schema/design-token
   checks.
@@ -174,10 +213,16 @@ window.
 
 ## Small fixes made in this run
 
-- **None.** The one new merge (#335) is security-positive and already tested; the
-  only fix candidate (the `vitest` patch bump) is blocked by the npm `edgesOut`
-  resolver bug and is a dev-only advisory not worth manual lockfile surgery. This
-  run is a review note only.
+- **The five source-touching merges in the range are all security-positive or
+  security-neutral and already tested** (see Summary); none introduced a fix
+  candidate. The only standing candidate (the `vitest` patch bump) is blocked by
+  the npm `edgesOut` resolver bug and is a dev-only advisory not worth manual
+  lockfile surgery.
+- **This PR's own review correction (post-Codex):** rewrote the Summary to state the
+  true `132816b..e3a283b` range and per-commit review outcome (was mis-scoped to a
+  "single source-touching merge"), and added the missing 2026-09-12 row to
+  [`docs/audits/README.md`](./README.md). Documentation-only; no product source
+  touched.
 
 ## Deferred items
 
