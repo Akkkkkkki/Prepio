@@ -57,7 +57,9 @@ each is security-neutral-to-positive:
   (#338)** — UI-only conditional render in
   [`Practice.tsx`](../../src/pages/Practice.tsx) / `QuestionInsightsPanel` /
   `MobileCoachModal`, well test-covered (+ answer-guide tests). No data flow, PII,
-  or access surface.
+  or access surface. **One minor cosmetic regression:** its new exported
+  `hasQuestionInsightsContent` helper adds a `react-refresh/only-export-components`
+  lint warning (informational, non-blocking) — recorded as the Low finding below.
 - **[PREPIO-175] Remove forbidden rounded-3xl tokens from the route skeleton
   (#336)** — design-token cleanup in [`App.tsx`](../../src/App.tsx) + a
   `check-design-tokens.sh` guard. Cosmetic; no security/data surface.
@@ -76,7 +78,8 @@ blocked by the known npm `edgesOut` resolver bug and is not worth manual lockfil
 surgery for a dev-only finding.
 
 Baselines (measured against HEAD `e3a283b`; deltas vs 2026-09-09):
-lint **52** problems (43 errors, **9** warnings; +1 warning, pre-existing).
+lint **52** problems (43 errors, **9** warnings; **the +1 warning is a new
+regression from #338**, not pre-existing — see the Low finding below).
 Typecheck **pass at baseline** (app tsc **62**, node **0**, flat). Build
 **2280.54 KiB** / 62 precache entries (+0.18 KiB, browserslist-data drift,
 immaterial). Tests **461** passing / **52** files (up from 431/48 — the
@@ -88,8 +91,12 @@ window.
 
 - `npm install`: **pass** (via SessionStart hook).
 - `npm run lint`: **52 problems (43 errors, 9 warnings).** +1 warning vs
-  2026-09-09; all pre-existing (`@typescript-eslint/no-explicit-any` in
-  tests/edge functions). Informational in CI; this run changed no source.
+  2026-09-09 — a **new `react-refresh/only-export-components` warning from #338**
+  (`QuestionInsightsPanel.tsx:53`, the exported `hasQuestionInsightsContent`
+  helper), not pre-existing; the 43 errors and the other 8 warnings are unchanged
+  and pre-existing (`@typescript-eslint/no-explicit-any` in tests/edge functions,
+  the eight prior fast-refresh warnings). Lint is informational in CI; this run
+  pushes no source. See the Low finding below.
 - `npm run typecheck`
   ([`scripts/check-typecheck-baseline.sh`](../../scripts/check-typecheck-baseline.sh)):
   **pass at baseline.** App **62**, node **0**. Flat.
@@ -173,6 +180,26 @@ window.
   - Owner / next step: Deferred — dependency major, Dependabot-tracked.
 
 ### Low / clean-up
+
+- [ ] **New `react-refresh/only-export-components` lint warning from #338.** *(New
+  this window; surfaced by Codex on this PR and code-verified. Lint delta was
+  initially mis-attributed as pre-existing.)*
+  - Evidence: #338 (PREPIO-176) added `export const hasQuestionInsightsContent` — a
+    non-component export — to
+    [`QuestionInsightsPanel.tsx:53`](../../src/components/practice/QuestionInsightsPanel.tsx),
+    which itself exports the `QuestionInsightsPanel` component. ESLint's
+    `react-refresh/only-export-components` rule warns because mixing a
+    component and a plain function export in one file breaks Vite fast refresh.
+    Confirmed: `npm run lint` now reports **9** of these warnings vs **8** at the
+    2026-09-09 baseline, and the new one is at that file/line.
+  - Risk: **cosmetic / DX only** — a fast-refresh hint, not a correctness, security,
+    or bundle issue. Lint is informational in CI (not a gate), so it does not block.
+  - Recommended fix: move `hasQuestionInsightsContent` (and any sibling non-component
+    exports) into a small `questionInsights.ts` helper module and import it back,
+    leaving `QuestionInsightsPanel.tsx` exporting only its component. A one-helper
+    move touching ~2–3 files; **out of scope for this docs-only PR** (it would widen
+    an audit-note PR into already-merged product source), so recorded here for a
+    maintainer or a follow-up cleanup rather than remediated in-run.
 
 - [ ] **`@vitest/mocker` moderate advisory (GHSA-82fw-gwwq-j7x9) — path traversal /
   arbitrary file read via redirect mock.** *(Carried; a clean fix is now in range
