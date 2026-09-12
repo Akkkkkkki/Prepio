@@ -14,8 +14,11 @@ merges that landed on `main` *between* `132816b` and `9d18206` were reviewed by
 therefore contains **eight commits**, of which **five touch source** (`src/` or
 `supabase/functions/`, excluding tests): #335, #344, #340, #338, #336 (plus #332,
 scripts-only, and #342, docs/assets, reviewed as the PREPIO-145 High below; #343 is
-run #26's own note). **All five source-touching merges were reviewed this run** —
-each is security-neutral-to-positive:
+run #26's own note). **All five source-touching merges were reviewed this run.**
+Four are security-neutral-to-positive; **#340 is mixed** — net-positive on the
+`official_job` branch it targeted, but it introduced a narrow trust-classification
+regression on the `official_company` branch for accented brand names (see its entry
+and the Medium finding below):
 
 - **`fix: redact model content from JSON parser failure logs` (#335)** — clean,
   well-tested **security improvement**. `parseJsonResponse`
