@@ -65,13 +65,19 @@ each is security-neutral-to-positive:
   regression test proving `jobs.attacker.example` stays `market_heuristic`/low.
   That closes PREPIO-144 as scoped (the `official_job` blanket over-trust).
   **Correction (after Codex review of this PR):** the merged code does *not* contain
-  the "exact registrable-label / public-suffix / NFKD / lookalike-subdomain"
+  the "exact registrable-label / public-suffix / lookalike-subdomain" *safety*
   matching an earlier draft of this bullet described — those appear only in the PR's
   intermediate commit messages, not the final `classifyRetrievedSource`, which still
   matches company tokens with a loose `.includes()` on the whole normalized host and
-  a comment deferring PSL-aware matching as follow-up. So a **separate, pre-existing**
-  over-trust on the `official_company` branch remains open — recorded as a new Medium
-  finding below (not a #340 regression; #340 did not touch that branch).
+  a comment deferring PSL-aware matching as follow-up. An `official_company`
+  over-trust therefore remains open (new Medium below). It is **mostly pre-existing**
+  for plain-ASCII names, **but #340 did widen it**: the NFKD/combining-mark folding
+  #340 added to `companyWords` now produces a usable token for diacritic brand names
+  (`"L'Oréal"` → `oreal`) that previously fell through, so `oreal.attacker.example`
+  is now over-trusted where it was not before #340 — a narrow trust-classification
+  regression attributable to #340. So #340 is net security-positive on the
+  `official_job` branch it targeted, but security-negative for accented names on the
+  untouched `official_company` branch.
 - **[PREPIO-176] Hide the practice coach panel when a question has no guidance
   (#338)** — UI-only conditional render in
   [`Practice.tsx`](../../src/pages/Practice.tsx) / `QuestionInsightsPanel` /
@@ -89,16 +95,18 @@ each is security-neutral-to-positive:
   (working-tree slice) (#342)** — reviewed as the High finding below (working-tree
   redaction landed; the owner-attended Git-history purge is still pending).
 
-**Headline: all five source-touching merges in the range are
-security-neutral-to-positive, and none introduced a new secret, PII-in-logs, or
-access-control regression.** Adversarial Codex review of this audit PR was, however,
-unusually productive: it corrected **four** over-claims in an initial draft of this
-note and surfaced two **pre-existing** Mediums the draft had described as closed —
-(1) the evidence-ledger `official_company` attacker-subdomain over-trust, which #340
-did not touch, and (2) an **incomplete PREPIO-179 redaction**: the `SEARCH_COMPLETE`
-console log still leaks raw note-derived query strings (confirmed), and a second
-`ops.tavily_searches` DB-writer path attempts the same but is blocked by the
-checked-in schema (missing columns — inert unless prod has drifted). Both are now
+**Headline: four of the five source-touching merges are security-neutral-to-positive
+and introduced no new secret, PII-in-logs, or access-control regression; #340 is
+net-positive on the `official_job` branch it targeted but introduced one narrow
+trust-classification regression on a branch it did not target.** Adversarial Codex
+review of this audit PR was unusually productive: it corrected several over-claims in
+the initial draft and surfaced two open Mediums the draft had described as closed —
+(1) the evidence-ledger `official_company` attacker-subdomain over-trust (mostly
+pre-existing, but **#340 widened it** for accented brand names via its new NFKD
+folding — see below), and (2) an **incomplete PREPIO-179 redaction**: the
+`SEARCH_COMPLETE` console log still leaks raw note-derived query strings (confirmed),
+and a second `ops.tavily_searches` DB-writer path attempts the same but is blocked by
+the checked-in schema (missing columns — inert unless prod has drifted). Both are now
 recorded accurately below. **No code change was warranted this run** — the one small
 dependency candidate (a `vitest` patch bump for the dev-only `@vitest/mocker`
 advisory) is blocked by the known npm `edgesOut` resolver bug and is not worth manual
@@ -220,9 +228,11 @@ window.
     surface-lock tracked under PREPIO-27/PREPIO-140.
 
 - [ ] **Evidence-ledger `official_company` over-trusts any host containing a company
-  token — attacker-subdomain trust escalation.** *(New this run; surfaced by Codex on
-  this PR and code-verified. Pre-existing in `classifyRetrievedSource`; **not** a #340
-  regression and outside PREPIO-144's `official_job` scope.)*
+  token — attacker-subdomain trust escalation, and #340 *widened* it for accented
+  brand names.** *(New this run; surfaced by Codex on this PR across two rounds and
+  code-verified. The base over-trust is pre-existing in `classifyRetrievedSource`;
+  the accented-name expansion **is** a #340 regression. Outside PREPIO-144's
+  `official_job` scope either way.)*
   - Evidence:
     [`evidence-ledger.ts:174–177`](../../supabase/functions/interview-research/evidence-ledger.ts)
     computes `normalizedHost = host.replace(/[^a-z0-9]/g, "")` and returns
@@ -234,6 +244,17 @@ window.
     `.includes("acme")` → **`official_company`/high**. There is no
     registrable-domain / public-suffix / exact-label check (the code comment
     explicitly defers PSL-aware matching as follow-up).
+  - **#340 regression for accented names:** #340 added NFKD/combining-mark folding to
+    the shared `companyWords` helper
+    (`.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").split(...)`).
+    Before #340, `companyTokens("L'Oréal")` split `"l'oréal"` on the non-ASCII `é`
+    into `["l","or","al"]`, all < 3 chars → **no token → fell through to
+    `market_heuristic`**. After #340 the folding yields the token `oreal`, so
+    `oreal.attacker.example` now `.includes("oreal")` → **`official_company`/high**.
+    So for diacritic brand names #340 **newly** created the over-trust that the loose
+    `.includes()` then exploits — a genuine (narrow) trust-classification regression,
+    not purely pre-existing. (For plain-ASCII names like "Acme" the over-trust
+    predates #340.)
   - Risk: attacker-controlled content whose hostname embeds the company name is
     weighted as high-trust "official company" evidence in the grounded-evidence
     ledger, biasing generated prep. Gating: the row must enter the ledger via the
@@ -375,11 +396,13 @@ window.
   to state the true `132816b..e3a283b` range and per-commit review outcome (was
   mis-scoped to a "single source-touching merge"); added the missing 2026-09-12 row
   to [`docs/audits/README.md`](./README.md); attributed the +1 lint warning to #338;
-  and corrected three over-claims Codex code-verified — the `pdfjs-dist` finding (PDF
+  and corrected several over-claims Codex code-verified — the `pdfjs-dist` finding (PDF
   upload is still live, surface-lock pending, not "disabled by the freeze"), the
   `#340`/PREPIO-144 bullet (the `official_company` loose-`.includes()` over-trust is
-  not fixed; new Medium), and the PREPIO-179 bullet (the `SEARCH_COMPLETE` aggregate
-  log still leaks raw query strings; PREPIO-179 partial, new Medium).
+  not fixed — new Medium — and #340's NFKD folding actually *widened* it for accented
+  brand names, a narrow regression, revising the "no regression" headline), and the
+  PREPIO-179 bullet (the `SEARCH_COMPLETE` console log still leaks raw query strings —
+  new Medium — while the DB-writer path is schema-blocked on the checked-in migrations).
   Documentation-only; no product source touched.
 
 ## Deferred items
