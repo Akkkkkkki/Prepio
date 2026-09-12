@@ -45,14 +45,22 @@ each is security-neutral-to-positive:
   query reaches the logger on success or error; source label still logged; caller
   request not mutated). **Closes the run #26 PII-in-logs Medium.**
 - **[PREPIO-144] Classify retrieved job rows by origin, not pipeline channel
-  (#340)** — **security-positive** trust-boundary hardening in
-  [`interview-research/evidence-ledger.ts`](../../supabase/functions/interview-research/evidence-ledger.ts).
-  Removed a blanket `forcedSourceType` that granted every caller-supplied `roleLink`
-  row `official_job`/high trust; classification is now per-row by hostname (known-ATS
-  allowlist, exact registrable-label employer match with public-suffix stripping and
-  NFKD folding, lookalike-subdomain safety). Went through multiple adversarial Codex
-  rounds; unrelated/attacker-controlled URLs correctly fall to `market_heuristic`/low.
-  This is the PREPIO-144 Low from the 2026-08-12 audit, now fixed.
+  (#340)** — **security-positive** for the scope PREPIO-144 actually covered.
+  In [`interview-research/evidence-ledger.ts`](../../supabase/functions/interview-research/evidence-ledger.ts)
+  it removed the blanket `forcedSourceType` that granted every caller-supplied
+  `roleLink` row `official_job`/high trust, and hardened `isJobPosting` so
+  `official_job` is granted **only** for known-ATS hosts (exact host or subdomain
+  of `greenhouse.io`/`lever.co`/`myworkdayjobs.com`/`smartrecruiters.com`), with a
+  regression test proving `jobs.attacker.example` stays `market_heuristic`/low.
+  That closes PREPIO-144 as scoped (the `official_job` blanket over-trust).
+  **Correction (after Codex review of this PR):** the merged code does *not* contain
+  the "exact registrable-label / public-suffix / NFKD / lookalike-subdomain"
+  matching an earlier draft of this bullet described — those appear only in the PR's
+  intermediate commit messages, not the final `classifyRetrievedSource`, which still
+  matches company tokens with a loose `.includes()` on the whole normalized host and
+  a comment deferring PSL-aware matching as follow-up. So a **separate, pre-existing**
+  over-trust on the `official_company` branch remains open — recorded as a new Medium
+  finding below (not a #340 regression; #340 did not touch that branch).
 - **[PREPIO-176] Hide the practice coach panel when a question has no guidance
   (#338)** — UI-only conditional render in
   [`Practice.tsx`](../../src/pages/Practice.tsx) / `QuestionInsightsPanel` /
@@ -71,11 +79,16 @@ each is security-neutral-to-positive:
   redaction landed; the owner-attended Git-history purge is still pending).
 
 **Headline: all five source-touching merges in the range are
-security-neutral-to-positive, and no new secret, PII-in-logs, or access-control
-regression was introduced. No code change was warranted this run** — the one small
-candidate (a `vitest` patch bump for the dev-only `@vitest/mocker` advisory) is
-blocked by the known npm `edgesOut` resolver bug and is not worth manual lockfile
-surgery for a dev-only finding.
+security-neutral-to-positive, and none introduced a new secret, PII-in-logs, or
+access-control regression.** Codex review of this audit PR did, however, surface a
+**pre-existing** Medium (the evidence-ledger `official_company` attacker-subdomain
+over-trust — see below), which #340 did not touch and which this note initially
+mis-described as fixed; it is now recorded accurately. **No code change was warranted
+this run** — the one small dependency candidate (a `vitest` patch bump for the
+dev-only `@vitest/mocker` advisory) is blocked by the known npm `edgesOut` resolver
+bug and is not worth manual lockfile surgery, and the two substantive findings
+(`official_company` over-trust; the live PDF surface) are service-source changes out
+of scope for a docs-only hygiene run.
 
 Baselines (measured against HEAD `e3a283b`; deltas vs 2026-09-09):
 lint **52** problems (43 errors, **9** warnings; **the +1 warning is a new
@@ -172,12 +185,59 @@ window.
   major.)*
   - Evidence: `npm audit` reports `pdfjs-dist >=5.6.83 <6.2.108` high; the app parses
     user-uploaded resumes client-side. Fix is `pdfjs-dist@6.3.289` (breaking).
-  - Risk: a crafted resume PDF could execute script in the parsing context;
-    materially mitigated by pdf.js worker isolation. The freeze also disables PDF
-    upload behind PREPIO-140 in the locked frontend, reducing live exposure.
+  - Risk: a crafted resume PDF could execute script in the parsing context.
+    **Correction (after Codex review of this PR): PDF upload is still live, so the
+    surface is NOT reduced by the freeze as an earlier draft of this finding
+    claimed.** [`Home.tsx`](../../src/pages/Home.tsx) accepts
+    `ACCEPTED_RESUME_TYPES` (which includes `application/pdf` / `.pdf`) and calls
+    `extractResumeText(file)` in `handleFileUpload` **before** the `if (!user)`
+    check, so even a signed-out guest can reach the pdf.js parser; the surface-lock
+    (disabling PDF upload) is still *pending* PREPIO-27/PREPIO-140, not landed. The
+    live mitigations are pdf.js worker isolation **and** `isEvalSupported: false` on
+    the `getDocument` call ([`resumeUpload.ts:125`](../../src/lib/resumeUpload.ts),
+    the 2026-08-08 defense-in-depth hardening) — the parser extracts text only, never
+    renders/scripts — but PDF upload itself is reachable.
   - Recommended fix: bump behind a resume-upload regression check (PDF **and**
-    DOCX). Dependabot surfaces the PR; needs a human to validate the major.
-  - Owner / next step: Deferred — dependency major, Dependabot-tracked.
+    DOCX). Dependabot surfaces the PR; needs a human to validate the major. Landing
+    the PREPIO-27 PDF surface-lock would remove the exposure in the interim.
+  - Owner / next step: Deferred — dependency major, Dependabot-tracked; interim
+    surface-lock tracked under PREPIO-27/PREPIO-140.
+
+- [ ] **Evidence-ledger `official_company` over-trusts any host containing a company
+  token — attacker-subdomain trust escalation.** *(New this run; surfaced by Codex on
+  this PR and code-verified. Pre-existing in `classifyRetrievedSource`; **not** a #340
+  regression and outside PREPIO-144's `official_job` scope.)*
+  - Evidence:
+    [`evidence-ledger.ts:174–177`](../../supabase/functions/interview-research/evidence-ledger.ts)
+    computes `normalizedHost = host.replace(/[^a-z0-9]/g, "")` and returns
+    `official_company` (→ high trust via `trustWeightFor`) when
+    **any** `companyTokens(company)` entry is a substring of it
+    (`.includes(token)`). `companyTokens` keeps ≥3-char words. So for company
+    "Acme", a caller-supplied or search-surfaced role link
+    `https://acme.attacker.example/job` normalizes to `acmeattackerexample`, which
+    `.includes("acme")` → **`official_company`/high**. There is no
+    registrable-domain / public-suffix / exact-label check (the code comment
+    explicitly defers PSL-aware matching as follow-up).
+  - Risk: attacker-controlled content whose hostname embeds the company name is
+    weighted as high-trust "official company" evidence in the grounded-evidence
+    ledger, biasing generated prep. Gating: the row must enter the ledger via the
+    caller's own `roleLinks` (self-inflicted) or via a Tavily result the attacker
+    gets ranked for the company query. Same "unvalidated origin → over-trust" family
+    as PREPIO-144, on the company branch instead of the job branch; **more serious
+    combined with the open `searchId` BOLA (PREPIO-143)**, where high-trust attacker
+    text could land in a victim's plan. Content-integrity, not cross-tenant read.
+  - Recommended fix: match the company against the host's **registrable label**
+    (exact, PSL-aware) rather than `.includes()` on the whole host, mirroring the
+    ATS exact/suffix approach `isJobPosting` now uses; add adversarial tests that
+    reject `company-token.attacker.example` subdomains. Verify legitimate employer
+    domains (incl. short names and multi-label suffixes) still classify correctly.
+  - Owner / next step: **Linear issue could not be filed — the workspace is at its
+    free-issue cap** (the same intake blocker prior audits recorded, e.g. 2026-07-29).
+    Recorded here in full; file as `Bug` + `area:research-pipeline` (Quality &
+    Maintenance), cross-linked to PREPIO-144, PREPIO-143, this audit, and PR #346, as
+    soon as the cap clears. A substantive service-role edge-function change, out of
+    scope for a docs-only hygiene run and not validatable in this proxy-limited
+    environment.
 
 ### Low / clean-up
 
@@ -245,16 +305,18 @@ window.
   candidate. The only standing candidate (the `vitest` patch bump) is blocked by
   the npm `edgesOut` resolver bug and is a dev-only advisory not worth manual
   lockfile surgery.
-- **This PR's own review correction (post-Codex):** rewrote the Summary to state the
-  true `132816b..e3a283b` range and per-commit review outcome (was mis-scoped to a
-  "single source-touching merge"), and added the missing 2026-09-12 row to
-  [`docs/audits/README.md`](./README.md). Documentation-only; no product source
-  touched.
+- **This PR's own review corrections (post-Codex, four rounds):** rewrote the Summary
+  to state the true `132816b..e3a283b` range and per-commit review outcome (was
+  mis-scoped to a "single source-touching merge"); added the missing 2026-09-12 row
+  to [`docs/audits/README.md`](./README.md); attributed the +1 lint warning to #338;
+  and corrected two over-claims Codex code-verified — the `pdfjs-dist` finding (PDF
+  upload is still live, surface-lock pending, not "disabled by the freeze") and the
+  `#340`/PREPIO-144 bullet (the `official_company` loose-`.includes()` over-trust is
+  not fixed; recorded as a new Medium). Documentation-only; no product source touched.
 
 ## Deferred items
 
-Already tracked or explicitly noted-not-filed (no new Linear issue this run — every
-open finding is already tracked or Dependabot-surfaced):
+Tracked, Dependabot-surfaced, or filed this run:
 
 - **PREPIO-145** — owner-attended Git-history purge of the production-CV screenshot
   blobs + PII/credential exposure review (High/Urgent, Todo). Working-tree slice
@@ -268,12 +330,26 @@ open finding is already tracked or Dependabot-surfaced):
 - **`vitest` ≥ 4.1.11 for the `@vitest/mocker` advisory** (Low, dev-only) — blocked
   locally by the npm `edgesOut` bug; let Dependabot carry it.
 - **`npm audit` as a non-blocking CI step** (Low, process) — maintainer call.
+- **Evidence-ledger `official_company` attacker-subdomain over-trust** (Medium, new
+  this run — Codex-surfaced) — `classifyRetrievedSource` matches company tokens with
+  a loose `.includes()` on the whole host. **Could not file the Linear issue — the
+  workspace is at its free-issue cap** (recorded in full in the finding above; to be
+  filed against Quality & Maintenance, cross-linked to PREPIO-144/143 and PR #346,
+  when the cap clears).
+- **`#338` `react-refresh/only-export-components` lint warning** (Low, cosmetic/DX) —
+  move `hasQuestionInsightsContent` to a helper module; noted for a follow-up
+  cleanup, not filed.
+- **PDF surface-lock (PREPIO-27/PREPIO-140)** — landing it would remove the live
+  `pdfjs-dist` exposure in the interim before the 5 → 6 major; already tracked.
 
 ## Questions for product owner
 
-- None blocking. Both High findings have owners and active Linear tracking
-  (PREPIO-143 has an open fix PR; PREPIO-145 has a documented owner-attended
-  remediation plan).
+- **Linear is at its free-issue cap**, so the new Medium finding (evidence-ledger
+  `official_company` over-trust) could not be filed this run — it is recorded in full
+  in this note instead. The same intake blocker was noted on 2026-07-29. Upgrading or
+  clearing the cap would let hygiene findings be tracked in Linear rather than only in
+  the audit trail. Not otherwise blocking: both High findings have owners and active
+  Linear tracking (PREPIO-143 open fix PR; PREPIO-145 documented owner-attended plan).
 
 ## Next review focus
 
@@ -286,9 +362,16 @@ open finding is already tracked or Dependabot-surfaced):
    PII is still publicly fetchable from history. Track the owner-attended
    filter-repo/BFG + force-push and verify the identified blobs are gone from all
    refs afterward.
-3. **`pdfjs-dist` 6 / `react-router` v7 / `vitest` ≥ 4.1.11 Dependabot PRs.** If
-   open, validate the resume-upload and routing/redirect surfaces so the majors can
-   land instead of accumulating.
-4. **Next source-touching merge.** Re-run the full baseline against it rather than
-   re-verifying carried findings — the posture that has kept each window's drift
-   small.
+3. **Evidence-ledger `official_company` over-trust (new Medium).** File it once the
+   Linear cap clears, then land the registrable-label (PSL-aware) fix with adversarial
+   `company-token.attacker.example` tests. Fold in the still-open `official_job`
+   short-name/employer-domain follow-up the code comment defers, and re-audit the
+   whole `classifyRetrievedSource` trust map while there.
+4. **`pdfjs-dist` 6 / `react-router` v7 / `vitest` ≥ 4.1.11 Dependabot PRs, and the
+   PREPIO-27 PDF surface-lock.** PDF upload is live and reaches the vulnerable parser
+   (guests included), so landing the surface-lock is the interim mitigation; validate
+   the resume-upload and routing/redirect surfaces so the majors can land instead of
+   accumulating.
+5. **Next source-touching merge.** Re-run the full baseline against it rather than
+   re-verifying carried findings — and read the *merged* code, not just commit
+   messages, when assessing a security fix (this run's lesson from the #340 over-claim).
