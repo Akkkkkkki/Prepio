@@ -393,12 +393,15 @@ Tracked, Dependabot-surfaced, or filed this run:
 
 ## Questions for product owner
 
-- **Linear is at its free-issue cap**, so the new Medium finding (evidence-ledger
-  `official_company` over-trust) could not be filed this run — it is recorded in full
-  in this note instead. The same intake blocker was noted on 2026-07-29. Upgrading or
-  clearing the cap would let hygiene findings be tracked in Linear rather than only in
-  the audit trail. Not otherwise blocking: both High findings have owners and active
-  Linear tracking (PREPIO-143 open fix PR; PREPIO-145 documented owner-attended plan).
+- **Linear is at its free-issue cap**, so the **two new Medium findings** surfaced
+  this run could not be filed — both are recorded in full in this note instead:
+  (1) the evidence-ledger `official_company` attacker-subdomain over-trust, and
+  (2) the PREPIO-179 follow-up (the `SEARCH_COMPLETE` aggregate-log leak of raw
+  note-derived query strings — reopen PREPIO-179 or file a follow-up). The same
+  intake blocker was noted on 2026-07-29. Upgrading or clearing the cap would let
+  hygiene findings be tracked in Linear rather than only in the audit trail. Not
+  otherwise blocking: both High findings have owners and active Linear tracking
+  (PREPIO-143 open fix PR; PREPIO-145 documented owner-attended plan).
 
 ## Next review focus
 
