@@ -95,9 +95,9 @@ access-control regression.** Adversarial Codex review of this audit PR was, howe
 unusually productive: it corrected **four** over-claims in an initial draft of this
 note and surfaced two **pre-existing** Mediums the draft had described as closed —
 (1) the evidence-ledger `official_company` attacker-subdomain over-trust, which #340
-did not touch, and (2) an **incomplete PREPIO-179 redaction**: the `SEARCH_COMPLETE`
-aggregate log still writes raw note-derived query strings. Both are now recorded
-accurately below. **No code change was warranted this run** — the one small
+did not touch, and (2) an **incomplete PREPIO-179 redaction**: raw note-derived query
+strings still reach both the `SEARCH_COMPLETE` console log and — more durably — the
+persistent `ops.tavily_searches` DB table. Both are now recorded accurately below. **No code change was warranted this run** — the one small
 dependency candidate (a `vitest` patch bump for the dev-only `@vitest/mocker`
 advisory) is blocked by the known npm `edgesOut` resolver bug and is not worth manual
 lockfile surgery, and the substantive findings (`official_company` over-trust, the
@@ -253,30 +253,40 @@ window.
     scope for a docs-only hygiene run and not validatable in this proxy-limited
     environment.
 
-- [ ] **PII-in-logs is only partially closed — the `SEARCH_COMPLETE` aggregate log
-  still writes raw note-derived query strings (PREPIO-179 follow-up).** *(New this
-  run; surfaced by Codex on this PR and code-verified. Same class as PREPIO-141/179,
-  one layer deeper.)*
+- [ ] **PII-in-logs is only partially closed — raw note-derived query strings still
+  reach both the `SEARCH_COMPLETE` console log and a persistent DB table
+  (PREPIO-179 follow-up).** *(New this run; surfaced by Codex on this PR across two
+  rounds and code-verified. Same class as PREPIO-141/179, deeper — and now including
+  durable storage, not just logs.)*
   - Evidence: PREPIO-179 (#344) redacted the five direct per-search log sites and
-    `logTavilySearch`, but not the aggregate log. In
-    [`company-research/index.ts`](../../supabase/functions/company-research/index.ts):
-    line 248 builds `SearchPayload` with `query: result.query` (the raw Tavily query,
-    which for `user-note-*`/contextual queries embeds the note-derived interviewer/
-    team names), line ~311 rolls those payloads into `result.search_results`, and
-    line 317 calls `logger.log('SEARCH_COMPLETE', 'COMPANY_INFO', result)`. The
-    generic `SearchLogger.log`
-    ([`_shared/logger.ts`](../../supabase/functions/_shared/logger.ts)) stores the
-    object and `console.log`s the whole payload — it does **not** strip `query` (only
-    `logTavilySearch` does), so the names still reach the edge-function console/log
-    store. `logger.test.ts` covers only `logTavilySearch`, not this path.
+    `logTavilySearch`, but two other paths still write the raw query:
+    - **Console/log store:** in
+      [`company-research/index.ts`](../../supabase/functions/company-research/index.ts),
+      line 248 builds `SearchPayload` with `query: result.query` (the raw Tavily
+      query, which for `user-note-*`/contextual queries embeds note-derived
+      interviewer/team names), line ~311 rolls those into `result.search_results`,
+      and line 317 calls `logger.log('SEARCH_COMPLETE', 'COMPANY_INFO', result)`. The
+      generic `SearchLogger.log`
+      ([`_shared/logger.ts`](../../supabase/functions/_shared/logger.ts)) does **not**
+      strip `query` (only `logTavilySearch` does) and `console.log`s the whole payload.
+    - **Persistent database (more durable than logs):** `searchTavily`
+      ([`_shared/tavily-client.ts`](../../supabase/functions/_shared/tavily-client.ts),
+      the success insert ~lines 93–104 and the error insert ~lines 170–180) writes
+      `query_text: request.query` — the raw query — into the `ops.tavily_searches`
+      operational table on **both** success and failure, and also stores the full
+      `response_payload` (which echoes the query). This persists the interviewer/team
+      names to a queryable table, not just transient logs.
+    `logger.test.ts` covers only `logTavilySearch`, neither of these paths.
   - Risk: the exact PII-in-logs class PREPIO-141 → PREPIO-179 set out to close, still
-    live via the aggregate log. The freeze's structured logging makes it durable.
-    Same interviewer/team-name exposure, first-party edge-function logs.
-  - Recommended fix: strip/redact `query` from each `search_results[]` entry before
-    the `SEARCH_COMPLETE` log (or log only counts/sources there, mirroring the
-    per-search redaction), and add a test asserting no free-text query reaches the
-    logger on the aggregate path. Audit any other generic `logger.log` site that
-    passes a payload carrying `query`.
+    live via the aggregate console log **and** durably persisted in `ops.tavily_searches`.
+    Same interviewer/team-name exposure; the DB writer is the more serious of the two
+    because the data is retained and queryable, not ephemeral.
+  - Recommended fix: (a) redact `query` from each `search_results[]` entry before the
+    `SEARCH_COMPLETE` log; (b) stop persisting the raw query in
+    `ops.tavily_searches.query_text` — store the query `source`/hash or a redacted
+    form, and redact `response_payload.query` — on both the success and error inserts;
+    (c) add tests asserting no free-text query reaches the logger or the DB writer.
+    Audit any other generic `logger.log` site or DB writer carrying `query`.
   - Owner / next step: **reopen PREPIO-179** (its #344 fix is partial) or file a
     follow-up — **blocked this run by the Linear free-issue cap**, so recorded here in
     full. A service-role edge-function change, out of scope for a docs-only hygiene
@@ -386,18 +396,21 @@ Tracked, Dependabot-surfaced, or filed this run:
   cleanup, not filed.
 - **PDF surface-lock (PREPIO-27/PREPIO-140)** — landing it would remove the live
   `pdfjs-dist` exposure in the interim before the 5 → 6 major; already tracked.
-- **PREPIO-179 follow-up — `SEARCH_COMPLETE` aggregate log still leaks raw query
-  strings** (Medium, new this run — Codex-surfaced). PREPIO-179's #344 redaction is
-  partial. **Reopen PREPIO-179 or file a follow-up — blocked this run by the Linear
-  free-issue cap**; recorded in full in the finding above.
+- **PREPIO-179 follow-up — raw query strings still leak via the `SEARCH_COMPLETE`
+  console log and the persistent `ops.tavily_searches` DB table** (Medium, new this
+  run — Codex-surfaced across two rounds). PREPIO-179's #344 redaction is partial; the
+  DB writer (`query_text: request.query` on both success and error, plus
+  `response_payload`) is the more durable exposure. **Reopen PREPIO-179 or file a
+  follow-up — blocked this run by the Linear free-issue cap**; recorded in full above.
 
 ## Questions for product owner
 
 - **Linear is at its free-issue cap**, so the **two new Medium findings** surfaced
   this run could not be filed — both are recorded in full in this note instead:
   (1) the evidence-ledger `official_company` attacker-subdomain over-trust, and
-  (2) the PREPIO-179 follow-up (the `SEARCH_COMPLETE` aggregate-log leak of raw
-  note-derived query strings — reopen PREPIO-179 or file a follow-up). The same
+  (2) the PREPIO-179 follow-up (raw note-derived query strings still leak via the
+  `SEARCH_COMPLETE` console log **and** the persistent `ops.tavily_searches` DB table
+  — reopen PREPIO-179 or file a follow-up). The same
   intake blocker was noted on 2026-07-29. Upgrading or clearing the cap would let
   hygiene findings be tracked in Linear rather than only in the audit trail. Not
   otherwise blocking: both High findings have owners and active Linear tracking
@@ -419,9 +432,11 @@ Tracked, Dependabot-surfaced, or filed this run:
    (PSL-aware) fix with adversarial `company-token.attacker.example` tests, fold in
    the deferred `official_job` short-name/employer-domain follow-up, and re-audit the
    whole `classifyRetrievedSource` trust map. (b) PREPIO-179 follow-up — redact
-   `query` from the `SEARCH_COMPLETE` aggregate log (and audit every generic
-   `logger.log` payload carrying `query`), with a test on the aggregate path. Both
-   compound with the open `searchId` BOLA (PREPIO-143).
+   `query` from the `SEARCH_COMPLETE` aggregate log **and** stop persisting
+   `request.query` in `ops.tavily_searches.query_text`/`response_payload` (both the
+   success and error inserts in `tavily-client.ts`); audit every generic `logger.log`
+   payload and DB writer carrying `query`, with tests on both paths. Both compound
+   with the open `searchId` BOLA (PREPIO-143).
 4. **`pdfjs-dist` 6 / `react-router` v7 / `vitest` ≥ 4.1.11 Dependabot PRs, and the
    PREPIO-27 PDF surface-lock.** PDF upload is live and reaches the vulnerable parser
    (guests included), so landing the surface-lock is the interim mitigation; validate
