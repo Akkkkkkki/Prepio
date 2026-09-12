@@ -390,11 +390,12 @@ window.
 
 ## Small fixes made in this run
 
-- **The five source-touching merges in the range are all security-positive or
-  security-neutral and already tested** (see Summary); none introduced a fix
-  candidate. The only standing candidate (the `vitest` patch bump) is blocked by
-  the npm `edgesOut` resolver bug and is a dev-only advisory not worth manual
-  lockfile surgery.
+- **Four of the five source-touching merges are security-positive or
+  security-neutral; #340 is mixed** (net-positive on `official_job`, a narrow
+  accented-name regression on `official_company` — see Summary). None introduced a
+  fix candidate landing in this docs-only run. The only standing dependency candidate
+  (the `vitest` patch bump) is blocked by the npm `edgesOut` resolver bug and is a
+  dev-only advisory not worth manual lockfile surgery.
 - **This PR's own review corrections (post-Codex, four rounds):** rewrote the Summary
   to state the true `132816b..e3a283b` range and per-commit review outcome (was
   mis-scoped to a "single source-touching merge"); added the missing 2026-09-12 row
