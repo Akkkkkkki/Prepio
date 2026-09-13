@@ -112,7 +112,7 @@ quarterly / annual** checkout buttons that point at an undeployed function, and 
 Needs-work** flag write still returns `400 / 42P10` on every attempt. The single highest-value action
 remains the attended freeze deploy + frontend surface-lock (PREPIO-124 + PREPIO-27), which clears the
 top-of-funnel breakage and the flag-write P1 together; the newly-surfaced coaching gap is the most
-important *product* finding and now has a tracked home.
+important *product* finding and is tracked under its ROADMAP-designated owner, PREPIO-176.
 
 ## Top 5 issues
 
@@ -206,12 +206,15 @@ important *product* finding and now has a tracked home.
   synthesis (at minimum `good_answer_signals` + a one-line seniority expectation + a short outline),
   so the coach panel PREPIO-176 gates on has real content again. This is deliberately deferred by the
   freeze, so it belongs in the backlog, not the freeze window.
-- **Tracking:** could **not** be filed as its own issue — the Linear workspace is at its free issue
-  cap (the same constraint noted in PREPIO-27). Recorded instead as a comment on
-  [PREPIO-149](https://linear.app/qiuyue/issue/PREPIO-149) (Finish staged PrepPlan synthesis, the
-  live pipeline-synthesis backlog issue), cross-referencing
-  [PREPIO-176](https://linear.app/qiuyue/issue/PREPIO-176) and
-  [PREPIO-76](https://linear.app/qiuyue/issue/PREPIO-76).
+- **Tracking:** this gap already has a designated owner — **[PREPIO-176](https://linear.app/qiuyue/issue/PREPIO-176)**.
+  `docs/ROADMAP.md` (**Next** section) assigns exactly this pipeline gap to PREPIO-176: *"Either
+  synthesis starts emitting these fields or the columns and their consuming UI come out."* PREPIO-176
+  is marked **Done** in Linear for its shipped frontend part (#338 hid the empty panel), but the
+  ROADMAP keeps it as the tracking home for the remaining "emit the fields or remove the columns"
+  decision. Run #21's live confirmation is added as a comment there (no new issue needed — and the
+  workspace is at its free issue cap regardless). Related pipeline work:
+  [PREPIO-149](https://linear.app/qiuyue/issue/PREPIO-149) (staged synthesis),
+  [PREPIO-76](https://linear.app/qiuyue/issue/PREPIO-76) (pipeline v3).
 
 ### 4. P2 (REPEAT, live-confirmed — 16th audit) — `/auth` sign-in fields have no `autocomplete` attributes
 
@@ -341,11 +344,11 @@ one improvement, no code regressions:
 
 ## Recommended tickets
 
-Findings #1, #2, #4, #5 map to existing open issues (PREPIO-27, -124, -170, -123, -107) — no new
-issues for those; live-confirmation is recorded in this doc. The answer-guidance gap (#3) has no open
-issue and **could not be filed as one — the Linear workspace is at its free issue cap** — so it is
-tracked as a comment on [PREPIO-149](https://linear.app/qiuyue/issue/PREPIO-149) instead (see
-Deferred items).
+Every finding maps to an existing issue; **no new issue is filed** (the workspace is at its free issue
+cap regardless). Findings #1, #2, #4, #5 → PREPIO-27, -124, -170, -123, -107. The answer-guidance gap
+(#3) is owned by **[PREPIO-176](https://linear.app/qiuyue/issue/PREPIO-176)** — `docs/ROADMAP.md`
+(Next) designates it as the home for this exact pipeline gap — so run #21's live confirmation is added
+as a comment there. Live-confirmation is recorded in this doc for all six.
 
 1. **[P0] Lock the frozen guest/billing/auth surface** — static guest sample (no Edge Function call),
    hide checkout/portal/paid-feedback, invite-only sign-up, disable PDF upload (PREPIO-140), strip
@@ -359,8 +362,9 @@ Deferred items).
    returning `42P10`. → [PREPIO-170](https://linear.app/qiuyue/issue/PREPIO-170) (Urgent, Todo).
 4. **[P2] Populate answer guidance in `interview-research` synthesis** so the practice coach panel has
    real content again (good/weak signals, seniority expectation, short outline). Post-freeze backlog.
-   → could not be filed (workspace at issue cap); recorded as a comment on
-   [PREPIO-149](https://linear.app/qiuyue/issue/PREPIO-149) (see Deferred items).
+   → [PREPIO-176](https://linear.app/qiuyue/issue/PREPIO-176) (ROADMAP's designated owner for this
+   gap; Done in Linear for the shipped frontend hide, kept under ROADMAP **Next** for the pipeline
+   decision) — live-confirmation comment added this run.
 5. **[P2] Add `autocomplete` attributes to `/auth` sign-in (and retained sign-up).** →
    [PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123) (Low, Backlog; PR #244 closed unmerged).
 6. **[P3] Surface in-progress work on `/history` (or clarify the empty-state scope).** →
@@ -368,13 +372,14 @@ Deferred items).
 
 ### Deferred items (per CLAUDE.md hygiene convention)
 
-- **One deferred finding could not be filed as an issue — the Linear workspace is at its free issue
-  cap** ("You've exceeded the free issue limit for this workspace"), the same constraint PREPIO-27's
-  description flags. The finding (populate answer-guidance fields in `interview-research` so the
-  PREPIO-176-gated coach panel renders real coaching — P2, `area:research-pipeline` + `area:practice`)
-  is instead recorded as a comment on
-  [PREPIO-149](https://linear.app/qiuyue/issue/PREPIO-149). When workspace capacity frees up, promote
-  it to its own issue.
+- **The answer-guidance gap (finding #3) is tracked under its ROADMAP-designated owner,
+  [PREPIO-176](https://linear.app/qiuyue/issue/PREPIO-176)** — not a new issue. `docs/ROADMAP.md`
+  (Next) assigns this exact pipeline gap to PREPIO-176 (*"Either synthesis starts emitting these
+  fields or the columns and their consuming UI come out"*); it is Done in Linear only for the shipped
+  frontend hide (#338). Run #21's live confirmation is added as a comment there. No new issue is
+  filed — the finding already has a home, and the workspace is at its free issue cap regardless. (A
+  stray earlier comment on [PREPIO-149](https://linear.app/qiuyue/issue/PREPIO-149) has been amended
+  to defer to PREPIO-176 to avoid split tracking.)
 - The Favorite/Needs-work desktop touch-target size (32×28px) and the `/auth` sign-up invite gate are
   below the >30-min ticketing threshold / already covered by PREPIO-27; left as report notes.
 - All other findings map to existing open issues (PREPIO-27, -124, -170, -123, -107); live-confirmed
