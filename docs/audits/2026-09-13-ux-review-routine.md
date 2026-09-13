@@ -40,8 +40,10 @@ and the live write failures below were probed directly.
 `/interviews`, practice on **both** existing interviews (Stripe · Data Product Manager and OpenAI ·
 Solutions Architect) on desktop **and** mobile — **question-as-`<h1>` on both breakpoints**,
 **text-answer save (`201`)**, **Favorite flag write (`400 / 42P10`)**, **coach-panel hide behaviour
-(PREPIO-176)**, **absence of any answer guidance across every question in both interviews**
-(dashboard + practice), notes autosave copy, `/history`, `/pricing`, a 720px-viewport reflow check,
+(PREPIO-176)**, **absence of any answer guidance across every question in both interviews** (observed
+in **practice**, which reads and renders the guidance fields; the dashboard never renders them so it
+is not evidence — see finding #3), notes autosave copy, `/history`, `/pricing`, a 720px-viewport
+reflow check,
 and an edge-function deploy probe across all twelve functions. Screenshots under
 [`assets/2026-09-13/`](./assets/2026-09-13/). **`/profile` and `/new-interview` were not
 screenshotted** — the tester account carries a real seeded CV and both surfaces render it (see the
@@ -62,12 +64,14 @@ a UI diff (the remainder are backend log-redaction, security, deps, and a hygien
    separately captured live.
 3. **[PREPIO-144](https://linear.app/qiuyue/issue/PREPIO-144) / #340 — classify retrieved job rows by
    origin, not pipeline channel (code-confirmed, NOT live-exercised).** No UI diff, but a **functional
-   pipeline change**: `buildEvidenceLedger` no longer force-classifies every `job-analysis` row as
-   `official_job`/high trust — `classifyRetrievedSource` now decides per row, so a caller-supplied
-   link on an **unrelated non-ATS host** (not the employer's own domain, not a known ATS host, not a
-   community host) falls back to `market_heuristic`/low trust; an employer-domain link still resolves
-   to `official_company`/high and a community host to `public_report`/medium. That reclassification
-   flows into the synthesis prompt and citation validation (`interview-research/index.ts`), so it
+   pipeline change**: pre-#340, `buildEvidenceLedger` force-classified **every** `job-analysis` row as
+   `official_job`/high trust; now `classifyRetrievedSource` decides per row, so relative to that
+   baseline several caller-supplied links are **downgraded** — an **unrelated non-ATS host** (not the
+   employer's own domain, not a known ATS host, not a community host) drops to `market_heuristic`/low,
+   and a **community host** drops to `public_report`/medium (high→medium). An employer-domain link
+   keeps high trust but changes source type (`official_job`→`official_company`); a real ATS posting
+   stays `official_job`/high. That reclassification flows into the synthesis prompt and citation
+   validation (`interview-research/index.ts`), so it
    **can** change generated research output on a fresh run. Because no fresh research was submitted
    this week (OpenAI/Tavily budget), this is code-confirmed only — not observed live. **The follow-up
    live check is gated on the deploy:** production `interview-research` has been frozen since May, so a
@@ -83,7 +87,10 @@ other words, the deployed research pipeline produces **no answer guidance at all
 answers show", no good/weak signals, no seniority expectation, no sample outline — and PREPIO-176's
 fix was to **hide** that empty surface "rather than expanding the synthesis schema" (an explicit
 freeze decision). Live confirmation this run: across all 10 Stripe questions and all 40 OpenAI
-questions, zero guidance renders anywhere (practice **or** dashboard). So the practice screen is now
+questions, zero guidance renders in **practice** — the surface that reads and renders these fields via
+`hasQuestionInsightsContent`. (The dashboard is *not* evidence here: `Dashboard.tsx` stores only
+`id`/`question`/`created_at` per question and renders only the question text, so it would never show
+guidance regardless of what synthesis persists — see finding #3.) So the practice screen is now
 honestly **question + stage/difficulty badges + a place to record/type/note — and nothing that
 coaches the answer.** That is the single most important product-quality observation this week, and it
 is new to this review because prior runs credited the now-hidden empty scaffold as "guidance"
@@ -199,10 +206,15 @@ important *product* finding and is tracked under its ROADMAP-designated owner, P
 - **Area:** research-pipeline / practice / output
 - **User scenario:** a signed-in user practices any question in either existing interview.
 - **What happened (live):** across **all 10** Stripe · Data Product Manager questions and **all 40**
-  OpenAI · Solutions Architect questions, no answer guidance renders anywhere — no "what strong
-  answers show", no good/weak signals, no seniority expectation, no sample outline — in practice
-  **or** on the dashboard. The practice card is question + stage/difficulty badges + timer + Practice
-  tools (voice/notes) only. [`20-d-practice.png`](./assets/2026-09-13/20-d-practice.png),
+  OpenAI · Solutions Architect questions, **practice** renders no answer guidance — no "what strong
+  answers show", no good/weak signals, no seniority expectation, no sample outline. The practice card
+  is question + stage/difficulty badges + timer + Practice tools (voice/notes) only. Practice is the
+  right evidence surface because it reads these fields (`Practice.tsx`) and gates the coach panel on
+  `hasQuestionInsightsContent`, so populated guidance *would* show. (The dashboard does **not** render
+  guidance regardless — `Dashboard.tsx` stores only `id`/`question`/`created_at` per question and
+  renders only the question text — so its blankness is an inherent limitation, not evidence of the
+  synthesis gap; noted so this finding isn't read as implying a pipeline fix would populate the
+  dashboard.) [`20-d-practice.png`](./assets/2026-09-13/20-d-practice.png),
   [`21-m-practice.png`](./assets/2026-09-13/21-m-practice.png)
 - **Root cause (code-confirmed):** the deployed `interview-research` synthesis hardcodes
   `evaluation_criteria` / `follow_up_questions` / `suggested_answer_approach` empty and never writes
@@ -347,7 +359,7 @@ regressions observed; PREPIO-144's effect on generated output is code-confirmed 
 | Item | State | Note |
 |------|-------|------|
 | Practice coach panel (empty scaffold) | **Fixed** ✅ | Now hidden when a question has no guidance (#338 / PREPIO-176). Removes a dead control. |
-| Job-row evidence classification | **Changed (code-confirmed)** ⚠️ | #340 / PREPIO-144: rows are classified per-origin instead of force-set `official_job`/high — a caller link on an **unrelated non-ATS host** now downgrades to `market_heuristic`/low (employer-domain → `official_company`/high, community host → `public_report`/medium unchanged), feeding synthesis + citation validation. Can change fresh-run output; **not live-exercised** (no research run this week, and validation is gated on the PREPIO-124 deploy of the new function version). |
+| Job-row evidence classification | **Changed (code-confirmed)** ⚠️ | #340 / PREPIO-144: rows are classified per-origin instead of force-set `official_job`/high, so vs. that baseline a caller link on an **unrelated non-ATS host** downgrades to `market_heuristic`/low and a **community host** downgrades to `public_report`/medium (high→medium); an employer-domain link keeps high trust but changes type to `official_company`, and a real ATS posting stays `official_job`/high. Feeds synthesis + citation validation. Can change fresh-run output; **not live-exercised** (no research run this week, and validation is gated on the PREPIO-124 deploy of the new function version). |
 | Practice question heading structure | **Holding** ✅ | Question is `<h1>` on desktop and mobile. |
 | Landing `<h1>` + rich static example (default) | **Holding** ✅ | Single `<h1>`; static Stripe example present on load. |
 | Text-answer save | **Holding** ✅ | `POST 201`; Save disabled until non-empty. |
