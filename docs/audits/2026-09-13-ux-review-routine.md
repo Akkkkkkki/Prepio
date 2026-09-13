@@ -69,8 +69,10 @@ a UI diff (the remainder are backend log-redaction, security, deps, and a hygien
    baseline several caller-supplied links are **downgraded** — an **unrelated non-ATS host** (not the
    employer's own domain, not a known ATS host, not a community host) drops to `market_heuristic`/low,
    and a **community host** drops to `public_report`/medium (high→medium). An employer-domain link
-   keeps high trust but changes source type (`official_job`→`official_company`); a real ATS posting
-   stays `official_job`/high. That reclassification flows into the synthesis prompt and citation
+   keeps high trust but changes source type (`official_job`→`official_company`) **only when the company
+   name has a matching ≥3-char token**; a short employer name (X, BP, 3M) yields no token, so even its
+   own domain falls through to `market_heuristic`/low — another downgrade. A real ATS posting stays
+   `official_job`/high. That reclassification flows into the synthesis prompt and citation
    validation (`interview-research/index.ts`), so it
    **can** change generated research output on a fresh run. Because no fresh research was submitted
    this week (OpenAI/Tavily budget), this is code-confirmed only — not observed live. **The follow-up
@@ -359,7 +361,7 @@ regressions observed; PREPIO-144's effect on generated output is code-confirmed 
 | Item | State | Note |
 |------|-------|------|
 | Practice coach panel (empty scaffold) | **Fixed** ✅ | Now hidden when a question has no guidance (#338 / PREPIO-176). Removes a dead control. |
-| Job-row evidence classification | **Changed (code-confirmed)** ⚠️ | #340 / PREPIO-144: rows are classified per-origin instead of force-set `official_job`/high, so vs. that baseline a caller link on an **unrelated non-ATS host** downgrades to `market_heuristic`/low and a **community host** downgrades to `public_report`/medium (high→medium); an employer-domain link keeps high trust but changes type to `official_company`, and a real ATS posting stays `official_job`/high. Feeds synthesis + citation validation. Can change fresh-run output; **not live-exercised** (no research run this week, and validation is gated on the PREPIO-124 deploy of the new function version). |
+| Job-row evidence classification | **Changed (code-confirmed)** ⚠️ | #340 / PREPIO-144: rows are classified per-origin instead of force-set `official_job`/high, so vs. that baseline a caller link on an **unrelated non-ATS host** downgrades to `market_heuristic`/low and a **community host** downgrades to `public_report`/medium (high→medium); an employer-domain link keeps high trust but changes type to `official_company` **only when the company name has a matching ≥3-char token** (a short name like X/BP/3M falls through to `market_heuristic`/low even on its own domain), and a real ATS posting stays `official_job`/high. Feeds synthesis + citation validation. Can change fresh-run output; **not live-exercised** (no research run this week, and validation is gated on the PREPIO-124 deploy of the new function version). |
 | Practice question heading structure | **Holding** ✅ | Question is `<h1>` on desktop and mobile. |
 | Landing `<h1>` + rich static example (default) | **Holding** ✅ | Single `<h1>`; static Stripe example present on load. |
 | Text-answer save | **Holding** ✅ | `POST 201`; Save disabled until non-empty. |
