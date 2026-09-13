@@ -50,8 +50,8 @@ PII rule in [`UX_REVIEW_ROUTINE.md`](./UX_REVIEW_ROUTINE.md) and
 
 ## The headline this week: PREPIO-176 removed a dead control — and in doing so revealed that the practice coaching layer is empty
 
-Only **two** user-facing commits landed since run #20 (the rest are backend log-redaction, security,
-deps, and a hygiene doc — no rendered surface):
+Two commits changed a **rendered** surface since run #20; a third changed **research output** without
+a UI diff (the remainder are backend log-redaction, security, deps, and a hygiene doc):
 
 1. **[PREPIO-176](https://linear.app/qiuyue/issue/PREPIO-176) / #338 — hide the practice coach panel
    when a question has no guidance.** Verified live and working: on every question in both interviews
@@ -60,6 +60,14 @@ deps, and a hygiene doc — no rendered surface):
 2. **[PREPIO-175](https://linear.app/qiuyue/issue/PREPIO-175) / #336 — remove forbidden `rounded-3xl`
    tokens from the route skeleton.** Cosmetic loading-skeleton token cleanup; low risk, not
    separately captured live.
+3. **[PREPIO-144](https://linear.app/qiuyue/issue/PREPIO-144) / #340 — classify retrieved job rows by
+   origin, not pipeline channel (code-confirmed, NOT live-exercised).** No UI diff, but a **functional
+   pipeline change**: `buildEvidenceLedger` no longer force-classifies every `job-analysis` row as
+   `official_job`/high trust — a caller-supplied non-ATS role URL now falls back to
+   `market_heuristic`/low trust, which flows into the synthesis prompt and citation validation
+   (`interview-research/index.ts`). So it **can** change generated research output on a fresh run.
+   Because no fresh research was submitted this week (OpenAI/Tavily budget), this is code-confirmed
+   only — not observed live; flagged for the next fresh-run pass.
 
 The important thing PREPIO-176 exposes is stated in its own commit message: *"interview-research
 writes empty `evaluation_criteria` / `follow_up_questions` / `suggested_answer_approach` and **never
@@ -322,12 +330,15 @@ alongside the attended deploy (PREPIO-124).
 
 ## Regression check
 
-Two user-facing commits merged to `main` since the last review (PREPIO-176 #338, PREPIO-175 #336) —
-one improvement, no code regressions:
+Two rendered-surface commits merged since the last review (PREPIO-176 #338, PREPIO-175 #336) plus one
+functional research-pipeline change with no UI diff (PREPIO-144 #340) — one improvement, no code
+regressions observed; PREPIO-144's effect on generated output is code-confirmed but not live-exercised
+(no fresh research run this week):
 
 | Item | State | Note |
 |------|-------|------|
 | Practice coach panel (empty scaffold) | **Fixed** ✅ | Now hidden when a question has no guidance (#338 / PREPIO-176). Removes a dead control. |
+| Job-row evidence classification | **Changed (code-confirmed)** ⚠️ | #340 / PREPIO-144: caller-supplied non-ATS role URL now downgrades to `market_heuristic`/low trust (was forced `official_job`/high), feeding synthesis + citation validation. Can change fresh-run output; **not live-exercised** (no research run this week). |
 | Practice question heading structure | **Holding** ✅ | Question is `<h1>` on desktop and mobile. |
 | Landing `<h1>` + rich static example (default) | **Holding** ✅ | Single `<h1>`; static Stripe example present on load. |
 | Text-answer save | **Holding** ✅ | `POST 201`; Save disabled until non-empty. |
