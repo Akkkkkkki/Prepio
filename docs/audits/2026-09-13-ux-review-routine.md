@@ -304,8 +304,9 @@ important *product* finding and is tracked under its ROADMAP-designated owner, P
 
 ## Journey scorecard
 
-Full authenticated pass. Two user-facing commits shipped since `2026-09-03`. The one score mover is
-**Generated output clarity (5 → 3)** — see the note; this is a *measurement correction*, not a
+Full authenticated pass. Two rendered-surface commits shipped since `2026-09-03` (plus PREPIO-144, a
+functional pipeline change with no UI diff, code-confirmed / not live-exercised). The one score mover
+is **Generated output clarity (5 → 3)** — see the note; this is a *measurement correction*, not a
 week-over-week regression (prior runs credited the empty coach scaffold that PREPIO-176 has now
 correctly hidden). Rows tagged **(live)** were exercised this run.
 
@@ -323,7 +324,8 @@ correctly hidden). Rows tagged **(live)** were exercised this run.
 | Accessibility | 4 | 4 | = | **(live)** Practice `<h1>` on both breakpoints; flag buttons have `aria-label`s; clean 720px reflow. Remaining: `/auth` autocomplete null (#4). Focus order inconclusive this run (headless artifact). |
 | Copy quality | 4 | 4 | = | **(live)** Research/dashboard/practice/pricing copy honest and specific. Freeze still needs a copy pass to drop promises of unavailable features (PREPIO-27). |
 
-**Composite: down one, on Generated output clarity — as a measurement correction.** The deployed core
+**Composite: down two (44 → 42), from the single Generated output clarity move (5 → 3) with every
+other row flat — a measurement correction, not a week-over-week regression.** The deployed core
 holds; the newly-honest read is that the coaching layer is empty (P2 #3). The structural anchors are
 unchanged: the freeze surface-lock (PREPIO-27), the flag-write migration (PREPIO-170), both inside/
 alongside the attended deploy (PREPIO-124).
