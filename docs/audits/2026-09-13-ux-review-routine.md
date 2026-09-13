@@ -342,8 +342,10 @@ one improvement, no code regressions:
 ## Recommended tickets
 
 Findings #1, #2, #4, #5 map to existing open issues (PREPIO-27, -124, -170, -123, -107) — no new
-issues for those; live-confirmation is recorded in this doc. **One new issue is filed** for the
-answer-guidance gap (#3), which no open issue tracks.
+issues for those; live-confirmation is recorded in this doc. The answer-guidance gap (#3) has no open
+issue and **could not be filed as one — the Linear workspace is at its free issue cap** — so it is
+tracked as a comment on [PREPIO-149](https://linear.app/qiuyue/issue/PREPIO-149) instead (see
+Deferred items).
 
 1. **[P0] Lock the frozen guest/billing/auth surface** — static guest sample (no Edge Function call),
    hide checkout/portal/paid-feedback, invite-only sign-up, disable PDF upload (PREPIO-140), strip
