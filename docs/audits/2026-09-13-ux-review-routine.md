@@ -56,9 +56,14 @@ Two commits changed a **rendered** surface since run #20; a third changed **rese
 a UI diff (the remainder are backend log-redaction, security, deps, and a hygiene doc):
 
 1. **[PREPIO-176](https://linear.app/qiuyue/issue/PREPIO-176) / #338 — hide the practice coach panel
-   when a question has no guidance.** Verified live and working: on every question in both interviews
-   the "Answer guide" surface is now correctly **absent** rather than a titled card with an empty
-   body. This is a genuine improvement (it removes a dead affordance).
+   when a question has no *answer guidance*.** Verified live and working: on every question in both
+   interviews the "Answer guide" surface is now correctly **absent**. Mostly-positive — it removes a
+   titled affordance that had no answer-guidance body — but not *purely* removing an empty control:
+   the predicate excludes `summary`, which is fed by the question `rationale`/`company_context`
+   (`Practice.tsx`), and the pre-#338 panel rendered that summary as its body. So for the normal
+   fresh-run shape (a populated rationale, all real guidance empty) #338 also stops surfacing the
+   "why this matters" rationale line in practice — a small, deliberate content change, not just
+   scaffold removal.
 2. **[PREPIO-175](https://linear.app/qiuyue/issue/PREPIO-175) / #336 — remove forbidden `rounded-3xl`
    tokens from the route skeleton.** Cosmetic loading-skeleton token cleanup; low risk, not
    separately captured live.
@@ -72,8 +77,12 @@ a UI diff (the remainder are backend log-redaction, security, deps, and a hygien
    keeps high trust but changes source type (`official_job`→`official_company`) **only when the company
    name has a matching ≥3-char token**; a short employer name (X, BP, 3M) yields no token, so even its
    own domain falls through to `market_heuristic`/low — another downgrade. A real ATS posting stays
-   `official_job`/high. That reclassification flows into the synthesis prompt and citation
-   validation (`interview-research/index.ts`), so it
+   `official_job`/high. #340 removed the `forcedSourceType` path entirely and swapped the old
+   title/path/subdomain job heuristic for the ATS-host allowlist, so this classifier now runs
+   **globally** — company-research retrieved rows are reclassified too (a company row that previously
+   earned `official_job` from a job-like title/path/subdomain no longer does), and NFKD normalization
+   changes accented employer-name matching. That reclassification flows into the synthesis prompt and
+   citation validation (`interview-research/index.ts`), so it
    **can** change generated research output on a fresh run. Because no fresh research was submitted
    this week (OpenAI/Tavily budget), this is code-confirmed only — not observed live. **The follow-up
    live check is gated on the deploy:** production `interview-research` has been frozen since May, so a
@@ -360,8 +369,8 @@ regressions observed; PREPIO-144's effect on generated output is code-confirmed 
 
 | Item | State | Note |
 |------|-------|------|
-| Practice coach panel (empty scaffold) | **Fixed** ✅ | Now hidden when a question has no guidance (#338 / PREPIO-176). Removes a dead control. |
-| Job-row evidence classification | **Changed (code-confirmed)** ⚠️ | #340 / PREPIO-144: rows are classified per-origin instead of force-set `official_job`/high, so vs. that baseline a caller link on an **unrelated non-ATS host** downgrades to `market_heuristic`/low and a **community host** downgrades to `public_report`/medium (high→medium); an employer-domain link keeps high trust but changes type to `official_company` **only when the company name has a matching ≥3-char token** (a short name like X/BP/3M falls through to `market_heuristic`/low even on its own domain), and a real ATS posting stays `official_job`/high. Feeds synthesis + citation validation. Can change fresh-run output; **not live-exercised** (no research run this week, and validation is gated on the PREPIO-124 deploy of the new function version). |
+| Practice coach panel (empty scaffold) | **Fixed (with caveat)** ✅ | Hidden when a question has no *answer guidance* (#338 / PREPIO-176). Mostly removes a dead affordance, but the predicate excludes `summary` (fed by the question `rationale`/`company_context`), which the pre-#338 panel rendered — so for the normal fresh-run shape it also stops surfacing the "why this matters" rationale line in practice (a deliberate, minor content change). |
+| Job-row evidence classification | **Changed (code-confirmed)** ⚠️ | #340 / PREPIO-144: `forcedSourceType` removed and the title/path/subdomain job heuristic swapped for an ATS-host allowlist, so `classifyRetrievedSource` now runs **globally** (job-analysis **and** company-research retrieved rows; NFKD accent normalization also changed). Vs. the old forced-`official_job` baseline: an **unrelated non-ATS host** downgrades to `market_heuristic`/low, a **community host** to `public_report`/medium (high→medium); an employer-domain link keeps high trust as `official_company` **only with a matching ≥3-char company token** (a short name like X/BP/3M falls to `market_heuristic`/low even on its own domain); a real ATS posting stays `official_job`/high; and a company-research row that previously earned `official_job` from a job-like title/path/subdomain no longer does. Feeds synthesis + citation validation. Can change fresh-run output; **not live-exercised** (no research run this week, and validation is gated on the PREPIO-124 deploy of the new function version). |
 | Practice question heading structure | **Holding** ✅ | Question is `<h1>` on desktop and mobile. |
 | Landing `<h1>` + rich static example (default) | **Holding** ✅ | Single `<h1>`; static Stripe example present on load. |
 | Text-answer save | **Holding** ✅ | `POST 201`; Save disabled until non-empty. |
