@@ -63,11 +63,18 @@ a UI diff (the remainder are backend log-redaction, security, deps, and a hygien
 3. **[PREPIO-144](https://linear.app/qiuyue/issue/PREPIO-144) / #340 — classify retrieved job rows by
    origin, not pipeline channel (code-confirmed, NOT live-exercised).** No UI diff, but a **functional
    pipeline change**: `buildEvidenceLedger` no longer force-classifies every `job-analysis` row as
-   `official_job`/high trust — a caller-supplied non-ATS role URL now falls back to
-   `market_heuristic`/low trust, which flows into the synthesis prompt and citation validation
-   (`interview-research/index.ts`). So it **can** change generated research output on a fresh run.
-   Because no fresh research was submitted this week (OpenAI/Tavily budget), this is code-confirmed
-   only — not observed live; flagged for the next fresh-run pass.
+   `official_job`/high trust — `classifyRetrievedSource` now decides per row, so a caller-supplied
+   link on an **unrelated non-ATS host** (not the employer's own domain, not a known ATS host, not a
+   community host) falls back to `market_heuristic`/low trust; an employer-domain link still resolves
+   to `official_company`/high and a community host to `public_report`/medium. That reclassification
+   flows into the synthesis prompt and citation validation (`interview-research/index.ts`), so it
+   **can** change generated research output on a fresh run. Because no fresh research was submitted
+   this week (OpenAI/Tavily budget), this is code-confirmed only — not observed live. **The follow-up
+   live check is gated on the deploy:** production `interview-research` has been frozen since May, so a
+   fresh *production* run before [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124) deploys the
+   new function version would exercise the **old** code and must not be recorded as validating #340 —
+   validate it only after PREPIO-124 deploys the reviewed version, or in a local/staging run of the
+   new function.
 
 The important thing PREPIO-176 exposes is stated in its own commit message: *"interview-research
 writes empty `evaluation_criteria` / `follow_up_questions` / `suggested_answer_approach` and **never
@@ -340,7 +347,7 @@ regressions observed; PREPIO-144's effect on generated output is code-confirmed 
 | Item | State | Note |
 |------|-------|------|
 | Practice coach panel (empty scaffold) | **Fixed** ✅ | Now hidden when a question has no guidance (#338 / PREPIO-176). Removes a dead control. |
-| Job-row evidence classification | **Changed (code-confirmed)** ⚠️ | #340 / PREPIO-144: caller-supplied non-ATS role URL now downgrades to `market_heuristic`/low trust (was forced `official_job`/high), feeding synthesis + citation validation. Can change fresh-run output; **not live-exercised** (no research run this week). |
+| Job-row evidence classification | **Changed (code-confirmed)** ⚠️ | #340 / PREPIO-144: rows are classified per-origin instead of force-set `official_job`/high — a caller link on an **unrelated non-ATS host** now downgrades to `market_heuristic`/low (employer-domain → `official_company`/high, community host → `public_report`/medium unchanged), feeding synthesis + citation validation. Can change fresh-run output; **not live-exercised** (no research run this week, and validation is gated on the PREPIO-124 deploy of the new function version). |
 | Practice question heading structure | **Holding** ✅ | Question is `<h1>` on desktop and mobile. |
 | Landing `<h1>` + rich static example (default) | **Holding** ✅ | Single `<h1>`; static Stripe example present on load. |
 | Text-answer save | **Holding** ✅ | `POST 201`; Save disabled until non-empty. |
