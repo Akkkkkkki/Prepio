@@ -66,7 +66,7 @@ npm run lint         # ESLint (informational in CI; has pre-existing failures, d
 npm test             # Vitest + schema checks — 427 tests / 49 files green on main
 npm run typecheck    # CI gate: tsc error-count ratchet (app baseline 62, node 0)
 npm run typecheck:functions  # CI gate: deno check over supabase/functions (needs egress)
-npm run test:e2e     # Playwright smoke — NOT wired into CI (PREPIO-135)
+npm run test:e2e     # Playwright landing smoke — blocking CI gate (PREPIO-135)
 npm run preview      # Preview production build
 ```
 
