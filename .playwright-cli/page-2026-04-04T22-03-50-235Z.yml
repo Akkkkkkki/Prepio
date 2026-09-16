@@ -1,5 +1,0 @@
-- generic [ref=e2]:
-  - region "Notifications (F8)":
-    - list
-  - link "Skip to main content" [ref=e3] [cursor=pointer]:
-    - /url: "#main-content"

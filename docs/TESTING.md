@@ -7,7 +7,7 @@ npm test                    # vitest + legacy-schema + answer-feedback-schema ch
 npm run typecheck           # CI gate: tsc error-count ratchet over the app/node projects
 npm run typecheck:functions # CI gate: deno check over supabase/functions (needs egress)
 npm run build
-npm run test:e2e            # Playwright smoke — NOT wired into CI (see PREPIO-135)
+npm run test:e2e            # Playwright landing smoke — now a blocking CI gate (PREPIO-135)
 
 npx vitest run src/services/entitlements.test.ts src/shared/entitlement-rules.test.ts
 npx vitest run supabase/functions/create-checkout-session/handler.test.ts supabase/functions/create-portal-session/handler.test.ts src/pages/__tests__/BillingReturn.test.tsx
@@ -23,9 +23,20 @@ files, all passing.**
 
 CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs, in order: lint
 (informational — a rule violation is tolerated, only a fatal parser/config error fails),
-`npm run typecheck`, `npm run typecheck:functions`, `npm run build`, `npm test`. The last
-four are blocking. `npm run test:e2e` is **not** in CI — `playwright.config.ts` and
-`e2e/smoke.spec.ts` exist but no job runs them, which is the gap PREPIO-135 exists to close.
+`npm run typecheck`, `npm run typecheck:functions`, `npm run build`, `npm test`, then
+`npm run test:e2e`. Everything after lint is blocking.
+
+As of PREPIO-135 the Playwright smoke is wired in as the last blocking step: CI runs
+`npx playwright install --with-deps chromium` and then `npm run test:e2e`. Before that it
+existed but ran in no job — `playwright.config.ts` and `e2e/smoke.spec.ts` were dead weight
+giving false confidence. The suite is deliberately one deterministic test today
+(`e2e/smoke.spec.ts` boots the Vite dev server and asserts the landing shell's `<title>`),
+needs no Supabase env, and is the seed for the research-startup browser test flagged under
+[Highest-Risk Gaps](#highest-risk-gaps) — the coverage PREPIO-128 builds on top of it, not a
+second Playwright setup. Note the environment split PREPIO-90 recorded: the Chromium binary
+installs cleanly on the GitHub `ubuntu-latest` runner, but the browser download can fail in a
+restricted web/agent sandbox unless `cdn.playwright.dev` is in the network allowlist (the
+`.claude/hooks/session-start.sh` hook handles the agent case).
 
 The Deno files under `tests/` are legacy. `make test` can still be useful as a smoke check, but it is not a release gate until those tests are updated and no longer depend on stale schema assumptions or live credentials.
 
@@ -157,6 +168,10 @@ For Supabase or Edge Function changes also run `npm run typecheck:functions` (it
 network egress to `deno.land` / `esm.sh`; in a restricted sandbox it reports `SKIPPED — this
 is not a pass` rather than passing), and add a targeted hosted check because the legacy Deno
 suite is not a full release gate.
+
+CI also runs `npm run test:e2e` as a blocking gate. It is self-contained (Playwright boots
+the dev server), so you can run it locally once a Chromium binary is present
+(`npx playwright install chromium`, or the pre-provisioned binary in the agent sandbox).
 
 ## Manual Stripe Test-Card Flow
 
