@@ -52,9 +52,10 @@ excluding tests):
 - **`docs(audits): record 2026-09-12 security and hygiene review` (#346)** — run #27's
   own note (docs), not re-reviewed.
 
-**Sibling-function re-audit (run #27 next-focus #1): clean.** Run #27 asked to
+**Sibling-function re-audit (run #27 next-focus #1): MIXED — not clean.** Run #27 asked to
 re-audit `company-research`, `job-analysis`, and `answer-feedback` for the same
-missing object-ownership check that PREPIO-143 fixed. **None share the BOLA:**
+missing object-ownership check that PREPIO-143 fixed. **Two are clean; `answer-feedback`
+is not — it has its own BOLA (new High below):**
 
 - [`company-research`](../../supabase/functions/company-research/index.ts) and
   [`job-analysis`](../../supabase/functions/job-analysis/index.ts) both gate on
@@ -190,7 +191,11 @@ are #337's five `authorization.test.ts` cases and #345's one evidence case). `np
     attack satisfies.** Same object-ownership-check gap as PREPIO-143, on the read side.
   - Risk: cross-tenant disclosure of another user's private prep inputs
     (`job_description`, note-derived `user_note`) and generated interview questions.
-    **Mitigating (current live risk ≈ nil):** `answer-feedback` is one of the five
+    **Reachability is UUID-gated** (same as the PREPIO-143 `searchId` BOLA): the attacker
+    must already know the victim's `search_id` **and** `question_id`, both random UUID
+    primary keys, and `searches_own`/`questions_read` RLS prevent enumerating another
+    tenant's rows — so this is a *targeted* disclosure given known IDs, not bulk
+    enumeration. **Further mitigating (current live risk ≈ nil):** `answer-feedback` is one of the five
     functions the freeze **never deploys** (CLAUDE.md), and it is paid-gated
     (`entitlement.tier !== "paid"` → 403; production always resolves free per
     `docs/BILLING.md`). So it is not exploitable in the frozen release — but it is a real
@@ -441,9 +446,14 @@ Tracked, Dependabot-surfaced, or blocked-on-intake:
   PREPIO-179 `SEARCH_COMPLETE` PII-in-logs follow-up) again could not be filed — both
   are recorded in full in this note. The same intake blocker has been noted since
   2026-07-29. Upgrading or clearing the cap would let hygiene findings be tracked in
-  Linear rather than only in the audit trail. Not otherwise blocking: the one remaining
-  open High (PREPIO-145) has an owner and active tracking, and the previously-carried
-  PREPIO-143 High is now fixed in repo (deploy pending under PREPIO-124).
+  Linear rather than only in the audit trail. **Open-High inventory is now three, not one:**
+  (1) PREPIO-145 (owner-tracked, active); (2) the `main` `verify`/deno-ratchet regression
+  from #337 (new this run — one-line fix proposed on PR #349, needs a maintainer with deno
+  egress); and (3) the answer-feedback own-session/foreign-search BOLA (new this run —
+  UUID-gated, not live in the freeze, but latent). **The two new Highs are not yet filed in
+  Linear — the free-issue cap blocks intake** (recorded in full above; to be filed against
+  Quality & Maintenance when the cap clears). The previously-carried PREPIO-143 High is now
+  fixed in repo (deploy pending under PREPIO-124).
 
 ## Next review focus
 
