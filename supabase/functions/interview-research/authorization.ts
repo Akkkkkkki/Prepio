@@ -5,7 +5,7 @@ export interface SearchOwnershipClient {
     select(columns: "id"): {
       eq(column: "id", value: string): {
         eq(column: "user_id", value: string): {
-          maybeSingle(): Promise<{
+          maybeSingle(): PromiseLike<{
             data: { id: string } | null;
             error: { message: string } | null;
           }>;
@@ -23,6 +23,11 @@ export type SearchAuthorizationResult =
  * Authorize the caller-supplied search before any research progress or data
  * writes begin. Service callers are trusted internal callers; JWT users must
  * own both the body userId and the persisted search row.
+ *
+ * Supabase query builders are awaitable PromiseLike values rather than native
+ * Promise instances, so the narrow client contract intentionally models
+ * `maybeSingle()` as PromiseLike. This keeps the helper compatible with both
+ * the real Supabase client and simple Promise-based test doubles.
  */
 export async function authorizeSearch(
   supabase: SearchOwnershipClient,
