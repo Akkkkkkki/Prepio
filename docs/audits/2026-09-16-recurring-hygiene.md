@@ -58,15 +58,21 @@ missing object-ownership check that PREPIO-143 fixed. **None share the BOLA:**
   `searches` row (`.select("user_id").eq("id", searchId)`) rather than trusting a
   body value. An end user cannot invoke them with a foreign `searchId`.
 - [`answer-feedback`](../../supabase/functions/answer-feedback/index.ts) requires
-  `context.kind === "user"`, passes `userId: authResult.context.userId` (the
-  authenticated user, never body-supplied), and its handler returns **404
-  `practice_answer_not_found`** when the answer's session belongs to another user —
-  covered by `handler.test.ts` (the `user_id: "other-user"` case). Correctly scoped.
+  `context.kind === "user"` and passes `userId: authResult.context.userId` (never
+  body-supplied), and its handler rejects a *foreign session* (`user_id !== req.userId`
+  → 404). **But — corrected after Codex's P1 on this PR, code-verified — that is not the
+  whole scope: it has an own-session/foreign-search BOLA** (new High below). The handler
+  checks session ownership and question↔search consistency but never checks the *search*
+  or *question* belongs to the caller, and RLS lets a user own a `practice_sessions` row
+  pointing at any `search_id` and an answer pointing at any `question_id`. My initial
+  "correctly scoped" claim was wrong; the foreign-session test does not cover this path.
 
 **Headline: the one source-touching merge (#337) is a well-tested, fail-closed fix
-that closes the carried High `searchId` BOLA; the sibling re-audit found no
-equivalent gap; no new secret, PII-in-logs, or access-control regression was
-introduced this window.** No code change was warranted this run — the remaining
+that closes the carried High `searchId` BOLA — but two Highs surfaced from this PR's own
+CI and review: (1) `main`'s `verify` gate is red because #337 broke the deno ratchet, and
+(2) an answer-feedback own-session/foreign-search BOLA (Codex P1, code-confirmed) that my
+first draft wrongly called "correctly scoped". No new secret or PII-in-logs regression was
+introduced by the merges this window.** No code change was warranted this run — the remaining
 substantive findings (the `official_company` over-trust, the `SEARCH_COMPLETE` PII
 leak) are service-source edge-function changes that cannot be validated with
 `typecheck:functions` in this proxy-limited environment and are out of scope for a
@@ -149,6 +155,54 @@ are #337's `authorization.test.ts` and #345's two evidence cases). `npm audit` *
     so no re-run). Needs a maintainer to land the one-liner. File as `Bug` +
     `area:research-pipeline` / `area:infra` when the Linear cap clears; cross-link PREPIO-143
     and #337.
+
+- [ ] **`answer-feedback` own-session/foreign-search BOLA — a paid caller can leak another
+  tenant's `job_description`, `user_note`, and interview-question content.** *(New this
+  run; surfaced by Codex P1 on this PR and code-verified against the handler + RLS.
+  Corrects this note's initial "answer-feedback is correctly scoped" over-claim.)*
+  - Evidence: the attack does not need a foreign *session* (which the handler does reject).
+    RLS `sessions_own`
+    ([`20260329000000_v2_clean_schema.sql:269`](../../supabase/migrations/20260329000000_v2_clean_schema.sql))
+    is `WITH CHECK (auth.uid() = user_id)` — it does **not** constrain `search_id`, so a
+    user can insert their **own** `practice_sessions` row pointing at **any** victim's
+    `search_id`. RLS `answers_own` (line 274) is `WITH CHECK (session_id IN (own
+    sessions))` — it does **not** constrain `question_id`, so the user can insert an answer
+    in that owned session pointing at **any** victim's `question_id`. The handler
+    ([`handler.ts`](../../supabase/functions/answer-feedback/handler.ts)) then: reads the
+    answer by id (service-role, RLS-bypassing); checks the session is owned by the caller
+    (line 270 — **passes**, the caller owns it); reads the `searches` row by the *session's*
+    `search_id` (line 285 — the **victim's** search) and the `interview_questions` row by
+    the answer's `question_id` (the **victim's** question); checks only
+    `question.search_id === search.id` (line 310 — **passes**, both are the victim's); and
+    persists `input_snapshot: modelInput` — which embeds `search: {…, job_description,
+    user_note}` — into `answer_feedback.generation_metadata` (lines 347–351). That row has
+    `user_id = caller`, and `answer_feedback_own_read`
+    ([`20260524140500_answer_feedback.sql:68`](../../supabase/migrations/20260524140500_answer_feedback.sql))
+    is `FOR SELECT USING (auth.uid() = user_id)` with `GRANT SELECT … TO authenticated`, so
+    the caller reads back the victim's search fields (and the question text/coaching signals
+    in `modelInput.question`). **The handler never verifies the search or question belongs to
+    the caller — only session ownership and question↔search consistency, both of which the
+    attack satisfies.** Same object-ownership-check gap as PREPIO-143, on the read side.
+  - Risk: cross-tenant disclosure of another user's private prep inputs
+    (`job_description`, note-derived `user_note`) and generated interview questions.
+    **Mitigating (current live risk ≈ nil):** `answer-feedback` is one of the five
+    functions the freeze **never deploys** (CLAUDE.md), and it is paid-gated
+    (`entitlement.tier !== "paid"` → 403; production always resolves free per
+    `docs/BILLING.md`). So it is not exploitable in the frozen release — but it is a real
+    latent BOLA that goes live the moment the function is deployed with real billing.
+  - Recommended fix: before generation, verify the referenced `searches` row is owned by
+    `req.userId` (`searches.user_id === req.userId`, else 404) — and, defensively, that the
+    question's `search_id` resolves to a caller-owned search — mirroring the fail-closed
+    ownership gate #337 added to `interview-research`. Add regression tests for the
+    own-session/foreign-search and own-session/foreign-question cases (the existing suite
+    only covers the foreign-session case). Consider tightening the `sessions_own` /
+    `answers_own` `WITH CHECK` to constrain `search_id`/`question_id` to caller-owned rows
+    (defense in depth), though the handler check is the primary fix.
+  - Owner / next step: a service-source edge-function + possibly RLS change — **out of scope
+    for this docs-only note and not validatable in this proxy-limited env** (deno can't
+    resolve remote imports; a migration change needs a DB). Replied to the Codex P1 thread
+    and recorded here. File as `Bug` + `area:practice`/`area:billing`, cross-linked to
+    PREPIO-143 and #337, when the Linear free-issue cap clears.
 
 - [ ] **Production CV PII is still recoverable from Git history despite the working-tree
   redaction (PREPIO-145).** *(Carried; the owner-attended history-purge slice.
@@ -326,9 +380,15 @@ are #337's `authorization.test.ts` and #345's two evidence cases). `npm audit` *
   #337), gave the exact one-line proposed patch, and explained why it lands in a dedicated
   edge-function PR rather than this docs-only note (see the new High above). No code push —
   the fix can't be validated with `typecheck:functions` in this proxy-limited env.
+- **Replied to Codex's P1 review** on this PR: verified the answer-feedback
+  own-session/foreign-search BOLA against the handler + RLS, confirmed it real, corrected
+  this note's "correctly scoped" over-claim, and recorded it as the new High above. No code
+  push — a service-source (+ possibly RLS/migration) change out of scope for a docs-only note
+  and not validatable here.
 - **No source fix.** The one source-touching merge (#337) is a security-positive BOLA fix
   whose *runtime* behavior is sound and well-tested; its only defect is the compile-time
-  typing regression recorded as the new High. The sibling re-audit found no equivalent gap. The remaining
+  typing regression recorded as its own High. The answer-feedback BOLA is a **pre-existing**
+  gap (not introduced this window), surfaced by Codex's adversarial review of this note. The remaining
   substantive findings (`official_company` over-trust, `SEARCH_COMPLETE` PII leak) are
   service-source edge-function changes not validatable with `typecheck:functions` in this
   proxy-limited environment and out of scope for a docs-only hygiene run. The only
@@ -379,21 +439,27 @@ Tracked, Dependabot-surfaced, or blocked-on-intake:
 
 ## Next review focus
 
-0. **Restore `main`'s `verify` gate (highest priority).** Land the one-line
+1. **Restore `main`'s `verify` gate (highest priority).** Land the one-line
    `authorizeSearch(supabase as unknown as SearchOwnershipClient, …)` cast in a dedicated
    edge-function PR, validated with `typecheck:functions` in an env with `esm.sh` egress, to
    bring the deno ratchet back to baseline 19. Until then every PR's `verify` is red. Then
    confirm the ratchet is enforced as a genuine merge blocker — #337 merged red, so the gate
    was clearly not blocking at merge time.
-1. **PREPIO-124 deploy of the #337 fix.** The BOLA fix is merged but the backend is
+2. **answer-feedback own-session/foreign-search BOLA (new High).** Add the caller-owns-search
+   check (and question-consistency) to the handler before generation, with regression tests
+   for the own-session/foreign-search and foreign-question cases; consider tightening the
+   `sessions_own`/`answers_own` RLS `WITH CHECK`. Not live in the freeze (undeployed +
+   paid-gated) but must be fixed before answer-feedback ever deploys with billing. Re-audit
+   `input_snapshot`/`generation_metadata` for any other victim-owned fields it persists.
+3. **PREPIO-124 deploy of the #337 fix.** The BOLA fix is merged but the backend is
    frozen — confirm `interview-research` (and the rest of the core-five manifest +
    pending migrations) actually deploys so the ownership gate becomes live in
    production. A repo merge alone does not repair prod.
-2. **PREPIO-145 Git-history purge** — now the highest-residual-risk open item, since
+4. **PREPIO-145 Git-history purge** — now the highest-residual-risk open item, since
    PREPIO-143 is fixed in repo: real CV PII is still publicly fetchable from history
    (`5585fd4` blob re-verified this run). Track the owner-attended filter-repo/BFG +
    force-push and verify the identified blobs are gone from all refs afterward.
-3. **Two carried research-pipeline Mediums (file once the Linear cap clears).**
+5. **Two carried research-pipeline Mediums (file once the Linear cap clears).**
    (a) Evidence-ledger `official_company` over-trust — land the registrable-label
    (PSL-aware) fix with adversarial `company-token.attacker.example` tests (building on
    #345's coverage), fold in the deferred `official_job` short-name/employer-domain
@@ -402,11 +468,11 @@ Tracked, Dependabot-surfaced, or blocked-on-intake:
    `searchTavily` → `ops.tavily_searches` insert with the checked-in schema, and audit
    every generic `logger.log` payload / DB writer carrying `query`, with tests on each
    path.
-4. **`pdfjs-dist` 6 / `react-router` v7 / `vitest` ≥ 4.1.11 Dependabot PRs, and the
+6. **`pdfjs-dist` 6 / `react-router` v7 / `vitest` ≥ 4.1.11 Dependabot PRs, and the
    PREPIO-27 PDF surface-lock.** PDF upload is live and reaches the vulnerable parser
    (guests included), so landing the surface-lock is the interim mitigation; validate
    the resume-upload and routing/redirect surfaces so the majors can land instead of
    accumulating.
-5. **Next source-touching merge.** Re-run the full baseline against it rather than
+7. **Next source-touching merge.** Re-run the full baseline against it rather than
    re-verifying carried findings — and read the *merged* code, not just commit messages,
    when assessing a security fix.
