@@ -85,7 +85,6 @@ describe("extractResumeText", () => {
     expect(mocks.getDocument).toHaveBeenCalledWith({
       data: expect.any(ArrayBuffer),
       useWorkerFetch: false,
-      isEvalSupported: false,
     });
     expect(mocks.GlobalWorkerOptions.workerSrc).toBe("/mock-pdf-worker.js");
     expect(mocks.cleanup).toHaveBeenCalledTimes(1);
