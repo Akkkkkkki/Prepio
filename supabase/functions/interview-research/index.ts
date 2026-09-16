@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
 import { SearchLogger } from "../_shared/logger.ts";
 import { RESEARCH_CONFIG, getOpenAIModel, getMaxTokens } from "../_shared/config.ts";
 import { ProgressTracker, PROGRESS_STEPS, CONCURRENT_TIMEOUTS, executeWithTimeout } from "../_shared/progress-tracker.ts";
-import { authorizeRequest, type AuthorizedRequestContext } from "../_shared/auth.ts";
+import { authorizeRequest } from "../_shared/auth.ts";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import { parseJsonResponse } from "../_shared/openai-client.ts";
 import {
@@ -33,6 +33,7 @@ import {
   type CandidateProfileForStoryLinking,
   type ProfilePromptContext,
 } from "./profile-story-linking.ts";
+import { authorizeSearch } from "./authorization.ts";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -1079,7 +1080,6 @@ async function savePrepPlanToDatabase(
 
 async function processInterviewResearch(
   requestData: InterviewResearchRequest,
-  authContext: AuthorizedRequestContext,
 ) {
   let tracker: ProgressTracker | null = null;
   const searchId = requestData.searchId;
@@ -1092,10 +1092,6 @@ async function processInterviewResearch(
       Deno.env.get("SUPABASE_URL") || "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
     );
-
-    if (authContext.kind === "user" && authContext.userId !== userId) {
-      throw new Error("User ID does not match authenticated user");
-    }
 
     tracker = new ProgressTracker(searchId);
     logger = new SearchLogger(searchId, "interview-research", userId);
@@ -1331,7 +1327,23 @@ serve(async (req: Request) => {
     return jsonResponse({ success: false, error: "Missing required fields: company, searchId, userId" }, 400);
   }
 
-  const work = processInterviewResearch(requestData, authResult.context).catch((error) => {
+  // This gate must finish before constructing the background promise: all
+  // pipeline clients write with service-role privileges and therefore bypass
+  // RLS. A missing and a foreign search intentionally look identical.
+  const searchAuthorization = await authorizeSearch(
+    supabase,
+    authResult.context,
+    requestData.userId,
+    requestData.searchId,
+  );
+  if (!searchAuthorization.ok) {
+    return jsonResponse(
+      { success: false, error: searchAuthorization.error },
+      searchAuthorization.status,
+    );
+  }
+
+  const work = processInterviewResearch(requestData).catch((error) => {
     console.error("Unhandled background interview research error:", error);
   });
 
