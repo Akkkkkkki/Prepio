@@ -446,14 +446,20 @@ Tracked, Dependabot-surfaced, or blocked-on-intake:
   PREPIO-179 `SEARCH_COMPLETE` PII-in-logs follow-up) again could not be filed — both
   are recorded in full in this note. The same intake blocker has been noted since
   2026-07-29. Upgrading or clearing the cap would let hygiene findings be tracked in
-  Linear rather than only in the audit trail. **Open-High inventory is now three, not one:**
-  (1) PREPIO-145 (owner-tracked, active); (2) the `main` `verify`/deno-ratchet regression
-  from #337 (new this run — one-line fix proposed on PR #349, needs a maintainer with deno
-  egress); and (3) the answer-feedback own-session/foreign-search BOLA (new this run —
-  UUID-gated, not live in the freeze, but latent). **The two new Highs are not yet filed in
-  Linear — the free-issue cap blocks intake** (recorded in full above; to be filed against
-  Quality & Maintenance when the cap clears). The previously-carried PREPIO-143 High is now
-  fixed in repo (deploy pending under PREPIO-124).
+  Linear rather than only in the audit trail. **Open-High inventory (not just PREPIO-145):**
+  this run adds two new Highs — (a) the `main` `verify`/deno-ratchet regression from #337
+  (one-line fix proposed on PR #349, needs a maintainer with deno egress) and (b) the
+  answer-feedback own-session/foreign-search BOLA (UUID-gated, not live in the freeze, but
+  latent) — **on top of the carried, still-owed Highs already tracked in Linear:**
+  PREPIO-145 (production CV PII in git history, owner-attended purge), **PREPIO-168 (Urgent —
+  rotate the test-account credential still exposed in git history; the code fallback is gone
+  but history rotation is an owner action and remains owed per the 2026-08-29 alignment
+  note — no later note records rotation)**, PREPIO-140 (`pdfjs-dist` 5 → 6), and PREPIO-170
+  (the `42P10` schema step). **The two new Highs are not yet filed — the free-issue cap
+  blocks intake** (recorded in full above; to be filed against Quality & Maintenance when the
+  cap clears). The previously-carried PREPIO-143 High is now fixed in repo (deploy pending
+  under PREPIO-124). *(PREPIO-168 flagged by Codex on this PR — this note had wrongly implied
+  a complete count of "three".)*
 
 ## Next review focus
 
