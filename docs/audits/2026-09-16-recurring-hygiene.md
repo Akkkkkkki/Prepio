@@ -22,18 +22,23 @@ excluding tests):
   `user_id = authContext.userId` and returns an **identical 404** for a missing row
   and a foreign row (no ownership oracle); (d) **fails closed with 500** on a DB
   error. Well tested — [`authorization.test.ts`](../../supabase/functions/interview-research/authorization.test.ts)
-  covers the owned/foreign/missing/mismatch/DB-error/service paths, asserts the
-  foreign and missing responses are byte-identical, and asserts the mismatch and
-  service paths never hit the DB. **Security-positive, no regression.** *Caveat: a
+  has five cases: owned (ok), the shared missing/foreign null-data path (→ 404 `Search
+  not found`), body-userId mismatch (→ 403), DB error (→ 500), and service caller (ok);
+  it asserts the mismatch and service paths never call the DB. *(Accuracy note after
+  Codex P2: the missing and foreign cases are identical **by construction** — the
+  `id`+`user_id` filter returns `null` for both — so the one null-data test exercises
+  both; the suite does not run two distinct missing/foreign setups or compare serialized
+  responses byte-for-byte.)* **Security-positive, no regression.** *Caveat: a
   repo merge does not repair production* — the fix is live only once
   `interview-research` is redeployed under [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124)
   (see the freeze note in CLAUDE.md); recorded as a deploy carry-forward below.
 - **`test: cover short-name evidence origin classification` (#345)** — **test-only.**
-  Adds two `evidence-ledger.test.ts` cases: (1) company "GO" against
+  Adds **one** `evidence-ledger.test.ts` case: company "GO" against
   `digital.go.jp/...` stays `market_heuristic`/low (the ≥3-char `companyTokens`
-  filter drops the 2-char "GO", so no over-promotion via a multipart public suffix),
-  and (2) the accented-name positive case ("L'Oréal" matches its ASCII `loreal`
-  domain). **Does not change classification code** — `classifyRetrievedSource` still
+  filter drops the 2-char "GO", so no over-promotion via a multipart public suffix).
+  *(The accented-name positive case — "L'Oréal" matches its ASCII `loreal` domain —
+  was already present from #340, not added by #345; corrected after Codex P2.)*
+  **Does not change classification code** — `classifyRetrievedSource` still
   uses the loose `.includes()` company-token match, so the `official_company`
   attacker-subdomain over-trust Medium from run #27 **remains open** (see below; #345
   locks in the short-name and accented-positive behavior but not the attacker-subdomain
@@ -83,7 +88,7 @@ Baselines (measured against HEAD `f9b0454`; deltas vs 2026-09-12):
 lint **52** problems (43 errors, 9 warnings; flat). Typecheck **pass at baseline**
 (app tsc **62**, node **0**, flat). Build **2280.54 KiB** / 62 precache entries
 (flat). Tests **467** passing / **53** files (up from 461/52 — the +6 tests / +1 file
-are #337's `authorization.test.ts` and #345's two evidence cases). `npm audit` **5**
+are #337's five `authorization.test.ts` cases and #345's one evidence case). `npm audit` **5**
 (4 moderate, 1 high) — all known-deferred, **no new advisory** this window.
 
 ## Commands run
@@ -235,9 +240,12 @@ are #337's `authorization.test.ts` and #345's two evidence cases). `npm audit` *
     ([index.ts:1327–1349](../../supabase/functions/interview-research/index.ts)) and
     fails closed; the old bare body-`userId` == JWT check inside
     `processInterviewResearch` was removed. Regression tests
-    ([authorization.test.ts](../../supabase/functions/interview-research/authorization.test.ts))
-    cover the owned/foreign/missing/mismatch/DB-error/service paths and assert the
-    missing-vs-foreign responses are identical. Re-read the *merged* code (not just the
+    ([authorization.test.ts](../../supabase/functions/interview-research/authorization.test.ts),
+    five cases) cover owned / the shared missing-or-foreign null-data path (→ 404) /
+    mismatch / DB-error / service. The missing and foreign cases are identical by
+    construction (the `id`+`user_id` filter returns null for both), so the single
+    null-data test exercises both rather than two distinct setups. Re-read the *merged*
+    code (not just the
     commit message) per run #27's lesson: the gate is genuine and correctly placed.
   - Residual: **the fix is not live in production until `interview-research` is
     redeployed under PREPIO-124** — the backend is frozen and this function is on the
