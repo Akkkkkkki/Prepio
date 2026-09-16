@@ -114,15 +114,15 @@ const readPdfTextContent = async (page: PdfPage): Promise<PdfTextContent> => {
 
 const extractPdfText = async (file: File): Promise<ExtractedResume> => {
   const pdfjs = await getPdfJs();
+  // Resumes are attacker-controlled input — the highest-risk untrusted-input
+  // surface in the app. pdf.js 6 removed the eval()/Function codepath that
+  // GHSA-hq66-cqwq-w95j exploited (the advisory's fix), so the old
+  // `isEvalSupported: false` defence-in-depth is gone and no longer needed. We
+  // also only extract text and never render (no page.render, scripting off by
+  // default), which keeps the remaining surface small.
   const loadingTask = pdfjs.getDocument({
     data: await file.arrayBuffer(),
     useWorkerFetch: false,
-    // Resumes are attacker-controlled input. Disable the eval()/Function
-    // codepath in pdf.js (font/PostScript-function handling) so a crafted PDF
-    // cannot execute script in the browser context. We only extract text and
-    // never render, so this has no effect on output — it is defence-in-depth
-    // for the highest-risk untrusted-input surface in the app.
-    isEvalSupported: false,
   });
   let pdf: Awaited<typeof loadingTask.promise> | null = null;
 
