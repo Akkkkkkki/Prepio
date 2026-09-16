@@ -94,9 +94,10 @@ are #337's `authorization.test.ts` and #345's two evidence cases). `npm audit` *
   ([`scripts/check-deno-baseline.sh`](../../scripts/check-deno-baseline.sh)):
   **not runnable in this environment** — the agent proxy blocks `esm.sh` / `deno.land`,
   so Deno cannot resolve the edge functions' remote imports; the script reports
-  `SKIPPED — this is not a pass` (exit 0 locally, `exit 1` under `$CI`). This run
-  pushes no `supabase/functions` source; the range's edge-function merge (#337) passed
-  the real CI `verify` gate at merge time.
+  `SKIPPED — this is not a pass` (exit 0 locally, `exit 1` under `$CI`). This run pushes
+  no `supabase/functions` source. **Correction to the usual "passed CI at merge time"
+  note: #337 did NOT — its `main` push run is `failure` on the deno ratchet (19 → 21),
+  so `main`'s `verify` has been red since it landed. See the new High finding.**
 - `npm run build`: **pass** (Vite + PWA, 62 precache entries, **2280.54 KiB**).
 - `npm test`: **pass** (**53 files, 467 tests**), incl. the schema/design-token checks.
 - `npm audit`: **5** (4 moderate, 1 high) — all carried/deferred; no new advisory since
@@ -109,6 +110,45 @@ are #337's `authorization.test.ts` and #345's two evidence cases). `npm audit` *
 - None.
 
 ### High
+
+- [ ] **`main`'s `verify` CI gate is red repo-wide — the merged PREPIO-143 fix (#337)
+  broke the `typecheck:functions` deno ratchet and merged anyway.** *(New this run;
+  discovered via the CI failure on this PR's own `verify` run and confirmed against
+  `main`'s push runs.)*
+  - Evidence: `verify` runs the deno error-count ratchet
+    ([`scripts/check-deno-baseline.sh`](../../scripts/check-deno-baseline.sh),
+    `BASELINE=19`); HEAD reports **21 errors**. The two over baseline are both in #337's
+    `authorizeSearch` call:
+    [`interview-research/index.ts:1333`](../../supabase/functions/interview-research/index.ts)
+    (`TS2589` — type instantiation excessively deep) and `:1334` (`TS2345` — the
+    service-role `SupabaseClient` is not assignable to the `SearchOwnershipClient`
+    parameter, because the real supabase-js `.maybeSingle()` returns a `PostgrestBuilder`
+    thenable, not a `Promise`, so it lacks `catch`/`finally`/`Symbol.toStringTag`). This
+    code is on `main` (17e5b08), so the ratchet fails identically on the base branch —
+    confirmed via the GitHub Actions API: the `main` push runs for **17e5b08 (#337) and
+    f9b0454 (#346) are both `failure`**, while 4598c89/9987fc1/e3a283b before them are
+    `success`. So `main`'s `verify` has been **red since #337 landed** — #337 raised the
+    deno count 19 → 21 and merged red. *(Note: prior audits, incl. this one's own initial
+    draft, recorded `typecheck:functions` as "not runnable in this environment / passed CI
+    at merge time" — the proxy blocks deno's remote imports so the hygiene env can't run
+    it, which is exactly why this regression was invisible to the review until a live CI
+    run surfaced it. Lesson: check the base branch's actual CI conclusion via the API, not
+    just the local skip.)*
+  - Risk: every PR branched off `main` (including this docs-only one) inherits a red
+    `verify`; the blocking gate is effectively down until #337's typing is fixed, and the
+    next genuine edge-function regression could ride in unnoticed behind the existing red.
+  - Recommended fix: a **one-line cast at the call site**, mirroring the existing
+    `answer-feedback/index.ts:123` pattern (`supabase as unknown as SupabaseLike`):
+    `authorizeSearch(supabase as unknown as SearchOwnershipClient, …)`. That clears both
+    TS2345 and the TS2589 cascade and restores the count to baseline 19, without weakening
+    the gate or its tests. Must land in a **dedicated edge-function PR** and be validated
+    with `typecheck:functions` in an env with `esm.sh`/`deno.land` egress — **not** in this
+    docs-only note (widening) and **not** from the hygiene env (can't validate deno here).
+  - Owner / next step: posted the diagnosis + proposed patch as a top-level comment on
+    **PR #349** (drive-to-green: base-inherited failure, no fix PR exists yet, deterministic
+    so no re-run). Needs a maintainer to land the one-liner. File as `Bug` +
+    `area:research-pipeline` / `area:infra` when the Linear cap clears; cross-link PREPIO-143
+    and #337.
 
 - [ ] **Production CV PII is still recoverable from Git history despite the working-tree
   redaction (PREPIO-145).** *(Carried; the owner-attended history-purge slice.
@@ -281,8 +321,14 @@ are #337's `authorization.test.ts` and #345's two evidence cases). `npm audit` *
 
 ## Small fixes made in this run
 
-- **None.** The one source-touching merge (#337) is a security-positive BOLA fix
-  needing no follow-up; the sibling re-audit found no equivalent gap. The remaining
+- **Posted a drive-to-green diagnosis comment on PR #349** after its own `verify` run
+  went red: established the failure is base-inherited (`main`'s deno ratchet red since
+  #337), gave the exact one-line proposed patch, and explained why it lands in a dedicated
+  edge-function PR rather than this docs-only note (see the new High above). No code push —
+  the fix can't be validated with `typecheck:functions` in this proxy-limited env.
+- **No source fix.** The one source-touching merge (#337) is a security-positive BOLA fix
+  whose *runtime* behavior is sound and well-tested; its only defect is the compile-time
+  typing regression recorded as the new High. The sibling re-audit found no equivalent gap. The remaining
   substantive findings (`official_company` over-trust, `SEARCH_COMPLETE` PII leak) are
   service-source edge-function changes not validatable with `typecheck:functions` in this
   proxy-limited environment and out of scope for a docs-only hygiene run. The only
@@ -333,6 +379,12 @@ Tracked, Dependabot-surfaced, or blocked-on-intake:
 
 ## Next review focus
 
+0. **Restore `main`'s `verify` gate (highest priority).** Land the one-line
+   `authorizeSearch(supabase as unknown as SearchOwnershipClient, …)` cast in a dedicated
+   edge-function PR, validated with `typecheck:functions` in an env with `esm.sh` egress, to
+   bring the deno ratchet back to baseline 19. Until then every PR's `verify` is red. Then
+   confirm the ratchet is enforced as a genuine merge blocker — #337 merged red, so the gate
+   was clearly not blocking at merge time.
 1. **PREPIO-124 deploy of the #337 fix.** The BOLA fix is merged but the backend is
    frozen — confirm `interview-research` (and the rest of the core-five manifest +
    pending migrations) actually deploys so the ownership gate becomes live in
