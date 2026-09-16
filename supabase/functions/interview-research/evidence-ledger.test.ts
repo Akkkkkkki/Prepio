@@ -154,6 +154,28 @@ describe("buildEvidenceLedger", () => {
     });
   });
 
+  it("does not guess official origins for short employer names", () => {
+    const ledger = buildEvidenceLedger({
+      company: "GO",
+      jobRawData: {
+        results: [
+          {
+            title: "Government digital team article",
+            url: "https://digital.go.jp/jobs/software-engineer",
+            raw_content: "An article on a multipart public suffix that should not collide with GO.",
+          },
+        ],
+      },
+    });
+
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "digital.go.jp",
+      trustWeight: "low",
+    });
+  });
+
   it("matches accented employer names against their ASCII domain", () => {
     const ledger = buildEvidenceLedger({
       company: "L'Oréal",
