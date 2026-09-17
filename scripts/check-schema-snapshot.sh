@@ -16,16 +16,20 @@ cd "$ROOT"
 # migration but absent from schema.sql fails CI here instead of three months
 # later.
 #
-# This is a heuristic, not a SQL parser. It reads `CREATE TABLE` / `DROP TABLE`
-# statements with `--` line comments stripped, normalises each name to its
-# unquoted base identifier (dropping any schema qualifier), and resolves each
-# table by its LAST operation across migrations in order — so a create → drop →
-# re-create sequence ends "created" and must appear in schema.sql, while a
-# create → drop sequence ends "dropped" and must not. (Collapsing creates and
-# drops into sets got this wrong: a later re-create was cancelled by the earlier
-# drop.) It cannot see ALTER/RENAME or tables created outside migrations; those
-# remain review's job. It is deliberately cheap, in the spirit of the other
-# scripts/check-*.sh gates.
+# This is a lightweight parser, not a full SQL engine. Per file it strips
+# `/* ... */` block and `--` line comments, then splits the stream into
+# statements on `;` and reads each leading `CREATE TABLE` / `DROP TABLE`. Names
+# are lowercased (Postgres folds unquoted identifiers to lowercase; the snapshot
+# is lowercase too) and normalised to the unquoted base identifier, dropping any
+# schema qualifier. Each table is resolved by its LAST operation across
+# migrations in order — a create → drop → re-create ends "created" and must
+# appear in schema.sql; a create → drop ends "dropped" and must not — and a
+# multi-table `DROP TABLE a, b` drops every listed target. Comments are stripped
+# per file so a trailing `--` with no final newline cannot bleed into the next
+# file. Known limits: it does not resolve ALTER/RENAME, nested block comments, a
+# `;` inside a string literal or a dollar-quoted body, or tables created outside
+# migrations; those remain review's job. It is deliberately cheap, in the spirit
+# of the other scripts/check-*.sh gates.
 #
 # ALLOWLIST — tables known to be missing from the snapshot pending the freeze
 # deploy (PREPIO-124) and the schema regeneration it unblocks (PREPIO-173).
@@ -51,45 +55,50 @@ if [ ! -f "$SCHEMA_FILE" ]; then
   exit 1
 fi
 
-# Emit the SQL from the given files with `--` line comments removed and every run
-# of whitespace (newlines included) collapsed to a single space. The comment
-# strip is per line and must precede the newline collapse, or a trailing comment
-# would swallow the rest of the file. Collapsing newlines lets a statement
-# written across lines — `CREATE TABLE\npublic.foo (...)` — match the same as a
-# single-line one; grep is line-oriented, so without this it would be missed and
-# silently bypass the guard.
+# Emit the given files' SQL with `/* ... */` block comments and `--` line
+# comments removed. Done per file (perl slurps each with -0777) so a trailing
+# comment or a missing final newline in one file cannot merge with the next
+# file's first line; a newline is appended as an explicit boundary.
 normalized_sql() {
-  cat "$@" 2>/dev/null \
-    | sed -E 's/--.*$//' \
-    | tr -s '[:space:]' ' '
+  local f
+  for f in "$@"; do
+    [ -f "$f" ] || continue
+    perl -0777 -pe 's{/\*.*?\*/}{ }gs; s{--[^\n]*}{}g' "$f"
+    printf '\n'
+  done
 }
 
-# Extract table base names for a `create` or `drop` statement out of one or more
-# files. Runs them through normalized_sql first (so prose like "-- create table
-# foo for X" cannot be misread as a definition, and cross-line statements are
-# matched), matches the keyword case-insensitively, and normalises
-# `"public"."t"` / `public.t` / `t` all to `t`.
-extract_tables() {
-  local keyword=$1
-  shift
-  local raw rc
-  # grep exits 1 when a keyword is simply absent (e.g. no DROP TABLE anywhere),
-  # which is not an error; only exit >1 is. Run it outside `set -e`/pipefail so a
-  # clean no-match does not abort the script, then re-classify the status.
-  set +e
-  raw=$(normalized_sql "$@" \
-    | grep -ioE "${keyword} table( if (not )?exists)? +[A-Za-z0-9_.\"]+")
-  rc=$?
-  set -e
-  if (( rc > 1 )); then
-    echo "check-schema-snapshot: grep failed (exit $rc) scanning for '${keyword} table'." >&2
-    return "$rc"
-  fi
-  [ -z "$raw" ] && return 0
-  printf '%s\n' "$raw" \
-    | sed -E "s/^${keyword} table( if (not )?exists)? +//I" \
-    | tr -d '"' \
-    | sed -E 's/.*\.//' \
+# Print the base names of tables whose LAST create/drop across the given files
+# leaves them created, one per line, sorted. Whitespace is collapsed so a
+# statement split across lines matches; awk splits on `;` and reads each leading
+# CREATE/DROP TABLE, expanding a comma-separated DROP target list. Later
+# statements overwrite earlier ones, so op[name] holds each table's final state.
+tables_ending_created() {
+  normalized_sql "$@" \
+    | tr -s '[:space:]' ' ' \
+    | awk -v RS=';' '
+        {
+          s = tolower($0)
+          gsub(/^ +/, "", s); gsub(/ +$/, "", s)
+          if (s ~ /^create table( if not exists)? /) {
+            sub(/^create table( if not exists)? +/, "", s)
+            name = s
+            sub(/[ (].*/, "", name); gsub(/"/, "", name); sub(/^.*\./, "", name)
+            if (name != "") op[name] = "create"
+          } else if (s ~ /^drop table( if exists)? /) {
+            sub(/^drop table( if exists)? +/, "", s)
+            sub(/ +cascade.*/, "", s); sub(/ +restrict.*/, "", s)
+            n = split(s, targets, /,/)
+            for (i = 1; i <= n; i++) {
+              name = targets[i]
+              gsub(/^ +/, "", name); gsub(/ +$/, "", name)
+              sub(/[ (].*/, "", name); gsub(/"/, "", name); sub(/^.*\./, "", name)
+              if (name != "") op[name] = "drop"
+            }
+          }
+        }
+        END { for (k in op) if (op[k] == "create") print k }
+      ' \
     | sort -u
 }
 
@@ -106,34 +115,10 @@ if (( ${#MIGRATION_FILES[@]} == 0 )); then
   exit 1
 fi
 
-# Walk every CREATE/DROP TABLE statement in migration order (files are
-# timestamp-prefixed and sorted; lines within a file stay in order) and record
-# each table's LAST operation. A table ends "created" iff its final statement is
-# a create. This is order-sensitive on purpose — set arithmetic cannot tell a
-# create → drop from a create → drop → re-create.
-declare -A final_op
-while IFS= read -r match; do
-  [ -z "$match" ] && continue
-  local_op=$(printf '%s' "$match" | grep -ioE '^(create|drop)' | tr '[:upper:]' '[:lower:]')
-  name=$(printf '%s' "$match" \
-    | sed -E 's/^(create|drop) table( if (not )?exists)? +//I' \
-    | tr -d '"' \
-    | sed -E 's/.*\.//')
-  [ -z "$name" ] && continue
-  final_op["$name"]=$local_op
-done < <(
-  normalized_sql "${MIGRATION_FILES[@]}" \
-    | grep -ioE '(create|drop) table( if (not )?exists)? +[A-Za-z0-9_."]+' || true
-)
-
-expected=""
-if (( ${#final_op[@]} > 0 )); then
-  for name in "${!final_op[@]}"; do
-    [ "${final_op[$name]}" = "create" ] && expected+="${name}"$'\n'
-  done
-fi
-
-present=$(extract_tables create "$SCHEMA_FILE")
+# Tables the migrations end with (files are timestamp-prefixed and sorted, so
+# statements resolve in migration order) versus those the snapshot carries.
+expected=$(tables_ending_created "${MIGRATION_FILES[@]}")
+present=$(tables_ending_created "$SCHEMA_FILE")
 
 # The tables the migrations end with that the snapshot is missing.
 missing=$(comm -23 <(as_set "$expected") <(as_set "$present"))

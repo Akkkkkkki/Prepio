@@ -162,6 +162,48 @@ describe("check-schema-snapshot.sh", () => {
     expect(r.status).toBe(0);
   });
 
+  it("ignores a DROP TABLE inside a block comment", () => {
+    // Regression: a /* DROP TABLE foo; */ must not count as a real drop, or a
+    // table still created after all migrations could go missing from the
+    // snapshot undetected.
+    migration("001.sql", "CREATE TABLE foo (id uuid);\n/* DROP TABLE foo; */\n");
+    snapshot('CREATE TABLE IF NOT EXISTS "public"."other" (id uuid);\n');
+
+    const r = run("");
+
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/- foo/);
+  });
+
+  it("keeps file boundaries when one file ends with a comment and no trailing newline", () => {
+    // Regression: `cat`-ing files together let a trailing `--` comment with no
+    // final newline swallow the first line of the next file. Comments are
+    // stripped per file, so bbb (first statement of file 2) is still seen.
+    migration("001.sql", "CREATE TABLE aaa (id uuid); -- trailing note no newline");
+    migration("002.sql", "CREATE TABLE bbb (id uuid);\n");
+    snapshot('CREATE TABLE IF NOT EXISTS "public"."aaa" (id uuid);\n');
+
+    const r = run("");
+
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/- bbb/);
+  });
+
+  it("drops every target of a multi-table DROP TABLE", () => {
+    // Regression: `DROP TABLE foo, bar` must drop both, or a snapshot that
+    // correctly omits bar would be reported as drift.
+    migration(
+      "001.sql",
+      "CREATE TABLE foo (id uuid);\nCREATE TABLE bar (id uuid);\nDROP TABLE foo, bar CASCADE;\n",
+    );
+    migration("002.sql", "CREATE TABLE keep (id uuid);\n");
+    snapshot('CREATE TABLE IF NOT EXISTS "public"."keep" (id uuid);\n');
+
+    const r = run("");
+
+    expect(r.status).toBe(0);
+  });
+
   it("fails a stale allowlist entry that is now present in the snapshot (ratchet)", () => {
     migration("001.sql", "create table public.foo (id uuid);\n");
     snapshot('CREATE TABLE IF NOT EXISTS "public"."foo" (id uuid);\n');
