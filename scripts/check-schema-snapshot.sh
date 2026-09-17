@@ -33,12 +33,15 @@ cd "$ROOT"
 # with no final newline cannot bleed into the next file.
 #
 # Known limits (out of scope for a heuristic drift guard over a controlled,
-# in-repo migration corpus — none of these constructs appear in it today): it
-# does not resolve ALTER/RENAME/SET SCHEMA, nested block comments, or a comment
-# marker (`--`, `/*`) or `;` sitting inside a string literal or dollar-quoted
-# body (telling those from real comments/terminators needs a true SQL
-# tokenizer). Those remain review's job. It is deliberately cheap, in the spirit
-# of the other scripts/check-*.sh gates.
+# in-repo migration corpus — none of these constructs appear in it today, and
+# all tables follow the repo's lowercase snake_case convention): it does not
+# resolve ALTER/RENAME/SET SCHEMA, nested block comments, quoted mixed-case
+# identifiers (every name is lowercased, so `"Foo"` and `foo` collapse together),
+# or a comment marker (`--`, `/*`) or `;` sitting inside a string literal or
+# dollar-quoted body. Telling quoted identifiers and string literals apart from
+# real comments/terminators needs a true SQL tokenizer, which is more than this
+# gate warrants. Those remain review's job. It is deliberately cheap, in the
+# spirit of the other scripts/check-*.sh gates.
 #
 # ALLOWLIST — tables known to be missing from the snapshot pending the freeze
 # deploy (PREPIO-124) and the schema regeneration it unblocks (PREPIO-173).
