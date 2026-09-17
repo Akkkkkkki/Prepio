@@ -108,6 +108,33 @@ describe("check-schema-snapshot.sh", () => {
     expect(r.status).toBe(0);
   });
 
+  it("flags a table dropped and then re-created by a later migration when the snapshot omits it", () => {
+    // Regression for the set-arithmetic bug Codex caught: collapsing creates and
+    // drops into sets let an earlier DROP cancel a later re-CREATE, so a
+    // re-created table missing from the snapshot slipped through. Resolution must
+    // key on each table's last operation in migration order.
+    migration("001.sql", "CREATE TABLE foo (id uuid);\n");
+    migration("002.sql", "DROP TABLE IF EXISTS foo;\n");
+    migration("003.sql", "CREATE TABLE foo (id uuid);\n");
+    snapshot('CREATE TABLE IF NOT EXISTS "public"."other" (id uuid);\n');
+
+    const r = run("");
+
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/- foo/);
+  });
+
+  it("passes the same re-create sequence once the snapshot carries the table", () => {
+    migration("001.sql", "CREATE TABLE foo (id uuid);\n");
+    migration("002.sql", "DROP TABLE IF EXISTS foo;\n");
+    migration("003.sql", "CREATE TABLE foo (id uuid);\n");
+    snapshot('CREATE TABLE IF NOT EXISTS "public"."foo" (id uuid);\n');
+
+    const r = run("");
+
+    expect(r.status).toBe(0);
+  });
+
   it("fails a stale allowlist entry that is now present in the snapshot (ratchet)", () => {
     migration("001.sql", "create table public.foo (id uuid);\n");
     snapshot('CREATE TABLE IF NOT EXISTS "public"."foo" (id uuid);\n');

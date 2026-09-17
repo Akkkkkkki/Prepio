@@ -18,10 +18,13 @@ cd "$ROOT"
 #
 # This is a heuristic, not a SQL parser. It reads `CREATE TABLE` / `DROP TABLE`
 # statements with `--` line comments stripped, normalises each name to its
-# unquoted base identifier (dropping any schema qualifier), and treats a table
-# created and never dropped in migrations as one that must appear in schema.sql.
-# It cannot see ALTER/RENAME or tables created outside migrations; those remain
-# review's job. It is deliberately cheap, in the spirit of the other
+# unquoted base identifier (dropping any schema qualifier), and resolves each
+# table by its LAST operation across migrations in order — so a create → drop →
+# re-create sequence ends "created" and must appear in schema.sql, while a
+# create → drop sequence ends "dropped" and must not. (Collapsing creates and
+# drops into sets got this wrong: a later re-create was cancelled by the earlier
+# drop.) It cannot see ALTER/RENAME or tables created outside migrations; those
+# remain review's job. It is deliberately cheap, in the spirit of the other
 # scripts/check-*.sh gates.
 #
 # ALLOWLIST — tables known to be missing from the snapshot pending the freeze
@@ -90,13 +93,37 @@ if (( ${#MIGRATION_FILES[@]} == 0 )); then
   exit 1
 fi
 
-created=$(extract_tables create "${MIGRATION_FILES[@]}")
-dropped=$(extract_tables drop "${MIGRATION_FILES[@]}")
+# Walk every CREATE/DROP TABLE statement in migration order (files are
+# timestamp-prefixed and sorted; lines within a file stay in order) and record
+# each table's LAST operation. A table ends "created" iff its final statement is
+# a create. This is order-sensitive on purpose — set arithmetic cannot tell a
+# create → drop from a create → drop → re-create.
+declare -A final_op
+while IFS= read -r match; do
+  [ -z "$match" ] && continue
+  local_op=$(printf '%s' "$match" | grep -ioE '^(create|drop)' | tr '[:upper:]' '[:lower:]')
+  name=$(printf '%s' "$match" \
+    | sed -E 's/^(create|drop) table( if (not )?exists)? +//I' \
+    | tr -d '"' \
+    | sed -E 's/.*\.//')
+  [ -z "$name" ] && continue
+  final_op["$name"]=$local_op
+done < <(
+  cat "${MIGRATION_FILES[@]}" 2>/dev/null \
+    | sed -E 's/--.*$//' \
+    | grep -ioE '(create|drop) table( if (not )?exists)? +[A-Za-z0-9_."]+' || true
+)
+
+expected=""
+if (( ${#final_op[@]} > 0 )); then
+  for name in "${!final_op[@]}"; do
+    [ "${final_op[$name]}" = "create" ] && expected+="${name}"$'\n'
+  done
+fi
+
 present=$(extract_tables create "$SCHEMA_FILE")
 
-# Tables created and never dropped in migrations => must exist in the snapshot.
-expected=$(comm -23 <(as_set "$created") <(as_set "$dropped"))
-# The subset of those that the snapshot is missing.
+# The tables the migrations end with that the snapshot is missing.
 missing=$(comm -23 <(as_set "$expected") <(as_set "$present"))
 
 # Normalise the allowlist (space-, tab-, or newline-separated) to a sorted set.
