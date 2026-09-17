@@ -51,10 +51,24 @@ if [ ! -f "$SCHEMA_FILE" ]; then
   exit 1
 fi
 
+# Emit the SQL from the given files with `--` line comments removed and every run
+# of whitespace (newlines included) collapsed to a single space. The comment
+# strip is per line and must precede the newline collapse, or a trailing comment
+# would swallow the rest of the file. Collapsing newlines lets a statement
+# written across lines — `CREATE TABLE\npublic.foo (...)` — match the same as a
+# single-line one; grep is line-oriented, so without this it would be missed and
+# silently bypass the guard.
+normalized_sql() {
+  cat "$@" 2>/dev/null \
+    | sed -E 's/--.*$//' \
+    | tr -s '[:space:]' ' '
+}
+
 # Extract table base names for a `create` or `drop` statement out of one or more
-# files. Strips `--` line comments first so prose like "-- create table foo for
-# X" cannot be misread as a definition, matches the keyword case-insensitively,
-# and normalises `"public"."t"` / `public.t` / `t` all to `t`.
+# files. Runs them through normalized_sql first (so prose like "-- create table
+# foo for X" cannot be misread as a definition, and cross-line statements are
+# matched), matches the keyword case-insensitively, and normalises
+# `"public"."t"` / `public.t` / `t` all to `t`.
 extract_tables() {
   local keyword=$1
   shift
@@ -63,8 +77,7 @@ extract_tables() {
   # which is not an error; only exit >1 is. Run it outside `set -e`/pipefail so a
   # clean no-match does not abort the script, then re-classify the status.
   set +e
-  raw=$(cat "$@" 2>/dev/null \
-    | sed -E 's/--.*$//' \
+  raw=$(normalized_sql "$@" \
     | grep -ioE "${keyword} table( if (not )?exists)? +[A-Za-z0-9_.\"]+")
   rc=$?
   set -e
@@ -109,8 +122,7 @@ while IFS= read -r match; do
   [ -z "$name" ] && continue
   final_op["$name"]=$local_op
 done < <(
-  cat "${MIGRATION_FILES[@]}" 2>/dev/null \
-    | sed -E 's/--.*$//' \
+  normalized_sql "${MIGRATION_FILES[@]}" \
     | grep -ioE '(create|drop) table( if (not )?exists)? +[A-Za-z0-9_."]+' || true
 )
 

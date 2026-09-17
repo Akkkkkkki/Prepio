@@ -135,6 +135,33 @@ describe("check-schema-snapshot.sh", () => {
     expect(r.status).toBe(0);
   });
 
+  it("matches a CREATE TABLE statement split across lines", () => {
+    // Regression for the second Codex P2: a line-oriented grep with literal
+    // spaces misses `CREATE TABLE\nname` (and `CREATE TABLE\nIF NOT EXISTS\nname`),
+    // silently bypassing the guard. Whitespace is normalised before matching.
+    migration("001.sql", "CREATE TABLE\npublic.split_tbl (\n  id uuid\n);\n");
+    migration(
+      "002.sql",
+      "CREATE TABLE\nIF NOT EXISTS\npublic.split_ine (id uuid);\n",
+    );
+    snapshot('CREATE TABLE IF NOT EXISTS "public"."other" (id uuid);\n');
+
+    const r = run("");
+
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/- split_tbl/);
+    expect(r.stderr).toMatch(/- split_ine/);
+  });
+
+  it("passes split-across-lines creates once the snapshot carries them", () => {
+    migration("001.sql", "CREATE TABLE\npublic.split_tbl (\n  id uuid\n);\n");
+    snapshot('CREATE TABLE IF NOT EXISTS "public"."split_tbl" (id uuid);\n');
+
+    const r = run("");
+
+    expect(r.status).toBe(0);
+  });
+
   it("fails a stale allowlist entry that is now present in the snapshot (ratchet)", () => {
     migration("001.sql", "create table public.foo (id uuid);\n");
     snapshot('CREATE TABLE IF NOT EXISTS "public"."foo" (id uuid);\n');
