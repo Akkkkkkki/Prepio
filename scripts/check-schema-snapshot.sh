@@ -18,17 +18,26 @@ cd "$ROOT"
 #
 # This is a lightweight parser, not a full SQL engine. Per file it strips
 # `/* ... */` block and `--` line comments, then splits the stream into
-# statements on `;` and reads each leading `CREATE TABLE` / `DROP TABLE`. Names
-# are lowercased (Postgres folds unquoted identifiers to lowercase; the snapshot
-# is lowercase too) and normalised to the unquoted base identifier, dropping any
-# schema qualifier. Each table is resolved by its LAST operation across
-# migrations in order — a create → drop → re-create ends "created" and must
-# appear in schema.sql; a create → drop ends "dropped" and must not — and a
-# multi-table `DROP TABLE a, b` drops every listed target. Comments are stripped
-# per file so a trailing `--` with no final newline cannot bleed into the next
-# file. Known limits: it does not resolve ALTER/RENAME, nested block comments, a
-# `;` inside a string literal or a dollar-quoted body, or tables created outside
-# migrations; those remain review's job. It is deliberately cheap, in the spirit
+# statements on `;` and reads each leading `CREATE [UNLOGGED] TABLE` /
+# `DROP TABLE`. Names are lowercased (Postgres folds unquoted identifiers to
+# lowercase; the snapshot is lowercase too) and normalised to the unquoted base
+# identifier, dropping any schema qualifier. Dropping the schema is deliberate:
+# this repo creates the `ops` tables bare and later relocates them with
+# `ALTER TABLE ... SET SCHEMA ops` (which this parser does not track), so a
+# migration's `scraped_urls` must still match the snapshot's `ops.scraped_urls`
+# — a schema-qualified identity would report false drift on exactly those. Each
+# table is resolved by its LAST operation across migrations in order — a
+# create → drop → re-create ends "created" and must appear in schema.sql; a
+# create → drop ends "dropped" and must not — and a multi-table `DROP TABLE a, b`
+# drops every listed target. Comments are stripped per file so a trailing `--`
+# with no final newline cannot bleed into the next file.
+#
+# Known limits (out of scope for a heuristic drift guard over a controlled,
+# in-repo migration corpus — none of these constructs appear in it today): it
+# does not resolve ALTER/RENAME/SET SCHEMA, nested block comments, or a comment
+# marker (`--`, `/*`) or `;` sitting inside a string literal or dollar-quoted
+# body (telling those from real comments/terminators needs a true SQL
+# tokenizer). Those remain review's job. It is deliberately cheap, in the spirit
 # of the other scripts/check-*.sh gates.
 #
 # ALLOWLIST — tables known to be missing from the snapshot pending the freeze
@@ -80,8 +89,8 @@ tables_ending_created() {
         {
           s = tolower($0)
           gsub(/^ +/, "", s); gsub(/ +$/, "", s)
-          if (s ~ /^create table( if not exists)? /) {
-            sub(/^create table( if not exists)? +/, "", s)
+          if (s ~ /^create( unlogged)? table( if not exists)? /) {
+            sub(/^create( unlogged)? table( if not exists)? +/, "", s)
             name = s
             sub(/[ (].*/, "", name); gsub(/"/, "", name); sub(/^.*\./, "", name)
             if (name != "") op[name] = "create"

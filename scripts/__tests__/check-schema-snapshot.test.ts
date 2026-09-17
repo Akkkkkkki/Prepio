@@ -204,6 +204,17 @@ describe("check-schema-snapshot.sh", () => {
     expect(r.status).toBe(0);
   });
 
+  it("recognises a persistent CREATE UNLOGGED TABLE", () => {
+    // Unlogged tables are persistent schema objects and belong in the snapshot.
+    migration("001.sql", "CREATE UNLOGGED TABLE public.cache (id uuid);\n");
+    snapshot('CREATE TABLE IF NOT EXISTS "public"."other" (id uuid);\n');
+
+    const r = run("");
+
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/- cache/);
+  });
+
   it("fails a stale allowlist entry that is now present in the snapshot (ratchet)", () => {
     migration("001.sql", "create table public.foo (id uuid);\n");
     snapshot('CREATE TABLE IF NOT EXISTS "public"."foo" (id uuid);\n');
