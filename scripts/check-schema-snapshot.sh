@@ -70,13 +70,18 @@ fi
 # Emit the given files' SQL with `/* ... */` block comments and `--` line
 # comments removed. Done per file (perl slurps each with -0777) so a trailing
 # comment or a missing final newline in one file cannot merge with the next
-# file's first line; a newline is appended as an explicit boundary.
+# file's first line. A `;` is appended after each file as an explicit statement
+# boundary: migrations are applied separately, so a file whose last statement
+# omits its optional trailing `;` must not merge into the next file's first
+# statement under the downstream `awk -v RS=';'` (a newline is not a separator
+# there). A redundant `;` after an already-terminated file just yields an empty
+# record, which the parser ignores.
 normalized_sql() {
   local f
   for f in "$@"; do
     [ -f "$f" ] || continue
     perl -0777 -pe 's{/\*.*?\*/}{ }gs; s{--[^\n]*}{}g' "$f"
-    printf '\n'
+    printf '\n;\n'
   done
 }
 

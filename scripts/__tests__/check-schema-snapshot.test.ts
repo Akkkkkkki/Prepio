@@ -215,6 +215,20 @@ describe("check-schema-snapshot.sh", () => {
     expect(r.stderr).toMatch(/- cache/);
   });
 
+  it("terminates statements at each file boundary even without a trailing semicolon", () => {
+    // Regression: migrations are applied separately, so a file whose last
+    // statement omits the optional `;` must not merge into the next file's first
+    // statement under the `awk -v RS=';'` split. Here file 1 has no trailing `;`.
+    migration("001.sql", "CREATE TABLE aaa (id uuid)");
+    migration("002.sql", "CREATE TABLE bbb (id uuid);\n");
+    snapshot('CREATE TABLE IF NOT EXISTS "public"."aaa" (id uuid);\n');
+
+    const r = run("");
+
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/- bbb/);
+  });
+
   it("fails a stale allowlist entry that is now present in the snapshot (ratchet)", () => {
     migration("001.sql", "create table public.foo (id uuid);\n");
     snapshot('CREATE TABLE IF NOT EXISTS "public"."foo" (id uuid);\n');
