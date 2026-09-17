@@ -158,7 +158,7 @@ if [ -n "$undocumented" ]; then
   status=1
   echo "Schema snapshot drift: table(s) defined in $MIGRATIONS_DIR but absent from $SCHEMA_FILE:" >&2
   printf '  - %s\n' $undocumented >&2
-  echo "Regenerate the snapshot (npm run db:pull) so it reflects the migrations, or if the table is legitimately expected to be missing add it to the allowlist in scripts/check-schema-snapshot.sh with a reason." >&2
+  echo "Regenerate supabase/schema.sql from the migrations and commit it (see the schema-snapshot regeneration steps in PREPIO-173), or if the table is legitimately expected to be missing add it to the allowlist in scripts/check-schema-snapshot.sh with a reason." >&2
 fi
 
 if [ -n "$stale_allow" ]; then
