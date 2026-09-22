@@ -2,6 +2,10 @@
 
 Use this for common operational checks.
 
+For release sequencing, production acceptance, rollback/spend controls and owner-only
+cleanup, follow [FREEZE_RELEASE.md](FREEZE_RELEASE.md). No freeze tag exists until those
+gates pass. This runbook does not authorize restoring retired product surfaces.
+
 ## Research Does Not Start
 
 Check:

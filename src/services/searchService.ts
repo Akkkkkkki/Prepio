@@ -1,3 +1,4 @@
+import { FROZEN_PRODUCT } from "@/lib/frozenProduct";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json, Tables } from "@/integrations/supabase/types";
 import type { ResearchPreview } from "@/types/researchPreview";
@@ -444,34 +445,10 @@ const toCandidateProfileRow = (profile: CandidateProfile) => ({
 });
 
 export const searchService = {
-  async createResearchPreview({ company, role, country }: CreateResearchPreviewParams) {
-    try {
-      const normalizedCompany = company.trim();
-      if (!normalizedCompany) {
-        throw new Error("Company is required");
-      }
-
-      const response = await supabase.functions.invoke("research-preview", {
-        body: {
-          company: normalizedCompany,
-          role: role?.trim() || undefined,
-          country: country?.trim() || undefined,
-        },
-      });
-
-      if (response.error) throw response.error;
-
-      return {
-        preview: response.data?.preview as ResearchPreview | undefined,
-        success: Boolean(response.data?.success && response.data?.preview),
-      };
-    } catch (error) {
-      console.error("Error creating research preview:", error);
-      return { error, success: false };
-    }
+  async createResearchPreview(_input: CreateResearchPreviewParams) {
+    return { success: false, error: new Error("Live guest research is unavailable. View the local sample instead."), preview: undefined as ResearchPreview | undefined };
   },
 
-  // Step 1: Create search record only (fast, synchronous)
   async createSearchRecord({ company, role, country, roleLinks, cv, level, userNote, jobDescription }: CreateSearchParams) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -516,7 +493,7 @@ export const searchService = {
       const normalizedRoleLinks = normalizeRoleLinks(roleLinks);
       let candidateProfile: CandidateProfile | null = null;
 
-      if (isProfileStoryLinkingEnabled()) {
+      if (FROZEN_PRODUCT.profile && isProfileStoryLinkingEnabled()) {
         // Story linking is an enhancement, not a precondition for research. This
         // lookup runs before the invoke race, so an unbounded await here would
         // sit outside RESEARCH_START_TIMEOUT_MS entirely: a stalled
@@ -1154,6 +1131,7 @@ export const searchService = {
     fileName?: string;
   }) {
     try {
+      if (!FROZEN_PRODUCT.voice) throw new Error("Voice practice is unavailable.");
       const response = await supabase.functions.invoke("practice-audio-transcribe", {
         body: { path, mimeType, fileName },
       });
@@ -1605,6 +1583,7 @@ export const searchService = {
   }) {
     try {
       const user = await getCurrentUser();
+      if (!FROZEN_PRODUCT.profile) throw new Error("Profile import is unavailable.");
       const response = await supabase.functions.invoke("profile-import", {
         body: {
           resumeText,
@@ -2033,6 +2012,7 @@ export const searchService = {
     | { success: false; errorCode: AnswerFeedbackErrorCode; error?: unknown }
   > {
     try {
+      if (!FROZEN_PRODUCT.answerFeedback) return { success: false, errorCode: "unknown_error" };
       const { data, error } = await supabase.functions.invoke("answer-feedback", {
         body: { practiceAnswerId, regenerate },
       });

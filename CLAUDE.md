@@ -11,48 +11,20 @@ Primary user flow:
 2. Create a research run — [`src/pages/Home.tsx`](./src/pages/Home.tsx) at `/new-interview` when signed in, or `/` as a guest
 3. Review generated stages — [`src/pages/Dashboard.tsx`](./src/pages/Dashboard.tsx)
 4. Practice questions — [`src/pages/Practice.tsx`](./src/pages/Practice.tsx)
-5. Manage CV and preferences — [`src/pages/Profile.tsx`](./src/pages/Profile.tsx)
+5. Review saved practice — [`src/pages/History.tsx`](./src/pages/History.tsx)
 
 ## Current Product Truth
 
-These points override anything in older docs or code comments:
+The only active release scope is [docs/FREEZE_RELEASE.md](docs/FREEZE_RELEASE.md).
+Invite-only, free authenticated research, plan, text practice, saved answers, flags and
+History. Guests see a deterministic local sample. Billing, paid feedback, public signup,
+profile activation/settings, voice and all file import/upload controls are excluded.
+Existing records stay intact. Core provider functions reject anonymous Auth users.
 
-- **Resume upload**: PDF and DOCX supported. Signed-in users upload from Home and Profile. Home can parse files locally before sign-in.
-- **Resume deletion**: Server-backed. Deleting a profile resume removes the saved row and stored files together.
-- **Voice recording**: Recordings are uploaded to the `practice-audio` storage bucket and transcribed via the `practice-audio-transcribe` edge function; `audio_path` and `transcript_text` are saved on the answer row. A failed transcribe call raises a non-blocking "Transcription unavailable. / Your answer was still saved." notice; a successful-but-empty transcript stays silent.
-- **Search history**: Available in authenticated navigation.
-- **Practice gestures**: Mobile swipe (60px threshold, 12px vertical suppression) plus explicit button controls.
-- **Auth**: Redirect context shown when bounced to sign-in. Sign-in and sign-up fields are stored separately.
-
-> **Production is not `main`.** The backend has been frozen since 2026-05-15: 8 migrations
-> are unapplied and 7 edge functions (`research-preview`, `create-checkout-session`,
-> `create-portal-session`, `stripe-webhook`, `answer-feedback`, `profile-import`,
-> `practice-audio-transcribe`) are undeployed. Guest preview, paid answer feedback, CV import,
-> voice transcription, and the billing purchase flow are therefore dead in production even
-> though they are shipped in this repo. Check what each missing function actually gates
-> before assuming a whole feature is dark: the billing tables and frontend *are* live, so
-> `/pricing`, `/billing/return`, and the entitlement read work and simply always resolve
-> free (see [`docs/BILLING.md`](./docs/BILLING.md)); likewise recording and saving a voice
-> answer works, and only the transcript is missing. Read "shipped" in this file and in
-> `docs/` as "merged to `main`", not "live".
->
-> **Deploy decision (2026-09-02): this is now a deliberate freeze, not a deploy backlog.**
-> [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124) (Urgent) deploys **only** the five
-> core research functions (`interview-research`, `company-research`, `job-analysis`,
-> `cv-analysis`, `interview-question-generator`) plus the pending migrations — nothing is
-> brought "to parity with `main`". The frozen release is an invite-only, free, authenticated
-> core with no live billing and no unauthenticated AI endpoint, and the remaining functions are
-> handled in two groups, not deployed wholesale. **Five never deploy for this freeze:**
-> `research-preview`, `create-checkout-session`, `create-portal-session`, `stripe-webhook`, and
-> `answer-feedback`. **Two deploy only conditionally:** `profile-import` and
-> `practice-audio-transcribe` ship **only** if [PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27)
-> deliberately keeps their UI and their smoke tests pass; otherwise they stay undeployed and their
-> controls are hidden (the default expectation for the freeze). The frontend is being locked to
-> match (PREPIO-27): the guest preview becomes a static checked-in sample (no `research-preview`
-> call), Checkout/Portal/paid-feedback controls are hidden, sign-up goes invite-only, and PDF upload
-> is disabled while the `pdfjs-dist` advisory (PREPIO-140) is open. Voice/import controls are hidden
-> too **by default**, kept only under the conditional above (their functions deployed with passing
-> smoke tests).
+Production remains unreconciled until PREPIO-168/145, PREPIO-124/170, PREPIO-173 and
+PREPIO-30 have verified evidence. Do not call merged code deployed or create a release tag
+from source checks alone. Do not add features, recurring audits or routine dependency PRs.
+No custom Bash SQL guard is part of this release.
 
 ## Commands
 
@@ -79,25 +51,19 @@ catch a ratchet break.
 ```bash
 npm run functions:serve          # Serve edge functions locally
 npm run functions:serve-debug    # Serve with debug logging
-npm run functions:deploy         # Deploy ALL edge functions — do NOT use for the freeze (see note below)
-npm run functions:deploy-single FUNCTION_NAME  # Freeze deploy uses this, once per core function
+npm run functions:deploy         # Dry run: only the five approved functions
+npm run functions:deploy-single -- FUNCTION_NAME  # Dry run: one approved function
 npm run db:push                  # Push migrations
-npm run db:pull                  # Pull remote schema
+npm run db:pull                  # Generate a migration from remote schema; not schema.sql
 npm run supabase:start           # Start local Supabase
 npm run supabase:stop
 npm run supabase:status
 ```
 
-> **Freeze deploy (PREPIO-124): do not run `npm run functions:deploy`.** It expands to the
-> unscoped `supabase functions deploy` and would push every function, including the ones the
-> freeze intentionally keeps undeployed (see the "Deploy decision" note above). Deploy the freeze
-> manifest with `npm run functions:deploy-single` once per core function
-> (`interview-research`, `company-research`, `job-analysis`, `cv-analysis`,
-> `interview-question-generator`) — and, **only if PREPIO-27 keeps their UI and their smoke tests
-> pass**, once more each for `profile-import` and `practice-audio-transcribe` (otherwise those two
-> stay undeployed and their controls hidden). Never deploy the five that are out for this freeze
-> (`research-preview`, `create-checkout-session`, `create-portal-session`, `stripe-webhook`,
-> `answer-feedback`).
+> Freeze deployment uses `supabase/freeze-functions.json` through the guarded Node
+> wrapper. The default is a dry run. Execution requires `--execute`, a clean checkout
+> and `PREPIO_DEPLOY_COMMIT` matching the full reviewed HEAD SHA. Complete the release
+> runbook first. A single-function invocation is checked against the same manifest.
 
 ### After database changes
 
@@ -141,15 +107,12 @@ TAVILY_API_KEY=...
 |------|--------|-----------|
 | `/` | Public | `Home` for guests; signed-in users redirect to `/interviews` |
 | `/auth` | Public | `Auth` |
-| `/pricing` | Public | `Pricing` |
 | `/interviews` | Protected | `Interviews` |
 | `/new-interview` | Protected | `Home` |
 | `/dashboard` | Protected | `Dashboard` |
 | `/search/:searchId` | Protected | `Dashboard` |
 | `/practice` | Protected | `Practice` |
 | `/history` | Protected | `History` |
-| `/profile/*` | Protected | `Profile` |
-| `/billing/return` | Protected | `BillingReturn` |
 | `*` | Public | `NotFound` |
 
 Protected-route and `/` redirect behavior: [`src/App.tsx`](./src/App.tsx).

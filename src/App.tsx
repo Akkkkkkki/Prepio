@@ -15,9 +15,6 @@ const Interviews = lazy(() => import("./pages/Interviews"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Practice = lazy(() => import("./pages/Practice"));
 const History = lazy(() => import("./pages/History"));
-const Profile = lazy(() => import("./pages/Profile"));
-const Pricing = lazy(() => import("./pages/Pricing"));
-const BillingReturn = lazy(() => import("./pages/BillingReturn"));
 const Auth = lazy(() => import("./pages/Auth"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -89,7 +86,6 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<RouteElement><Auth /></RouteElement>} />
             <Route path="/" element={<RouteElement><RootRoute /></RouteElement>} />
-            <Route path="/pricing" element={<RouteElement><Pricing /></RouteElement>} />
             <Route
               path="/interviews"
               element={
@@ -136,26 +132,6 @@ const App = () => (
                 <ProtectedRoute>
                   <RouteElement>
                     <History />
-                  </RouteElement>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/billing/return"
-              element={
-                <ProtectedRoute>
-                  <RouteElement>
-                    <BillingReturn />
-                  </RouteElement>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile/*"
-              element={
-                <ProtectedRoute>
-                  <RouteElement>
-                    <Profile />
                   </RouteElement>
                 </ProtectedRoute>
               }

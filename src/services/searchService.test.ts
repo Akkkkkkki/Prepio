@@ -506,42 +506,6 @@ describe("practice history answer dedupe helpers", () => {
     });
   });
 
-  it("creates a lightweight research preview without requiring a signed-in user", async () => {
-    mockSupabase.functions.invoke.mockResolvedValue({
-      data: {
-        success: true,
-        preview: {
-          previewId: "preview-1",
-          status: "completed",
-          company: "Stripe",
-          role: "Platform Engineer",
-          confidence: "medium",
-          sourceSummary: "4 public signals.",
-          stages: [],
-          assessmentSignals: [],
-          questions: [],
-          expiresAt: "2026-05-18T00:00:00.000Z",
-        },
-      },
-      error: null,
-    });
-
-    const result = await searchService.createResearchPreview({
-      company: " Stripe ",
-      role: " Platform Engineer ",
-    });
-
-    expect(result.success).toBe(true);
-    expect(mockSupabase.auth.getUser).not.toHaveBeenCalled();
-    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("research-preview", {
-      body: {
-        company: "Stripe",
-        role: "Platform Engineer",
-        country: undefined,
-      },
-    });
-  });
-
   it("does not carry uploaded file metadata into a pasted resume version", async () => {
     const insertedRows: Array<Record<string, unknown>> = [];
 
@@ -735,7 +699,7 @@ describe("practice history answer dedupe helpers", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it("sends the structured profile when story linking is enabled", async () => {
+  it("does not activate structured profiles even when the old environment flag is enabled", async () => {
     vi.stubEnv("VITE_PROFILE_STORY_LINKING", "true");
     const candidateProfile = {
       ...createEmptyCandidateProfile("user-1"),
@@ -757,14 +721,14 @@ describe("practice history answer dedupe helpers", () => {
     });
 
     expect(result).toEqual({ success: true });
-    expect(profileSpy).toHaveBeenCalledTimes(1);
+    expect(profileSpy).not.toHaveBeenCalled();
     expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("interview-research", {
       body: expect.objectContaining({
-        candidateProfile,
-        candidateProfileResumeId: "resume-1",
+        cv: "Legacy CV fallback",
         searchId: "search-profile",
       }),
     });
+    expect(mockSupabase.functions.invoke.mock.calls[0][1].body).not.toHaveProperty("candidateProfile");
     profileSpy.mockRestore();
   });
 
@@ -1153,7 +1117,7 @@ describe("practice history answer dedupe helpers", () => {
   });
 });
 
-describe("answer feedback service", () => {
+describe("answer feedback service (dormant)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -1176,30 +1140,6 @@ describe("answer feedback service", () => {
     expect(result).toEqual({
       success: false,
       errorCode: "unknown_error",
-    });
-  });
-
-  it("maps the feedback_already_exists race response to its structured error code", async () => {
-    mockSupabase.functions.invoke.mockResolvedValue({
-      data: null,
-      error: {
-        context: {
-          clone: () => ({
-            json: async () => ({ error: "feedback_already_exists" }),
-          }),
-          json: async () => ({ error: "feedback_already_exists" }),
-        },
-      },
-    });
-
-    const result = await searchService.generateAnswerFeedback("answer-1", true);
-
-    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("answer-feedback", {
-      body: { practiceAnswerId: "answer-1", regenerate: true },
-    });
-    expect(result).toEqual({
-      success: false,
-      errorCode: "feedback_already_exists",
     });
   });
 
@@ -1247,38 +1187,4 @@ describe("answer feedback service", () => {
     });
   });
 
-  it("invokes answer-feedback with regeneration intent and normalizes the response", async () => {
-    mockSupabase.functions.invoke.mockResolvedValue({
-      data: {
-        feedbackId: "feedback-2",
-        model: "gpt-4o-mini",
-        feedback: {
-          strengths: ["Owned the outcome"],
-          improvements: ["Quantify impact"],
-          starBreakdown: { situation: "S", task: "T", action: "A", result: "R" },
-          nextAction: { text: "Add the percentage improvement." },
-        },
-      },
-      error: null,
-    });
-
-    const result = await searchService.generateAnswerFeedback("answer-2", true);
-
-    expect(mockSupabase.functions.invoke).toHaveBeenCalledWith("answer-feedback", {
-      body: { practiceAnswerId: "answer-2", regenerate: true },
-    });
-    expect(result).toEqual({
-      success: true,
-      feedback: {
-        id: "feedback-2",
-        practiceAnswerId: "answer-2",
-        model: "gpt-4o-mini",
-        createdAt: null,
-        strengths: [{ text: "Owned the outcome" }],
-        improvements: [{ text: "Quantify impact" }],
-        starBreakdown: { situation: "S", task: "T", action: "A", result: "R" },
-        nextAction: { text: "Add the percentage improvement." },
-      },
-    });
-  });
 });

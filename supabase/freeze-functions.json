@@ -1,0 +1,10 @@
+{
+  "projectRef": "vjwrirrqprjzdorignlz",
+  "functions": [
+    "company-research",
+    "job-analysis",
+    "cv-analysis",
+    "interview-question-generator",
+    "interview-research"
+  ]
+}

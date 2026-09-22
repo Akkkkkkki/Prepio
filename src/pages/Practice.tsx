@@ -1,3 +1,4 @@
+import { FROZEN_PRODUCT } from "@/lib/frozenProduct";
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useSwipeable } from "react-swipeable";
@@ -290,7 +291,7 @@ const Practice = () => {
   const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'draft' | 'serverSaved'>('idle');
   const [showCheckmark, setShowCheckmark] = useState(false);
   const [isCoachSheetOpen, setIsCoachSheetOpen] = useState(false);
-  const [isNotesExpanded, setIsNotesExpanded] = useState(false);
+  const [isNotesExpanded, setIsNotesExpanded] = useState(true);
   const { height: mobileFooterHeight, setRef: setMobileFooterElement } = useMobileFooterHeight(
     isMobile && sessionState === 'inProgress',
   );
@@ -316,7 +317,7 @@ const Practice = () => {
   useEffect(() => {
     let isCancelled = false;
 
-    if (!user?.id) {
+    if (!FROZEN_PRODUCT.answerFeedback || !user?.id) {
       setAnswerFeedbackAccess("free");
       return;
     }
@@ -352,6 +353,7 @@ const Practice = () => {
     if (missingIds.length === 0) return;
 
     let isCancelled = false;
+    if (!FROZEN_PRODUCT.answerFeedback) return;
     void searchService.getAnswerFeedbackForAnswers(missingIds).then((result) => {
       if (isCancelled || !result.success || !result.feedback) return;
       if (Object.keys(result.feedback).length === 0) return;
@@ -2740,19 +2742,6 @@ const getInterviewerFocus = (
             </div>
 
             <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "rounded-full px-2.5 py-1 text-xs font-medium",
-                  isRecording
-                    ? "bg-destructive/10 text-destructive"
-                    : isRecordingPaused
-                      ? "bg-amber-500/10 text-amber-700"
-                      : "bg-muted text-muted-foreground"
-                )}
-              >
-                {recordingHeaderCopy}
-              </span>
-
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" aria-label="Practice actions" className="h-11 w-11">
@@ -2908,104 +2897,6 @@ const getInterviewerFocus = (
             className="mx-auto max-w-md space-y-3"
             style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
           >
-            {(isRecording || isRecordingPaused) ? (
-              <div className="rounded-[20px] border border-destructive/20 bg-destructive/5 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium">Recording</p>
-                    <p className="mt-1 text-2xl font-semibold">{formatTime(recordingTime)}</p>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs font-medium text-destructive">
-                    <span className={cn("h-2.5 w-2.5 rounded-full", isRecording ? "animate-pulse bg-destructive" : "bg-amber-500")} />
-                    {isRecording ? "Live" : "Paused"}
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={clearRecording}
-                    className="h-12 rounded-2xl border-destructive/20 bg-background"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={isRecording ? pauseRecording : startRecording}
-                    className="h-12 rounded-2xl bg-background"
-                  >
-                    {isRecording ? (
-                      <>
-                        <Pause className="mr-2 h-4 w-4" />
-                        Pause
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="mr-2 h-4 w-4" />
-                        Resume
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-[20px] border bg-card/90 p-3 shadow-sm">
-                <div className="grid grid-cols-[1fr_auto] gap-3">
-                  <Button
-                    onClick={hasRecording ? playRecording : startRecording}
-                    variant={hasRecording ? "outline" : "default"}
-                    className="h-12 justify-start rounded-2xl px-4"
-                  >
-                    {hasRecording ? (
-                      <>
-                        <Play className="mr-2 h-4 w-4" />
-                        Play recording
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="mr-2 h-4 w-4" />
-                        Record answer
-                      </>
-                    )}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant={isNotesExpanded ? "secondary" : "outline"}
-                    onClick={() => setIsNotesExpanded(prev => !prev)}
-                    className="h-12 rounded-2xl px-4"
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Notes
-                  </Button>
-                </div>
-
-                <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                  <span>
-                    {hasRecording
-                      ? `Recording ready • ${formatTime(recordingTime)}`
-                      : notePreview}
-                  </span>
-                  {hasRecording && (
-                    <button
-                      type="button"
-                      onClick={startRecording}
-                      className="font-medium text-foreground"
-                    >
-                      Re-record
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {recordingError && (
-              <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                {recordingError}
-              </div>
-            )}
-
             {isOffline && (
               <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
                 {networkGuardCopy}
@@ -3345,7 +3236,7 @@ const getInterviewerFocus = (
               key={`helpers-${currentQuestion.id}`}
               defaultOpen={currentIndex === 0}
               title="Practice tools"
-              subtitle="Voice preview & quick notes"
+              subtitle="Write and save your answer"
             >
               <TooltipProvider delayDuration={150}>
                 <div className="space-y-4">
@@ -3354,73 +3245,6 @@ const getInterviewerFocus = (
                       {networkGuardCopy}
                     </div>
                   )}
-
-                  <div className="space-y-3 rounded-2xl border bg-background p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        Voice preview
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              className="text-muted-foreground transition hover:text-foreground"
-                              aria-label="Voice preview info"
-                            >
-                              <Info className="h-4 w-4" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>Audio stays on this device until uploads ship.</TooltipContent>
-                        </Tooltip>
-                      </div>
-                      <Badge variant={voiceStatus.variant} className="text-xs">
-                        {voiceStatus.label}
-                      </Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {!isRecording && !hasRecording && (
-                        <Button onClick={startRecording} className="flex-1 min-w-[140px]">
-                          <Mic className="mr-2 h-4 w-4" />
-                          Start recording
-                        </Button>
-                      )}
-
-                      {isRecording && (
-                        <Button onClick={stopRecording} variant="destructive" className="flex-1 min-w-[140px]">
-                          <Square className="mr-2 h-4 w-4" />
-                          Stop
-                        </Button>
-                      )}
-
-                      {hasRecording && !isRecording && (
-                        <>
-                          <Button onClick={playRecording} variant="outline" className="flex-1 min-w-[140px]">
-                            <Play className="mr-2 h-4 w-4" />
-                            Play
-                          </Button>
-                          <Button onClick={startRecording} variant="outline" className="flex-1 min-w-[140px]">
-                            <MicOff className="mr-2 h-4 w-4" />
-                            Re-record
-                          </Button>
-                          <Button onClick={clearRecording} variant="ghost" size="sm" className="h-10 px-3">
-                            <RotateCcw className="h-4 w-4 mr-1" />
-                            Reset
-                          </Button>
-                        </>
-                      )}
-                    </div>
-
-                    {recordingError && (
-                      <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                        {recordingError}
-                      </div>
-                    )}
-
-                    {completionError && (
-                      <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                        {completionError}
-                      </div>
-                    )}
-                  </div>
 
                   <div className="space-y-3 rounded-2xl border bg-background p-4">
                     <div className="flex items-center justify-between gap-2">

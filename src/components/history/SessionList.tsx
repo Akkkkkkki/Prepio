@@ -1,3 +1,4 @@
+import { FROZEN_PRODUCT } from "@/lib/frozenProduct";
 import { useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import { AlertTriangle, Clock3, Loader2, MessageSquareText, Star } from "lucide-react";
@@ -181,7 +182,9 @@ export const SessionList = ({
 
       const answerIds = result.answers.map((answer) => answer.id).filter(Boolean);
       if (answerIds.length > 0) {
-        const feedbackResult = await searchService.getAnswerFeedbackForAnswers(answerIds);
+        const feedbackResult = FROZEN_PRODUCT.answerFeedback
+          ? await searchService.getAnswerFeedbackForAnswers(answerIds)
+          : { success: true, feedback: {} };
         if (feedbackResult.success && feedbackResult.feedback) {
           setFeedbackByAnswerId((current) => ({ ...current, ...feedbackResult.feedback }));
         }
@@ -340,7 +343,7 @@ export const SessionList = ({
                               )}
                             </div>
 
-                            <AnswerFeedbackCard
+                            {FROZEN_PRODUCT.answerFeedback && <AnswerFeedbackCard
                               className="mt-4"
                               access={feedbackAccess}
                               feedback={feedbackByAnswerId[answer.id]}
@@ -352,7 +355,7 @@ export const SessionList = ({
                               onRegenerate={
                                 isOffline ? undefined : () => void handleGenerateFeedback(answer.id, true)
                               }
-                            />
+                            />}
                           </div>
                         );
                       })

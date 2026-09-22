@@ -957,7 +957,7 @@ describe("Dashboard mobile layout", () => {
     expect(scrollContainer.className).not.toMatch(/\bpb-28\b/);
   });
 
-  it("offers a story-gap CTA into the profile so gaps can be closed where they're fixed", async () => {
+  it("shows story gaps without a link to the retired profile", async () => {
     mockUseIsMobile.mockReturnValue(false);
     mockGetSearchResults.mockResolvedValue({
       success: true,
@@ -1009,7 +1009,7 @@ describe("Dashboard mobile layout", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^Why this plan/ }));
 
     expect(await screen.findByText("Leading through organisational change")).toBeTruthy();
-    const cta = screen.getByRole("link", { name: /Add matching stories in your profile/ });
-    expect(cta.getAttribute("href")).toBe("/profile");
+    const cta = screen.queryByRole("link", { name: /Add matching stories in your profile/ });
+    expect(cta).not.toBeInTheDocument();
   });
 });

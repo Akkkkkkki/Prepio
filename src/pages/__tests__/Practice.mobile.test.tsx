@@ -577,7 +577,7 @@ describe("Practice mobile layout", CI_FLAKE_RETRY, () => {
     });
   });
 
-  it("keeps touch swipe navigation on mobile and shows permission-denied recording guidance", async () => {
+  it("keeps touch swipe navigation and never offers recording in the freeze", async () => {
     const getUserMediaMock = vi
       .mocked(navigator.mediaDevices.getUserMedia)
       .mockRejectedValueOnce(new DOMException("Permission denied", "NotAllowedError"));
@@ -598,14 +598,9 @@ describe("Practice mobile layout", CI_FLAKE_RETRY, () => {
       ).toBe(true);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Record answer" }));
+    expect(screen.queryByRole("button", { name: /record answer|start recording/i })).not.toBeInTheDocument();
+    expect(getUserMediaMock).not.toHaveBeenCalled();
 
-    expect(getUserMediaMock).toHaveBeenCalledTimes(1);
-    expect(
-      await screen.findByText(
-        "Microphone access is blocked. Allow microphone access in your browser settings, then try again.",
-      ),
-    ).toBeInTheDocument();
   });
 
   it("lets users mark the current in-session question as needs work", async () => {
@@ -765,96 +760,6 @@ describe("Practice mobile layout", CI_FLAKE_RETRY, () => {
         "aria-pressed",
       ),
     ).toBe("true");
-  });
-
-  it("saves recorded audio without waiting for transcription", async () => {
-    vi.mocked(navigator.mediaDevices.getUserMedia).mockResolvedValueOnce({
-      getAudioTracks: () => [{ stop: vi.fn() }],
-      getTracks: () => [{ stop: vi.fn() }],
-    } as unknown as MediaStream);
-
-    mockTranscribePracticeAudio.mockReturnValueOnce(new Promise(() => undefined));
-
-    render(
-      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
-        <Routes>
-          <Route path="/practice" element={<Practice />} />
-        </Routes>
-      </MemoryRouter>
-    );
-
-    await startPracticeSession();
-
-    // Wait past the "Starting your practice session" loader for the in-session UI.
-    fireEvent.click(await screen.findByRole("button", { name: "Record answer" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Stop recording" }));
-
-    expect(await screen.findByText(/Recording ready/)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
-
-    await waitFor(() => {
-      expect(mockSavePracticeAnswer).toHaveBeenCalledWith(
-        expect.objectContaining({
-          sessionId: "session-1",
-          questionId: "question-1",
-          audioUrl: expect.stringMatching(/^user-1\/session-1\/question-1-\d+\.webm$/),
-          transcriptText: undefined,
-        }),
-      );
-    });
-
-    expect(mockUploadPracticeAudio).toHaveBeenCalledWith(
-      expect.any(File),
-      expect.stringMatching(/^user-1\/session-1\/question-1-\d+\.webm$/),
-    );
-    expect(mockTranscribePracticeAudio).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: expect.stringMatching(/^user-1\/session-1\/question-1-\d+\.webm$/),
-        mimeType: "audio/webm",
-        fileName: "practice-answer.webm",
-      }),
-    );
-    expect(await screen.findByText("Reflection checkpoint")).toBeInTheDocument();
-    expect(mockCompletePracticeSession).toHaveBeenCalledTimes(1);
-    expect(mockUpdatePracticeAnswerTranscript).not.toHaveBeenCalled();
-  });
-
-  it("tells the user when transcription fails after saving the recording", async () => {
-    vi.mocked(navigator.mediaDevices.getUserMedia).mockResolvedValueOnce({
-      getAudioTracks: () => [{ stop: vi.fn() }],
-      getTracks: () => [{ stop: vi.fn() }],
-    } as unknown as MediaStream);
-
-    mockTranscribePracticeAudio.mockResolvedValueOnce({ success: false });
-
-    render(
-      <MemoryRouter initialEntries={["/practice?searchId=search-1&stages=stage-1"]}>
-        <Routes>
-          <Route path="/practice" element={<Practice />} />
-        </Routes>
-      </MemoryRouter>
-    );
-
-    await startPracticeSession();
-
-    fireEvent.click(await screen.findByRole("button", { name: "Record answer" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Stop recording" }));
-
-    expect(await screen.findByText(/Recording ready/)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Save & Finish" }));
-
-    await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "Transcription unavailable",
-          description: "Your answer was still saved.",
-        }),
-      );
-    });
-    // The failure is surfaced, not swallowed into a transcript write.
-    expect(mockUpdatePracticeAnswerTranscript).not.toHaveBeenCalled();
   });
 
   it("keeps the user in practice when completion fails on the last answer", async () => {

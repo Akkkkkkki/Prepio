@@ -236,30 +236,6 @@ describe("Home flow", () => {
     expect(screen.getByDisplayValue("https://example.com/job")).toBeInTheDocument();
   });
 
-  it("prefills role and country from saved profile preferences for a returning signed-in user", async () => {
-    mockUseIsMobile.mockReturnValue(false);
-    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
-    mockGetCandidateProfile.mockResolvedValue({
-      success: true,
-      profile: {
-        preferences: {
-          targetRoles: ["Staff Engineer"],
-          targetIndustries: [],
-          locations: ["Germany"],
-          workModes: [],
-          notes: "",
-        },
-      },
-    });
-
-    renderHome();
-
-    expect(await screen.findByDisplayValue("Staff Engineer")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /Role details & job description/ }));
-    expect(await screen.findByDisplayValue("Germany")).toBeInTheDocument();
-  });
-
   it("never overwrites a saved draft with profile preferences", async () => {
     mockUseIsMobile.mockReturnValue(false);
     mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
@@ -297,258 +273,13 @@ describe("Home flow", () => {
     expect(mockGetCandidateProfile).not.toHaveBeenCalled();
   });
 
-  it("generates a guest preview without requiring auth", async () => {
-    renderHome();
-
-    fireEvent.change(screen.getByLabelText("Company *"), {
-      target: { value: "Stripe" },
-    });
-    fireEvent.change(screen.getByLabelText("Role (optional)"), {
-      target: { value: "Platform Engineer" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
-
-    await waitFor(() => {
-      expect(mockCreateResearchPreview).toHaveBeenCalledWith({
-        company: "Stripe",
-        role: "Platform Engineer",
-      });
-    });
-
-    expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
-    expect(screen.getByText("Systems judgment")).toBeInTheDocument();
-    expect(screen.getByText("How would you design a resilient payment event pipeline?")).toBeInTheDocument();
-    expect(screen.queryByTestId("auth-state")).not.toBeInTheDocument();
-  });
-
-  it("shows one guest conversion CTA and carries preview auth state to /auth", async () => {
-    renderHome();
-
-    fireEvent.change(screen.getByLabelText("Company *"), {
-      target: { value: "Stripe" },
-    });
-    fireEvent.change(screen.getByLabelText("Role (optional)"), {
-      target: { value: "Platform Engineer" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
-
-    expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save full plan" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Sign in to generate full practice set" }));
-
-    const savedDraft = JSON.parse(
-      window.sessionStorage.getItem(RESEARCH_DRAFT_STORAGE_KEY) || "{}",
-    );
-
-    expect(savedDraft).toMatchObject({
-      company: "Stripe",
-      role: "Platform Engineer",
-      step: "details",
-      preview: {
-        previewId: "preview-1",
-        confidence: "medium",
-      },
-    });
-
-    const authState = JSON.parse(
-      (await screen.findByTestId("auth-state")).textContent || "{}",
-    );
-
-    expect(authState).toMatchObject({
-      intent: "research",
-      resumeLabel: "Research",
-      source: "research_home",
-      draftStorageKey: RESEARCH_DRAFT_STORAGE_KEY,
-      from: { pathname: "/new-interview" },
-    });
-  });
-
-  it("gives the guest landing exactly one h1 with a valid heading outline (desktop)", () => {
-    mockUseIsMobile.mockReturnValue(false);
-
-    renderHome();
-
-    // The guest hero must be the single top-level heading so screen-reader
-    // wayfinding has an anchor (WCAG 2.4.6). Built-in matchers only, to keep
-    // this file off the typecheck baseline (docs/TESTING.md).
-    const h1s = document.querySelectorAll("h1");
-    expect(h1s.length).toBe(1);
-    expect(h1s[0].textContent).toContain(
-      "Walk into your next interview knowing exactly what to expect.",
-    );
-
-    // Sections below the hero step down one level at a time — no h1 -> h3 skip.
-    expect(screen.getByText("How it works").tagName).toBe("H2");
-    expect(
-      screen.getByText("How Stripe Senior Product Manager questions look in Prepio").tagName,
-    ).toBe("H2");
-  });
-
-  it("keeps the single guest h1 on mobile", () => {
-    mockUseIsMobile.mockReturnValue(true);
-
-    renderHome();
-
-    const h1s = document.querySelectorAll("h1");
-    expect(h1s.length).toBe(1);
-    expect(h1s[0].textContent).toContain(
-      "Walk into your next interview knowing exactly what to expect.",
-    );
-  });
-
-  it("shows the compact teaser for anonymous visitors instead of the full research form", () => {
-    mockUseIsMobile.mockReturnValue(false);
-
-    renderHome();
-
-    expect(screen.getByText("Walk into your next interview knowing exactly what to expect.")).toBeInTheDocument();
-    expect(screen.getByText("How it works")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Country")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Role Description Links (optional)")).not.toBeInTheDocument();
-    expect(screen.queryByText("Step 1 of 3")).not.toBeInTheDocument();
-  });
-
-  it("replaces the static Stripe sample once a guest starts entering another company", () => {
-    mockUseIsMobile.mockReturnValue(false);
-
-    renderHome();
-
-    expect(
-      screen.getByText("How Stripe Senior Product Manager questions look in Prepio"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Tell me about a time you shipped a payments product/),
-    ).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("Company *"), {
-      target: { value: "Anthropic" },
-    });
-
-    expect(screen.getByText("Your Anthropic preview will appear here")).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Tell me about a time you shipped a payments product/),
-    ).not.toBeInTheDocument();
-  });
-
-  it("clears a generated preview once the guest edits the company away from it", async () => {
-    mockUseIsMobile.mockReturnValue(false);
-
-    renderHome();
-
-    fireEvent.change(screen.getByLabelText("Company *"), {
-      target: { value: "Stripe" },
-    });
-    fireEvent.change(screen.getByLabelText("Role (optional)"), {
-      target: { value: "Platform Engineer" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
-
-    expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("Company *"), {
-      target: { value: "Anthropic" },
-    });
-
-    expect(screen.queryByText("Interview brief preview")).not.toBeInTheDocument();
-    expect(screen.getByText("Your Anthropic preview will appear here")).toBeInTheDocument();
-  });
-
-  it("discards an in-flight preview response after the guest edits the company", async () => {
-    mockUseIsMobile.mockReturnValue(false);
-    let resolvePreview:
-      | ((result: Awaited<ReturnType<typeof mockCreateResearchPreview>>) => void)
-      | undefined;
-
-    mockCreateResearchPreview.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolvePreview = resolve;
-      }),
-    );
-
-    renderHome();
-
-    fireEvent.change(screen.getByLabelText("Company *"), {
-      target: { value: "Stripe" },
-    });
-    fireEvent.change(screen.getByLabelText("Role (optional)"), {
-      target: { value: "Platform Engineer" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
-
-    await waitFor(() => expect(mockCreateResearchPreview).toHaveBeenCalledOnce());
-
-    fireEvent.change(screen.getByLabelText("Company *"), {
-      target: { value: "Anthropic" },
-    });
-
-    await act(async () => {
-      resolvePreview?.({
-        success: true,
-        preview: {
-          previewId: "preview-stale",
-          status: "completed",
-          company: "Stripe",
-          role: "Platform Engineer",
-          confidence: "medium",
-          sourceSummary: "Public signals from interview reviews.",
-          expiresAt: "2026-05-18T00:00:00.000Z",
-          stages: [],
-          assessmentSignals: [],
-          questions: [],
-        },
-      });
-    });
-
-    await waitFor(() => {
-      expect(screen.queryByText("Interview brief preview")).not.toBeInTheDocument();
-    });
-    expect(screen.getByText("Your Anthropic preview will appear here")).toBeInTheDocument();
-  });
-
-  it("keeps a preview when inputs differ only by collapsible internal whitespace", async () => {
-    mockUseIsMobile.mockReturnValue(false);
-    // The edge function collapses internal whitespace, so it returns the
-    // normalized company even though the form still holds the doubled spaces.
-    mockCreateResearchPreview.mockResolvedValueOnce({
-      success: true,
-      preview: {
-        previewId: "preview-2",
-        status: "completed",
-        company: "Meta Platforms",
-        role: "Platform Engineer",
-        confidence: "medium",
-        sourceSummary: "Public signals from interview reviews.",
-        expiresAt: "2026-05-18T00:00:00.000Z",
-        stages: [],
-        assessmentSignals: [],
-        questions: [],
-      },
-    });
-
-    renderHome();
-
-    fireEvent.change(screen.getByLabelText("Company *"), {
-      target: { value: "Meta  Platforms" },
-    });
-    fireEvent.change(screen.getByLabelText("Role (optional)"), {
-      target: { value: "Platform Engineer" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Preview my prep" }));
-
-    expect(await screen.findByText("Interview brief preview")).toBeInTheDocument();
-    // The preview must survive — not be cleared as stale by the normalization check.
-    expect(screen.getByText("Interview brief preview")).toBeInTheDocument();
-  });
-
   it("keeps the full desktop research form for authenticated users", async () => {
     mockUseIsMobile.mockReturnValue(false);
     mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
     renderHome();
 
-    await waitFor(() => {
-      expect(mockGetResume).toHaveBeenCalledWith("user-1");
-    });
+    expect(mockGetResume).not.toHaveBeenCalled();
 
     expect(screen.getByLabelText("Company *")).toBeInTheDocument();
     expect(screen.getByLabelText("Role (optional)")).toBeInTheDocument();
@@ -641,94 +372,6 @@ describe("Home flow", () => {
         }),
       );
     });
-  });
-
-  it("keeps local resume parsing available while offline and skips profile sync", async () => {
-    mockUseIsMobile.mockReturnValue(false);
-    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
-    mockNetworkStatus.isOnline = false;
-    mockNetworkStatus.isOffline = true;
-
-    renderHome();
-
-    await waitFor(() => {
-      expect(mockGetResume).toHaveBeenCalledWith("user-1");
-    });
-
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement | null;
-    expect(fileInput).not.toBeNull();
-
-    fireEvent.change(fileInput as HTMLInputElement, {
-      target: {
-        files: [new File(["resume"], "resume.pdf", { type: "application/pdf" })],
-      },
-    });
-
-    expect(
-      await screen.findByDisplayValue(
-        "Parsed resume text with enough content to update the draft while offline.",
-      ),
-    ).toBeInTheDocument();
-
-    expect(mockAnalyzeCV).not.toHaveBeenCalled();
-    expect(mockUploadResumeFile).not.toHaveBeenCalled();
-    expect(mockSaveResume).not.toHaveBeenCalled();
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Resume parsed locally",
-      }),
-    );
-  });
-
-  it("preserves legacy parsed data when import draft creation is unavailable", async () => {
-    mockUseIsMobile.mockReturnValue(false);
-    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
-    mockAnalyzeCV.mockResolvedValue({
-      success: true,
-      parsedData: {
-        personalInfo: { location: "London" },
-        professional: { currentRole: "Staff Engineer" },
-      },
-    });
-    mockCreateProfileImport.mockResolvedValue({
-      success: false,
-      error: new Error("profile import unavailable"),
-    });
-
-    renderHome();
-
-    await waitFor(() => {
-      expect(mockGetResume).toHaveBeenCalledWith("user-1");
-    });
-
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement | null;
-    expect(fileInput).not.toBeNull();
-
-    fireEvent.change(fileInput as HTMLInputElement, {
-      target: {
-        files: [new File(["resume"], "resume.pdf", { type: "application/pdf" })],
-      },
-    });
-
-    await waitFor(() => {
-      expect(mockAnalyzeCV).toHaveBeenCalledWith(
-        "Parsed resume text with enough content to update the draft while offline.",
-      );
-    });
-
-    expect(mockSaveResume).toHaveBeenCalledWith(
-      expect.objectContaining({
-        parsedData: expect.objectContaining({
-          personalInfo: { location: "London" },
-          professional: { currentRole: "Staff Engineer" },
-        }),
-      }),
-    );
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Resume uploaded",
-      }),
-    );
   });
 
   it("reserves bottom padding equal to the measured fixed footer height plus a small buffer so chips clear it", async () => {
@@ -829,4 +472,33 @@ describe("Home flow", () => {
     expect(screen.queryByText(/insider insights/i)).toBeNull();
     expect(screen.queryByText(/for you and your friends/i)).toBeNull();
   });
+  it.each([true, false])("shows an offline local sample with no guest AI or paid controls (mobile=%s)", (mobile) => {
+    mockUseIsMobile.mockReturnValue(mobile);
+    mockNetworkStatus.isOffline = true;
+    mockNetworkStatus.isOnline = false;
+    renderHome();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "View sample plan" }));
+    expect(screen.getByRole("heading", { name: "Payments company · Product Manager" })).toBeInTheDocument();
+    expect(mockCreateResearchPreview).not.toHaveBeenCalled();
+    expect(mockStartProcessing).not.toHaveBeenCalled();
+    expect(screen.queryByRole("link", { name: /pricing|upgrade/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/create account/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "Sign in to prepare your interview" }));
+    expect(JSON.parse(screen.getByTestId("auth-state").textContent!).from.pathname).toBe("/new-interview");
+  });
+
+  it("keeps pasted CV text without loading or activating a profile", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+    mockUseIsMobile.mockReturnValue(false);
+    renderHome();
+    const cv = await screen.findByLabelText("CV text (optional)");
+    fireEvent.change(cv, { target: { value: "Synthetic product management experience" } });
+    expect(cv).toHaveValue("Synthetic product management experience");
+    expect(screen.queryByRole("button", { name: /upload/i })).not.toBeInTheDocument();
+    expect(mockGetCandidateProfile).not.toHaveBeenCalled();
+    expect(mockGetResume).not.toHaveBeenCalled();
+    expect(mockCreateProfileImport).not.toHaveBeenCalled();
+  });
+
 });

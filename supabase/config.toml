@@ -1,5 +1,12 @@
 project_id = "vjwrirrqprjzdorignlz"
 
+[auth]
+enable_signup = false
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = false
+
 [edge_runtime]
 policy = "per_worker"
 

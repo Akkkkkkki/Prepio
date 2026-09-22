@@ -3,17 +3,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from '@supabase/supabase-js';
 
 const getAuthRedirectUrl = () =>
-  typeof window === "undefined" ? undefined : `${window.location.origin}/auth`;
+  typeof window === "undefined" ? undefined : `${window.location.origin}/auth?flow=recovery`;
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  // Keep invite/recovery intent in the provider so lazy route loading cannot miss
+  // the Auth event. The query only selects a view; updateUser still requires a session.
+  const [passwordSetupRequired, setPasswordSetupRequired] = useState(() => {
+    const flow = new URLSearchParams(window.location.search).get("flow");
+    const type = new URLSearchParams(window.location.hash.slice(1)).get("type");
+    return flow === "invite" || flow === "recovery" || type === "invite" || type === "recovery";
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        if (event === "PASSWORD_RECOVERY") setPasswordSetupRequired(true);
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
@@ -35,22 +43,6 @@ export function useAuth() {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password
-      });
-      return { error };
-    } catch (error) {
-      return { error };
-    }
-  };
-
-  const signUp = async (email: string, password: string) => {
-    try {
-      const redirectUrl = `${window.location.origin}/`;
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: redirectUrl
-        }
       });
       return { error };
     } catch (error) {
@@ -106,8 +98,9 @@ export function useAuth() {
     user,
     session,
     loading,
+    passwordSetupRequired,
+    finishPasswordSetup: () => setPasswordSetupRequired(false),
     signIn,
-    signUp,
     signOut,
     resetPassword,
     resendVerification,

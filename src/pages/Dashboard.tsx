@@ -447,7 +447,6 @@ function CandidatePositioningCard({ positioning }: { positioning: CandidatePosit
             icon: Search,
             iconClassName: "text-blue-600",
             sectionClassName: "bg-blue-50 dark:bg-blue-950/40",
-            cta: { label: "Add matching stories in your profile", to: "/profile" },
           })}
           {renderList({
             items: positioning.mismatchRisks,

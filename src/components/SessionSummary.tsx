@@ -1,3 +1,4 @@
+import { FROZEN_PRODUCT } from "@/lib/frozenProduct";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -265,16 +266,12 @@ export const SessionSummary = ({
                       )}
                     </div>
                     <Tabs
-                      // Key on feedback presence so an async prefetch that fills
-                      // cached coaching after mount re-runs defaultValue and
-                      // surfaces the feedback tab (Tabs is uncontrolled).
-                      key={feedbackForAnswer(answer.id) ? "with-feedback" : "no-feedback"}
-                      defaultValue={feedbackForAnswer(answer.id) ? "feedback" : "answer"}
+                      defaultValue="answer"
                       className="mt-3"
                     >
-                      <TabsList className="grid w-full grid-cols-2">
+                      <TabsList className="grid w-full grid-cols-1">
                         <TabsTrigger value="answer">Your answer</TabsTrigger>
-                        <TabsTrigger value="feedback">AI feedback</TabsTrigger>
+                        {FROZEN_PRODUCT.answerFeedback && <TabsTrigger value="feedback">AI feedback</TabsTrigger>}
                       </TabsList>
                       <TabsContent value="answer" className="mt-3 space-y-3">
                         {(answer.textAnswer || answer.transcriptText) && (

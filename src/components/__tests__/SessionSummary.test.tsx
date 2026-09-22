@@ -1,10 +1,9 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
 import { SessionSummary } from "../SessionSummary";
 import type { SavedPracticeAnswerRecord } from "@/hooks/usePracticeSession";
-import type { AnswerFeedback } from "@/shared/answer-feedback";
 
 const baseProps = {
   answeredCount: 1,
@@ -28,14 +27,6 @@ const renderSummary = (savedAnswers: SavedPracticeAnswerRecord[]) =>
       />
     </MemoryRouter>,
   );
-
-// Coaching lives behind the "AI feedback" tab in each answer card; activate it
-// before asserting on feedback content.
-const openFeedbackTab = () => {
-  const tab = screen.getByRole("tab", { name: /ai feedback/i });
-  fireEvent.mouseDown(tab);
-  fireEvent.click(tab);
-};
 
 describe("SessionSummary rubric self-check", () => {
   it("renders good and weak signals from the saved answer", () => {
@@ -133,198 +124,15 @@ describe("SessionSummary rubric self-check", () => {
     expect(secondCheckbox).toHaveAttribute("data-state", "unchecked");
   });
 
-  it("does not show a feedback generation action for free users", () => {
-    renderSummary([
-      {
-        id: "answer-1",
-        questionId: "q-1",
-        question: "Tell me about a hard tradeoff.",
-        stageName: "Behavioral",
-        textAnswer: "I picked the smaller scope to ship on time.",
-        goodSignals: [],
-        weakSignals: [],
-      },
-    ]);
-
-    openFeedbackTab();
-
-    expect(screen.getByText("Detailed coaching is paid")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Free answers stay saved and rateable without generating AI feedback/i),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /get detailed coaching/i })).not.toBeInTheDocument();
+  it.each(["free", "paid"] as const)("keeps saved answers visible and paid feedback absent for %s accounts", (access) => {
+    const onGenerateFeedback = vi.fn();
+    render(<MemoryRouter><SessionSummary {...baseProps}
+      onRateAnswer={vi.fn()} savedAnswers={[{ id: "a-1", questionId: "q-1", question: "Describe a tradeoff", stageName: "Behavioral", textAnswer: "Saved synthetic answer" }]}
+      answerFeedbackAccess={access} onGenerateFeedback={onGenerateFeedback} /> </MemoryRouter>);
+    expect(screen.getByText("Saved synthetic answer")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /AI feedback/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /feedback|upgrade/i })).not.toBeInTheDocument();
+    expect(onGenerateFeedback).not.toHaveBeenCalled();
   });
 
-  it("shows the feedback generation action for paid users", () => {
-    render(
-      <MemoryRouter>
-        <SessionSummary
-          {...baseProps}
-          savedAnswers={[
-            {
-              id: "answer-1",
-              questionId: "q-1",
-              question: "Tell me about a hard tradeoff.",
-              stageName: "Behavioral",
-              textAnswer: "I picked the smaller scope to ship on time.",
-              goodSignals: [],
-              weakSignals: [],
-            },
-          ]}
-          onRateAnswer={vi.fn().mockResolvedValue(undefined)}
-          answerFeedbackAccess="paid"
-        />
-      </MemoryRouter>,
-    );
-
-    openFeedbackTab();
-
-    expect(screen.getByRole("button", { name: /get detailed coaching/i })).toBeInTheDocument();
-  });
-
-  it("generates and renders feedback for a paid user", async () => {
-    const generated: AnswerFeedback = {
-      id: "fb-1",
-      practiceAnswerId: "answer-1",
-      model: "gpt-4o-mini",
-      createdAt: null,
-      strengths: [{ text: "Owned the outcome" }],
-      improvements: [{ text: "Add a number" }],
-      starBreakdown: { situation: "", task: "", action: "", result: "" },
-      nextAction: { text: "Re-tell with a metric." },
-    };
-    const onGenerateFeedback = vi.fn().mockResolvedValue({ success: true, feedback: generated });
-
-    render(
-      <MemoryRouter>
-        <SessionSummary
-          {...baseProps}
-          savedAnswers={[
-            {
-              id: "answer-1",
-              questionId: "q-1",
-              question: "Tell me about a hard tradeoff.",
-              stageName: "Behavioral",
-              textAnswer: "I picked the smaller scope to ship on time.",
-              goodSignals: [],
-              weakSignals: [],
-            },
-          ]}
-          onRateAnswer={vi.fn().mockResolvedValue(undefined)}
-          answerFeedbackAccess="paid"
-          onGenerateFeedback={onGenerateFeedback}
-        />
-      </MemoryRouter>,
-    );
-
-    openFeedbackTab();
-
-    fireEvent.click(screen.getByRole("button", { name: /get detailed coaching/i }));
-
-    expect(onGenerateFeedback).toHaveBeenCalledWith("answer-1", false);
-    expect(await screen.findByText("Owned the outcome")).toBeInTheDocument();
-    expect(screen.getByText(/Re-tell with a metric/)).toBeInTheDocument();
-  });
-
-  it("shows pre-loaded feedback without a generate click", () => {
-    render(
-      <MemoryRouter>
-        <SessionSummary
-          {...baseProps}
-          savedAnswers={[
-            {
-              id: "answer-1",
-              questionId: "q-1",
-              question: "Tell me about a hard tradeoff.",
-              stageName: "Behavioral",
-              textAnswer: "I picked the smaller scope to ship on time.",
-              goodSignals: [],
-              weakSignals: [],
-            },
-          ]}
-          onRateAnswer={vi.fn().mockResolvedValue(undefined)}
-          answerFeedbackAccess="paid"
-          onGenerateFeedback={vi.fn()}
-          feedbackByAnswerId={{
-            "answer-1": {
-              id: "fb-9",
-              practiceAnswerId: "answer-1",
-              model: null,
-              createdAt: null,
-              strengths: [{ text: "Concrete example" }],
-              improvements: [],
-              starBreakdown: { situation: "", task: "", action: "", result: "" },
-              nextAction: { text: "Tighten the opening." },
-            },
-          }}
-        />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByText("Concrete example")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /regenerate/i })).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /get detailed coaching/i }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("opens cached feedback when it arrives after the summary mounts", () => {
-    const savedAnswer: SavedPracticeAnswerRecord = {
-      id: "answer-1",
-      questionId: "q-1",
-      question: "Tell me about a hard tradeoff.",
-      stageName: "Behavioral",
-      textAnswer: "I picked the smaller scope to ship on time.",
-      goodSignals: [],
-      weakSignals: [],
-    };
-    const cachedFeedback: AnswerFeedback = {
-      id: "fb-9",
-      practiceAnswerId: "answer-1",
-      model: null,
-      createdAt: null,
-      strengths: [{ text: "Cached coaching loaded" }],
-      improvements: [],
-      starBreakdown: { situation: "", task: "", action: "", result: "" },
-      nextAction: { text: "Lead with the tradeoff." },
-    };
-
-    const { rerender } = render(
-      <MemoryRouter>
-        <SessionSummary
-          {...baseProps}
-          savedAnswers={[savedAnswer]}
-          onRateAnswer={vi.fn().mockResolvedValue(undefined)}
-          answerFeedbackAccess="paid"
-          onGenerateFeedback={vi.fn()}
-        />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByRole("tab", { name: /your answer/i })).toHaveAttribute(
-      "data-state",
-      "active",
-    );
-    expect(screen.queryByText("Cached coaching loaded")).not.toBeInTheDocument();
-
-    rerender(
-      <MemoryRouter>
-        <SessionSummary
-          {...baseProps}
-          savedAnswers={[savedAnswer]}
-          onRateAnswer={vi.fn().mockResolvedValue(undefined)}
-          answerFeedbackAccess="paid"
-          onGenerateFeedback={vi.fn()}
-          feedbackByAnswerId={{ "answer-1": cachedFeedback }}
-        />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByRole("tab", { name: /ai feedback/i })).toHaveAttribute(
-      "data-state",
-      "active",
-    );
-    expect(screen.getByText("Cached coaching loaded")).toBeInTheDocument();
-    expect(screen.getByText(/Lead with the tradeoff/i)).toBeInTheDocument();
-  });
 });
