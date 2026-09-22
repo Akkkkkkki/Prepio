@@ -1,3 +1,4 @@
+import { FROZEN_PRODUCT } from "@/lib/frozenProduct";
 import { supabase } from "@/integrations/supabase/client";
 
 export type BillingCadence = "monthly" | "quarterly" | "annual";
@@ -43,6 +44,7 @@ export async function createCheckoutSession(cadence: BillingCadence): Promise<{
   url: string;
   sessionId: string;
 }> {
+  if (!FROZEN_PRODUCT.billing) throw new BillingError("billing_unavailable", "Prepio is free and invite-only.");
   const { data, error } = await supabase.functions.invoke("create-checkout-session", {
     body: { cadence },
   });
@@ -60,6 +62,7 @@ export async function createCheckoutSession(cadence: BillingCadence): Promise<{
 }
 
 export async function createPortalSession(): Promise<{ url: string }> {
+  if (!FROZEN_PRODUCT.billing) throw new BillingError("billing_unavailable", "Prepio is free and invite-only.");
   const { data, error } = await supabase.functions.invoke("create-portal-session", {
     body: {},
   });

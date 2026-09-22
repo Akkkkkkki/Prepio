@@ -11,10 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAuthResumeLabel, type AuthReturnState } from "@/lib/researchDraft";
 
-type AuthView = "signin" | "signup" | "reset-password" | "resend-verification" | "set-new-password";
+type AuthView = "signin" | "reset-password" | "resend-verification" | "set-new-password";
 
 const Auth = () => {
   const [authView, setAuthView] = useState<AuthView>("signin");
@@ -25,11 +24,6 @@ const Auth = () => {
     email: "",
     password: "",
   });
-  const [signUpData, setSignUpData] = useState({
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
   const [resetEmail, setResetEmail] = useState("");
   const [verificationEmail, setVerificationEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -38,14 +32,14 @@ const Auth = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, signIn, signUp, resetPassword, resendVerification, updatePassword } = useAuthContext();
+  const { user, signIn, resetPassword, resendVerification, updatePassword, passwordSetupRequired, finishPasswordSetup } = useAuthContext();
   const { isOffline } = useNetworkStatus();
   const authState = location.state as AuthReturnState | undefined;
   const resumeTarget = getAuthResumeLabel(authState);
   const redirectPath = authState?.from
     ? `${authState.from.pathname}${authState.from.search || ""}`
     : "/interviews";
-  const preferredEmail = signInData.email.trim() || signUpData.email.trim();
+  const preferredEmail = signInData.email.trim();
 
   // Listen for Supabase PASSWORD_RECOVERY event to enter the set-new-password view
   useEffect(() => {
@@ -61,10 +55,13 @@ const Auth = () => {
 
   // Redirect authenticated users away — unless they're resetting their password
   useEffect(() => {
-    if (user && !isRecoverySession) {
+    if (passwordSetupRequired) {
+      setAuthView("set-new-password");
+    }
+    if (user && !isRecoverySession && !passwordSetupRequired) {
       navigate(redirectPath, { replace: true });
     }
-  }, [navigate, redirectPath, user, isRecoverySession]);
+  }, [navigate, redirectPath, user, isRecoverySession, passwordSetupRequired]);
 
   const clearFeedback = () => {
     setError("");
@@ -84,61 +81,15 @@ const Auth = () => {
     clearFeedback();
   };
 
-  const handleInputChange = (
-    mode: "signin" | "signup",
-    field: "email" | "password" | "confirmPassword",
-    value: string,
-  ) => {
-    if (mode === "signin") {
-      setSignInData((prev) => ({ ...prev, [field]: value }));
-    } else {
-      setSignUpData((prev) => ({ ...prev, [field]: value }));
-    }
-
-    setError("");
-  };
-
-  const handleSubmit = async (e: React.FormEvent, mode: "signin" | "signup") => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearFeedback();
-
-    const formData = mode === "signin" ? signInData : signUpData;
-
-    if (mode === "signup" && formData.password !== formData.confirmPassword) {
-      setError("Passwords don't match.");
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-
     setIsLoading(true);
-
     try {
-      if (isOffline) {
-        throw new Error("Reconnect to continue with authentication.");
-      }
-
-      if (mode === "signup") {
-        const { error: signUpError } = await signUp(formData.email, formData.password);
-
-        if (signUpError) {
-          throw signUpError;
-        }
-
-        setVerificationEmail(formData.email);
-        setSuccess("Account created. Check your email for a verification link.");
-      } else {
-        const { error: signInError } = await signIn(formData.email, formData.password);
-
-        if (signInError) {
-          throw signInError;
-        }
-
-        navigate(redirectPath, { replace: true });
-      }
+      if (isOffline) throw new Error("Reconnect to continue with authentication.");
+      const { error: signInError } = await signIn(signInData.email.trim(), signInData.password);
+      if (signInError) throw signInError;
+      navigate(redirectPath, { replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Authentication failed. Please try again.");
     } finally {
@@ -233,6 +184,7 @@ const Auth = () => {
         throw updateError;
       }
 
+      finishPasswordSetup?.();
       setIsRecoverySession(false);
       setSuccess("Password updated. You're now signed in.");
       navigate("/interviews", { replace: true });
@@ -260,7 +212,7 @@ const Auth = () => {
         <Alert className="mb-5 border-amber-300 bg-amber-50 text-amber-950">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            You&apos;re offline. Sign-in, sign-up, password reset, and verification resend stay unavailable until you reconnect.
+            You&apos;re offline. Sign-in, password reset, and verification resend stay unavailable until you reconnect.
           </AlertDescription>
         </Alert>
       )}
@@ -281,19 +233,10 @@ const Auth = () => {
     </>
   );
 
-  const renderSignInAndSignUp = () => (
-    <Tabs
-      value={authView === "signup" ? "signup" : "signin"}
-      onValueChange={(value) => openView(value as "signin" | "signup")}
-      className="w-full"
-    >
-      <TabsList className="mb-6 grid w-full grid-cols-2">
-        <TabsTrigger value="signin">Sign In</TabsTrigger>
-        <TabsTrigger value="signup">Sign Up</TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="signin">
-        <form onSubmit={(e) => handleSubmit(e, "signin")} className="space-y-4">
+  const renderSignIn = () => (
+    <>
+      <p className="mb-5 text-sm text-muted-foreground">Prepio is free and invite-only. Sign in with your invited account. Ask the person who invited you if you need access.</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="signin-email">Email</Label>
             <div className="relative">
@@ -303,7 +246,7 @@ const Auth = () => {
                 type="email"
                 placeholder="your@email.com"
                 value={signInData.email}
-                onChange={(e) => handleInputChange("signin", "email", e.target.value)}
+                onChange={(e) => setSignInData(prev => ({ ...prev, email: e.target.value }))}
                 className="pl-10"
                 required
               />
@@ -319,7 +262,7 @@ const Auth = () => {
                 type="password"
                 placeholder="••••••••"
                 value={signInData.password}
-                onChange={(e) => handleInputChange("signin", "password", e.target.value)}
+                onChange={(e) => setSignInData(prev => ({ ...prev, password: e.target.value }))}
                 className="pl-10"
                 required
               />
@@ -349,78 +292,7 @@ const Auth = () => {
             Resend verification email
           </Button>
         </div>
-      </TabsContent>
-
-      <TabsContent value="signup">
-        <form onSubmit={(e) => handleSubmit(e, "signup")} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="signup-email">Email</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="signup-email"
-                type="email"
-                placeholder="your@email.com"
-                value={signUpData.email}
-                onChange={(e) => handleInputChange("signup", "email", e.target.value)}
-                className="pl-10"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="signup-password">Password</Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="signup-password"
-                type="password"
-                placeholder="••••••••"
-                value={signUpData.password}
-                onChange={(e) => handleInputChange("signup", "password", e.target.value)}
-                className="pl-10"
-                minLength={6}
-                required
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">At least 6 characters.</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="signup-confirm-password">Confirm Password</Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="signup-confirm-password"
-                type="password"
-                placeholder="••••••••"
-                value={signUpData.confirmPassword}
-                onChange={(e) => handleInputChange("signup", "confirmPassword", e.target.value)}
-                className="pl-10"
-                minLength={6}
-                required
-              />
-            </div>
-          </div>
-
-          <Button type="submit" className="w-full" disabled={isLoading || isOffline}>
-            {isLoading ? "Creating account..." : "Create Account"}
-          </Button>
-        </form>
-
-        <div className="mt-4 flex flex-col gap-2 text-sm">
-          <Button
-            type="button"
-            variant="link"
-            className="h-auto justify-start px-0"
-            onClick={() => openView("resend-verification")}
-          >
-            Already signed up? Resend verification email.
-          </Button>
-        </div>
-      </TabsContent>
-    </Tabs>
+    </>
   );
 
   const renderResetPassword = () => (
@@ -588,7 +460,7 @@ const Auth = () => {
             }
           : {
               title: "Welcome",
-              description: "Sign in or create an account to continue.",
+              description: "Sign in with your invited account to continue.",
             };
 
   return (
@@ -626,7 +498,7 @@ const Auth = () => {
                   ? renderResetPassword()
                   : authView === "resend-verification"
                     ? renderResendVerification()
-                    : renderSignInAndSignUp()}
+                    : renderSignIn()}
 
               <p className="mt-6 text-center text-xs text-muted-foreground">
                 By continuing, you agree to the current Prepio terms and privacy policy.

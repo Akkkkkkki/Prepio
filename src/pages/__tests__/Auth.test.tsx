@@ -166,4 +166,27 @@ describe("Auth page", () => {
 
     expect(await screen.findByText("Interviews target")).toBeInTheDocument();
   });
+  it("has no public sign-up control", () => {
+    renderAuth();
+    expect(screen.getByText(/free and invite-only/)).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /sign up/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /create account/i })).not.toBeInTheDocument();
+    expect(mockSignUp).not.toHaveBeenCalled();
+  });
+
+  it("lets an invited session set a password before redirecting", async () => {
+    const finishPasswordSetup = vi.fn();
+    mockUseAuthContext.mockReturnValue({
+      user: { id: "synthetic-invite" }, passwordSetupRequired: true,
+      updatePassword: mockUpdatePassword, finishPasswordSetup,
+    });
+    renderAuth();
+    fireEvent.change(await screen.findByLabelText("New password"), { target: { value: "synthetic-new-password" } });
+    fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: "synthetic-new-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Set new password" }));
+    await waitFor(() => expect(mockUpdatePassword).toHaveBeenCalledWith("synthetic-new-password"));
+    expect(finishPasswordSetup).toHaveBeenCalledOnce();
+    expect(await screen.findByText("Interviews target")).toBeInTheDocument();
+  });
+
 });

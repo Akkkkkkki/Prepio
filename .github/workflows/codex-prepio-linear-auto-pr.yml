@@ -2,11 +2,7 @@ name: Codex Scheduled Linear Auto-PR - Prepio
 
 on:
   workflow_dispatch:
-  schedule:
-    # GitHub cron is UTC.
-    # 16:00 UTC = 17:00 London during British Summer Time.
-    # Change to "0 17 * * 0,2,5" during winter if exact 17:00 London matters.
-    - cron: "0 16 * * 0,2,5"
+  # Frozen release: scheduled implementation is paused.
 
 permissions:
   contents: write
@@ -25,6 +21,8 @@ env:
 
 jobs:
   codex_auto_pr:
+    # Manual reactivation is an explicit owner decision.
+    if: ${{ vars.PREPIO_IMPLEMENTATION_ENABLED == 'true' }}
     name: Select Linear issue and create draft PR
     runs-on: ubuntu-latest
     timeout-minutes: 45

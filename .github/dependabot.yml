@@ -2,6 +2,7 @@ version: 2
 
 # Dependabot config for Prepio.
 #
+# Frozen release: version-update PRs are paused (limit 0); security updates remain enabled.
 # Cadence: monthly to keep PR noise low. Bump to "weekly" later if the
 # team wants tighter response on advisories. Security advisories ignore
 # this schedule and are opened as soon as GitHub detects them.
@@ -18,7 +19,7 @@ updates:
       interval: monthly
       time: "09:00"
       timezone: "Europe/London"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels:
       - dependencies
     commit-message:
@@ -58,7 +59,7 @@ updates:
       interval: monthly
       time: "09:00"
       timezone: "Europe/London"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels:
       - dependencies
       - ci

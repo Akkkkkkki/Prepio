@@ -1,3 +1,4 @@
+import { FROZEN_PRODUCT } from "@/lib/frozenProduct";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ClipboardList } from "lucide-react";
@@ -105,7 +106,7 @@ const History = () => {
   useEffect(() => {
     let isActive = true;
 
-    if (!user?.id) {
+    if (!FROZEN_PRODUCT.answerFeedback || !user?.id) {
       setFeedbackAccess("free");
       return;
     }

@@ -64,12 +64,8 @@ jobs:
       - name: Test
         run: npm test
 
-      # e2e smoke — the deterministic landing-shell check in `e2e/smoke.spec.ts`.
-      # Playwright starts the Vite dev server itself (`webServer` in
-      # `playwright.config.ts`), so this needs no Supabase env: it only asserts
-      # the static `index.html` <title>. Blocking as of PREPIO-135 — the suite
-      # existed but ran in no job, giving false confidence. The browser install
-      # is scoped to chromium to keep the step lean.
+      # Deterministic desktop/mobile sample, sign-in and retired-route checks.
+      # Uses placeholder Supabase config; provider requests are blocked/asserted.
       - name: Install Playwright browser (chromium)
         run: npx playwright install --with-deps chromium
 

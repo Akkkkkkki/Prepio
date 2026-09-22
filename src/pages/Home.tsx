@@ -1,3 +1,5 @@
+import GuestSample from "@/components/GuestSample";
+import { FROZEN_PRODUCT } from "@/lib/frozenProduct";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -14,10 +16,6 @@ import {
 import Navigation from "@/components/Navigation";
 import ProgressDialog from "@/components/ProgressDialog";
 import PublicHeader from "@/components/PublicHeader";
-import { ConversionPanel } from "@/components/preview/ConversionPanel";
-import { InterviewBriefPreview } from "@/components/preview/InterviewBriefPreview";
-import { PrepAskPanel } from "@/components/preview/PrepAskPanel";
-import { PreviewForm } from "@/components/preview/PreviewForm";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -129,52 +127,6 @@ const buildSearchPayload = (formData: ResearchFormData) => ({
   jobDescription: formData.jobDescription?.trim() || undefined,
 });
 
-const GUEST_HOME_STEPS = [
-  {
-    title: "Share the company",
-    description: "Start with the employer and add the role if you already know the opening.",
-  },
-  {
-    title: "Unlock the full brief",
-    description: "Create an account or sign in. We keep your draft and send you straight back.",
-  },
-  {
-    title: "Practice from the research",
-    description: "Turn the brief into tailored mock questions, notes, and follow-up actions.",
-  },
-] as const;
-
-const GUEST_SAMPLE_COMPANY = "Stripe";
-const GUEST_SAMPLE_ROLE = "Senior Product Manager";
-
-const GUEST_SAMPLE_QUESTIONS = [
-  {
-    stage: "Hiring manager",
-    difficulty: "Medium",
-    question:
-      "Tell me about a time you shipped a payments product with an ambiguous success metric. How did you define success?",
-    rationale:
-      "Stripe hiring managers probe for how you turn fuzzy goals into measurable outcomes — they cite this in public interview guides.",
-  },
-  {
-    stage: "Product deep dive",
-    difficulty: "Hard",
-    question:
-      "Stripe is entering a new market with heavy local regulation. How would you sequence the first 12 months?",
-    rationale:
-      "A variant of this question appears in 3 Glassdoor reviews from the last 18 months. Tests market-entry judgment.",
-  },
-  {
-    stage: "Panel / leadership",
-    difficulty: "Medium",
-    question:
-      "Walk me through a decision where you overruled engineering to protect a long-term bet.",
-    rationale:
-      "Leadership rounds look for conviction without arrogance. Ties back to Stripe's 'rigorously prioritize' value.",
-  },
-] as const;
-
-
 const Home = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -236,7 +188,7 @@ const Home = () => {
     let isMounted = true;
 
     const loadProfileResume = async () => {
-      if (!user) {
+      if (!FROZEN_PRODUCT.profile || !user) {
         setProfileResume(null);
         setIsUsingProfileResume(false);
         return;
@@ -283,7 +235,7 @@ const Home = () => {
     let isMounted = true;
 
     const prefillFromPreferences = async () => {
-      if (!user) return;
+      if (!FROZEN_PRODUCT.profile || !user) return;
       // An in-progress draft is the user's own work — never overwrite it.
       if (loadResearchDraft()) return;
 
@@ -344,32 +296,6 @@ const Home = () => {
         source: "research_home",
       }),
     });
-  };
-
-  const handleCreatePreview = async () => {
-    if (!formData.company.trim()) return;
-
-    if (!isOnline) {
-      setPreviewError("Reconnect to preview this prep. You can keep editing the company and role while offline.");
-      return;
-    }
-
-    setPreviewError(null);
-    setIsPreviewLoading(true);
-
-    const result = await searchService.createResearchPreview({
-      company: formData.company,
-      role: formData.role || undefined,
-    });
-
-    setIsPreviewLoading(false);
-
-    if (result.success && result.preview) {
-      setPreview(result.preview);
-      return;
-    }
-
-    setPreviewError("We couldn't build the preview. Try again, or sign in to run the full research workflow.");
   };
 
   // Drop a generated preview once the company/role inputs no longer match it, so
@@ -708,7 +634,7 @@ const Home = () => {
     (mobileStep === "company" && !formData.company.trim());
   const mobileFooterPadding = "calc(1rem + env(safe-area-inset-bottom))";
 
-  const renderProfileResumeNote = (buttonClassName?: string) => (
+  const renderProfileResumeNote = (buttonClassName?: string) => FROZEN_PRODUCT.profile && (
     <>
       {isLoadingProfileResume && (
         <p className="text-xs text-muted-foreground">Loading your interview profile source...</p>
@@ -891,14 +817,14 @@ const Home = () => {
                   <div>
                     <p className="font-medium text-foreground">CV / Resume</p>
                     <p className="mt-1 text-xs font-normal text-muted-foreground">
-                      Import a source resume, then keep a richer interview profile.
+                      Paste relevant CV details to tailor this research run.
                     </p>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-4 pb-4">
                   {renderProfileResumeNote("h-10")}
 
-                  <div className="rounded-[20px] border-2 border-dashed border-border bg-background p-5">
+                  {FROZEN_PRODUCT.resumeUpload && <div className="rounded-[20px] border-2 border-dashed border-border bg-background p-5">
                     <div className="flex flex-col items-center gap-4 text-center">
                       <Upload className="h-8 w-8 text-muted-foreground" />
                       <div className="space-y-2">
@@ -929,10 +855,11 @@ const Home = () => {
                         </Button>
                       </div>
                     </div>
-                  </div>
+                  </div>}
 
                   <Textarea
-                    placeholder="Or paste your CV text here..."
+                    aria-label="CV text (optional)"
+                  placeholder="Paste relevant CV text here (optional)..."
                     value={formData.cv}
                     onChange={(e) => setFormData((prev) => ({ ...prev, cv: e.target.value }))}
                     rows={7}
@@ -1009,7 +936,7 @@ const Home = () => {
           <Alert className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Sign in before starting research so your results, practice sessions, interview profile, and resume versions stay attached to your account.
+              Sign in before starting research so your results and practice answers stay attached to your account.
             </AlertDescription>
           </Alert>
         )}
@@ -1018,7 +945,7 @@ const Home = () => {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 You&apos;re offline. Reconnect before you start research. Resume files still parse
-                locally, but profile sync waits until you&apos;re back online.
+                locally until you&apos;re back online.
               </AlertDescription>
             </Alert>
           )}
@@ -1074,7 +1001,7 @@ const Home = () => {
               <AccordionContent className="space-y-4 pb-4">
                 {renderProfileResumeNote()}
 
-                <div className="rounded-lg border-2 border-dashed border-border p-6">
+                {FROZEN_PRODUCT.resumeUpload && <div className="rounded-lg border-2 border-dashed border-border p-6">
                   <div className="flex flex-col items-center justify-center space-y-4">
                     <Upload className="h-8 w-8 text-muted-foreground" />
                     <div className="text-center">
@@ -1104,10 +1031,11 @@ const Home = () => {
                       </Button>
                     </div>
                   </div>
-                </div>
+                </div>}
 
                 <Textarea
-                  placeholder="Or paste your CV text here..."
+                  aria-label="CV text (optional)"
+                  placeholder="Paste relevant CV text here (optional)..."
                   value={formData.cv}
                   onChange={(e) => setFormData((prev) => ({ ...prev, cv: e.target.value }))}
                   rows={6}
@@ -1228,153 +1156,7 @@ const Home = () => {
     </Card>
   );
 
-  const renderGuestHome = () => (
-    <div className="mx-auto max-w-6xl space-y-8 md:space-y-10">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
-        <Card className="border shadow-sm">
-          <CardHeader className="space-y-4">
-            <div className="w-fit rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">
-              Research-first interview prep
-            </div>
-            <div className="space-y-3">
-              <CardTitle asChild className="text-[32px] leading-[1.15] tracking-tight md:text-4xl">
-                <h1>Walk into your next interview knowing exactly what to expect.</h1>
-              </CardTitle>
-              <CardDescription className="text-base leading-7">
-                Tell us the company. We research the stages, the likely questions, and how your
-                background maps to them — so you practice the right things, not a generic question bank.
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <PreviewForm
-              company={formData.company}
-              role={formData.role}
-              isLoading={isPreviewLoading}
-              onCompanyChange={(company) => setFormData((prev) => ({ ...prev, company }))}
-              onRoleChange={(role) => setFormData((prev) => ({ ...prev, role }))}
-              onSubmit={handleCreatePreview}
-            />
-
-            {previewError && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{previewError}</AlertDescription>
-              </Alert>
-            )}
-
-            {canInstall && (
-              <Button type="button" variant="outline" className="w-full" onClick={() => void promptInstall()}>
-                Install app
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-
-        {preview ? (
-          <div className="space-y-4">
-            <InterviewBriefPreview preview={preview} />
-            <PrepAskPanel preview={preview} />
-            <ConversionPanel
-              onGenerateFullPlan={() => navigateToAuth(GUEST_RESEARCH_RESUME_STEP)}
-            />
-          </div>
-        ) : formData.company.trim() ? (
-          <Card className="border bg-muted/20 shadow-sm">
-            <CardContent className="flex min-h-[360px] flex-col items-center justify-center px-6 py-12 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full border bg-background">
-                <Search className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-              </div>
-              <p className="mt-5 text-xs font-medium text-muted-foreground">
-                Tailored preview
-              </p>
-              <CardTitle asChild className="mt-3 max-w-md text-2xl tracking-tight">
-                <h2>Your {formData.company.trim()} preview will appear here</h2>
-              </CardTitle>
-              <CardDescription className="mt-3 max-w-md text-sm leading-6">
-                Select &quot;Preview my prep&quot; to research likely stages and questions for this
-                company{formData.role.trim() ? ` and the ${formData.role.trim()} role` : ""}.
-              </CardDescription>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="border bg-muted/20 shadow-sm">
-            <CardHeader className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="w-fit rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-                  Static example
-                </div>
-                <Badge variant="outline" className="bg-background text-[10px] font-medium">
-                  {GUEST_SAMPLE_COMPANY} · {GUEST_SAMPLE_ROLE}
-                </Badge>
-              </div>
-              <CardTitle asChild className="text-2xl tracking-tight">
-                <h2>How {GUEST_SAMPLE_COMPANY} {GUEST_SAMPLE_ROLE} questions look in Prepio</h2>
-              </CardTitle>
-              <CardDescription className="text-sm leading-6">
-                Each question comes with the stage, difficulty, and why it matters for this company.
-                Type your company above to generate a tailored preview.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                {GUEST_SAMPLE_QUESTIONS.map((q) => (
-                  <div key={q.question} className="rounded-2xl border bg-background p-4 shadow-sm motion-surface">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary" className="text-[10px] font-medium">
-                        {q.stage}
-                      </Badge>
-                      <Badge
-                        className={cn(
-                          "text-[10px] font-medium",
-                          q.difficulty === "Hard"
-                            ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                            : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-                        )}
-                      >
-                        {q.difficulty}
-                      </Badge>
-                    </div>
-                    <p className="mt-3 text-sm font-semibold leading-6 text-foreground">
-                      {q.question}
-                    </p>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      <span className="font-medium text-foreground/70">Why it matters — </span>
-                      {q.rationale}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs leading-5 text-muted-foreground">
-                Generated from public signals · Glassdoor, LinkedIn, engineering blogs, and company values.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      <section className="rounded-[20px] border bg-card p-6 shadow-sm">
-        <div className="mb-5">
-          <h2 className="text-lg font-semibold tracking-tight">How it works</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Keep the first touch light, then drop into the full signed-in workflow once auth is
-            done.
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {GUEST_HOME_STEPS.map((step, index) => (
-            <div key={step.title} className="rounded-2xl border bg-muted/20 p-4">
-              <p className="text-xs font-medium text-muted-foreground">
-                0{index + 1}
-              </p>
-              <p className="mt-3 text-base font-semibold">{step.title}</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
+  const renderGuestHome = () => <GuestSample />;
 
   const signedInContainerClassName = cn("container mx-auto px-4", isMobile ? "pt-8" : "py-16");
 
@@ -1386,16 +1168,13 @@ const Home = () => {
         <PublicHeader
           actions={
             <>
-              <Button type="button" variant="ghost" size="sm" asChild>
-                <Link to="/pricing">Pricing</Link>
-              </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => navigateToAuth(GUEST_RESEARCH_RESUME_STEP)}
               >
-                Sign in or create account
+                Sign in
               </Button>
             </>
           }
@@ -1475,8 +1254,7 @@ const Home = () => {
                   <Alert className="rounded-[20px] border-amber-300 bg-amber-50 text-amber-950">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      You&apos;re offline. Keep editing, reconnect before you start research, and
-                      note that resume files only sync to your profile once you&apos;re back online.
+                      You&apos;re offline. Keep editing your draft and reconnect before you start research.
                     </AlertDescription>
                   </Alert>
                 )}

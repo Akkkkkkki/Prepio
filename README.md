@@ -1,47 +1,34 @@
 # Prepio
 
-Prepio is an interview-prep app that turns a company, role, job description, resume, and candidate profile into targeted research, likely interview stages, tailored questions, and practice sessions.
+Prepio is free, invite-only interview preparation: company/role research, a saved plan,
+text practice, saved answers, Favorite / Needs-work, and History. Guests can explore a
+fixed local sample without making an AI request.
 
-## Current Status
+## Freeze status
 
-Shipped:
+The source now locks the product boundary. **Production is not yet a verified freeze.**
+The credential/history cleanup, production Auth settings, migration/function reconciliation,
+schema/types refresh and one production acceptance pass remain release gates in
+[the freeze release runbook](docs/FREEZE_RELEASE.md).
 
-- Research pipeline for company, role, job, resume, stage, prep-plan, and question generation.
-- Guest research preview flow with cached preview storage and rate-limit tables.
-- Authenticated history, dashboard, saved practice sessions, favorites, skips, and self-ratings.
-- Resume upload for PDF/DOCX, pasted resume text, active resume versioning, and file cleanup.
-- Structured candidate profile with AI-assisted CV import, automatic safe merges, and conflict review.
-- Practice audio upload, transcription, and saved answer transcripts.
-- Billing: Stripe webhook, Checkout session creation, Customer Portal session creation, user-facing pricing page, and entitlement-gated paid features.
-- AI answer feedback on submitted practice answers, gated by entitlement.
-- Offline banners, PWA metadata, mobile practice flows, and core UI tests.
+Billing, paid feedback, public signup, dynamic guest research, profile/settings expansion,
+voice, file upload and CV import are outside this release. Existing records are preserved.
+Use optional pasted CV text when creating research. Restoring any excluded surface needs
+an explicit scope decision and deployment/acceptance of its backend path.
 
-Not shipped yet:
+`npm run functions:deploy` now prints a dry run of the five-function manifest. Execution
+requires a clean reviewed commit, `PREPIO_DEPLOY_COMMIT`, and `--execute`; it can no longer
+silently deploy every function. See the runbook before deploying.
 
-- Readiness scoring based on feedback.
-- Lifecycle notifications.
-
-> "Shipped" above means merged to `main`. The production backend has been frozen since
-> 2026-05-15, and per the **2026-09-02 freeze decision** that gap is now a deliberate release
-> scope, not a deploy backlog: the frozen release is an invite-only, free, authenticated core.
-> PREPIO-124 deploys **only** the five core research functions + pending migrations; **five
-> functions never deploy for this freeze** (guest preview, Checkout, Customer Portal, the Stripe
-> webhook, paid answer feedback — restoring live billing is a later product decision), and **two
-> deploy only conditionally** (CV import, voice transcription — only if PREPIO-27 keeps their UI
-> and smoke tests pass, otherwise undeployed with controls hidden). The frontend is being locked
-> to match (PREPIO-27): a static guest sample, hidden billing/paid controls, invite-only sign-up.
-> Each gap is narrower than the feature name suggests: recording and saving a voice answer does
-> work in production, only transcript generation is missing; and the billing tables and frontend
-> are live, so `/pricing`, `/billing/return`, and the entitlement read work and always resolve
-> free — what is absent is Checkout, the Customer Portal, and the webhook that would write a paid
-> row. See `docs/ARCHITECTURE.md`, `docs/BILLING.md`, PREPIO-124, and PREPIO-27.
+Scheduled repository implementation and routine dependency updates are paused. Security
+alerts remain in scope. Broader roadmap documents describe deferred work, not this release.
 
 ## Stack
 
 - Frontend: React, TypeScript, Vite, Tailwind, shadcn-style UI components, TanStack Query.
 - Backend: Supabase Auth, Postgres, Storage, Realtime, Edge Functions.
 - Search and AI: Tavily-backed research plus OpenAI-backed analysis/generation.
-- Billing: Stripe webhook, entitlement foundation, Checkout, and Customer Portal.
+- Historical billing implementation is retained but excluded from this release.
 - Tests: Vitest for the main frontend/service suite. Deno edge-function tests exist but are legacy.
 
 ## Main Commands

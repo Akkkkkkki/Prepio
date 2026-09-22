@@ -37,7 +37,7 @@ export async function authorizeRequest(
     auth: {
       getUser: (
         jwt: string,
-      ) => Promise<{ data: { user: { id: string } | null }; error: { message: string } | null }>;
+      ) => Promise<{ data: { user: { id: string; is_anonymous?: boolean } | null }; error: { message: string } | null }>;
     };
   },
 ): Promise<
@@ -68,7 +68,7 @@ export async function authorizeRequest(
 
   const { data, error } = await supabase.auth.getUser(token);
 
-  if (error || !data.user) {
+  if (error || !data.user || data.user.is_anonymous) {
     return {
       ok: false,
       response: new Response(
