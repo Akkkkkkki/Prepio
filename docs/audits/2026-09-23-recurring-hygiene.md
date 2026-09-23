@@ -32,15 +32,39 @@ measured against `e3a283b` (#335). The source-touching merges since (`src/` or
   (sibling test file). **Repo-side High closed; production still owed** — a merge does
   not repair production (deploy tracked under PREPIO-124).
 - **`fix: restore Edge Function typecheck ratchet after ownership guard` (#351,
-  `571c6e5`)** — CI/DX follow-up to #337; re-baselines the Deno typecheck ratchet
-  after the new `authorization.ts` module. Scripts/config; security-neutral.
+  `571c6e5`)** — **an authorization-source change, not scripts/config** (correction
+  after Codex review of this PR). Despite the "typecheck ratchet" title, the diff
+  touches only
+  [`authorization.ts`](../../supabase/functions/interview-research/authorization.ts)
+  (+11/−3): it widens `authorizeSearch`'s `supabase` parameter from the typed
+  `SearchOwnershipClient` to `unknown` with an internal `as SearchOwnershipClient`
+  cast, and switches the seam's `maybeSingle()` return from `Promise` to `PromiseLike`,
+  to stop Deno's structural comparison of the deep generated `SupabaseClient` generic
+  from hitting TS2589 (restoring the Edge Function typecheck ratchet). No script,
+  config, or ratchet-baseline file changed. **Runtime behavior is intended to remain
+  neutral** — the ownership gate still validates the same query surface after crossing
+  the boundary — but this is a security-sensitive file (the PREPIO-143 ownership
+  guard), so it is reviewed as such: the `unknown` boundary trades a compile-time
+  contract at the call site for a runtime cast, which is acceptable here because the
+  helper validates the narrow query surface it uses and the call site
+  ([`index.ts:1333`](../../supabase/functions/interview-research/index.ts)) passes the
+  real Supabase client.
 - **`security: upgrade pdfjs-dist 5 to 6` (#350, `c4932a9`)** — **closes the carried
   `pdfjs-dist` high advisory (GHSA-hq66-cqwq-w95j).** `package.json` now pins
   `pdfjs-dist: ~6.3.289` (was 5.x); `npm audit` no longer reports the pdf.js arbitrary-JS
   advisory. This is the production-path resume parser
   ([`resumeUpload.ts`](../../src/lib/resumeUpload.ts)), so it was the highest-severity
-  standing dependency item. The in-run `isEvalSupported: false` defense-in-depth from
-  2026-08-08 remains.
+  standing dependency item. **Correction after Codex review of this PR: #350 *removed*
+  the `isEvalSupported: false` flag from the `getDocument` call (and dropped the
+  matching test assertion), it did not keep it** — an earlier draft of this bullet
+  wrongly said the 2026-08-08 defense-in-depth "remains". The removal is intentional
+  and documented in-code
+  ([`resumeUpload.ts:120`](../../src/lib/resumeUpload.ts)): pdf.js 6 removed the eval
+  path that flag guarded, so the option is obsolete on v6. The parser still extracts
+  text only (never renders/scripts), and the advisory itself is closed by the major
+  bump, so PDF hardening is not weakened — but the current defense is "no eval path in
+  the engine", not "eval disabled by flag", and future audits should baseline it that
+  way.
 - **`[PREPIO-172] Upgrade react-router-dom 6 → 7 to clear advisories` (#353,
   `908b8f4`)** — **closes both carried `react-router` advisories** (open-redirect
   GHSA-wrjc-x8rr-h8h6 and the SSR-hydration GHSA-337j-9hxr-rhxg that never applied to
@@ -56,10 +80,21 @@ measured against `e3a283b` (#335). The source-touching merges since (`src/` or
   [`deploy-frozen-functions.mjs`](../../scripts/deploy-frozen-functions.mjs) wrapper
   (manifest allowlist, `PREPIO_DEPLOY_COMMIT`-must-match-HEAD gate, refuses a dirty
   checkout — good deploy hygiene, no secrets). Net effect on the bundle: **build fell
-  2280.54 KiB → 1242.25 KiB** and precache entries 62 → 41. The auth model itself
-  (JWT verification, RLS, service-role boundary) is unchanged; the touched auth files
-  (`useAuth.ts`, `Auth.tsx`, `searchService.ts`, `billing.ts`) shed UI, not checks.
-  Tests were updated in lockstep and pass.
+  2280.54 KiB → 1242.25 KiB** and precache entries 62 → 41. **Correction after Codex
+  review of this PR: #354 *does* change authentication enforcement — an earlier draft
+  saying the "auth model is unchanged" was wrong and understated a security-relevant
+  tightening.** It disables account creation and anonymous access at two layers:
+  [`supabase/config.toml`](../../supabase/config.toml) now sets
+  `[auth] enable_signup = false`, `enable_anonymous_sign_ins = false`, and
+  `[auth.email] enable_signup = false`; and
+  [`_shared/auth.ts`](../../supabase/functions/_shared/auth.ts) adds
+  `data.user.is_anonymous` to its fail-closed rejection, so an anonymous Auth user is
+  now refused by the shared edge-function guard (matching the "core provider functions
+  reject anonymous Auth users" line in CLAUDE.md). This is **security-positive** —
+  stricter auth plus surface reduction — but it is a real auth-enforcement change and
+  future audits should baseline it. The frontend auth files (`useAuth.ts`, `Auth.tsx`,
+  `searchService.ts`, `billing.ts`) shed UI; the enforcement change is in
+  `config.toml` + `_shared/auth.ts`. Tests were updated in lockstep and pass.
 
 **No code change was warranted this run.** The one standing dependency candidate (the
 `@vitest/mocker` dev-only advisory) remains blocked by the npm `edgesOut` resolver bug
@@ -123,15 +158,24 @@ cleared by #350/#353).
   slice. Re-verified still exposed this run.)*
   - Evidence: PR #342 replaced ten screenshots with placeholders in the working tree,
     but the pre-redaction blobs remain in history. Re-confirmed against the object
-    store this run for `docs/audits/assets/2026-07-09/11-d-new-interview.png`: the
-    path has two historical blob versions — the redacted **23,025-byte** blob
-    (`da47d9e`, current working tree) and the original **146,389-byte** blob
-    (`f4f9c4b`) still resolvable via `git cat-file`. (The prior note's `5585fd4`
-    commit short-SHA no longer resolves, but the underlying original blob persists —
-    the finding stands.) The nine other paths listed in #342 (full name, phone,
+    store this run for `docs/audits/assets/2026-07-09/11-d-new-interview.png`, which
+    has two historical **blob** versions (correction after Codex review of this PR —
+    an earlier draft labelled these with the *commit* SHAs `da47d9e`/`f4f9c4b`, not the
+    blob object IDs a purge actually targets; the exact blobs are):
+    - the redacted **23,025-byte** blob `1cb6917a804f77169ce0aed3d562cdbc25af13f9`
+      (introduced by commit `da47d9e`; the current working-tree version), and
+    - the original PII **146,389-byte** blob
+      `3a6f18c65cc448482d16ff58a2f257b2850a26f2`, reachable via
+      `git rev-parse f4f9c4b:docs/audits/assets/2026-07-09/11-d-new-interview.png` and
+      confirmed still resolvable this run with `git cat-file -s`.
+
+    (The prior note's `5585fd4` short-SHA does not resolve in this session's clone;
+    that claim is dropped in favour of the exact blob IDs above, which are
+    unambiguous and are what a `filter-repo`/BFG purge operates on regardless of which
+    commit references them.) The nine other paths listed in #342 (full name, phone,
     email, LinkedIn, location, CV filename) are the same shape. **This is a public
-    repository**, so those blobs are retrievable by anyone with the commit SHA. *(PII
-    not reproduced here per the review's redaction rule.)*
+    repository**, so those blobs are retrievable by anyone with a commit SHA or the
+    blob ID. *(PII not reproduced here per the review's redaction rule.)*
   - Risk: real personal data exposed on a public remote until history is rewritten; a
     freeze-exit release blocker per the issue.
   - Recommended fix: owner-attended `git filter-repo`/BFG purge of the identified
@@ -304,9 +348,10 @@ Tracked, Dependabot-surfaced, or recorded here:
    `company-research`, `job-analysis`, and `answer-feedback` for the same
    object-ownership check the `interview-research` fix established.
 2. **PREPIO-145 Git-history purge** — the highest-residual-risk open item: real CV PII
-   is still publicly fetchable from history (146,389-byte blob `f4f9c4b` confirmed
-   present this run). Track the owner-attended filter-repo/BFG + force-push and verify
-   the identified blobs are gone from all refs afterward.
+   is still publicly fetchable from history (original 146,389-byte blob
+   `3a6f18c65cc448482d16ff58a2f257b2850a26f2` confirmed present this run). Track the
+   owner-attended filter-repo/BFG + force-push and verify the identified blobs are
+   gone from all refs afterward.
 3. **The two carried research-pipeline Mediums** (file once Linear intake returns).
    (a) Evidence-ledger `official_company` over-trust — land the registrable-label
    (PSL-aware) fix with adversarial `company-token.attacker.example` tests, fold in
