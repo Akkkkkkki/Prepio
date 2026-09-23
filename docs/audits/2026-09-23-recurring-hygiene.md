@@ -364,8 +364,14 @@ cleared by #350/#353).
     docs-only run; noted for a maintainer/follow-up cleanup.
 
 - [ ] **`npm audit` is not a CI gate.** *(Observation, not filed — unchanged.)*
-  - Evidence: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) gates lint,
-    typecheck, typecheck:functions, build, and test — not `npm audit`. Advisory
+  - Evidence: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)'s blocking
+    (gated) steps are **typecheck, typecheck:functions, build, test, and the Playwright
+    E2E landing smoke** (made blocking by #348) — **not** `npm audit`, and **not** lint.
+    *(Correction after Codex review of this PR: an earlier draft listed lint among the
+    gated checks, contradicting this note's own "lint is informational" statements. The
+    `Lint (informational)` step runs `npm run lint` and tolerates ESLint exit 0/1
+    (`exit 0`), failing CI only on exit ≥2 — i.e. `--exit-on-fatal-error`
+    parser/config breakage — so ordinary lint violations are not gated.)* Advisory
     response relies on Dependabot.
   - Recommended fix: optional non-blocking `npm audit --audit-level=high` step. A
     CI-policy call for maintainers, not a hygiene-run change.
