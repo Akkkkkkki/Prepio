@@ -52,13 +52,20 @@ v7 — reviewed as the advisory-clearing merge below), #345 (tests only), #346
   to stop Deno's structural comparison of the deep generated `SupabaseClient` generic
   from hitting TS2589 (restoring the Edge Function typecheck ratchet). No script,
   config, or ratchet-baseline file changed. **Runtime behavior is intended to remain
-  neutral** — the ownership gate still validates the same query surface after crossing
-  the boundary — but this is a security-sensitive file (the PREPIO-143 ownership
-  guard), so it is reviewed as such: the `unknown` boundary trades a compile-time
-  contract at the call site for a runtime cast, which is acceptable here because the
-  helper validates the narrow query surface it uses and the call site
-  ([`index.ts:1333`](../../supabase/functions/interview-research/index.ts)) passes the
-  real Supabase client.
+  neutral** — the same ownership query runs after crossing the boundary — but this is a
+  security-sensitive file (the PREPIO-143 ownership guard), so it is reviewed as such:
+  the `unknown` boundary trades a compile-time contract at the call site for an
+  **unchecked** runtime assertion. *(Correction after Codex review of this PR: an
+  earlier draft said the helper "validates the narrow query surface it uses" — it does
+  not. `supabase as SearchOwnershipClient` is erased at runtime; there is no runtime
+  type guard, so a caller passing anything without `.from()/.select()` would throw an
+  uncaught error rather than produce a controlled 403/404/500.)* The assertion is
+  justified only by the single known call site
+  ([`index.ts:1333`](../../supabase/functions/interview-research/index.ts)), which
+  passes the real Supabase client — not by any runtime validation. A defensive
+  follow-up would add a small runtime guard (e.g. assert `typeof client.from ===
+  "function"` and fail closed) so a future mis-wiring degrades to a controlled error;
+  noted, not blocking.
 - **`security: upgrade pdfjs-dist 5 to 6` (#350, `c4932a9`)** — **closes the carried
   `pdfjs-dist` high advisory (GHSA-hq66-cqwq-w95j).** `package.json` now pins
   `pdfjs-dist: ~6.3.289` (was 5.x); `npm audit` no longer reports the pdf.js arbitrary-JS
@@ -90,21 +97,35 @@ v7 — reviewed as the advisory-clearing merge below), #345 (tests only), #346
   [`deploy-frozen-functions.mjs`](../../scripts/deploy-frozen-functions.mjs) wrapper
   (manifest allowlist, `PREPIO_DEPLOY_COMMIT`-must-match-HEAD gate, refuses a dirty
   checkout — good deploy hygiene, no secrets). Net effect on the bundle: **build fell
-  2280.54 KiB → 1242.25 KiB** and precache entries 62 → 41. **Correction after Codex
-  review of this PR: #354 *does* change authentication enforcement — an earlier draft
-  saying the "auth model is unchanged" was wrong and understated a security-relevant
-  tightening.** It disables account creation and anonymous access at two layers:
-  [`supabase/config.toml`](../../supabase/config.toml) now sets
-  `[auth] enable_signup = false`, `enable_anonymous_sign_ins = false`, and
-  `[auth.email] enable_signup = false`; and
-  [`_shared/auth.ts`](../../supabase/functions/_shared/auth.ts) adds
-  `data.user.is_anonymous` to its fail-closed rejection, so an anonymous Auth user is
-  now refused by the shared edge-function guard (matching the "core provider functions
-  reject anonymous Auth users" line in CLAUDE.md). This is **security-positive** —
-  stricter auth plus surface reduction — but it is a real auth-enforcement change and
-  future audits should baseline it. The frontend auth files (`useAuth.ts`, `Auth.tsx`,
-  `searchService.ts`, `billing.ts`) shed UI; the enforcement change is in
-  `config.toml` + `_shared/auth.ts`. Tests were updated in lockstep and pass.
+  2280.54 KiB → 1242.25 KiB** and precache entries 62 → 41. **Correction after two
+  Codex rounds on this PR: #354 *does* touch authentication (an earlier draft's "auth
+  model unchanged" was wrong), but a second draft then over-corrected by calling
+  account creation "disabled" — the accurate picture distinguishes the repo-side
+  changes from a still-required production gate:**
+  - **Repo-side, effective on merge:**
+    [`_shared/auth.ts`](../../supabase/functions/_shared/auth.ts) adds
+    `data.user.is_anonymous` to its fail-closed rejection, so an anonymous Auth user is
+    refused **at every edge function that uses this shared guard** (matching the "core
+    provider functions reject anonymous Auth users" line in CLAUDE.md). This is a real,
+    security-positive enforcement change.
+  - **Local intent only, NOT a production control:**
+    [`supabase/config.toml`](../../supabase/config.toml) now sets
+    `[auth] enable_signup = false` / `enable_anonymous_sign_ins = false` /
+    `[auth.email] enable_signup = false`, but per
+    [docs/FREEZE_RELEASE.md](../FREEZE_RELEASE.md) §2 committing `config.toml` documents
+    local intent and **does not apply hosted Supabase Auth settings**. So merging #354
+    does **not** disable production signup — the shared guard also cannot block a direct
+    signup, only anonymous callers at guarded functions. **Turning off "Allow new users
+    to sign up" and "Allow anonymous sign-ins" in production Supabase Auth (and
+    verifying a direct non-invited signup fails) remains an open owner deployment gate
+    under PREPIO-27 / PREPIO-124 / PREPIO-170** — future audits must treat the
+    invite-only production control as still open, not closed by this merge.
+
+  Net: security-positive (anonymous-rejection guard + surface reduction) with the
+  production invite-only toggle still owed. The frontend auth files (`useAuth.ts`,
+  `Auth.tsx`, `searchService.ts`, `billing.ts`) shed UI; the enforcement change is in
+  `_shared/auth.ts`, and `config.toml` is local-only. Tests were updated in lockstep
+  and pass.
 
 **No code change was warranted this run.** The one standing dependency candidate (the
 `@vitest/mocker` dev-only advisory) remains blocked by the npm `edgesOut` resolver bug
@@ -179,13 +200,16 @@ cleared by #350/#353).
       `git rev-parse f4f9c4b:docs/audits/assets/2026-07-09/11-d-new-interview.png` and
       confirmed still resolvable this run with `git cat-file -s`.
 
-    (The prior note's `5585fd4` short-SHA does not resolve in this session's clone;
-    that claim is dropped in favour of the exact blob IDs above, which are
-    unambiguous and are what a `filter-repo`/BFG purge operates on regardless of which
-    commit references them.) The nine other paths listed in #342 (full name, phone,
-    email, LinkedIn, location, CV filename) are the same shape. **This is a public
-    repository**, so those blobs are retrievable by anyone with a commit SHA or the
-    blob ID. *(PII not reproduced here per the review's redaction rule.)*
+    The exact blob IDs above are the unambiguous identifiers a `filter-repo`/BFG purge
+    operates on, regardless of which commit references them. *(An earlier draft added an
+    aside that the prior note's `5585fd4` short-SHA "no longer resolves"; that was an
+    artefact of this session's clone and Codex confirmed the commit still resolves in a
+    full clone, so the aside is dropped — the resolution status of any one referencing
+    commit is not load-bearing once the blob IDs are pinned.)* The nine other paths
+    listed in #342 (full name, phone, email, LinkedIn, location, CV filename) are the
+    same shape. **This is a public repository**, so those blobs are retrievable by
+    anyone with a commit SHA or the blob ID. *(PII not reproduced here per the review's
+    redaction rule.)*
   - Risk: real personal data exposed on a public remote until history is rewritten; a
     freeze-exit release blocker per the issue.
   - Recommended fix: owner-attended `git filter-repo`/BFG purge of the identified
