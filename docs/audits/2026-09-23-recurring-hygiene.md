@@ -7,13 +7,23 @@ Twenty-eighth recurring codebase hygiene & security review for Prepio.
 **Headline: a strongly positive window — three of the prior review's top open
 findings are now resolved in the repo, `npm audit` dropped 5 → 2, and the eight
 merges since run #27's baseline (`e3a283b`) introduced no new secret, PII-in-logs,
-or access-control regression.** Two of the resolutions are the exact items run #27
-flagged as its top two next-review focuses.
+or access-control regression.** The three resolutions map to run #27's next-review
+focus **#1** (PREPIO-143, the `searchId` BOLA — resolved repo-side by #337) and
+focus **#4** (the `pdfjs-dist` high and both `react-router` advisories — resolved
+by #350 and #353). *(Correction after Codex review of this PR: an earlier draft
+said "the top two next-review focuses" — that was wrong. Focus #2 was the
+PREPIO-145 Git-history purge, which remains an **open High** below; only one of
+run #27's top two focuses, #1, is resolved.)*
 
 Range reviewed: `e3a283b..HEAD` (`9d9b711`), eight commits. Run #27 (2026-09-12)
-measured against `e3a283b` (#335). The source-touching merges since (`src/` or
-`supabase/functions/`, excluding tests) are #337, #351, #350, #353, #354; #345
-(tests only), #346 (run #27's own note), and #348 (CI-config) round out the range.
+measured against `e3a283b` (#335). Under the definition used here — `src/` or
+`supabase/functions/`, excluding tests — **four** merges are source-touching:
+#337, #351, #350, #354. *(Correction after Codex review of this PR: an earlier
+draft listed five, including #353 — but #353 (`908b8f4`) changes only
+`package.json`/`package-lock.json`, so it is a dependency bump, not source-touching
+by this definition.)* The rest of the range: #353 (dependency bump, react-router
+v7 — reviewed as the advisory-clearing merge below), #345 (tests only), #346
+(run #27's own note), and #348 (CI-config).
 
 - **`security: enforce interview research search ownership` (#337, `17e5b08`)** —
   **the PREPIO-143 BOLA fix landed.** This closes run #27's top carried High in the
@@ -28,7 +38,7 @@ measured against `e3a283b` (#335). The source-touching merges since (`src/` or
   row and a row owned by another tenant (no existence oracle), and **500** on a query
   error. Because all pipeline clients write with the RLS-bypassing service role, the
   check running before any write is exactly the right boundary. Dedicated coverage in
-  [`authorization.test.ts`](../../supabase/functions/interview-research/authorization.ts)
+  [`authorization.test.ts`](../../supabase/functions/interview-research/authorization.test.ts)
   (sibling test file). **Repo-side High closed; production still owed** — a merge does
   not repair production (deploy tracked under PREPIO-124).
 - **`fix: restore Edge Function typecheck ratchet after ownership guard` (#351,
