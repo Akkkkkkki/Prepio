@@ -156,10 +156,21 @@ cleared by #350/#353).
 
 - `npm install`: **pass** (via SessionStart hook).
 - `npm run lint`: **50 problems (41 errors, 9 warnings).** −2 errors vs 2026-09-12
-  (#354 removed source). All remaining are pre-existing
-  `@typescript-eslint/no-explicit-any` in tests/edge functions plus the nine
-  `react-refresh/only-export-components` fast-refresh warnings (incl. the #338 one
-  carried as a Low). Lint is informational in CI; this run pushes no source.
+  (#354 removed source). **Correction after Codex review of this PR: an earlier draft
+  said the 41 errors were all `@typescript-eslint/no-explicit-any` in tests/edge
+  functions — that was wrong and hid a substantial app-side React-hooks backlog.** The
+  actual error breakdown is **21 `react-hooks/set-state-in-effect` + 7
+  `react-hooks/immutability` + 6 `react-hooks/purity`** (34 app-side React-hooks
+  errors), then **4 `@typescript-eslint/no-explicit-any`**, **2
+  `@typescript-eslint/no-empty-object-type`**, and **1
+  `@typescript-eslint/no-require-imports`** = 41; the 9 warnings are all
+  `react-refresh/only-export-components` (incl. the #338 one carried as a Low). Lint is
+  informational in CI (not a gate), so none of these block, and this run pushes no
+  source — but the React-hooks backlog is the real lint story and future reviews should
+  baseline against it, not the `no-explicit-any` mischaracterization. *(The 34
+  react-hooks errors come from the newer `eslint-plugin-react-hooks` rule set flagging
+  set-state-in-effect / purity / immutability patterns across app components; worth a
+  dedicated cleanup pass, out of scope for a docs-only run.)*
 - `npm run typecheck`
   ([`scripts/check-typecheck-baseline.sh`](../../scripts/check-typecheck-baseline.sh)):
   **pass at baseline.** App **61**, node **0**.
@@ -311,6 +322,22 @@ cleared by #350/#353).
   - Recommended fix: let Dependabot's `vitest` bump carry it (its full-tree resolution
     is not subject to the local `--package-lock-only` crash), or a maintainer runs it
     outside this proxy sandbox.
+
+- [ ] **App-side `react-hooks` lint backlog — 34 errors.** *(Newly surfaced this run,
+  via Codex review of this PR; not a regression from this window's merges, but the real
+  lint story that prior notes' `no-explicit-any` framing obscured.)*
+  - Evidence: `npm run lint` errors break down as **21 `react-hooks/set-state-in-effect`
+    + 7 `react-hooks/immutability` + 6 `react-hooks/purity`** across app components,
+    from the newer `eslint-plugin-react-hooks` rule set. These are the bulk of the 41
+    errors; only 4 are `no-explicit-any`.
+  - Risk: **DX / latent-correctness** — set-state-in-effect and purity violations can
+    signal render loops or effects doing work that belongs elsewhere, but lint is
+    informational in CI (not a gate) so none block, and no runtime regression is
+    attributed to this window.
+  - Recommended fix: a dedicated React-hooks lint-cleanup pass (its own PR, per rule
+    class), triaging genuine effect/purity fixes vs. justified disables. Out of scope
+    for a docs-only hygiene run; file as `Chore` + `area:*` per component when Linear
+    intake is available.
 
 - [ ] **`react-refresh/only-export-components` lint warning from #338.** *(Carried;
   unchanged.)*
