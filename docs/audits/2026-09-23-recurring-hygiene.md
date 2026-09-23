@@ -179,9 +179,22 @@ cleared by #350/#353).
   **not runnable in this environment** — the agent proxy blocks `esm.sh` /
   `deno.land`, so Deno cannot resolve the edge functions' remote imports; the script
   reports `SKIPPED — this is not a pass` (exit 0 locally, `exit 1` under `$CI`). This
-  run pushes no `supabase/functions` source; the range's edge-function merges (#337,
-  #351) each passed the real CI `verify` gate at merge time (#351 explicitly restored
-  the deno ratchet to baseline).
+  run pushes no `supabase/functions` source. **Correction after Codex review of this
+  PR: an earlier draft claimed both edge-function merges (#337, #351) "passed the real
+  CI `verify` gate at merge time" — that is not supported and, for #337, is
+  contradicted by the evidence.** Checked against the object store this run: #337's
+  head commit (`daca6e5`, merged 2026-09-04) carries only **Vercel Preview Comments**
+  and **GitGuardian** check-runs — **no `verify` check-run is present at all**, so
+  there is no evidence #337 passed `typecheck:functions`; and #337's typed
+  `SearchOwnershipClient` boundary in fact broke the Deno Edge Function typecheck
+  ratchet (TS2589), which is precisely why **#351 ("restore Edge Function typecheck
+  ratchet after ownership guard") followed** to widen the seam to `unknown` and restore
+  the ratchet. So the accurate statement is: the Edge Function typecheck is only
+  established green **as of #351 and the current head** (where #355's own `verify` job
+  runs `typecheck:functions` and passes — confirmed on this PR's commits); #337 as
+  merged did not demonstrably pass that gate. This does not change the security
+  assessment of the #337 fix itself (its logic and test coverage are sound, reviewed
+  above), only the CI-history attestation.
 - `npm run build`: **pass** (Vite + PWA, 41 precache entries, **1242.25 KiB**).
 - `npm test`: **pass** (**55 files, 467 tests**), incl. the schema/design-token checks.
 - `npm audit`: **2** (both moderate — `@vitest/mocker` / `vitest`, dev-only). Down
