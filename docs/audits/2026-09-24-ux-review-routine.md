@@ -56,7 +56,7 @@ real and is called out here rather than glossed:
   under the PREPIO-124 reconciliation set in `CLAUDE.md:24`. The rest of the report is *evidence that the
   freeze surface-lock succeeded* (guest/billing/profile surfaces and the voice *control* removed,
   verified live — with one residual voice-hint gap called out as a new finding, not glossed).
-- **The two *new* polish recommendations (Top-5 #2 landing-sample-by-default, #5 desktop practice flag
+- **The two *new* polish recommendations (Top issue #2 landing-sample-by-default, #5 desktop practice flag
   labels) are explicitly deferred to post-freeze.** Do **not** open work for them during the freeze;
   they are recorded for the PREPIO-27 landing pass only.
 - **Landing this doc is the maintainer's call.** Per the freeze line, this PR is held as a **draft** and
@@ -114,7 +114,7 @@ single highest-value action is to apply the flag-write migration in the PREPIO-1
 next is a light landing pass to make the sample the default rendered state so value is visible without a
 click.
 
-## Top 5 issues
+## Top issues (6)
 
 ### 1. **P1 (live-confirmed) — Favorite / Needs-work flag write returns `400 / 42P10`; the fixing migration exists, is authorized for the freeze, and is unapplied**
 
@@ -416,44 +416,54 @@ research run to confirm live — the #340 trust regression itself is already est
 ## Recommended tickets
 
 > Linear was **not reachable this session** (the MCP connector is unauthenticated in a non-interactive
-> run), so no Linear issues were created or commented. The mappings below are the intended tracking; a
-> maintainer with Linear access should record the live-confirmations. All findings map to existing open
-> issues; the three new ones (#2, #5 drafted post-freeze; #6 a PREPIO-27 surface-lock completion) are
-> specified GitHub/Linear-ready.
+> run), so no Linear issues were created or commented. A maintainer with Linear access should record the
+> live-confirmations and file the unfiled items. Each entry is tagged **[existing]** (maps to an open
+> issue — confirm/comment) or **[unfiled]** (a new proposal with no issue yet — needs filing). Existing:
+> #1 (PREPIO-170), #3 (PREPIO-123), #4 (PREPIO-107), #6 (fits PREPIO-27). Unfiled/new: #2 and #5 (small,
+> post-freeze), and **#7 — the #340 `official_company` trust regression, which has no dedicated issue
+> yet** (the 2026-09-12 hygiene review flagged it as a Medium to file under the PREPIO-144 theme).
 
 1. **[P1] Apply `20260710203000_question_flags_per_type.sql`** in the freeze deploy window so the
    Favorite/Needs-work upsert stops returning `42P10`; dedupe any conflicting rows first; verify persist
    across reload on desktop + mobile. → **[PREPIO-170](https://linear.app/qiuyue/issue/PREPIO-170)**
-   (Urgent; confirmed live 2026-09-24). *Drives the PREPIO-124 attended deploy.*
+   (Urgent; confirmed live 2026-09-24). *Drives the PREPIO-124 attended deploy.* **[existing]**
 2. **[P2 · post-freeze] Show the guest sample plan by default on the landing page.** Render the static
    sample expanded (value-first) instead of behind **View sample plan**, and add one line naming it an
    illustrative *format* example so the fictional "Payments company" reads as deliberate. Small landing
    polish — fits the PREPIO-27 landing surface. **Deferred: do not start during the freeze** (per
-   `CLAUDE.md:26`); recorded for the post-freeze landing pass. *(New; drafted.)*
+   `CLAUDE.md:26`); recorded for the post-freeze landing pass. *(New; drafted.)* **[unfiled]**
 3. **[P2] Add `autocomplete` attributes to `/auth` sign-in** (`email` / `current-password`). One small
    PR. → **[PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123)** (existing; confirmed live, 16th
-   audit).
+   audit). **[existing]**
 4. **[P3] Surface in-progress work on `/history` (or clarify the empty-state scope)** so a returning
    user who has answered questions isn't told "your first practice session will appear here." →
-   **[PREPIO-107](https://linear.app/qiuyue/issue/PREPIO-107)** (existing, In Progress).
+   **[PREPIO-107](https://linear.app/qiuyue/issue/PREPIO-107)** (existing, In Progress). **[existing]**
 5. **[P3 · post-freeze] Label the desktop practice Favorite/Needs-work icons.** Add text/tooltip to the
    desktop ☆/ⓘ controls (mobile already labels them). **Deferred: do not start during the freeze** (per
    `CLAUDE.md:26`); below the >30-min threshold — fold into the next post-freeze practice touch.
-   *(New; drafted.)*
+   *(New; drafted.)* **[unfiled]**
 6. **[P2] Remove the stale "Record for a full answer" voice hint from the practice coach banner.** In
    `src/components/practice/HintBanner.tsx:11-14`, drop the mic/"Record for a full answer" item (or gate
    it on `FROZEN_PRODUCT.voice`) so the hint matches the shipped controls. **This completes the
    PREPIO-27 surface-lock** (removing a residual pointer to a removed capability), so it is freeze-scope
    — not deferred new work. → fits **[PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27)**.
-   *(New; confirmed live.)*
+   **[existing]** *(New finding; confirmed live.)*
+7. **[P2 · security · unfiled] File the #340 `official_company` trust regression.** #340's NFKD folding
+   lets an accented brand name (`"L'Oréal"`→`oreal`) over-trust `oreal.attacker.example` via the loose
+   `.includes()` host match (`evidence-ledger.ts:175-177`). The [2026-09-12 hygiene review](./2026-09-12-recurring-hygiene.md)
+   flagged this as a **Medium** under the **PREPIO-144** origin-classification theme but **no dedicated
+   issue exists yet** — file one (fix: PSL-aware / registrable-label match instead of substring). Not
+   exercised live this run; the trust regression is static-established, the plan effect is unverified.
+   **[unfiled]**
 
 ### Deferred items (per CLAUDE.md hygiene convention)
 
-- **No new issues filed this run** (Linear unauthenticated; see note above). Findings #1/#3/#4 map to
-  existing open issues (PREPIO-170, -123, -107); #6 (stale voice hint) fits the existing PREPIO-27
-  surface-lock. #2 (sample-by-default) and #5 (desktop practice flag labels) are new but small; #5 is
-  below the >30-min threshold and left as a report note, and #2 is drafted for the PREPIO-27 landing
-  surface rather than a fragmenting standalone issue.
+- **No Linear issues filed this run** (Linear unauthenticated; see note above). **Mapped to existing
+  issues (confirm/comment):** #1 → PREPIO-170, #3 → PREPIO-123, #4 → PREPIO-107, #6 → PREPIO-27.
+  **Unfiled — a maintainer must file:** #7 (the #340 trust regression, Medium, PREPIO-144 theme) is the
+  one actionable item with no issue yet and should be filed; #2 (sample-by-default) and #5 (desktop flag
+  labels) are new but small and deferred post-freeze (#5 below the >30-min threshold as a report note;
+  #2 drafted into the PREPIO-27 landing pass rather than a fragmenting standalone issue).
 - The CV-paste privacy-line note and the "try again in a moment" toast copy are sub-threshold riders,
   flagged into the PREPIO-27 landing pass and the PREPIO-170 deploy respectively.
 
