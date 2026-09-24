@@ -70,8 +70,11 @@ enumeration and filtering). Three touch the rendered app materially: **#354 "loc
 invite-only frozen core"** (the PREPIO-27 surface-lock), **#350** (pdfjs-dist 5→6, clearing the
 PREPIO-140 advisory), and **#353** (react-router 6→7); a fourth, **#338**, hides the practice coach
 panel when a question has no guidance. #354 is the story: it rewrote the guest, auth, billing, profile,
-and practice surfaces to match the 2026-09-02 freeze decision, and every user-facing change is **an
-improvement**.
+and practice surfaces to match the 2026-09-02 freeze decision. Its **five surface removals are each an
+improvement** (the table below), but the rewrite also carries **two minor, intentional costs** recorded
+in the regression check — the landing's rich example is now collapsed behind a click (P2 #2) and the
+rewritten landing's focus ring is weaker (a minor a11y regression, P3 #5) — so #354 is a strong **net**
+improvement, not a strictly all-upside one.
 Verified live this run:
 
 | Pre-freeze breakage (2026-09-03 P0/observations) | State on 2026-09-24 |
