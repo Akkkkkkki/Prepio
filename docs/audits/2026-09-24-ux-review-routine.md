@@ -41,12 +41,37 @@ redirect, and a landing keyboard-focus pass. `/profile` was probed and now **404
 the freeze), so there was **no CV surface to screenshot** this run. Screenshots under
 [`assets/2026-09-24/`](./assets/2026-09-24/).
 
+## Freeze-scope compliance note (read before landing this doc)
+
+**#354 (2026-09-22) added a new line to `CLAUDE.md` that did not exist at run #20:** *"Do not add
+features, recurring audits or routine dependency PRs."* ([`CLAUDE.md:26`](../../CLAUDE.md), under
+*Current Product Truth*). This run #21 is the first review executed under that line, so the tension is
+real and is called out here rather than glossed:
+
+- **This review ran per a standing weekly schedule that predates the freeze line.** It adds **no
+  feature, no dependency PR, and no *new* recurring-audit type** — it is the pre-existing sanctioned UX
+  routine ([`UX_REVIEW_ROUTINE.md`](./UX_REVIEW_ROUTINE.md), 21 runs).
+- **Its findings serve the freeze reconciliation rather than diverting from it.** The one P1 (flag write
+  `400/42P10`) is exactly a named freeze gate — [PREPIO-170](https://linear.app/qiuyue/issue/PREPIO-170)
+  under the PREPIO-124 reconciliation set in `CLAUDE.md:24`. The rest of the report is *evidence that the
+  freeze surface-lock succeeded* (guest/billing/profile/voice surfaces removed, verified live).
+- **The two *new* polish recommendations (Top-5 #2 landing-sample-by-default, #5 desktop flag labels /
+  focus ring) are explicitly deferred to post-freeze.** Do **not** open work for them during the freeze;
+  they are recorded for the PREPIO-27 landing pass only.
+- **Landing this doc is the maintainer's call.** Per the freeze line, this PR is held as a **draft** and
+  should not be merged during the freeze without an explicit decision. If the maintainer would rather
+  not carry any recurring-audit doc during the freeze, the review stands on its own in the PR and the
+  file can be dropped — no reconciliation work depends on it.
+
 ## The headline: the freeze surface-lock (#354) landed — last review's P0 is resolved
 
-Since 2026-09-03, three PRs merged to `main`: **#354 "lock Prepio to the invite-only frozen core"**
-(the PREPIO-27 surface-lock), **#350** (pdfjs-dist 5→6, clearing the PREPIO-140 advisory), and **#353**
-(react-router 6→7). #354 is the story: it rewrote the guest, auth, billing, profile, and practice
-surfaces to match the 2026-09-02 freeze decision, and every user-facing change is **an improvement**.
+Since 2026-09-03 the first-parent window is **16 commits** (see *Regression check* for the full
+enumeration and filtering). Three touch the rendered app materially: **#354 "lock Prepio to the
+invite-only frozen core"** (the PREPIO-27 surface-lock), **#350** (pdfjs-dist 5→6, clearing the
+PREPIO-140 advisory), and **#353** (react-router 6→7); a fourth, **#338**, hides the practice coach
+panel when a question has no guidance. #354 is the story: it rewrote the guest, auth, billing, profile,
+and practice surfaces to match the 2026-09-02 freeze decision, and every user-facing change is **an
+improvement**.
 Verified live this run:
 
 | Pre-freeze breakage (2026-09-03 P0/observations) | State on 2026-09-24 |
@@ -257,8 +282,27 @@ freeze lock; the dominant remaining defect is the single flag-write migration (P
 
 ## Regression check
 
-Three PRs merged since 2026-09-03 (#354 freeze lock, #350 pdfjs, #353 react-router). Net **improvement**;
-two minor, mostly-intentional first-impression/a11y costs:
+**Full change window since run #20:** `git log --first-parent 132816b..9d9b711` is **16 commits**, not
+the three user-facing ones the earlier draft named. Enumerated and filtered by user-facing impact
+(methodology: a change is *user-facing* if it alters the rendered app or its client dependencies; the
+rest are backend/pipeline, CI, logging-redaction, tests, or docs and cannot produce a UX regression):
+
+- **User-facing (assessed live this run):** #354 freeze surface-lock (the headline above); #338
+  ([PREPIO-176](https://linear.app/qiuyue/issue/PREPIO-176)) *hide the practice coach panel when a
+  question has no guidance* — an **improvement** (the "Practice tools / Show helpers" panel renders only
+  when guidance exists; seen live with guidance present, no empty panel); #336
+  ([PREPIO-175](https://linear.app/qiuyue/issue/PREPIO-175)) *remove forbidden rounded-3xl tokens from
+  the route skeleton* — cosmetic token compliance on the loading skeleton, no behavior change; #350
+  pdfjs 5→6 and #353 react-router 6→7 — client dependency bumps (routing verified live: protected-route
+  redirect, `/pricing` and `/profile` 404s, practice deep-link all work).
+- **Not user-facing (not a UX-regression surface, listed for completeness):** #351 (Edge Function
+  typecheck ratchet), #337 (interview-research search-ownership guard), #340 (job-row origin
+  classification), #335 / #344 (log redaction), #348 (Playwright smoke as a blocking CI gate), #332
+  (deno-baseline script), #345 (test coverage), #343 / #346 / #342 (deps + prior audit docs + PII
+  redaction of historical screenshots).
+
+Net across the window: **one large improvement (#354) + one practice improvement (#338), zero functional
+regressions;** two minor, intentional first-impression/a11y costs from the #354 rewrite (below).
 
 | Item | State | Note |
 |------|-------|------|
@@ -267,6 +311,9 @@ two minor, mostly-intentional first-impression/a11y costs:
 | Public Sign Up on `/auth` | **Fixed** ✅ | Invite-only sign-in with honest "ask the person who invited you" copy. |
 | `/profile` CV/upload PII surface | **Fixed** ✅ | Route removed (404); CV paste-only on `/new-interview`, no file upload. |
 | Voice **Record answer** (undeployed transcription) | **Fixed** ✅ | Removed from practice. |
+| Practice coach panel on guidance-less questions (#338) | **Improved** ✅ | Panel now renders only when guidance exists (PREPIO-176); no empty helper panel. |
+| Route loading skeleton tokens (#336) | **Holding** ✅ | `rounded-3xl` removed for token compliance (PREPIO-175); cosmetic, no behavior change. |
+| Client deps (react-router 6→7 #353, pdfjs 5→6 #350) | **Holding** ✅ | Routing verified live (redirects + 404 routes + deep-link); pdfjs upgrade also clears PREPIO-140. |
 | Practice question `<h1>` (desktop + mobile) | **Holding** ✅ | Question is the `<h1>` on both. |
 | Text-answer save | **Holding** ✅ | `201`; progress advanced live. |
 | Protected-route redirect context | **Holding** ✅ | `/practice` → `/auth` "Continue to Practice." (captured live). |
@@ -290,20 +337,22 @@ first-impression/a11y costs from the landing rewrite.**
    Favorite/Needs-work upsert stops returning `42P10`; dedupe any conflicting rows first; verify persist
    across reload on desktop + mobile. → **[PREPIO-170](https://linear.app/qiuyue/issue/PREPIO-170)**
    (Urgent; confirmed live 2026-09-24). *Drives the PREPIO-124 attended deploy.*
-2. **[P2] Show the guest sample plan by default on the landing page.** Render the static sample expanded
-   (value-first) instead of behind **View sample plan**, and add one line naming it an illustrative
-   *format* example so the fictional "Payments company" reads as deliberate. Small landing polish, no new
-   feature — fits the PREPIO-27 landing surface. *(New; drafted.)*
+2. **[P2 · post-freeze] Show the guest sample plan by default on the landing page.** Render the static
+   sample expanded (value-first) instead of behind **View sample plan**, and add one line naming it an
+   illustrative *format* example so the fictional "Payments company" reads as deliberate. Small landing
+   polish — fits the PREPIO-27 landing surface. **Deferred: do not start during the freeze** (per
+   `CLAUDE.md:26`); recorded for the post-freeze landing pass. *(New; drafted.)*
 3. **[P2] Add `autocomplete` attributes to `/auth` sign-in** (`email` / `current-password`). One small
    PR. → **[PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123)** (existing; confirmed live, 16th
    audit).
 4. **[P3] Surface in-progress work on `/history` (or clarify the empty-state scope)** so a returning
    user who has answered questions isn't told "your first practice session will appear here." →
    **[PREPIO-107](https://linear.app/qiuyue/issue/PREPIO-107)** (existing, In Progress).
-5. **[P3] Label the desktop practice Favorite/Needs-work icons + restore the landing focus ring.** Add
-   text/tooltip to the desktop ☆/ⓘ controls (mobile already labels them) and re-apply the custom
-   focus-ring utility on the rewritten landing buttons. *(New; drafted; below the >30-min threshold —
-   fold into the next practice/landing touch.)*
+5. **[P3 · post-freeze] Label the desktop practice Favorite/Needs-work icons + restore the landing focus
+   ring.** Add text/tooltip to the desktop ☆/ⓘ controls (mobile already labels them) and re-apply the
+   custom focus-ring utility on the rewritten landing buttons. **Deferred: do not start during the
+   freeze** (per `CLAUDE.md:26`); below the >30-min threshold — fold into the next post-freeze
+   practice/landing touch. *(New; drafted.)*
 
 ### Deferred items (per CLAUDE.md hygiene convention)
 
