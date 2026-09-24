@@ -434,8 +434,9 @@ intentional first-impression cost (the collapsed sample). But the window is *not
 overall: #354 also removed the **paid AI-feedback surface** (intentional freeze scope, but a loss of
 access to previously-generated feedback for existing paid users), and **#340 introduced a narrow,
 statically-established `official_company` trust regression** (accented-name host over-trust, per the
-2026-09-12 audit). The synthesis-path commits (#337 read-side ok; #340 plan effect) still need a fresh
-research run to confirm live — the #340 trust regression itself is already established.**
+2026-09-12 audit). The synthesis-path commits (#337's ownership guard — **wholly unverified**, its
+`authorizeSearch` runs only on the un-exercised `interview-research` POST; #340's plan effect) still need
+a fresh research run to confirm live — the #340 trust regression itself is already established.**
 
 ## Recommended tickets
 
