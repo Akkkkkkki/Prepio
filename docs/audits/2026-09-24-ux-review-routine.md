@@ -61,7 +61,10 @@ real and is called out here rather than glossed:
   `400/42P10`) is exactly a named freeze gate — [PREPIO-170](https://linear.app/qiuyue/issue/PREPIO-170)
   under the PREPIO-124 reconciliation set in `CLAUDE.md:24`. The rest of the report is *evidence that the
   freeze surface-lock succeeded* (guest/billing/profile surfaces and the voice *control* removed,
-  verified live — with one residual voice-hint gap called out as a new finding, not glossed).
+  verified live — with **two residual-copy gaps** called out as P2 #6, not glossed: the practice
+  "Record for a full answer" voice hint (live) and the `/new-interview` offline "resume files parse
+  locally" copy (static). Both are **freeze-scope surface-lock fixes** (gate the copy on its
+  `FROZEN_PRODUCT` flag) — completing PREPIO-27, not new work.
 - **The two *new* polish recommendations (Top issue #2 landing-sample-by-default, #5 desktop practice flag
   labels) are explicitly deferred to post-freeze.** Do **not** open work for them during the freeze;
   they are recorded for the PREPIO-27 landing pass only.
@@ -103,8 +106,9 @@ that can't work.
 
 **The freeze surface-lock is a real, verifiable step up in honesty: almost nothing a first-time visitor
 or a logged-in user touches now points at an undeployed function, and last review's top-of-funnel P0 is
-gone.** (The one residual exception found this run: the practice coach hint still says "Record for a
-full answer" though voice is removed — new P2 #6 below.) The authenticated core a user actually works in
+gone.** (Two residual exceptions found this run: the practice coach "Record for a full answer" hint
+(live) and the `/new-interview` offline "resume files parse locally" copy (static) — both P2 #6 below.)
+The authenticated core a user actually works in
 stays strong — the practice question is the
 unambiguous hero and a proper `<h1>` on desktop and mobile, text-answer save persists (`201`), notes
 autosave shows honest device-local copy, mobile practice has no overflow with every control ≥44px, and
@@ -355,10 +359,13 @@ and so cannot produce a UX regression:
   new `authorization.ts` wired into `interview-research/index.ts`; gates who can access a search) and
   **#340** (`evidence-ledger.ts` re-classifies retrieved job rows by *origin* — the ledger feeds the
   prep-plan synthesis prompt, so it can change the plan, questions, and citations a user receives).
-  **No fresh research run was submitted this week** (§Capability check), so neither the synthesis output
-  nor the write-side of the ownership gate was exercised end-to-end. Static read: #337 is an
-  authorization tightening (risk direction: over-restriction) and the *read* side is indirectly
-  fine — resuming and practicing my **own** searches worked live (`searches` GET `200`, practice loaded).
+  **No fresh research run was submitted this week** (§Capability check), so the synthesis output was not
+  exercised. **#337's runtime behavior is wholly unverified this run:** its `authorizeSearch` runs only
+  on the `interview-research` **POST** (`index.ts:1333`), which a fresh research submission triggers — the
+  `searches` GET I observed while resuming is a **direct RLS-backed REST read that never invokes it**, so
+  neither the owned-search success path nor the rejection paths were exercised. Static read only: it is
+  an authorization tightening (risk direction: over-restriction), covered by unit tests
+  (`authorization.test.ts`) but not run live here.
   **#340 is not merely unverified — it carries a *statically-established* narrow trust regression** the
   repo's own [2026-09-12 hygiene review](./2026-09-12-recurring-hygiene.md) records: #340's NFKD /
   combining-mark folding on `companyWords` makes a diacritic brand name (`"L'Oréal"` → `oreal`) produce
@@ -396,7 +403,8 @@ minor intentional first-impression cost (collapsed sample) plus the residual voi
 AI-feedback surface (intentional, but a loss for existing paid users), and **#340 carries a
 statically-established `official_company` trust regression** (accented-name host over-trust, per the
 2026-09-12 audit) — so #340 is not merely "unverified"; its *plan* effect needs a fresh run, its trust
-regression is already established. #337's read side is fine live; its write side is unverified.
+regression is already established. #337's runtime guard (on the `interview-research` POST) is wholly
+unverified — the RLS-backed `searches` GET does not invoke it.
 
 | Item | State | Note |
 |------|-------|------|
