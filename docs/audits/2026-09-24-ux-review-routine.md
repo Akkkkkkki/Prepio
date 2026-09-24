@@ -295,14 +295,28 @@ rest are backend/pipeline, CI, logging-redaction, tests, or docs and cannot prod
   the route skeleton* — cosmetic token compliance on the loading skeleton, no behavior change; #350
   pdfjs 5→6 and #353 react-router 6→7 — client dependency bumps (routing verified live: protected-route
   redirect, `/pricing` and `/profile` 404s, practice deep-link all work).
-- **Not user-facing (not a UX-regression surface, listed for completeness):** #351 (Edge Function
-  typecheck ratchet), #337 (interview-research search-ownership guard), #340 (job-row origin
-  classification), #335 / #344 (log redaction), #348 (Playwright smoke as a blocking CI gate), #332
-  (deno-baseline script), #345 (test coverage), #343 / #346 / #342 (deps + prior audit docs + PII
-  redaction of historical screenshots).
+- **Behavior-changing backend on the research-synthesis journey — NOT exercised this run (static read
+  only, carried as unverified):** **#337** (interview-research search-ownership authorization guard —
+  new `authorization.ts` wired into `interview-research/index.ts`; gates who can access a search) and
+  **#340** (`evidence-ledger.ts` re-classifies retrieved job rows by *origin* — the ledger feeds the
+  prep-plan synthesis prompt, so it can change the plan, questions, and citations a user receives).
+  **No fresh research run was submitted this week** (§Capability check), so neither the synthesis output
+  nor the write-side of the ownership gate was exercised end-to-end. Static read: #337 is an
+  authorization tightening (risk direction: over-restriction) and the *read* side is indirectly
+  fine — resuming and practicing my **own** searches worked live (`searches` GET `200`, practice loaded);
+  #340 is output-grounding, whose effect is only observable through a fresh plan. Both are **carried as
+  unverified**, not attested regression-free — a fresh-research pass is owed to close them.
+- **Not on any user-observable path (infra/CI/tests/docs, no UX-regression surface):** #351 (Edge
+  Function typecheck ratchet), #335 / #344 (log redaction), #348 (Playwright smoke as a blocking CI
+  gate), #332 (deno-baseline script), #345 (test coverage), #343 / #346 / #342 (deps + prior audit docs
+  + PII redaction of historical screenshots).
 
-Net across the window: **one large improvement (#354) + one practice improvement (#338), zero functional
-regressions;** two minor, intentional first-impression/a11y costs from the #354 rewrite (below).
+Net across the window, **scoped to the rendered/client paths actually exercised this run** (landing,
+guest sample, auth, interviews, practice save + flags, history, redirect, research *form*): **one large
+improvement (#354) + one practice improvement (#338), zero functional regressions on those paths;** two
+minor intentional first-impression/a11y costs from the #354 rewrite (below). The two research-synthesis
+backend changes (#337, #340) are **out of scope for that "zero regressions" claim** — not exercised,
+carried as unverified above.
 
 | Item | State | Note |
 |------|-------|------|
@@ -323,8 +337,10 @@ regressions;** two minor, intentional first-impression/a11y costs from the #354 
 | `/auth` autocomplete | **Still unfixed — 16th audit** ⚠️ | `null`. (P2 #3, PREPIO-123) |
 | `/history` vs in-progress parity | **Still open** ⚠️ | Empty state despite "8 of 40 answered". (P3 #4, PREPIO-107) |
 
-**Net: five pre-freeze breakages fixed, zero functional regressions; two minor intentional
-first-impression/a11y costs from the landing rewrite.**
+**Net: five pre-freeze breakages fixed; zero functional regressions on the rendered/client paths
+exercised this run; two minor intentional first-impression/a11y costs from the landing rewrite. The two
+behavior-changing research-synthesis backend commits (#337, #340) were not exercised (no fresh research
+run) and are carried as unverified, not claimed regression-free.**
 
 ## Recommended tickets
 
