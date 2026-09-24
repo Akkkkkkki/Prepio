@@ -314,10 +314,17 @@ and so cannot produce a UX regression:
   fine — resuming and practicing my **own** searches worked live (`searches` GET `200`, practice loaded);
   #340 is output-grounding, whose effect is only observable through a fresh plan. Both are **carried as
   unverified**, not attested regression-free — a fresh-research pass is owed to close them.
+- **Runtime dependency change on a now-unreachable surface (assessed, not exercised):** **#343** is
+  lockfile-only but bumps `@xmldom/xmldom` **0.8.13 → 0.8.15**, a *runtime* transitive of `mammoth` (the
+  DOCX résumé parser) — so it is behavior-capable in principle, not inert-by-category. Its only surface
+  is DOCX résumé upload/parse, which **#354 removed** (no file-upload control anywhere; CV is paste-only,
+  verified live — `/new-interview` has zero file inputs, `/profile` 404s). A patch-level bump on a code
+  path that cannot be reached in the frozen product has no observable effect here; if uploads are ever
+  restored post-freeze, re-assess DOCX parsing against 0.8.15.
 - **Not on any user-observable path (infra/CI/tests/docs, no UX-regression surface):** #351 (Edge
   Function typecheck ratchet), #335 / #344 (log redaction), #348 (Playwright smoke as a blocking CI
-  gate), #332 (deno-baseline script), #345 (test coverage), #343 / #346 / #342 (deps + prior audit docs
-  + PII redaction of historical screenshots).
+  gate), #332 (deno-baseline script), #345 (test coverage), #346 / #342 (prior audit docs + PII
+  redaction of historical screenshots).
 
 Net across the window, **scoped to the rendered/client paths actually exercised this run** (landing,
 guest sample, auth, interviews, practice save + flags, history, redirect, research *form*): **one large
