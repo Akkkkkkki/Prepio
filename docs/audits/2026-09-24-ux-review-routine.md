@@ -448,11 +448,15 @@ a fresh research run to confirm live — the #340 trust regression itself is alr
 
 > Linear was **not reachable this session** (the MCP connector is unauthenticated in a non-interactive
 > run), so no Linear issues were created or commented. A maintainer with Linear access should record the
-> live-confirmations and file the unfiled items. Each entry is tagged **[existing]** (maps to an open
-> issue — confirm/comment) or **[unfiled]** (a new proposal with no issue yet — needs filing). Existing:
-> #1 (PREPIO-170), #3 (PREPIO-123), #4 (PREPIO-107), #6 (fits PREPIO-27). Unfiled/new: #2 and #5 (small,
-> post-freeze), and **#7 — the #340 `official_company` trust regression, which has no dedicated issue
-> yet** (the 2026-09-12 hygiene review flagged it as a Medium to file under the PREPIO-144 theme).
+> live-confirmations. Each entry is tagged **[existing]** (maps to an open issue — confirm/comment) or
+> **[unfiled]** (no issue yet). **[unfiled] does not mean "file now":**
+> - **Existing:** #1 (PREPIO-170), #3 (PREPIO-123), #4 (PREPIO-107), #6 (fits PREPIO-27).
+> - **Unfiled — should be filed:** only **#7** (the #340 `official_company` trust regression; the
+>   2026-09-12 hygiene review flagged it as a Medium under the PREPIO-144 theme, no dedicated issue yet).
+> - **Unfiled but deferred — do NOT open as freeze work:** #2 and #5 are small post-freeze polish notes
+>   (per `CLAUDE.md:26`); #5 is below the >30-min threshold and stays a report note, #2 folds into the
+>   existing post-freeze PREPIO-27 landing pass. Filing these now would create exactly the work the
+>   freeze note prohibits.
 
 1. **[P1] Apply `20260710203000_question_flags_per_type.sql`** in the freeze deploy window so the
    Favorite/Needs-work upsert stops returning `42P10`; dedupe any conflicting rows first; verify persist
@@ -492,10 +496,11 @@ a fresh research run to confirm live — the #340 trust regression itself is alr
 
 - **No Linear issues filed this run** (Linear unauthenticated; see note above). **Mapped to existing
   issues (confirm/comment):** #1 → PREPIO-170, #3 → PREPIO-123, #4 → PREPIO-107, #6 → PREPIO-27.
-  **Unfiled — a maintainer must file:** #7 (the #340 trust regression, Medium, PREPIO-144 theme) is the
-  one actionable item with no issue yet and should be filed; #2 (sample-by-default) and #5 (desktop flag
-  labels) are new but small and deferred post-freeze (#5 below the >30-min threshold as a report note;
-  #2 drafted into the PREPIO-27 landing pass rather than a fragmenting standalone issue).
+  **Unfiled and actionable — file this one:** only #7 (the #340 trust regression, Medium, PREPIO-144
+  theme) has no issue yet and should be filed. **Unfiled but deferred — do NOT open as freeze work:**
+  #2 (sample-by-default) and #5 (desktop flag labels) are small post-freeze polish notes (`CLAUDE.md:26`)
+  — #5 stays a report note (below the >30-min threshold); #2 folds into the existing post-freeze PREPIO-27
+  landing pass rather than a fragmenting standalone issue.
 - The CV-paste privacy-line note and the "try again in a moment" toast copy are sub-threshold riders,
   flagged into the PREPIO-27 landing pass and the PREPIO-170 deploy respectively.
 
