@@ -55,8 +55,8 @@ real and is called out here rather than glossed:
   `400/42P10`) is exactly a named freeze gate — [PREPIO-170](https://linear.app/qiuyue/issue/PREPIO-170)
   under the PREPIO-124 reconciliation set in `CLAUDE.md:24`. The rest of the report is *evidence that the
   freeze surface-lock succeeded* (guest/billing/profile/voice surfaces removed, verified live).
-- **The two *new* polish recommendations (Top-5 #2 landing-sample-by-default, #5 desktop flag labels /
-  focus ring) are explicitly deferred to post-freeze.** Do **not** open work for them during the freeze;
+- **The two *new* polish recommendations (Top-5 #2 landing-sample-by-default, #5 desktop practice flag
+  labels) are explicitly deferred to post-freeze.** Do **not** open work for them during the freeze;
   they are recorded for the PREPIO-27 landing pass only.
 - **Landing this doc is the maintainer's call.** Per the freeze line, this PR is held as a **draft** and
   should not be merged during the freeze without an explicit decision. If the maintainer would rather
@@ -71,10 +71,9 @@ invite-only frozen core"** (the PREPIO-27 surface-lock), **#350** (pdfjs-dist 5�
 PREPIO-140 advisory), and **#353** (react-router 6→7); a fourth, **#338**, hides the practice coach
 panel when a question has no guidance. #354 is the story: it rewrote the guest, auth, billing, profile,
 and practice surfaces to match the 2026-09-02 freeze decision. Its **five surface removals are each an
-improvement** (the table below), but the rewrite also carries **two minor, intentional costs** recorded
-in the regression check — the landing's rich example is now collapsed behind a click (P2 #2) and the
-rewritten landing's focus ring is weaker (a minor a11y regression, P3 #5) — so #354 is a strong **net**
-improvement, not a strictly all-upside one.
+improvement** (the table below), with **one minor, intentional first-impression cost** recorded in the
+regression check — the landing's rich example is now collapsed behind a click (P2 #2) — so #354 is a
+strong **net** improvement.
 Verified live this run:
 
 | Pre-freeze breakage (2026-09-03 P0/observations) | State on 2026-09-24 |
@@ -195,26 +194,28 @@ click.
 - **Tracking:** [PREPIO-107](https://linear.app/qiuyue/issue/PREPIO-107) (In Progress) — "surface
   needs-work & progress on the interview card and a Review tab" covers this direction.
 
-### 5. **P3 (a11y / consistency, new) — Desktop practice uses icon-only Favorite / Needs-work; landing focus ring is now the native default**
+### 5. **P3 (a11y / consistency, new) — Desktop practice uses icon-only Favorite / Needs-work while mobile labels them**
 
-- **Severity:** P3 (recognition-over-recall + minor a11y polish; not a failure)
-- **Area:** practice / landing / accessibility
-- **What happened (live):**
-  - On **desktop** `/practice` the Favorite/Needs-work controls are **icon-only** (☆ and ⓘ) below the
-    question, while **mobile** shows the same actions as **labeled** buttons ("Favorite", "Needs work").
-    Both carry correct `aria-label`s (so screen readers are fine), but the desktop icons are less
-    discoverable than the mobile labels — a sighted desktop user may not know what ☆/ⓘ do.
-    [`20-d-practice.png`](./assets/2026-09-24/20-d-practice.png) vs
-    [`21-m-practice.png`](./assets/2026-09-24/21-m-practice.png)
-  - The rewritten landing's focused control shows the **native UA outline** (`outline: auto 1px`, no
-    box-shadow) where the pre-freeze landing had a custom 2px outline + shadow ring. The native ring is
-    still visible (not a WCAG failure), but it's a weaker, less branded focus indicator than before.
+- **Severity:** P3 (recognition-over-recall; not a failure)
+- **Area:** practice / accessibility
+- **What happened (live):** on **desktop** `/practice` the Favorite/Needs-work controls are **icon-only**
+  (☆ and ⓘ) below the question, while **mobile** shows the same actions as **labeled** buttons
+  ("Favorite", "Needs work"). Both carry correct `aria-label`s (so screen readers are fine), but the
+  desktop icons are less discoverable than the mobile labels — a sighted desktop user may not know what
+  ☆/ⓘ do. [`20-d-practice.png`](./assets/2026-09-24/20-d-practice.png) vs
+  [`21-m-practice.png`](./assets/2026-09-24/21-m-practice.png)
 - **Why it matters:** low impact, but the desktop/mobile label inconsistency is a small recognition gap
-  on the most-used screen, and the focus-ring change is a minor regression from the rewrite worth a
-  glance.
-- **Recommended fix:** add visible text labels (or tooltips) to the desktop Favorite/Needs-work icons;
-  restore the custom focus-ring utility on the landing buttons. Both fold into existing surfaces.
-- **Tracking:** below the >30-min ticketing threshold individually; flagged as report notes.
+  on the most-used screen.
+- **Recommended fix:** add visible text labels (or tooltips) to the desktop Favorite/Needs-work icons
+  (mobile already labels them). Folds into the existing practice surface.
+- **Tracking:** below the >30-min ticketing threshold; flagged as a report note.
+- **Retraction (this run):** an earlier draft also claimed the rewritten landing's focus ring was
+  *weakened* to a native `outline: auto 1px`. **Retracted — unsupported.** The landing controls use the
+  shared `Button` (`src/components/ui/button.tsx` `buttonVariants`), whose
+  `focus-visible:ring-2 ring-ring ring-offset-2` is unchanged by #354, as are the skip link and the
+  `PublicHeader` logo; the earlier reading measured a programmatically-tab-focused element (the skip
+  link on a wrapped tab loop), not a button's `:focus-visible` state, so it does not establish a
+  regression. No focus-ring change is claimed.
 
 ## Notable live observations (not top-5)
 
@@ -277,7 +278,7 @@ exercised this run.
 | Resume/profile trust | 4 | 4 | = | **(live)** `/profile` route removed by the freeze; CV is paste-only + optional with honest value copy (missing a privacy line — minor). Surface shrank, what remains is honest. |
 | Dashboard/history/resume | 3 | 3 | = | **(live)** `/interviews` resumes well, but `/history` empty despite in-progress work (P3 #4). |
 | Error/empty states | 4 | 4 | = | **(live)** Guest sample, redirect, `/practice` no-search, and invite-only auth all honest; the static-example blanking is gone. Held at 4 by the flag toast's misleading "try again". |
-| Accessibility | 4 | 4 | = | **(live)** Practice `<h1>` on both breakpoints, good `aria-label`s, ≥44px practice controls, logical tab order, native focus ring. Remaining: `/auth` autocomplete null (#3), desktop icon-only flags + weaker landing focus ring (#5). |
+| Accessibility | 4 | 4 | = | **(live)** Practice `<h1>` on both breakpoints, good `aria-label`s, ≥44px practice controls, logical tab order, visible focus ring (shared `Button` `ring-2`, unchanged by #354). Remaining: `/auth` autocomplete null (#3), desktop icon-only practice flags (#5). |
 | Copy quality | 4 | 4 | = | **(live)** Invite-only, sample disclaimer, and CV framing are excellent; held by the "try again in a moment" flag toast and the "explore example below" (collapsed) line. |
 
 **Composite: flat, with the risk profile improved.** The four-month top-of-funnel P0 is closed by the
@@ -286,11 +287,15 @@ freeze lock; the dominant remaining defect is the single flag-write migration (P
 ## Regression check
 
 **Full change window since run #20:** `git log --first-parent 132816b..9d9b711` is **16 commits**, not
-the three user-facing ones the earlier draft named. Enumerated and filtered by user-facing impact
-(methodology: a change is *user-facing* if it alters the rendered app or its client dependencies; the
-rest are backend/pipeline, CI, logging-redaction, tests, or docs and cannot produce a UX regression):
+the three user-facing ones the earlier draft named. Enumerated and filtered by **observable-behavior
+impact** — a change is *user-facing* if it can alter behavior or output a user observes, whether in the
+**rendered UI/client** *or* in **server-side generated content or access** (so the ownership guard and
+the evidence-ledger change below count as user-facing even though they touch no rendered code). Only the
+last bucket — CI, infra scripts, log-redaction, tests, and docs — has **no observable-behavior surface**
+and so cannot produce a UX regression:
 
-- **User-facing (assessed live this run):** #354 freeze surface-lock (the headline above); #338
+- **User-facing, rendered/client (assessed live this run):** #354 freeze surface-lock (the headline
+  above); #338
   ([PREPIO-176](https://linear.app/qiuyue/issue/PREPIO-176)) *hide the practice coach panel when a
   question has no guidance* — an **improvement** (the "Practice tools / Show helpers" panel renders only
   when guidance exists; seen live with guidance present, no empty panel); #336
@@ -335,15 +340,15 @@ carried as unverified above.
 | Text-answer save | **Holding** ✅ | `201`; progress advanced live. |
 | Protected-route redirect context | **Holding** ✅ | `/practice` → `/auth` "Continue to Practice." (captured live). |
 | Landing rich always-visible example | **Reduced** ⚠️ | Intentional freeze simplification; sample now behind a click, fictional company (P2 #2). First-impression cost. |
-| Landing focus ring | **Weaker** ⚠️ | Native UA outline only on the rewritten landing (was custom 2px + shadow). Still visible; minor (P3 #5). |
+| Landing focus ring | **No change** ✅ | Shared `Button` `focus-visible:ring-2 ring-offset-2` unchanged by #354; an earlier "weaker ring" note is **retracted** (unreliable measurement — see P3 #5). |
 | Favorite/Needs-work flag write | **Still broken** ❌ | `400 / 42P10` on both; fixing migration exists, authorized for the freeze, unapplied. (P1 #1, PREPIO-170) |
 | `/auth` autocomplete | **Still unfixed — 16th audit** ⚠️ | `null`. (P2 #3, PREPIO-123) |
 | `/history` vs in-progress parity | **Still open** ⚠️ | Empty state despite "8 of 40 answered". (P3 #4, PREPIO-107) |
 
 **Net: five pre-freeze breakages fixed; zero functional regressions on the rendered/client paths
-exercised this run; two minor intentional first-impression/a11y costs from the landing rewrite. The two
-behavior-changing research-synthesis backend commits (#337, #340) were not exercised (no fresh research
-run) and are carried as unverified, not claimed regression-free.**
+exercised this run; one minor intentional first-impression cost from the landing rewrite (the collapsed
+sample). The two behavior-changing research-synthesis backend commits (#337, #340) were not exercised
+(no fresh research run) and are carried as unverified, not claimed regression-free.**
 
 ## Recommended tickets
 
@@ -367,17 +372,16 @@ run) and are carried as unverified, not claimed regression-free.**
 4. **[P3] Surface in-progress work on `/history` (or clarify the empty-state scope)** so a returning
    user who has answered questions isn't told "your first practice session will appear here." →
    **[PREPIO-107](https://linear.app/qiuyue/issue/PREPIO-107)** (existing, In Progress).
-5. **[P3 · post-freeze] Label the desktop practice Favorite/Needs-work icons + restore the landing focus
-   ring.** Add text/tooltip to the desktop ☆/ⓘ controls (mobile already labels them) and re-apply the
-   custom focus-ring utility on the rewritten landing buttons. **Deferred: do not start during the
-   freeze** (per `CLAUDE.md:26`); below the >30-min threshold — fold into the next post-freeze
-   practice/landing touch. *(New; drafted.)*
+5. **[P3 · post-freeze] Label the desktop practice Favorite/Needs-work icons.** Add text/tooltip to the
+   desktop ☆/ⓘ controls (mobile already labels them). **Deferred: do not start during the freeze** (per
+   `CLAUDE.md:26`); below the >30-min threshold — fold into the next post-freeze practice touch.
+   *(New; drafted.)*
 
 ### Deferred items (per CLAUDE.md hygiene convention)
 
 - **No new issues filed this run** (Linear unauthenticated; see note above). Findings #1/#3/#4 map to
-  existing open issues (PREPIO-170, -123, -107). #2 (sample-by-default) and #5 (desktop flag labels +
-  focus ring) are new but small; #5 is below the >30-min threshold and left as a report note, and #2 is
+  existing open issues (PREPIO-170, -123, -107). #2 (sample-by-default) and #5 (desktop practice flag
+  labels) are new but small; #5 is below the >30-min threshold and left as a report note, and #2 is
   drafted for the PREPIO-27 landing surface rather than a fragmenting standalone issue.
 - The CV-paste privacy-line note and the "try again in a moment" toast copy are sub-threshold riders,
   flagged into the PREPIO-27 landing pass and the PREPIO-170 deploy respectively.
