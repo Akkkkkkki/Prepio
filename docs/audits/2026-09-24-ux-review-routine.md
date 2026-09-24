@@ -71,12 +71,15 @@ enumeration and filtering). Three touch the rendered app materially: **#354 "loc
 invite-only frozen core"** (the PREPIO-27 surface-lock), **#350** (pdfjs-dist 5→6, clearing the
 PREPIO-140 advisory), and **#353** (react-router 6→7); a fourth, **#338**, hides the practice coach
 panel when a question has no guidance. #354 is the story: it rewrote the guest, auth, billing, profile,
-and practice surfaces to match the 2026-09-02 freeze decision. Its surface removals are each an
-improvement (the table below) — four are clean (guest preview, `/pricing`, sign-up, `/profile`), and the
-fifth (voice) removed the control but **left a residual coach hint still pointing at recording** (P2 #6).
-It also carries **one minor, intentional first-impression cost** — the landing's rich example is now
-collapsed behind a click (P2 #2). So #354 is a strong **net** improvement, with two loose ends this run
-records rather than glosses.
+and practice surfaces to match the 2026-09-02 freeze decision. Its surface changes are **six removals**:
+**four clean** (guest preview, `/pricing`, sign-up, `/profile`) — each an improvement; **voice**, whose
+control was removed but **left a residual coach hint still pointing at recording** (P2 #6); and the
+**paid AI-feedback surface** — #354 gates off the "AI feedback" tab and cached-feedback loading
+(`SessionSummary.tsx:274`, `SessionList.tsx:185,346`), an *intentional* freeze-scope decision but an
+**observable loss** for any existing paid user (including access to previously-generated feedback), not
+an improvement per se. It also carries **one first-impression cost** — the landing's rich example is now
+collapsed behind a click (P2 #2). So #354 is a strong **net** improvement, with these loose ends
+recorded rather than glossed.
 Verified live this run:
 
 | Pre-freeze breakage (2026-09-03 P0/observations) | State on 2026-09-24 |
@@ -339,9 +342,17 @@ and so cannot produce a UX regression:
   **No fresh research run was submitted this week** (§Capability check), so neither the synthesis output
   nor the write-side of the ownership gate was exercised end-to-end. Static read: #337 is an
   authorization tightening (risk direction: over-restriction) and the *read* side is indirectly
-  fine — resuming and practicing my **own** searches worked live (`searches` GET `200`, practice loaded);
-  #340 is output-grounding, whose effect is only observable through a fresh plan. Both are **carried as
-  unverified**, not attested regression-free — a fresh-research pass is owed to close them.
+  fine — resuming and practicing my **own** searches worked live (`searches` GET `200`, practice loaded).
+  **#340 is not merely unverified — it carries a *statically-established* narrow trust regression** the
+  repo's own [2026-09-12 hygiene review](./2026-09-12-recurring-hygiene.md) records: #340's NFKD /
+  combining-mark folding on `companyWords` makes a diacritic brand name (`"L'Oréal"` → `oreal`) produce
+  a token that the loose `.includes()` host match in `evidence-ledger.ts:175-177` still grants
+  `official_company` / high trust to, so **`oreal.attacker.example` is now over-trusted where it was not
+  before #340** — net security-*positive* on the `official_job` branch #340 targeted, but
+  security-*negative* on the untouched `official_company` branch for accented names. Its effect on the
+  cited evidence and generated plan for such an input still needs a fresh run to confirm live, so the
+  *plan* effect is carried as unverified while the trust regression itself is **established**. A
+  fresh-research pass is owed to close both.
 - **Dependency change with two observable surfaces (assessed, not pixel-verified):** **#343** is
   lockfile-only but is *not* inert-by-category — it touches two behavior-capable surfaces:
   1. **DOCX parsing** — `@xmldom/xmldom` **0.8.13 → 0.8.15** (runtime transitive of `mammoth`, the DOCX
@@ -363,10 +374,13 @@ and so cannot produce a UX regression:
 
 Net across the window, **scoped to the rendered/client paths actually exercised this run** (landing,
 guest sample, auth, interviews, practice save + flags, history, redirect, research *form*): **one large
-improvement (#354) + one practice improvement (#338), zero functional regressions on those paths;** two
-minor intentional first-impression/a11y costs from the #354 rewrite (below). The two research-synthesis
-backend changes (#337, #340) are **out of scope for that "zero regressions" claim** — not exercised,
-carried as unverified above.
+improvement (#354) + one practice improvement (#338), zero functional regressions on those paths;** one
+minor intentional first-impression cost (collapsed sample) plus the residual voice hint (P2 #6) from the
+#354 rewrite. **Off those exercised paths the window is not regression-free:** #354 also removed the paid
+AI-feedback surface (intentional, but a loss for existing paid users), and **#340 carries a
+statically-established `official_company` trust regression** (accented-name host over-trust, per the
+2026-09-12 audit) — so #340 is not merely "unverified"; its *plan* effect needs a fresh run, its trust
+regression is already established. #337's read side is fine live; its write side is unverified.
 
 | Item | State | Note |
 |------|-------|------|
@@ -378,6 +392,8 @@ carried as unverified above.
 | Practice coach panel on guidance-less questions (#338) | **Improved** ✅ | Panel now renders only when guidance exists (PREPIO-176); no empty helper panel. |
 | Route loading skeleton tokens (#336) | **Holding** ✅ | `rounded-3xl` removed for token compliance (PREPIO-175); cosmetic, no behavior change. |
 | Client deps (react-router 6→7 #353, pdfjs 5→6 #350) | **Holding** ✅ | Routing verified live (redirects + 404 routes + deep-link); pdfjs upgrade also clears PREPIO-140. |
+| Paid AI-feedback surface (#354) | **Removed — intentional, but a loss** ⚠️ | #354 gates off the "AI feedback" tab + cached-feedback loading (`SessionSummary.tsx:274`, `SessionList.tsx:185,346`); freeze-scope decision, but existing paid users lose access to previously-generated feedback (Codex PR review). |
+| #340 evidence-ledger trust classification | **Narrow regression** ⚠️ | NFKD folding makes `"L'Oréal"`→`oreal`, and the loose `.includes()` host match (`evidence-ledger.ts:175-177`) over-trusts `oreal.attacker.example` as `official_company`; statically established in the [2026-09-12 audit](./2026-09-12-recurring-hygiene.md). Net security-positive on `official_job`, negative on `official_company` for accented names. |
 | Practice question `<h1>` (desktop + mobile) | **Holding** ✅ | Question is the `<h1>` on both. |
 | Text-answer save | **Holding** ✅ | `201`; progress advanced live. |
 | Protected-route redirect context | **Holding** ✅ | `/practice` → `/auth` "Continue to Practice." (captured live). |
@@ -389,9 +405,13 @@ carried as unverified above.
 
 **Net: four pre-freeze breakages fully fixed (guest preview, `/pricing`, public sign-up, `/profile`);
 the fifth (voice) is *mostly* fixed — the control is gone but a residual coach hint still points at it
-(P2 #6). Zero functional regressions on the rendered/client paths exercised this run; one minor
-intentional first-impression cost from the landing rewrite (the collapsed sample). The two behavior-changing research-synthesis backend commits (#337, #340) were not exercised
-(no fresh research run) and are carried as unverified, not claimed regression-free.**
+(P2 #6). Zero functional regressions on the rendered/client paths exercised this run, and one minor
+intentional first-impression cost (the collapsed sample). But the window is *not* regression-free
+overall: #354 also removed the **paid AI-feedback surface** (intentional freeze scope, but a loss of
+access to previously-generated feedback for existing paid users), and **#340 introduced a narrow,
+statically-established `official_company` trust regression** (accented-name host over-trust, per the
+2026-09-12 audit). The synthesis-path commits (#337 read-side ok; #340 plan effect) still need a fresh
+research run to confirm live — the #340 trust regression itself is already established.**
 
 ## Recommended tickets
 
