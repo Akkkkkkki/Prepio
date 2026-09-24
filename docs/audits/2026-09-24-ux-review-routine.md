@@ -342,13 +342,20 @@ and so cannot produce a UX regression:
   fine — resuming and practicing my **own** searches worked live (`searches` GET `200`, practice loaded);
   #340 is output-grounding, whose effect is only observable through a fresh plan. Both are **carried as
   unverified**, not attested regression-free — a fresh-research pass is owed to close them.
-- **Runtime dependency change on a now-unreachable surface (assessed, not exercised):** **#343** is
-  lockfile-only but bumps `@xmldom/xmldom` **0.8.13 → 0.8.15**, a *runtime* transitive of `mammoth` (the
-  DOCX résumé parser) — so it is behavior-capable in principle, not inert-by-category. Its only surface
-  is DOCX résumé upload/parse, which **#354 removed** (no file-upload control anywhere; CV is paste-only,
-  verified live — `/new-interview` has zero file inputs, `/profile` 404s). A patch-level bump on a code
-  path that cannot be reached in the frozen product has no observable effect here; if uploads are ever
-  restored post-freeze, re-assess DOCX parsing against 0.8.15.
+- **Dependency change with two observable surfaces (assessed, not pixel-verified):** **#343** is
+  lockfile-only but is *not* inert-by-category — it touches two behavior-capable surfaces:
+  1. **DOCX parsing** — `@xmldom/xmldom` **0.8.13 → 0.8.15** (runtime transitive of `mammoth`, the DOCX
+     résumé parser). This surface is **unreachable in the frozen product**: #354 removed every
+     file-upload control (CV is paste-only — verified live, `/new-interview` has zero file inputs,
+     `/profile` 404s), so it has no observable effect here. Re-assess against 0.8.15 if uploads return.
+  2. **Generated CSS** — the bump also refreshes the **browserslist / caniuse-lite** data chain
+     (`browserslist` 4.28.2 → 4.28.9, `caniuse-lite`, `baseline-browser-mapping`), which feeds
+     **Autoprefixer's** prefix set. The checked-in [2026-09-09 hygiene review](./2026-09-09-recurring-hygiene.md)
+     records the resulting **+1.44 KiB** production-bundle change as *expected* autoprefixer output. This
+     **does** touch the rendered app, so #343 is not fully inert. I rendered landing, `/auth`,
+     `/interviews`, and practice live this run with **no visual breakage observed**, but did **not**
+     pixel-diff against the pre-#343 build — so the CSS-output effect is **carried as low-risk /
+     not pixel-verified**, not asserted as zero.
 - **Not on any user-observable path (infra/CI/tests/docs, no UX-regression surface):** #351 (Edge
   Function typecheck ratchet), #335 / #344 (log redaction), #348 (Playwright smoke as a blocking CI
   gate), #332 (deno-baseline script), #345 (test coverage), #346 / #342 (prior audit docs + PII
