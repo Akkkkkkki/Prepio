@@ -54,7 +54,8 @@ real and is called out here rather than glossed:
 - **Its findings serve the freeze reconciliation rather than diverting from it.** The one P1 (flag write
   `400/42P10`) is exactly a named freeze gate — [PREPIO-170](https://linear.app/qiuyue/issue/PREPIO-170)
   under the PREPIO-124 reconciliation set in `CLAUDE.md:24`. The rest of the report is *evidence that the
-  freeze surface-lock succeeded* (guest/billing/profile/voice surfaces removed, verified live).
+  freeze surface-lock succeeded* (guest/billing/profile surfaces and the voice *control* removed,
+  verified live — with one residual voice-hint gap called out as a new finding, not glossed).
 - **The two *new* polish recommendations (Top-5 #2 landing-sample-by-default, #5 desktop practice flag
   labels) are explicitly deferred to post-freeze.** Do **not** open work for them during the freeze;
   they are recorded for the PREPIO-27 landing pass only.
@@ -70,10 +71,12 @@ enumeration and filtering). Three touch the rendered app materially: **#354 "loc
 invite-only frozen core"** (the PREPIO-27 surface-lock), **#350** (pdfjs-dist 5→6, clearing the
 PREPIO-140 advisory), and **#353** (react-router 6→7); a fourth, **#338**, hides the practice coach
 panel when a question has no guidance. #354 is the story: it rewrote the guest, auth, billing, profile,
-and practice surfaces to match the 2026-09-02 freeze decision. Its **five surface removals are each an
-improvement** (the table below), with **one minor, intentional first-impression cost** recorded in the
-regression check — the landing's rich example is now collapsed behind a click (P2 #2) — so #354 is a
-strong **net** improvement.
+and practice surfaces to match the 2026-09-02 freeze decision. Its surface removals are each an
+improvement (the table below) — four are clean (guest preview, `/pricing`, sign-up, `/profile`), and the
+fifth (voice) removed the control but **left a residual coach hint still pointing at recording** (P2 #6).
+It also carries **one minor, intentional first-impression cost** — the landing's rich example is now
+collapsed behind a click (P2 #2). So #354 is a strong **net** improvement, with two loose ends this run
+records rather than glosses.
 Verified live this run:
 
 | Pre-freeze breakage (2026-09-03 P0/observations) | State on 2026-09-24 |
@@ -82,16 +85,18 @@ Verified live this run:
 | `/pricing` shows live **Choose monthly/quarterly** checkout CTAs at an undeployed function | **Fixed** — `/pricing` route removed (renders the app 404). No purchase control anywhere. |
 | Public **Sign Up** tab on `/auth` | **Fixed** — `/auth` is sign-in only, with honest invite-only copy ("Sign in with your invited account. Ask the person who invited you if you need access."). |
 | `/profile` CV management + PDF upload surface (PII + `pdfjs` advisory risk) | **Fixed** — `/profile` route removed (404); CV is now **paste-only** on `/new-interview`, **no file-upload control** anywhere. |
-| Voice **Record answer** control pointing at an undeployed transcription function | **Fixed** — removed from practice; not offered. |
+| Voice **Record answer** control pointing at an undeployed transcription function | **Mostly fixed ⚠️** — the Record *control/button* is gone, but the practice coach hint still reads **"Record for a full answer"** with a mic icon (`src/components/practice/HintBanner.tsx:11-14`, rendered at `Practice.tsx:3113`) while `FROZEN_PRODUCT.voice === false` — a **residual pointer to a removed capability**. See new finding below. |
 
 The frontend now genuinely matches the frozen-core scope. The top-of-funnel no longer shows a control
 that can't work.
 
 ## Overall product judgment
 
-**The freeze surface-lock is a real, verifiable step up in honesty: nothing a first-time visitor or a
-logged-in user touches now points at an undeployed function, and last review's top-of-funnel P0 is
-gone.** The authenticated core a user actually works in stays strong — the practice question is the
+**The freeze surface-lock is a real, verifiable step up in honesty: almost nothing a first-time visitor
+or a logged-in user touches now points at an undeployed function, and last review's top-of-funnel P0 is
+gone.** (The one residual exception found this run: the practice coach hint still says "Record for a
+full answer" though voice is removed — new P2 #6 below.) The authenticated core a user actually works in
+stays strong — the practice question is the
 unambiguous hero and a proper `<h1>` on desktop and mobile, text-answer save persists (`201`), notes
 autosave shows honest device-local copy, mobile practice has no overflow with every control ≥44px, and
 protected-route redirects preserve intent. **Two things temper the win.** First, the single most
@@ -217,6 +222,29 @@ click.
   link on a wrapped tab loop), not a button's `:focus-visible` state, so it does not establish a
   regression. No focus-ring change is claimed.
 
+### 6. **P2 (freeze-surface gap, new — corrects a "Fixed" claim) — The practice coach hint still says "Record for a full answer" though voice is removed**
+
+- **Severity:** P2 (honesty / freeze-surface consistency; impact modest — a dismissible hint, no broken
+  button — but it directly contradicts the freeze's "no pointer to a removed/undeployed function" goal
+  and an earlier "voice fully removed" claim).
+- **Area:** practice / copy
+- **User scenario:** a user opens a practice session and reads the one-time coach hint above the answer
+  area.
+- **What happened (live, desktop `/practice`):** the hint banner's **first item reads "Record for a full
+  answer" with a microphone icon**, even though #354 removed every recording control and
+  `FROZEN_PRODUCT.voice === false` — so there is **no record button to act on**. Visible in this run's own
+  capture [`20-d-practice.png`](./assets/2026-09-24/20-d-practice.png). Source:
+  `src/components/practice/HintBanner.tsx:11-14` (unconditional), rendered at `src/pages/Practice.tsx:3113`.
+- **Why it matters:** the freeze surface-lock's stated promise is that the UI no longer points users at
+  unavailable functions; this residual copy does exactly that, and a user who reads it will look for a
+  record control that isn't there. It also means the "voice → removed" row is **only mostly true** — the
+  *control* is gone, the *guidance* is not.
+- **Recommended fix:** in `HintBanner.tsx`, drop the mic/"Record for a full answer" item (or gate it on
+  `FROZEN_PRODUCT.voice`) so the hint matches the shipped controls — a small change that **completes the
+  PREPIO-27 surface-lock**, so it is freeze-scope (finishing the lock), not new feature work.
+- **Tracking:** new; fits **[PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27)** (surface-lock
+  completion). Confirmed live 2026-09-24.
+
 ## Notable live observations (not top-5)
 
 ### Positives — live-verified this run
@@ -279,7 +307,7 @@ exercised this run.
 | Dashboard/history/resume | 3 | 3 | = | **(live)** `/interviews` resumes well, but `/history` empty despite in-progress work (P3 #4). |
 | Error/empty states | 4 | 4 | = | **(live)** Guest sample, redirect, `/practice` no-search, and invite-only auth all honest; the static-example blanking is gone. Held at 4 by the flag toast's misleading "try again". |
 | Accessibility | 4 | 4 | = | **(live)** Practice `<h1>` on both breakpoints, good `aria-label`s, ≥44px practice controls, logical tab order, visible focus ring (shared `Button` `ring-2`, unchanged by #354). Remaining: `/auth` autocomplete null (#3), desktop icon-only practice flags (#5). |
-| Copy quality | 4 | 4 | = | **(live)** Invite-only, sample disclaimer, and CV framing are excellent; held by the "try again in a moment" flag toast and the "explore example below" (collapsed) line. |
+| Copy quality | 4 | 4 | = | **(live)** Invite-only, sample disclaimer, and CV framing are excellent; held by the "try again in a moment" flag toast, the "explore example below" (collapsed) line, and the stale "Record for a full answer" coach hint that points at removed voice (P2 #6). |
 
 **Composite: flat, with the risk profile improved.** The four-month top-of-funnel P0 is closed by the
 freeze lock; the dominant remaining defect is the single flag-write migration (PREPIO-170).
@@ -339,7 +367,7 @@ carried as unverified above.
 | `/pricing` dead checkout CTAs | **Fixed** ✅ | Route removed (renders app 404). |
 | Public Sign Up on `/auth` | **Fixed** ✅ | Invite-only sign-in with honest "ask the person who invited you" copy. |
 | `/profile` CV/upload PII surface | **Fixed** ✅ | Route removed (404); CV paste-only on `/new-interview`, no file upload. |
-| Voice **Record answer** (undeployed transcription) | **Fixed** ✅ | Removed from practice. |
+| Voice **Record answer** (undeployed transcription) | **Mostly fixed** ⚠️ | Control removed, but the practice coach hint still says "Record for a full answer" (`HintBanner.tsx`), voice off — a residual pointer (P2, new finding). |
 | Practice coach panel on guidance-less questions (#338) | **Improved** ✅ | Panel now renders only when guidance exists (PREPIO-176); no empty helper panel. |
 | Route loading skeleton tokens (#336) | **Holding** ✅ | `rounded-3xl` removed for token compliance (PREPIO-175); cosmetic, no behavior change. |
 | Client deps (react-router 6→7 #353, pdfjs 5→6 #350) | **Holding** ✅ | Routing verified live (redirects + 404 routes + deep-link); pdfjs upgrade also clears PREPIO-140. |
@@ -352,9 +380,10 @@ carried as unverified above.
 | `/auth` autocomplete | **Still unfixed — 16th audit** ⚠️ | `null`. (P2 #3, PREPIO-123) |
 | `/history` vs in-progress parity | **Still open** ⚠️ | Empty state despite "8 of 40 answered". (P3 #4, PREPIO-107) |
 
-**Net: five pre-freeze breakages fixed; zero functional regressions on the rendered/client paths
-exercised this run; one minor intentional first-impression cost from the landing rewrite (the collapsed
-sample). The two behavior-changing research-synthesis backend commits (#337, #340) were not exercised
+**Net: four pre-freeze breakages fully fixed (guest preview, `/pricing`, public sign-up, `/profile`);
+the fifth (voice) is *mostly* fixed — the control is gone but a residual coach hint still points at it
+(P2 #6). Zero functional regressions on the rendered/client paths exercised this run; one minor
+intentional first-impression cost from the landing rewrite (the collapsed sample). The two behavior-changing research-synthesis backend commits (#337, #340) were not exercised
 (no fresh research run) and are carried as unverified, not claimed regression-free.**
 
 ## Recommended tickets
@@ -362,7 +391,8 @@ sample). The two behavior-changing research-synthesis backend commits (#337, #34
 > Linear was **not reachable this session** (the MCP connector is unauthenticated in a non-interactive
 > run), so no Linear issues were created or commented. The mappings below are the intended tracking; a
 > maintainer with Linear access should record the live-confirmations. All findings map to existing open
-> issues except the two small new ones (#2, #5), which are drafted GitHub/Linear-ready.
+> issues; the three new ones (#2, #5 drafted post-freeze; #6 a PREPIO-27 surface-lock completion) are
+> specified GitHub/Linear-ready.
 
 1. **[P1] Apply `20260710203000_question_flags_per_type.sql`** in the freeze deploy window so the
    Favorite/Needs-work upsert stops returning `42P10`; dedupe any conflicting rows first; verify persist
@@ -383,13 +413,20 @@ sample). The two behavior-changing research-synthesis backend commits (#337, #34
    desktop ☆/ⓘ controls (mobile already labels them). **Deferred: do not start during the freeze** (per
    `CLAUDE.md:26`); below the >30-min threshold — fold into the next post-freeze practice touch.
    *(New; drafted.)*
+6. **[P2] Remove the stale "Record for a full answer" voice hint from the practice coach banner.** In
+   `src/components/practice/HintBanner.tsx:11-14`, drop the mic/"Record for a full answer" item (or gate
+   it on `FROZEN_PRODUCT.voice`) so the hint matches the shipped controls. **This completes the
+   PREPIO-27 surface-lock** (removing a residual pointer to a removed capability), so it is freeze-scope
+   — not deferred new work. → fits **[PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27)**.
+   *(New; confirmed live.)*
 
 ### Deferred items (per CLAUDE.md hygiene convention)
 
 - **No new issues filed this run** (Linear unauthenticated; see note above). Findings #1/#3/#4 map to
-  existing open issues (PREPIO-170, -123, -107). #2 (sample-by-default) and #5 (desktop practice flag
-  labels) are new but small; #5 is below the >30-min threshold and left as a report note, and #2 is
-  drafted for the PREPIO-27 landing surface rather than a fragmenting standalone issue.
+  existing open issues (PREPIO-170, -123, -107); #6 (stale voice hint) fits the existing PREPIO-27
+  surface-lock. #2 (sample-by-default) and #5 (desktop practice flag labels) are new but small; #5 is
+  below the >30-min threshold and left as a report note, and #2 is drafted for the PREPIO-27 landing
+  surface rather than a fragmenting standalone issue.
 - The CV-paste privacy-line note and the "try again in a moment" toast copy are sub-threshold riders,
   flagged into the PREPIO-27 landing pass and the PREPIO-170 deploy respectively.
 
