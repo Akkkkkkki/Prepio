@@ -41,6 +41,12 @@ redirect, and a landing keyboard-focus pass. `/profile` was probed and now **404
 the freeze), so there was **no CV surface to screenshot** this run. Screenshots under
 [`assets/2026-09-24/`](./assets/2026-09-24/).
 
+**Coverage gaps this run (not exercised):** (1) **offline states** — the `isOffline` branches on
+`/new-interview` and practice were *not* triggered live, so the offline resume-parse copy in P2 #6b was
+found statically (Codex PR review), not by a live offline pass; (2) **a fresh research run** — no new
+research was submitted (real OpenAI/Tavily budget), so the synthesis output and the #337/#340 backend
+changes were not exercised end-to-end. Both are owed on a future run.
+
 ## Freeze-scope compliance note (read before landing this doc)
 
 **#354 (2026-09-22) added a new line to `CLAUDE.md` that did not exist at run #20:** *"Do not add
@@ -225,28 +231,35 @@ click.
   link on a wrapped tab loop), not a button's `:focus-visible` state, so it does not establish a
   regression. No focus-ring change is claimed.
 
-### 6. **P2 (freeze-surface gap, new — corrects a "Fixed" claim) — The practice coach hint still says "Record for a full answer" though voice is removed**
+### 6. **P2 (freeze-surface gaps, new — correct "Fixed" claims) — Residual copy still points at removed capabilities (voice recording; offline resume parsing)**
 
-- **Severity:** P2 (honesty / freeze-surface consistency; impact modest — a dismissible hint, no broken
-  button — but it directly contradicts the freeze's "no pointer to a removed/undeployed function" goal
-  and an earlier "voice fully removed" claim).
-- **Area:** practice / copy
-- **User scenario:** a user opens a practice session and reads the one-time coach hint above the answer
-  area.
-- **What happened (live, desktop `/practice`):** the hint banner's **first item reads "Record for a full
-  answer" with a microphone icon**, even though #354 removed every recording control and
-  `FROZEN_PRODUCT.voice === false` — so there is **no record button to act on**. Visible in this run's own
-  capture [`20-d-practice.png`](./assets/2026-09-24/20-d-practice.png). Source:
-  `src/components/practice/HintBanner.tsx:11-14` (unconditional), rendered at `src/pages/Practice.tsx:3113`.
-- **Why it matters:** the freeze surface-lock's stated promise is that the UI no longer points users at
-  unavailable functions; this residual copy does exactly that, and a user who reads it will look for a
-  record control that isn't there. It also means the "voice → removed" row is **only mostly true** — the
-  *control* is gone, the *guidance* is not.
-- **Recommended fix:** in `HintBanner.tsx`, drop the mic/"Record for a full answer" item (or gate it on
-  `FROZEN_PRODUCT.voice`) so the hint matches the shipped controls — a small change that **completes the
-  PREPIO-27 surface-lock**, so it is freeze-scope (finishing the lock), not new feature work.
+- **Severity:** P2 (honesty / freeze-surface consistency; impact modest per instance — copy, not broken
+  buttons — but it directly contradicts the freeze's "no pointer to a removed function" goal and two
+  "fully removed / paste-only" claims). **Two instances found:**
+- **Area:** practice / research entry / copy
+- **(a) Practice coach hint (live, desktop `/practice`):** the hint banner's **first item reads "Record
+  for a full answer" with a microphone icon**, though #354 removed every recording control and
+  `FROZEN_PRODUCT.voice === false` — no record button to act on. Visible in this run's own capture
+  [`20-d-practice.png`](./assets/2026-09-24/20-d-practice.png). Source:
+  `src/components/practice/HintBanner.tsx:11-14` (unconditional), rendered at `Practice.tsx:3113`.
+- **(b) Offline resume copy (static — offline not exercised this run, found by Codex PR review):** when an
+  authenticated `/new-interview` user is **offline**, the desktop alert (`src/pages/Home.tsx:947-948`)
+  says *"Resume files still parse locally until you're back online,"* and the mobile footer
+  (`Home.tsx:1310`) repeats *"Resume files can still be parsed locally"* — even though
+  `FROZEN_PRODUCT.resumeUpload === false` gates off **every** file input (827, 1004). This copy promises
+  a removed capability and **contradicts the "research form is honest / paste-only" characterization**
+  below. I did **not** exercise offline states this run (see the coverage caveat in §Capability check),
+  so this instance is static, from Codex's read of the source.
+- **Why it matters:** the freeze surface-lock's promise is that the UI no longer points users at
+  unavailable functions; both bits of copy do exactly that. They also mean the "voice → removed" and
+  "resume upload → removed, paste-only" claims are **only mostly true** — the *controls* are gone, some
+  *copy* is not.
+- **Recommended fix:** (a) in `HintBanner.tsx`, drop or `FROZEN_PRODUCT.voice`-gate the mic/"Record for a
+  full answer" item; (b) in `Home.tsx:947-948` / `1310`, drop or `FROZEN_PRODUCT.resumeUpload`-gate the
+  "resume files parse locally" offline copy. Both **complete the PREPIO-27 surface-lock** (freeze-scope,
+  finishing the lock), not new feature work.
 - **Tracking:** new; fits **[PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27)** (surface-lock
-  completion). Confirmed live 2026-09-24.
+  completion). (a) confirmed live 2026-09-24; (b) static (offline not exercised).
 
 ## Notable live observations (not in the top issues above)
 
@@ -274,10 +287,13 @@ click.
 - **`/interviews` resumes well.** Cards show state + progress ("4 of 10 answered · 40%") with **Continue
   practice** and **Plan** one click away, plus a prominent **Prep a new interview** CTA.
   [`05-d-interviews.png`](./assets/2026-09-24/05-d-interviews.png)
-- **Research form is honest and progressive.** `/new-interview`: Company\* + optional Role, with
-  collapsed *"Add your CV — Optional. Personalizes questions to your background. Improves relevance"*
-  (paste-only, **no file upload**), *"Role details & job description"*, and *"Notes for the research"*,
-  then **Start Research**. Value-framed and skippable per the user-effort-budget rule.
+- **Research form is honest and progressive — in its *online* state.** `/new-interview`: Company\* +
+  optional Role, with collapsed *"Add your CV — Optional. Personalizes questions to your background.
+  Improves relevance"* (paste-only, **no file upload**), *"Role details & job description"*, and
+  *"Notes for the research"*, then **Start Research**. Value-framed and skippable per the
+  user-effort-budget rule. **Caveat:** its *offline* copy still promises removed resume-file parsing
+  (P2 #6b) — so "honest / paste-only" holds for the online form I exercised, not the offline alert I did
+  not.
 
 ### Minor / to-watch
 
@@ -306,7 +322,7 @@ exercised this run.
 | Generated output clarity | 5 | 5 | = | **(live)** Stage/question + badges (round, difficulty, ROLE SPECIFIC) + guidance; Stripe-grounded. |
 | Practice mode | 4 | 4 | = | **(live)** Question is hero + `<h1>`, save persists (`201`), Save gated on non-empty — but Favorite/Needs-work 100% broken (P1 #1) holds it down. |
 | Mobile usability | 4 | 4 | = | **(live)** No overflow, ≥44px, fixed bottom bar, question dominates as `<h1>`, honest device-local autosave. |
-| Resume/profile trust | 4 | 4 | = | **(live)** `/profile` route removed by the freeze; CV is paste-only + optional with honest value copy (missing a privacy line — minor). Surface shrank, what remains is honest. |
+| Resume/profile trust | 4 | 4 | = | **(live, online only)** `/profile` route removed; CV is paste-only + optional with honest value copy (missing a privacy line — minor). Surface shrank; the *online* form is honest, but the *offline* copy still promises removed resume-file parsing (P2 #6b, static). |
 | Dashboard/history/resume | 3 | 3 | = | **(live)** `/interviews` resumes well, but `/history` empty despite in-progress work (P3 #4). |
 | Error/empty states | 4 | 4 | = | **(live)** Guest sample, redirect, `/practice` no-search, and invite-only auth all honest; the static-example blanking is gone. Held at 4 by the flag toast's misleading "try again". |
 | Accessibility | 4 | 4 | = | **(live)** Practice `<h1>` on both breakpoints, good `aria-label`s, ≥44px practice controls, logical tab order, visible focus ring (shared `Button` `ring-2`, unchanged by #354). Remaining: `/auth` autocomplete null (#3), desktop icon-only practice flags (#5). |
@@ -442,12 +458,13 @@ research run to confirm live — the #340 trust regression itself is already est
    desktop ☆/ⓘ controls (mobile already labels them). **Deferred: do not start during the freeze** (per
    `CLAUDE.md:26`); below the >30-min threshold — fold into the next post-freeze practice touch.
    *(New; drafted.)* **[unfiled]**
-6. **[P2] Remove the stale "Record for a full answer" voice hint from the practice coach banner.** In
-   `src/components/practice/HintBanner.tsx:11-14`, drop the mic/"Record for a full answer" item (or gate
-   it on `FROZEN_PRODUCT.voice`) so the hint matches the shipped controls. **This completes the
-   PREPIO-27 surface-lock** (removing a residual pointer to a removed capability), so it is freeze-scope
-   — not deferred new work. → fits **[PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27)**.
-   **[existing]** *(New finding; confirmed live.)*
+6. **[P2] Remove the residual copy that points at removed capabilities.** Two spots: (a)
+   `src/components/practice/HintBanner.tsx:11-14` — drop or `FROZEN_PRODUCT.voice`-gate the
+   mic/"Record for a full answer" item; (b) `src/pages/Home.tsx:947-948` and `1310` — drop or
+   `FROZEN_PRODUCT.resumeUpload`-gate the offline "resume files parse locally" copy. Both **complete the
+   PREPIO-27 surface-lock** (removing pointers to removed capabilities), so freeze-scope, not deferred
+   new work. → fits **[PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27)**. **[existing]**
+   *(New finding; (a) confirmed live, (b) static — offline not exercised.)*
 7. **[P2 · security · unfiled] File the #340 `official_company` trust regression.** #340's NFKD folding
    lets an accented brand name (`"L'Oréal"`→`oreal`) over-trust `oreal.attacker.example` via the loose
    `.includes()` host match (`evidence-ledger.ts:175-177`). The [2026-09-12 hygiene review](./2026-09-12-recurring-hygiene.md)
