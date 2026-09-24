@@ -34,7 +34,8 @@ flag-write failure below were probed live.
 
 **What IS live-verified this run:** logged-out landing (desktop 1440×900 + mobile 390×844), the new
 **guest static sample** (desktop + mobile, **zero backend calls** confirmed), `/auth` (invite-only,
-autocomplete probe), `/pricing` (now 404), `/interviews`, practice mode (desktop + mobile) —
+autocomplete probe; **ordinary sign-in only** — the invite/recovery/password-setup flow was not
+exercised, see Coverage gaps), `/pricing` (now 404), `/interviews`, practice mode (desktop + mobile) —
 **question-as-`<h1>` on both breakpoints** — text-answer save (`201`), **both flag writes
 (`400/42P10`)**, notes autosave, `/history`, `/new-interview` research form (structure), protected-route
 redirect, and a landing keyboard-focus pass. `/profile` was probed and now **404s** (route removed by
@@ -45,7 +46,11 @@ the freeze), so there was **no CV surface to screenshot** this run. Screenshots 
 `/new-interview` and practice were *not* triggered live, so the offline resume-parse copy in P2 #6b was
 found statically (Codex PR review), not by a live offline pass; (2) **a fresh research run** — no new
 research was submitted (real OpenAI/Tavily budget), so the synthesis output and the #337/#340 backend
-changes were not exercised end-to-end. Both are owed on a future run.
+changes were not exercised end-to-end; (3) **the invite / recovery / password-setup auth flow** — only
+ordinary email+password sign-in was exercised, **not** an invitation or recovery link, so #354's
+rewritten onboarding path (`useAuth.ts:13-24` `passwordSetupRequired`; `Auth.tsx:44-64` set-new-password
+view) is **unverified** — and for an invite-only product this is the *primary* onboarding path. All
+three are owed on a future run.
 
 ## Freeze-scope compliance note (read before landing this doc)
 
@@ -396,7 +401,8 @@ and so cannot produce a UX regression:
   redaction of historical screenshots).
 
 Net across the window, **scoped to the rendered/client paths actually exercised this run** (landing,
-guest sample, auth, interviews, practice save + flags, history, redirect, research *form*): **one large
+guest sample, auth **sign-in only**, interviews, practice save + flags, history, redirect, research
+*form*): **one large
 improvement (#354) + one practice improvement (#338), zero functional regressions on those paths;** one
 minor intentional first-impression cost (collapsed sample) plus the residual voice hint (P2 #6) from the
 #354 rewrite. **Off those exercised paths the window is not regression-free:** #354 also removed the paid
