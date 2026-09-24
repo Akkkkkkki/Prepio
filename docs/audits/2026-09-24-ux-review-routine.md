@@ -248,7 +248,7 @@ click.
 - **Tracking:** new; fits **[PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27)** (surface-lock
   completion). Confirmed live 2026-09-24.
 
-## Notable live observations (not top-5)
+## Notable live observations (not in the top issues above)
 
 ### Positives — live-verified this run
 
