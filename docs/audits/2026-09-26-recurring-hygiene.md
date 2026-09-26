@@ -7,8 +7,9 @@ Twenty-eighth recurring codebase hygiene & security review for Prepio.
 **Headline: a remediation-heavy window with one new regression.** Three findings
 prior runs carried as open are now resolved at the repository level (below), but
 #354 — while a large net security-positive surface reduction — also introduced a
-new High auth-flow regression on the resend-verification path (surfaced by Codex
-on this audit PR and recorded below). The three resolved items:
+new Medium auth-flow regression: the resend-verification path now misroutes the
+post-confirmation landing to the set-new-password UI (surfaced by Codex on this
+audit PR and recorded below). The three resolved items:
 
 - **[PREPIO-143] `searchId` cross-tenant write (BOLA) — fixed (#337).** The
   carried High from 2026-08-12 landed. A new fail-closed ownership gate
@@ -46,8 +47,10 @@ file-upload, and voice controls — an attack-surface *reduction* and the cause 
 the ~45% bundle drop below — **but it is not fully clean:** it also repointed the
 shared auth email-redirect callback to `/auth?flow=recovery` and added a
 `passwordSetupRequired` initializer that treats `flow=recovery` as the
-set-new-password flow, which regresses the still-live *resend-verification* path
-(new High finding below). **#345** adds evidence-origin short-name classification
+set-new-password flow, which misroutes the still-live *resend-verification*
+post-confirmation landing (new Medium finding below — verification still succeeds;
+the confirmed user is just shown the wrong screen). **#345** adds evidence-origin
+short-name classification
 test coverage (tests only, cursor-authored); **#348** makes the Playwright landing
 smoke a blocking CI gate (CI/DX hardening).
 
@@ -58,11 +61,11 @@ imports, and consistently deferred by prior runs): the evidence-ledger
 `official_company` loose-`.includes()` attacker-subdomain over-trust, and the
 `SEARCH_COMPLETE` console log still leaking raw note-derived query strings. The
 `@vitest/mocker` dev-only moderate also persists (dev/test-only, no production
-bundle exposure). Codex review of this audit PR additionally surfaced a **new High**
-— a `#354` resend-verification auth-flow regression (recorded below). **No
-product-source fix was made in this run:** the two research-pipeline Mediums are
-out of scope for a docs-only hygiene run and unvalidatable here, and the auth
-regression is a product-source change touching the auth flow (owner-approval
+bundle exposure). Codex review of this audit PR additionally surfaced a **new
+Medium** — a `#354` resend-verification post-confirmation UI misroute (recorded
+below). **No product-source fix was made in this run:** the two research-pipeline
+Mediums are out of scope for a docs-only hygiene run and unvalidatable here, and the
+auth regression is a product-source change touching the auth flow (owner-approval
 territory per CLAUDE.md, and the Supabase email round-trip is not validatable in
 this environment) — it is recorded for a dedicated, reviewed fix rather than
 bundled into this docs PR. The note + the `docs/audits/README.md` index row are
@@ -131,45 +134,6 @@ remains; the `pdfjs-dist` high and both `react-router` advisories are cleared.
 
 ### High
 
-- [ ] **#354 regressed the resend-verification flow — a signup-confirmation email
-  now routes existing unconfirmed users into the set-new-password (recovery) flow.**
-  *(New this run; surfaced by Codex on this audit PR and code-verified against the
-  #354 diff.)*
-  - Evidence: #354 changed the shared `getAuthRedirectUrl()` from `${origin}/auth`
-    to **`${origin}/auth?flow=recovery`**
-    ([`src/hooks/useAuth.ts:5–6`](../../src/hooks/useAuth.ts)) and added a
-    `passwordSetupRequired` initializer that returns `true` when
-    `flow === "recovery"` (or `invite`) (`useAuth.ts:13–17`). That callback is
-    shared: `resetPassword` uses it correctly (recovery *is* the intent), **but
-    `resendVerification` (`type: "signup"`, `useAuth.ts:73–86`) uses the same
-    callback**. `resendVerification` is still live and reachable — two
-    `openView("resend-verification")` buttons in
-    [`src/pages/Auth.tsx`](../../src/pages/Auth.tsx) (lines ~290 and ~338) call it
-    (`Auth.tsx:146`). So a user who resends a signup-confirmation email lands on
-    `/auth?flow=recovery`, which sets `passwordSetupRequired = true` and drives the
-    **set-new-password** UI instead of completing ordinary email verification. Before
-    #354 the callback was plain `/auth`, so verification completed normally — this is
-    a #354 regression, not pre-existing.
-  - Risk: an existing account that still needs email confirmation cannot complete
-    verification via the resend path — clicking the emailed link mis-routes into
-    password recovery. Auth-journey correctness regression on a shipping,
-    still-wired control. Population is gated to existing unconfirmed accounts
-    (public signup is disabled in the freeze), which is why it is scoped High rather
-    than Critical; the control itself is prominently exposed.
-  - Recommended fix: split the callback — keep `flow=recovery` only for
-    `resetPassword`, and give `resendVerification` a plain `${origin}/auth` (or a
-    dedicated `flow=verify` the initializer does **not** treat as recovery). Add a
-    test asserting the resend-verification redirect does not set
-    `passwordSetupRequired`. Verify the invite (`flow=invite`) and reset
-    (`flow=recovery`) paths still behave.
-  - Owner / next step: **a dedicated, reviewed product-source PR** — this touches the
-    auth flow (owner-approval territory per CLAUDE.md's "Auth + profile changes need
-    both screen copy and route behavior checked"), and the Supabase email round-trip
-    is not validatable in this proxy-limited environment. **Not** fixed in this
-    docs-only hygiene run to avoid bundling an unvalidated auth change into an audit
-    PR. File in Linear (`Bug` + `area:auth`) when intake is available; recorded here
-    in full meanwhile.
-
 - [ ] **Production CV PII is still recoverable from Git history despite the
   working-tree redaction (PREPIO-145).** *(Carried; the owner-attended history-purge
   slice. Re-verified still exposed this run.)*
@@ -204,6 +168,49 @@ remains; the `pdfjs-dist` high and both `react-router` advisories are cleared.
     (force-push history rewrite of a shared public repo).
 
 ### Medium
+
+- [ ] **#354 misroutes the post-confirmation landing for the resend-verification
+  flow — a confirmed user is shown the set-new-password (recovery) UI.** *(New this
+  run; surfaced by Codex on this audit PR across two rounds and code-verified against
+  the #354 diff. Initially over-scoped as a High "cannot verify" break; corrected to
+  a UI misroute after Codex's GoTrue-behavior note.)*
+  - Evidence: #354 changed the shared `getAuthRedirectUrl()` from `${origin}/auth`
+    to **`${origin}/auth?flow=recovery`**
+    ([`src/hooks/useAuth.ts:5–6`](../../src/hooks/useAuth.ts)) and added a
+    `passwordSetupRequired` initializer that returns `true` when
+    `flow === "recovery"` (or `invite`) (`useAuth.ts:13–17`). That callback is
+    shared: `resetPassword` uses it correctly (recovery *is* the intent), **but
+    `resendVerification` (`type: "signup"`, `useAuth.ts:73–86`) uses the same
+    callback**, and it is still live — two `openView("resend-verification")` buttons
+    in [`src/pages/Auth.tsx`](../../src/pages/Auth.tsx) (lines ~290 and ~338) call it
+    (`Auth.tsx:146`). **Verification itself is not broken:** Supabase's
+    `auth/v1/verify?type=signup` endpoint validates the token server-side *before*
+    following `emailRedirectTo`, so the account is confirmed regardless of the
+    redirect target — `emailRedirectTo` only selects the post-confirmation landing.
+    The defect is that landing: with `flow=recovery` the app sets
+    `passwordSetupRequired = true` and renders the **set-new-password** UI, so a user
+    who just confirmed their email (arriving with a valid session) is incorrectly
+    shown a password-reset screen. Before #354 the callback was plain `/auth`, so the
+    post-confirmation landing was ordinary — this is a #354 regression.
+  - Risk: confusing/incorrect post-confirmation UX on a shipping, still-wired
+    control — a confirmed user is mis-prompted to set a new password. Not a
+    verification failure or lockout (the session is valid and the account is
+    confirmed), and gated to existing unconfirmed accounts using the resend path
+    (public signup is disabled in the freeze) — hence Medium, not High. Content/flow
+    correctness, not data exposure.
+  - Recommended fix: split the callback — keep `flow=recovery` only for
+    `resetPassword`, and give `resendVerification` a plain `${origin}/auth` (or a
+    dedicated `flow=verify` the initializer does **not** treat as recovery). Add a
+    test asserting the resend-verification redirect does not set
+    `passwordSetupRequired`. Verify the invite (`flow=invite`) and reset
+    (`flow=recovery`) paths still behave.
+  - Owner / next step: **a dedicated, reviewed product-source PR** — this touches the
+    auth flow (owner-approval territory per CLAUDE.md's "Auth + profile changes need
+    both screen copy and route behavior checked"), and the Supabase email round-trip
+    is not validatable in this proxy-limited environment. **Not** fixed in this
+    docs-only hygiene run to avoid bundling an unvalidated auth change into an audit
+    PR. File in Linear (`Bug` + `area:auth`) when intake is available; recorded here
+    in full meanwhile.
 
 - [ ] **Evidence-ledger `official_company` over-trusts any host containing a company
   token — attacker-subdomain trust escalation.** *(Carried from 2026-09-12;
@@ -324,7 +331,7 @@ remains; the `pdfjs-dist` high and both `react-router` advisories are cleared.
   items still open are all out of scope for a docs-only hygiene run: the two carried
   research-pipeline Mediums are service-role edge-function changes not
   Deno-validatable in this proxy-limited environment; the new **#354
-  resend-verification High** is an auth-flow product change (owner-approval per
+  resend-verification Medium** is an auth-flow product change (owner-approval per
   CLAUDE.md; email round-trip unvalidatable here) that belongs in a dedicated
   reviewed PR, not bundled into this audit note; the standing `vitest` patch is a
   dev-only advisory blocked by the npm `edgesOut` bug. The dated note and the
@@ -343,10 +350,11 @@ session):
   remains exposed on the public repo.
 - **PREPIO-124 deployment of the PREPIO-143 fix** — #337 closed the BOLA at the repo
   level; production remains unrepaired until deployed via the freeze runbook.
-- **#354 resend-verification auth-flow regression** (High, new this run) — split the
-  shared `getAuthRedirectUrl` so `resendVerification` no longer routes signup
-  confirmations through `flow=recovery`. Dedicated reviewed product PR; file in
-  Linear (`Bug` + `area:auth`) when intake is available.
+- **#354 resend-verification post-confirmation UI misroute** (Medium, new this run) —
+  split the shared `getAuthRedirectUrl` so `resendVerification` no longer lands
+  confirmed users on `flow=recovery`. Verification still succeeds; only the
+  post-confirmation screen is wrong. Dedicated reviewed product PR; file in Linear
+  (`Bug` + `area:auth`) when intake is available.
 - **Evidence-ledger `official_company` attacker-subdomain over-trust** (Medium,
   carried) — land the registrable-label (PSL-aware) fix with adversarial
   `company-token.attacker.example` tests; file in Linear (Quality & Maintenance,
@@ -367,14 +375,14 @@ session):
   documentation-only with freeze-relevant findings). If the owner intends the
   scheduled review to halt until the freeze ends, say so and it will stand down;
   otherwise it continues as a docs-only safety trail.
-- **The #354 resend-verification regression (new High) needs an owner decision on a
+- **The #354 resend-verification regression (new Medium) needs an owner decision on a
   dedicated auth-flow fix.** The recommended fix (split the shared redirect callback
   so `resendVerification` uses a non-recovery `/auth` URL) is clear, but it touches
   the auth flow and its Supabase email round-trip is not validatable in this
   environment, so it was not fixed in this docs-only run. Confirm the callback-split
   approach and assign it.
 - **Linear intake is unavailable to this session** (the connector is unauthenticated
-  here; prior runs also record the workspace at its free-issue cap), so the new High
+  here; prior runs also record the workspace at its free-issue cap), so the new Medium
   and the two carried research-pipeline Mediums cannot be filed as issues — all are
   recorded in full in this note instead. Authorizing the Linear connector (or
   clearing the issue cap) would let hygiene findings be tracked in Linear rather than
