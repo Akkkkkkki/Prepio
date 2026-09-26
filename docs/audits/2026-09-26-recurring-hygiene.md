@@ -282,5 +282,3 @@ session):
    path. Both need a maintainer able to run the Deno `typecheck:functions` gate.
 4. **Next source-touching merge.** Re-run the full baseline against it and read the
    *merged* code, not commit messages, when assessing a security fix.
-</content>
-</invoke>
