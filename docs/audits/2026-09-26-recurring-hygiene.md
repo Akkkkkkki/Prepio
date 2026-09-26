@@ -68,6 +68,18 @@ this environment) — it is recorded for a dedicated, reviewed fix rather than
 bundled into this docs PR. The note + the `docs/audits/README.md` index row are
 this run's deliverable.
 
+**Scope note (freeze):** [`CLAUDE.md:24–27`](../../CLAUDE.md) says not to *add*
+features, recurring audits, or routine dependency PRs during the freeze. This run
+adds none of those: it is the continuation of the pre-existing, owner-configured
+scheduled hygiene review (prior notes on 2026-09-09 and 2026-09-12 ran and merged
+after the 2026-09-02 freeze decision), and it makes **no product-source, feature,
+or dependency change** — only the dated documentation note and its index row. Its
+findings this run (the #354 auth regression, the PREPIO-145 purge scope) are
+freeze-blocker safety information, not scope expansion. If an owner wants the
+recurring review itself paused during the freeze, that is a one-line call to make —
+flagged under *Questions for product owner* — but the audit trail is not itself
+freeze scope.
+
 Baselines (measured against HEAD `9d9b711`; deltas vs 2026-09-12):
 lint **50** problems (**41** errors / 9 warnings; **−2 errors** vs 52 total,
 composition below). The 41 errors are **34 application-side React Hooks
@@ -348,6 +360,13 @@ session):
 
 ## Questions for product owner
 
+- **Should the recurring hygiene review itself pause during the freeze?**
+  `CLAUDE.md:24–27` says not to *add* recurring audits during the freeze. This run
+  reads that as "don't spin up new audit/dependency cadences," not "stop the existing
+  owner-scheduled review" (prior notes ran and merged post-freeze, and this run is
+  documentation-only with freeze-relevant findings). If the owner intends the
+  scheduled review to halt until the freeze ends, say so and it will stand down;
+  otherwise it continues as a docs-only safety trail.
 - **The #354 resend-verification regression (new High) needs an owner decision on a
   dedicated auth-flow fix.** The recommended fix (split the shared redirect callback
   so `resendVerification` uses a non-recovery `/auth` URL) is clear, but it touches
