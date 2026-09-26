@@ -95,9 +95,14 @@ composition below). The 41 errors are **34 application-side React Hooks
 diagnostics** (21 `react-hooks/set-state-in-effect`, 7 `react-hooks/immutability`,
 6 `react-hooks/purity`) plus **4 `@typescript-eslint/no-explicit-any`**, 2
 `no-empty-object-type`, and 1 `no-require-imports`; the 9 warnings are
-`react-refresh/only-export-components`. All pre-existing (the `eslint.config.js`
-react-hooks recommended ruleset was unchanged this window; lint is informational,
-not a CI gate). Typecheck **pass at baseline** (app **61**, node
+`react-refresh/only-export-components`. Almost all pre-existing (the
+`eslint.config.js` react-hooks ruleset was unchanged this window; lint is
+informational, not a CI gate) — **one exception: #354 newly introduced a
+`react-hooks/set-state-in-effect` error at `Auth.tsx:59`** (its new effect calls
+`setAuthView("set-new-password")` synchronously in the body; pre-#354 the only
+`setAuthView` was inside the `onAuthStateChange` callback, which the rule does not
+flag) and removed three other errors, so 43 → 41 is one add + three drops, not a
+flat pre-existing set. Typecheck **pass at baseline** (app **61**, node
 **0**; −1 app error, same cause). Build **1,242.25 KiB** / **41** precache
 entries — **down ~45%** from 2,280.54 KiB / 62 (the #354 freeze removed
 billing/upload/voice code paths). Tests **467** passing / **55** files (up from
@@ -112,9 +117,10 @@ remains; the `pdfjs-dist` high and both `react-router` advisories are cleared.
   (not a gate). −2 errors vs 2026-09-12. Breakdown: 34 React Hooks diagnostics
   (21 `set-state-in-effect`, 7 `immutability`, 6 `purity`), 4
   `@typescript-eslint/no-explicit-any`, 2 `no-empty-object-type`, 1
-  `no-require-imports`; 9 `react-refresh/only-export-components` warnings. All
-  pre-existing (react-hooks recommended ruleset unchanged this window). This run
-  pushes no source. See the Low finding below.
+  `no-require-imports`; 9 `react-refresh/only-export-components` warnings. Almost
+  all pre-existing (ruleset unchanged this window), except **one new
+  `set-state-in-effect` from #354 at `Auth.tsx:59`** offset by three removals (43 →
+  41). This run pushes no source. See the Low finding below.
 - `npm run typecheck`
   ([`scripts/check-typecheck-baseline.sh`](../../scripts/check-typecheck-baseline.sh)):
   **pass at baseline.** App **61**, node **0**.
@@ -331,10 +337,16 @@ remains; the `pdfjs-dist` high and both `react-router` advisories are cleared.
     `react-hooks/purity`), 4 `@typescript-eslint/no-explicit-any`, 2
     `@typescript-eslint/no-empty-object-type`, and 1
     `@typescript-eslint/no-require-imports`; the 9 warnings are
-    `react-refresh/only-export-components` fast-refresh hints. All are
-    pre-existing (the `eslint.config.js` react-hooks recommended ruleset was
-    unchanged in the `e3a283b..HEAD` window; total moved 43 → 41). **Not all are
-    cosmetic:** the react-hooks `set-state-in-effect`, `purity`, and
+    `react-refresh/only-export-components` fast-refresh hints. The ruleset was
+    unchanged this window, so most are pre-existing — **but the 43 → 41 move is not
+    flat: #354 newly introduced one `react-hooks/set-state-in-effect` error at
+    [`Auth.tsx:59`](../../src/pages/Auth.tsx)** (its added effect calls
+    `setAuthView("set-new-password")` synchronously in the body; pre-#354 the only
+    `setAuthView` sat inside the `onAuthStateChange` callback, which the rule does
+    not flag), offset by three unrelated removals. So one of the 21
+    `set-state-in-effect` errors is a #354 regression, tied to the same auth-flow
+    change as the Medium finding above. **Not all are cosmetic:** the react-hooks
+    `set-state-in-effect`, `purity`, and
     `immutability` rules can flag genuine render-time correctness smells
     (state-in-effect loops, impure render, mutation of props/state) — they are
     surfaced but not triaged here, and warrant a dedicated maintainer pass rather
@@ -405,12 +417,15 @@ session):
   documentation-only with freeze-relevant findings). If the owner intends the
   scheduled review to halt until the freeze ends, say so and it will stand down;
   otherwise it continues as a docs-only safety trail.
-- **The #354 resend-verification regression (new Medium) needs an owner decision on a
-  dedicated auth-flow fix.** The recommended fix (split the shared redirect callback
-  so `resendVerification` uses a non-recovery `/auth` URL) is clear, but it touches
-  the auth flow and its Supabase email round-trip is not validatable in this
-  environment, so it was not fixed in this docs-only run. Confirm the callback-split
-  approach and assign it.
+- **The #354 `flow=recovery` regression (new Medium, two facets) needs an owner
+  decision on a dedicated auth-flow fix.** The recommended fix has two parts: (a)
+  split the shared redirect callback so `resendVerification` uses a non-recovery
+  `/auth` URL, **and** (b) gate `passwordSetupRequired` on an authenticated
+  recovery/invite session (not the bare URL query) with a link-error state, so a
+  session-less `/auth?flow=recovery` visit no longer renders a dead-end form — the
+  callback split alone does not fix facet (b). It touches the auth flow and its
+  Supabase round-trip is not validatable in this environment, so it was not fixed in
+  this docs-only run. Confirm **both** parts and assign it.
 - **Linear intake is unavailable to this session** (the connector is unauthenticated
   here; prior runs also record the workspace at its free-issue cap), so the new Medium
   and the two carried research-pipeline Mediums cannot be filed as issues — all are
