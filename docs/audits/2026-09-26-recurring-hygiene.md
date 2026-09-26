@@ -27,8 +27,13 @@ findings that prior runs carried as open are now resolved at the repository leve
 - **`pdfjs-dist` high advisory (GHSA-hq66-cqwq-w95j) — fixed (#350).**
   `package.json` now pins `~6.3.289` and `pdfjs-dist@6.3.289` is installed,
   clearing the carried Medium (arbitrary JS execution on opening a crafted PDF).
-  Resume PDF parsing keeps its worker isolation + `isEvalSupported: false`
-  hardening.
+  #350 also **removed** the prior `isEvalSupported: false` defence-in-depth from
+  [`resumeUpload.ts`](../../src/lib/resumeUpload.ts) (and its test assertion):
+  pdf.js 6 eliminated the `eval()`/`Function` codepath GHSA-hq66-cqwq-w95j
+  exploited — the advisory's fix — so that option is no longer needed (see the
+  in-code comment at `resumeUpload.ts:118–122`). The remaining surface is small
+  and unchanged: the parser runs in an isolated worker
+  (`GlobalWorkerOptions.workerSrc`), extracts text only, and never renders.
 - **`react-router` two advisories (open-redirect + SSR-hydration) — fixed (#353,
   PREPIO-172).** `react-router-dom@7.18.4` is installed (manifest `^7.18.4`),
   clearing both carried Low advisories.
