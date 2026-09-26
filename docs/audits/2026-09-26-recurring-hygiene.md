@@ -57,9 +57,14 @@ Mediums are out of scope for a docs-only hygiene run and unvalidatable here; the
 note + the `docs/audits/README.md` index row are the deliverable.
 
 Baselines (measured against HEAD `9d9b711`; deltas vs 2026-09-12):
-lint **50** problems (**41** errors / 9 warnings) — **−2 errors** (fewer test
-files carrying `@typescript-eslint/no-explicit-any` after the #354 scope
-reduction; warnings flat). Typecheck **pass at baseline** (app **61**, node
+lint **50** problems (**41** errors / 9 warnings; **−2 errors** vs 52 total,
+composition below). The 41 errors are **34 application-side React Hooks
+diagnostics** (21 `react-hooks/set-state-in-effect`, 7 `react-hooks/immutability`,
+6 `react-hooks/purity`) plus **4 `@typescript-eslint/no-explicit-any`**, 2
+`no-empty-object-type`, and 1 `no-require-imports`; the 9 warnings are
+`react-refresh/only-export-components`. All pre-existing (the `eslint.config.js`
+react-hooks recommended ruleset was unchanged this window; lint is informational,
+not a CI gate). Typecheck **pass at baseline** (app **61**, node
 **0**; −1 app error, same cause). Build **1,242.25 KiB** / **41** precache
 entries — **down ~45%** from 2,280.54 KiB / 62 (the #354 freeze removed
 billing/upload/voice code paths). Tests **467** passing / **55** files (up from
@@ -71,9 +76,12 @@ remains; the `pdfjs-dist` high and both `react-router` advisories are cleared.
 
 - `npm install`: **pass** (via SessionStart hook; 2 moderate advisories reported).
 - `npm run lint`: **50 problems (41 errors, 9 warnings).** Informational in CI
-  (not a gate). −2 errors vs 2026-09-12; the remaining errors are the pre-existing
-  `@typescript-eslint/no-explicit-any` in tests/edge functions and the 9
-  fast-refresh warnings. This run pushes no source.
+  (not a gate). −2 errors vs 2026-09-12. Breakdown: 34 React Hooks diagnostics
+  (21 `set-state-in-effect`, 7 `immutability`, 6 `purity`), 4
+  `@typescript-eslint/no-explicit-any`, 2 `no-empty-object-type`, 1
+  `no-require-imports`; 9 `react-refresh/only-export-components` warnings. All
+  pre-existing (react-hooks recommended ruleset unchanged this window). This run
+  pushes no source. See the Low finding below.
 - `npm run typecheck`
   ([`scripts/check-typecheck-baseline.sh`](../../scripts/check-typecheck-baseline.sh)):
   **pass at baseline.** App **61**, node **0**.
@@ -206,13 +214,28 @@ remains; the `pdfjs-dist` high and both `react-router` advisories are cleared.
     is not subject to the local `--package-lock-only` crash), or a maintainer runs
     it outside this proxy sandbox.
 
-- [ ] **Lint is informational, not a CI gate; 41 errors / 9 warnings persist.**
-  *(Observation, unchanged in kind.)*
-  - Evidence: the errors are pre-existing `@typescript-eslint/no-explicit-any` in
-    tests/edge functions; the 9 warnings are `react-refresh/only-export-components`
-    fast-refresh hints. None are correctness/security/bundle issues. Count dropped
-    −2 errors this window purely from the #354 scope reduction.
-  - Recommended fix: none required for hygiene; a maintainer cleanup if desired.
+- [ ] **Lint is informational, not a CI gate; 41 errors / 9 warnings persist —
+  and 34 of the 41 are React Hooks diagnostics, not `any` usage.**
+  *(Observation; characterization corrected this run after Codex review — prior
+  audits had described the backlog as `no-explicit-any`, which the current
+  breakdown does not support.)*
+  - Evidence: the 41 errors are **34 application-side React Hooks diagnostics**
+    (21 `react-hooks/set-state-in-effect`, 7 `react-hooks/immutability`, 6
+    `react-hooks/purity`), 4 `@typescript-eslint/no-explicit-any`, 2
+    `@typescript-eslint/no-empty-object-type`, and 1
+    `@typescript-eslint/no-require-imports`; the 9 warnings are
+    `react-refresh/only-export-components` fast-refresh hints. All are
+    pre-existing (the `eslint.config.js` react-hooks recommended ruleset was
+    unchanged in the `e3a283b..HEAD` window; total moved 43 → 41). **Not all are
+    cosmetic:** the react-hooks `set-state-in-effect`, `purity`, and
+    `immutability` rules can flag genuine render-time correctness smells
+    (state-in-effect loops, impure render, mutation of props/state) — they are
+    surfaced but not triaged here, and warrant a dedicated maintainer pass rather
+    than being dismissed. None block CI (lint is informational).
+  - Recommended fix: a maintainer triage of the 34 React Hooks findings (they may
+    be false positives against this code's patterns or may be real render-time
+    bugs) plus the low-risk `any`/empty-type/require-import cleanups; out of scope
+    for a docs-only hygiene run.
 
 - [ ] **`npm audit` is not a CI gate.** *(Observation, unchanged from prior runs.)*
   - Evidence: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) gates
