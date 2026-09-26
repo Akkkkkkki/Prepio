@@ -162,25 +162,34 @@ remains; the `pdfjs-dist` high and both `react-router` advisories are cleared.
   working-tree redaction (PREPIO-145).** *(Carried; the owner-attended history-purge
   slice. Re-verified still exposed this run.)*
   - Evidence: PR #342 replaced ten screenshots with placeholders in the working
-    tree, but the pre-redaction blobs remain in history. The ten affected paths
-    are now enumerated in
+    tree, but the pre-redaction blobs remain in history.
     [`docs/security/freeze-pii-paths.txt`](../../docs/security/freeze-pii-paths.txt)
-    (added by #354). Confirmed still resolvable this run:
+    (added by #354) lists those ten current-tree replacements, **but it is a
+    *starting inventory*, not the complete set** —
+    [`docs/FREEZE_RELEASE.md:52–56`](../../docs/FREEZE_RELEASE.md) is explicit that
+    the purge must **also** cover deleted/renamed images, the two images removed in
+    **PR #298**, and profile/new-interview captures reviewed across **every** dated
+    audit folder. Confirmed still resolvable this run:
     `docs/audits/assets/2026-07-09/11-d-new-interview.png` has both the redacted
     blob at `da47d9e` and the original **146,389-byte** blob at `5585fd4`
     retrievable via `git rev-parse 5585fd4:<path>`. **This is a public
     repository**, so those blobs are fetchable by anyone with the commit SHA.
     *(PII not reproduced here per the review's redaction rule.)*
   - Risk: real personal data exposed on a public remote until history is rewritten;
-    a freeze-exit release blocker per the issue.
-  - Recommended fix: owner-attended `git filter-repo`/BFG purge of the paths in
-    `freeze-pii-paths.txt` + coordinated force-push, preserving a backup ref off
-    the public remote, plus the PR/comment exposure review the issue calls for. Do
-    **not** run a history rewrite unattended.
+    a freeze-exit release blocker per the issue. **A purge scoped to only the ten
+    listed paths would leave known CV PII in history** (deleted/renamed blobs and
+    the PR #298 removals), so the broader inventory in `FREEZE_RELEASE.md` governs.
+  - Recommended fix: owner-attended `git filter-repo`/BFG purge covering the **full**
+    `FREEZE_RELEASE.md` inventory — the ten `freeze-pii-paths.txt` entries **plus**
+    deleted/renamed images, the two PR #298 removals, and the profile/new-interview
+    captures from every dated folder — then a coordinated force-push, preserving a
+    backup ref off the public remote, plus the PR/comment exposure review the issue
+    calls for. Do **not** run a history rewrite unattended, and do **not** treat
+    `freeze-pii-paths.txt` as the complete target list.
   - Owner / next step: **PREPIO-145** (Urgent, Todo, assigned to owner). Tracked
-    with a full remediation plan; the path manifest is now checked in. Out of scope
-    for an unattended hygiene run (force-push history rewrite of a shared public
-    repo).
+    with a full remediation plan; `freeze-pii-paths.txt` is a checked-in starting
+    inventory, not the complete finding. Out of scope for an unattended hygiene run
+    (force-push history rewrite of a shared public repo).
 
 ### Medium
 
@@ -315,7 +324,9 @@ Tracked, Dependabot-surfaced, or recorded here (Linear intake unavailable this
 session):
 
 - **PREPIO-145** — owner-attended Git-history purge of the production-CV screenshot
-  blobs (now enumerated in `docs/security/freeze-pii-paths.txt`) + PII/credential
+  blobs (`freeze-pii-paths.txt` is a *starting inventory*, not the complete set —
+  `FREEZE_RELEASE.md:52–56` also requires deleted/renamed images, the two PR #298
+  removals, and profile/new-interview captures from every dated folder) + PII/credential
   exposure review (High/Urgent, Todo). Working-tree slice done (#342); history
   remains exposed on the public repo.
 - **PREPIO-124 deployment of the PREPIO-143 fix** — #337 closed the BOLA at the repo
@@ -363,8 +374,10 @@ session):
    invite/reset flows still behave.
 3. **PREPIO-145 Git-history purge** — the highest-residual-risk open item: real CV
    PII is still publicly fetchable from history. Track the owner-attended
-   filter-repo/BFG + force-push against `freeze-pii-paths.txt` and verify the blobs
-   are gone from all refs afterward.
+   filter-repo/BFG + force-push against the **full `FREEZE_RELEASE.md` inventory**
+   (not just the ten `freeze-pii-paths.txt` entries — include deleted/renamed
+   images, the two PR #298 removals, and every dated folder's profile/new-interview
+   captures) and verify the blobs are gone from all refs afterward.
 4. **The two carried research-pipeline Mediums** — (a) evidence-ledger
    `official_company` over-trust: land the registrable-label (PSL-aware) fix + the
    deferred short-name/employer-domain follow-up with adversarial subdomain tests;
