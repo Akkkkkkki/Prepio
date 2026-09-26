@@ -7,9 +7,10 @@ Twenty-eighth recurring codebase hygiene & security review for Prepio.
 **Headline: a remediation-heavy window with one new regression.** Three findings
 prior runs carried as open are now resolved at the repository level (below), but
 #354 — while a large net security-positive surface reduction — also introduced a
-new Medium auth-flow regression: the resend-verification path now misroutes the
-post-confirmation landing to the set-new-password UI (surfaced by Codex on this
-audit PR and recorded below). The three resolved items:
+new Medium auth-flow regression in its `flow=recovery` handling, with two facets: a
+resend-verification post-confirmation misroute, and a bare-query set-new-password
+form that renders without a session (surfaced by Codex on this audit PR and recorded
+below). The three resolved items:
 
 - **[PREPIO-143] `searchId` cross-tenant write (BOLA) — fixed (#337).** The
   carried High from 2026-08-12 landed. A new fail-closed ownership gate
@@ -46,10 +47,13 @@ core) is a net **−1,017-line scope reduction** that removes billing UI,
 file-upload, and voice controls — an attack-surface *reduction* and the cause of
 the ~45% bundle drop below — **but it is not fully clean:** it also repointed the
 shared auth email-redirect callback to `/auth?flow=recovery` and added a
-`passwordSetupRequired` initializer that treats `flow=recovery` as the
-set-new-password flow, which misroutes the still-live *resend-verification*
-post-confirmation landing (new Medium finding below — verification still succeeds;
-the confirmed user is just shown the wrong screen). **#345** adds evidence-origin
+`passwordSetupRequired` initializer that sets the set-new-password flow **from the
+bare URL query, without a session check**. That produces two defects (new Medium
+finding below): (a) the still-live *resend-verification* path misroutes its
+post-confirmation landing to the set-new-password screen (verification still
+succeeds server-side — the confirmed user is just shown the wrong screen), and
+(b) any `/auth?flow=recovery` visit with no session (expired link or direct visit)
+renders a dead-end set-new-password form. **#345** adds evidence-origin
 short-name classification
 test coverage (tests only, cursor-authored); **#348** makes the Playwright landing
 smoke a blocking CI gate (CI/DX hardening).
@@ -62,8 +66,10 @@ imports, and consistently deferred by prior runs): the evidence-ledger
 `SEARCH_COMPLETE` console log still leaking raw note-derived query strings. The
 `@vitest/mocker` dev-only moderate also persists (dev/test-only, no production
 bundle exposure). Codex review of this audit PR additionally surfaced a **new
-Medium** — a `#354` resend-verification post-confirmation UI misroute (recorded
-below). **No product-source fix was made in this run:** the two research-pipeline
+Medium** — a `#354` `flow=recovery` auth-flow regression with two facets (a
+resend-verification post-confirmation misroute and a session-less set-new-password
+form; recorded below). **No product-source fix was made in this run:** the two
+research-pipeline
 Mediums are out of scope for a docs-only hygiene run and unvalidatable here, and the
 auth regression is a product-source change touching the auth flow (owner-approval
 territory per CLAUDE.md, and the Supabase email round-trip is not validatable in
@@ -117,9 +123,15 @@ remains; the `pdfjs-dist` high and both `react-router` advisories are cleared.
   **not runnable in this environment** — the agent proxy blocks `esm.sh` /
   `deno.land`, so Deno cannot resolve the edge functions' remote imports; the
   script reports `SKIPPED — this is not a pass` (exit 0 locally, `exit 1` under
-  `$CI`). This run pushes no `supabase/functions` source; the range's
-  edge-function merges (#337, #351) each passed the real CI `verify` gate at merge
-  time (#351 exists precisely to restore the deno ratchet after #337).
+  `$CI`). This run pushes no `supabase/functions` source. The final merged tree is
+  green on the real CI `verify` gate, but not because each edge-function merge was
+  individually clean: **#337 landed the ownership-guard security behavior but
+  *perturbed* the Deno ratchet** — its `authorization.ts` used a typed
+  `SearchOwnershipClient` boundary and a native `Promise` return that triggered the
+  Deno **TS2589** deep-instantiation regression — and **#351 repaired it**, changing
+  the boundary to `unknown`/`PromiseLike` (see the `authorization.ts:22–33` comment)
+  and validating the final tree. So the accurate record is #337 (behavior, ratchet
+  perturbed) → #351 (ratchet restored, gate green), not "both passed at merge."
 - `npm run build`: **pass** (Vite + PWA, **41** precache entries, **1,242.25 KiB**).
 - `npm test`: **pass** (**55 files, 467 tests**), incl. the schema/design-token
   checks.
@@ -169,41 +181,57 @@ remains; the `pdfjs-dist` high and both `react-router` advisories are cleared.
 
 ### Medium
 
-- [ ] **#354 misroutes the post-confirmation landing for the resend-verification
-  flow — a confirmed user is shown the set-new-password (recovery) UI.** *(New this
-  run; surfaced by Codex on this audit PR across two rounds and code-verified against
-  the #354 diff. Initially over-scoped as a High "cannot verify" break; corrected to
-  a UI misroute after Codex's GoTrue-behavior note.)*
-  - Evidence: #354 changed the shared `getAuthRedirectUrl()` from `${origin}/auth`
-    to **`${origin}/auth?flow=recovery`**
+- [ ] **#354's `flow=recovery` handling has two defects: a resend-verification
+  post-confirmation misroute, and a bare-query set-new-password form that renders
+  without a session.** *(New this run; surfaced by Codex on this audit PR across three
+  rounds and code-verified against the #354 diff. Facet (a) was initially over-scoped
+  as a High "cannot verify" break; corrected to a UI misroute after Codex's
+  GoTrue-behavior note. Facet (b) added after a further Codex round.)*
+  - Common root cause: #354 changed the shared `getAuthRedirectUrl()` from
+    `${origin}/auth` to **`${origin}/auth?flow=recovery`**
     ([`src/hooks/useAuth.ts:5–6`](../../src/hooks/useAuth.ts)) and added a
-    `passwordSetupRequired` initializer that returns `true` when
-    `flow === "recovery"` (or `invite`) (`useAuth.ts:13–17`). That callback is
-    shared: `resetPassword` uses it correctly (recovery *is* the intent), **but
+    `passwordSetupRequired` initializer that returns `true` **purely from the URL
+    query** (`flow === "recovery"` or `"invite"`, `useAuth.ts:13–17`) with **no
+    session/authenticated-callback check**;
+    [`Auth.tsx:58–60`](../../src/pages/Auth.tsx) then forces the `set-new-password`
+    view whenever `passwordSetupRequired` is set, even when `user`/session is null.
+    Before #354 there was no query-driven `passwordSetupRequired` — recovery was
+    handled only via the `PASSWORD_RECOVERY` auth event (which fires with a valid
+    recovery session) — so both facets are #354 regressions.
+  - Facet (a) — **resend-verification post-confirmation misroute:** `resetPassword`
+    uses the shared callback correctly (recovery *is* the intent), **but
     `resendVerification` (`type: "signup"`, `useAuth.ts:73–86`) uses the same
-    callback**, and it is still live — two `openView("resend-verification")` buttons
-    in [`src/pages/Auth.tsx`](../../src/pages/Auth.tsx) (lines ~290 and ~338) call it
-    (`Auth.tsx:146`). **Verification itself is not broken:** Supabase's
-    `auth/v1/verify?type=signup` endpoint validates the token server-side *before*
+    callback** and is still live (two `openView("resend-verification")` buttons in
+    `Auth.tsx` ~290/~338 → `Auth.tsx:146`). **Verification itself is not broken:**
+    Supabase's `auth/v1/verify?type=signup` validates the token server-side *before*
     following `emailRedirectTo`, so the account is confirmed regardless of the
-    redirect target — `emailRedirectTo` only selects the post-confirmation landing.
-    The defect is that landing: with `flow=recovery` the app sets
-    `passwordSetupRequired = true` and renders the **set-new-password** UI, so a user
-    who just confirmed their email (arriving with a valid session) is incorrectly
-    shown a password-reset screen. Before #354 the callback was plain `/auth`, so the
-    post-confirmation landing was ordinary — this is a #354 regression.
-  - Risk: confusing/incorrect post-confirmation UX on a shipping, still-wired
-    control — a confirmed user is mis-prompted to set a new password. Not a
-    verification failure or lockout (the session is valid and the account is
-    confirmed), and gated to existing unconfirmed accounts using the resend path
-    (public signup is disabled in the freeze) — hence Medium, not High. Content/flow
-    correctness, not data exposure.
-  - Recommended fix: split the callback — keep `flow=recovery` only for
+    redirect target; the defect is that a just-confirmed user (valid session) lands on
+    `flow=recovery` and is shown the **set-new-password** screen instead of an
+    ordinary landing.
+  - Facet (b) — **bare-query recovery view with no session:** because
+    `passwordSetupRequired` trusts the query alone, an **expired/invalid recovery
+    callback** (token consumed/expired, no session established) **or a direct visit to
+    `/auth?flow=recovery`** renders the set-new-password form anyway; its
+    `updateUser` submission (`updatePassword`, `useAuth.ts:88–95`) requires a session
+    and cannot succeed, so the user hits a dead-end form with no link-error handling.
+    **Splitting the resend callback does not fix this facet** — it needs intent to be
+    validated against an authenticated callback state.
+  - Risk: confusing/incorrect auth UX on shipping, still-wired controls — a confirmed
+    user mis-prompted to reset a password (a), and a dead-end set-new-password form on
+    an expired/invalid or hand-typed recovery URL (b). Neither is a verification
+    failure, lockout, or data exposure (the `updateUser` call simply fails without a
+    session), and (a) is gated to the resend path (public signup disabled in the
+    freeze) — hence Medium, not High. Content/flow correctness.
+  - Recommended fix: (a) split the callback — keep `flow=recovery` only for
     `resetPassword`, and give `resendVerification` a plain `${origin}/auth` (or a
-    dedicated `flow=verify` the initializer does **not** treat as recovery). Add a
-    test asserting the resend-verification redirect does not set
-    `passwordSetupRequired`. Verify the invite (`flow=invite`) and reset
-    (`flow=recovery`) paths still behave.
+    `flow=verify` the initializer does **not** treat as recovery); (b) gate
+    `passwordSetupRequired` on an **authenticated recovery/invite session** (e.g. the
+    `PASSWORD_RECOVERY` event or a present session), not the bare URL query, and
+    render a link-error state when a recovery/invite callback arrives without a valid
+    session. Add tests: the resend redirect does not set `passwordSetupRequired`, and
+    `/auth?flow=recovery` with no session shows an error rather than a dead-end form.
+    Verify the invite (`flow=invite`) and reset (`flow=recovery`) happy paths still
+    behave.
   - Owner / next step: **a dedicated, reviewed product-source PR** — this touches the
     auth flow (owner-approval territory per CLAUDE.md's "Auth + profile changes need
     both screen copy and route behavior checked"), and the Supabase email round-trip
@@ -350,11 +378,13 @@ session):
   remains exposed on the public repo.
 - **PREPIO-124 deployment of the PREPIO-143 fix** — #337 closed the BOLA at the repo
   level; production remains unrepaired until deployed via the freeze runbook.
-- **#354 resend-verification post-confirmation UI misroute** (Medium, new this run) —
-  split the shared `getAuthRedirectUrl` so `resendVerification` no longer lands
-  confirmed users on `flow=recovery`. Verification still succeeds; only the
-  post-confirmation screen is wrong. Dedicated reviewed product PR; file in Linear
-  (`Bug` + `area:auth`) when intake is available.
+- **#354 `flow=recovery` auth-flow regression, two facets** (Medium, new this run) —
+  (a) split the shared `getAuthRedirectUrl` so `resendVerification` no longer lands
+  confirmed users on `flow=recovery`, and (b) gate `passwordSetupRequired` on an
+  authenticated recovery/invite session (not the bare URL query) with a link-error
+  state, so a session-less `/auth?flow=recovery` visit doesn't render a dead-end
+  form. Dedicated reviewed product PR; file in Linear (`Bug` + `area:auth`) when
+  intake is available.
 - **Evidence-ledger `official_company` attacker-subdomain over-trust** (Medium,
   carried) — land the registrable-label (PSL-aware) fix with adversarial
   `company-token.attacker.example` tests; file in Linear (Quality & Maintenance,
@@ -395,10 +425,13 @@ session):
    the repo; verify it reaches production via the freeze runbook (a merge alone does
    not repair production). Then re-audit `company-research`, `job-analysis`, and
    `answer-feedback` for the same missing object-ownership check.
-2. **#354 resend-verification auth regression** — land the callback split (a
-   non-recovery redirect for `resendVerification`) in a dedicated reviewed PR, with a
-   test that the resend path does not set `passwordSetupRequired`, and verify the
-   invite/reset flows still behave.
+2. **#354 `flow=recovery` auth regression (two facets)** — in a dedicated reviewed
+   PR: (a) split the callback so `resendVerification` uses a non-recovery redirect,
+   and (b) gate `passwordSetupRequired` on an authenticated recovery/invite session
+   (not the bare URL query) with a link-error state. Tests: the resend path does not
+   set `passwordSetupRequired`, and a session-less `/auth?flow=recovery` shows an
+   error rather than a dead-end form. Verify the invite/reset happy paths still
+   behave.
 3. **PREPIO-145 Git-history purge** — the highest-residual-risk open item: real CV
    PII is still publicly fetchable from history. Track the owner-attended
    filter-repo/BFG + force-push against the **full `FREEZE_RELEASE.md` inventory**
