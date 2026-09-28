@@ -313,9 +313,10 @@ const History = () => {
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
                 <ClipboardList className="h-7 w-7 text-muted-foreground" />
               </div>
-              <CardTitle>Ready to start practicing</CardTitle>
+              <CardTitle>No finished sessions yet</CardTitle>
               <CardDescription>
-                Your first practice session will appear here with answers, timing, and notes so you can track your preparation progress.
+                Finished practice sessions appear here with answers, timing, and notes. Answers you save
+                in an unfinished session stay on that interview in Your interviews.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 sm:flex-row sm:justify-center">

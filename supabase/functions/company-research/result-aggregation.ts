@@ -93,3 +93,22 @@ export function buildSearchPayloads(
 
   return { searchPayloads: validFreshResults, validFreshResults };
 }
+
+// PREPIO-179: the SEARCH_COMPLETE log used to print the whole result, so raw
+// Tavily queries (which embed note-derived names) and provider page text reached
+// the function logs. Log counts only; nothing here carries user or provider text.
+export function buildSearchCompleteLogPayload(result: {
+  search_results: SearchPayload[];
+  extracted_content: unknown[];
+  total_urls_extracted: number;
+}) {
+  return {
+    searchPayloads: result.search_results.length,
+    searchResults: result.search_results.reduce(
+      (total, payload) => total + (payload.results?.length ?? 0),
+      0,
+    ),
+    extractedContent: result.extracted_content.length,
+    totalUrlsExtracted: result.total_urls_extracted,
+  };
+}

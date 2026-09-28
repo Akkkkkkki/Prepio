@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSearchCompleteLogPayload,
   buildSearchPayloads,
   type CachedContentRow,
   type SearchPayload,
@@ -144,5 +145,27 @@ describe("buildSearchPayloads", () => {
 
     expect(searchPayloads).toEqual([]);
     expect(validFreshResults).toEqual([]);
+  });
+});
+
+describe("buildSearchCompleteLogPayload", () => {
+  it("logs counts without queries, answers, titles, or page text", () => {
+    const noteDerivedQuery = "Acme interview with synthetic-interviewer-name";
+    const payload = buildSearchCompleteLogPayload({
+      search_results: [freshHit(noteDerivedQuery, "https://example.com/a")],
+      extracted_content: [],
+      total_urls_extracted: 3,
+    });
+
+    expect(payload).toEqual({
+      searchPayloads: 1,
+      searchResults: 1,
+      extractedContent: 0,
+      totalUrlsExtracted: 3,
+    });
+    const logged = JSON.stringify(payload);
+    expect(logged).not.toContain("synthetic-interviewer-name");
+    expect(logged).not.toContain("content from");
+    expect(logged).not.toContain("example.com");
   });
 });

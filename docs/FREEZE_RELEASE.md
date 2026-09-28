@@ -129,7 +129,7 @@ Keep private credentials and tokens out of reports, screenshots and PR comments.
 | --- | --- |
 | Guest | Sample opens offline; zero function/provider requests; no signup/paid/voice/import controls |
 | Routes | Old pricing/billing/profile/settings URLs show unavailable/404 without backend work |
-| Auth | Non-invited direct signup denied; invited A sets password and signs in; protected return preserved |
+| Auth | Non-invited direct signup denied; invited A sets password and signs in; an expired or reused invite/recovery link shows the link error, not a password form; protected return preserved |
 | Core journey | A creates research, sees completion and plan, starts text practice, saves answer |
 | Persistence | A toggles both flags on the same question; reload preserves both; History shows saved answer |
 | Isolation | B and a missing/expired session cannot read A's plan/answers/flags through the Data API |

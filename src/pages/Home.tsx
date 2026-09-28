@@ -944,8 +944,9 @@ const Home = () => {
             <Alert className="mb-6 border-amber-300 bg-amber-50 text-amber-950">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                You&apos;re offline. Reconnect before you start research. Resume files still parse
-                locally until you&apos;re back online.
+                You&apos;re offline. Reconnect before you start research.
+                {FROZEN_PRODUCT.resumeUpload &&
+                  " Resume files still parse locally until you're back online."}
               </AlertDescription>
             </Alert>
           )}
@@ -1307,7 +1308,8 @@ const Home = () => {
                 </div>
                 {mobileStep === "tailoring" && isOffline && (
                   <p className="text-center text-xs text-amber-700">
-                    Reconnect to start research. Resume files can still be parsed locally.
+                    Reconnect to start research.
+                    {FROZEN_PRODUCT.resumeUpload && " Resume files can still be parsed locally."}
                   </p>
                 )}
               </div>

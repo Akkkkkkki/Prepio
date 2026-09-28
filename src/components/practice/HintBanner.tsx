@@ -1,5 +1,6 @@
 import { ArrowLeft, FileText, Mic, SkipForward, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FROZEN_PRODUCT } from "@/lib/frozenProduct";
 
 interface HintBannerProps {
   onDismiss: () => void;
@@ -8,13 +9,15 @@ interface HintBannerProps {
 export const HintBanner = ({ onDismiss }: HintBannerProps) => (
   <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4 text-xs text-muted-foreground motion-slide-up sm:flex-row sm:items-center sm:justify-between">
     <div className="flex flex-col gap-1 text-foreground sm:flex-row sm:items-center sm:gap-4">
-      <span className="flex items-center gap-2 text-sm font-medium">
-        <Mic className="h-3.5 w-3.5" />
-        Record for a full answer
-      </span>
+      {FROZEN_PRODUCT.voice && (
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <Mic className="h-3.5 w-3.5" />
+          Record for a full answer
+        </span>
+      )}
       <span className="flex items-center gap-2 text-sm font-medium">
         <FileText className="h-3.5 w-3.5" />
-        Notes for quick bullets
+        {FROZEN_PRODUCT.voice ? "Notes for quick bullets" : "Type your answer or quick bullets"}
       </span>
       <span className="flex items-center gap-2 text-sm font-medium">
         <SkipForward className="h-3.5 w-3.5" />
