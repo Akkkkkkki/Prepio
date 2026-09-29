@@ -65,8 +65,9 @@ were not verified by this source change.
    apply production Auth settings. Existing accounts continue signing in. Verify a
    direct non-invited signup request fails, not just that the button is absent.
 2. Invite accounts through the owner/admin flow. Allow the exact production callback
-   `/auth?flow=invite`; recovery uses `/auth?flow=recovery`. The query selects password
-   setup only; Supabase still requires the authenticated invitation/recovery session.
+   `/auth?flow=invite`; recovery uses `/auth?flow=recovery`, and verification resends
+   use plain `/auth`. The query selects password setup only; the app also requires the
+   session created by that link's own token before it shows the password form.
    Verify invitation acceptance and recovery before locking the release.
 3. Record a recoverable database backup and current Vercel deployment. Record function
    versions and source artifacts for recovery. Do not use an old vulnerable function as
