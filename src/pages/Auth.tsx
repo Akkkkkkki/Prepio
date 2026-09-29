@@ -39,7 +39,9 @@ const Auth = () => {
     resendVerification,
     updatePassword,
     passwordSetupRequired,
+    authLinkChecking,
     authLinkError,
+    clearAuthLinkError,
     finishPasswordSetup,
   } = useAuthContext();
   const { isOffline } = useNetworkStatus();
@@ -51,7 +53,7 @@ const Auth = () => {
   const preferredEmail = signInData.email.trim();
   // Password setup needs the session a valid invite/recovery link creates. Until
   // the provider has checked for it, show a status line rather than a form.
-  const checkingAuthLink = Boolean(passwordSetupRequired && !user);
+  const checkingAuthLink = Boolean(authLinkChecking);
   const activeView: AuthView = passwordSetupRequired && user ? "set-new-password" : authView;
 
   // Listen for Supabase PASSWORD_RECOVERY event to enter the set-new-password view
@@ -66,12 +68,16 @@ const Auth = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Redirect authenticated users away — unless they're resetting their password
+  // Redirect authenticated users away — unless they're resetting their password,
+  // or a failed invite/recovery link needs explaining first.
   useEffect(() => {
-    if (user && !isRecoverySession && !passwordSetupRequired) {
+    if (user && !isRecoverySession && !passwordSetupRequired && !authLinkChecking && !authLinkError) {
       navigate(redirectPath, { replace: true });
     }
-  }, [navigate, redirectPath, user, isRecoverySession, passwordSetupRequired]);
+  }, [navigate, redirectPath, user, isRecoverySession, passwordSetupRequired, authLinkChecking, authLinkError]);
+
+  // The link error describes this visit only.
+  useEffect(() => () => clearAuthLinkError?.(), [clearAuthLinkError]);
 
   const clearFeedback = () => {
     setError("");

@@ -189,9 +189,9 @@ describe("Auth page", () => {
     expect(await screen.findByText("Interviews target")).toBeInTheDocument();
   });
 
-  it("waits for the link session instead of showing a password form without one", () => {
+  it("waits for the link check instead of showing a password form", () => {
     mockUseAuthContext.mockReturnValue({
-      user: null, passwordSetupRequired: true,
+      user: { id: "stored-account" }, passwordSetupRequired: false, authLinkChecking: true,
       updatePassword: mockUpdatePassword, finishPasswordSetup: vi.fn(),
     });
     renderAuth();
@@ -209,6 +209,20 @@ describe("Auth page", () => {
     expect(screen.getByText(/link is invalid or has expired/)).toBeInTheDocument();
     expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Forgot password?" })).toBeInTheDocument();
+  });
+
+  it("explains a failed link to a signed-in browser instead of redirecting or offering setup", () => {
+    mockUseAuthContext.mockReturnValue({
+      user: { id: "stored-account" }, passwordSetupRequired: false,
+      authLinkError: "This invite or password reset link is invalid or has expired.",
+      clearAuthLinkError: vi.fn(), signIn: mockSignIn, resetPassword: mockResetPassword,
+      updatePassword: mockUpdatePassword,
+    });
+    renderAuth();
+    expect(screen.getByText(/link is invalid or has expired/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+    expect(screen.queryByText("Interviews target")).not.toBeInTheDocument();
+    expect(mockUpdatePassword).not.toHaveBeenCalled();
   });
 
   it("marks sign-in fields for password managers", () => {
