@@ -258,8 +258,8 @@ autocomplete, In Progress), **PREPIO-107** (surface needs-work on the card, In P
    this prep plan" — the research function persists the pasted CV as a `resumes` snapshot and in the
    evidence ledger, so ephemeral-sounding copy would misrepresent it. Since the freeze removed the
    Profile surface (where PREPIO-37 added this copy) and ships no self-serve delete, don't promise a
-   delete control that isn't there. Content-only, Improvement, `area:research-pipeline`. Filed in Linear
-   and cross-linked to this review. (Issue #3.)
+   delete control that isn't there. Content-only, Improvement, `area:research-pipeline`. Filed as
+   [PREPIO-180](https://linear.app/qiuyue/issue/PREPIO-180) and cross-linked to this review. (Issue #3.)
 
 Deliberately **not** filed: issue #4 (post-freeze landing improvement — defer, overlaps PREPIO-16/152)
 and issue #5 (`/interviews` retry — below the >30-min threshold; noted for the trail). No new tickets
