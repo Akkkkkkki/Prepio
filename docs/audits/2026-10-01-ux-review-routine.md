@@ -236,9 +236,11 @@ inferred from source — not visually verified this run.
   removed from the shipped bundle.
 - **RESOLVED (frontend)** — Public signup surface: Auth is invite-only, no signup UI in the live
   chunk. (Server-side verification still open — issue #2, not a regression.)
-- **NOT RE-VERIFIED** — Favorite/Needs-work `42P10` (issue #1): last confirmed broken 2026-09-03;
-  inferred still-unapplied from the pending migration + open PREPIO-170/124, but production was not
-  re-checked this run (near-zero DB traffic; `schema_migrations` not readable via `query_logs`).
+- **NOT RE-VERIFIED** — Favorite/Needs-work `42P10` (issue #1): last confirmed broken 2026-09-03; the
+  fix migration is **pending production re-verification** — production was not re-checked this run
+  (near-zero DB traffic; `schema_migrations` not readable via `query_logs`), so its deployment state is
+  unknown. Open PREPIO-170/124 and the 2026-09-21 snapshot are why I still expect it unapplied, but that
+  is not established.
 - **Minor new gap (not a regression of a prior fix in the same place):** CV privacy copy absent on the
   active surface because the freeze removed the Profile page where PREPIO-37 had placed it (issue #3).
 
