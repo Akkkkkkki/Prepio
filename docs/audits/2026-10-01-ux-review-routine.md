@@ -156,17 +156,27 @@ PREPIO-37 added lived on the now-removed Profile page.
   about to paste their résumé to tailor questions.
 - **What happened:** The paste area shows good *value* copy ("Optional. Personalizes questions to your
   background." / "CV added (N chars). Personalizes every question." / an "Improves relevance" badge)
-  but **no statement of what happens to the CV** — no "used only to tailor this prep plan" line.
-  PREPIO-37 (Done) added exactly this copy, but to the **Profile upload area**, which the freeze has
-  removed; `renderProfileResumeNote()` is gated behind `FROZEN_PRODUCT.profile` (`false`) and renders
-  nothing. So today the active CV surface ships with zero privacy framing.
+  but **no statement of what happens to the CV**. PREPIO-37 (Done) added privacy copy — telling the
+  user the CV is *saved privately* and can be deleted — but to the **Profile upload area**, which the
+  freeze removed; `renderProfileResumeNote()` is gated behind `FROZEN_PRODUCT.profile` (`false`) and
+  renders nothing. So today the active CV surface ships with zero privacy framing.
 - **Why it matters:** Anxious job-seekers pasting a résumé are exactly the moment trust copy earns its
-  place; its absence is a quiet conversion/trust leak on a value-producing input.
-- **Recommended fix:** Add one inline line near the paste box, e.g. *"Your CV is used only to
-  personalize this prep plan."* Content-only; freeze-compatible. **New ticket filed — see Recommended
-  tickets.**
+  place; its absence is a quiet conversion/trust leak on a value-producing input. **And the pasted CV is
+  not ephemeral:** `interview-research` persists the full text as a `resumes` row
+  (`source: 'search_snapshot'`, `ensureResumeSnapshotForSearch`) and incorporates it into the stored
+  evidence ledger — so any trust copy must be *accurate* about persistence, not just reassuring about
+  purpose.
+- **Recommended fix:** Add one inline line near the paste box that discloses what actually happens —
+  that the CV text is **saved privately with this prep plan** and used to personalize questions — rather
+  than a purpose-only line like "used only to personalize this prep plan," which would misrepresent the
+  persistence above. Note the retention/deletion nuance: the frozen core has no self-serve delete
+  (Profile is removed), and `FREEZE_RELEASE.md` says account/data deletion is owner-handled, so the copy
+  should not promise a delete control that isn't shipped. Content-only; freeze-compatible. **New ticket
+  filed — see Recommended tickets.**
 - **Evidence:** `src/pages/Home.tsx` ~L990–1043 (desktop) and the mobile accordion ~L855–865;
-  `FROZEN_PRODUCT.profile === false` in `src/lib/frozenProduct.ts`.
+  `FROZEN_PRODUCT.profile === false` in `src/lib/frozenProduct.ts`; persistence in
+  `supabase/functions/interview-research/index.ts` (`ensureResumeSnapshotForSearch`, L199–217, called
+  L1131–1133).
 
 ### 4. Guest can no longer see *personalized* output before signing in (accepted freeze trade-off)
 - **Severity:** P3 (design note, not a defect)
@@ -240,10 +250,14 @@ PREPIO-124** (freeze surface + backend deploy + Auth verification), **PREPIO-30*
 autocomplete, In Progress), **PREPIO-107** (surface needs-work on the card, In Progress). This run adds
 **one** genuinely new, freeze-compatible item:
 
-1. **[NEW] Add CV privacy/trust copy to the `/new-interview` paste area** — one inline line (e.g.
-   "Your CV is used only to personalize this prep plan.") near the paste textarea, since the freeze
-   removed the Profile surface where PREPIO-37 added it. Content-only, Improvement, `area:research-pipeline`.
-   Filed in Linear and cross-linked to this review. (Issue #3.)
+1. **[NEW] Add CV privacy/trust copy to the `/new-interview` paste area** — one inline line near the
+   paste textarea that *accurately* discloses persistence (the CV text is saved privately with this
+   prep plan and used to personalize questions), not a purpose-only line like "used only to personalize
+   this prep plan" — the research function persists the pasted CV as a `resumes` snapshot and in the
+   evidence ledger, so ephemeral-sounding copy would misrepresent it. Since the freeze removed the
+   Profile surface (where PREPIO-37 added this copy) and ships no self-serve delete, don't promise a
+   delete control that isn't there. Content-only, Improvement, `area:research-pipeline`. Filed in Linear
+   and cross-linked to this review. (Issue #3.)
 
 Deliberately **not** filed: issue #4 (post-freeze landing improvement — defer, overlaps PREPIO-16/152)
 and issue #5 (`/interviews` retry — below the >30-min threshold; noted for the trail). No new tickets
