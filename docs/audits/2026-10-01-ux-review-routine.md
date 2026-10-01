@@ -88,32 +88,44 @@ pricing/signup/upload surfaces that pointed at undeployed functions have been re
 shipped bundle. The authenticated research→practice core remains strong (research form with real
 progress reporting, practice question as a true `<h1>` hero, honest device-local autosave copy,
 action-oriented empty states on Interviews/History). **The highest-remaining user-facing risk is no
-longer the frontend — it is the still-open backend freeze gates:** until PREPIO-170's migration is
-applied, **Favorite / Needs-work still fails in production** for every practising user, and until the
-production Auth toggles are verified, "invite-only" is a UI claim rather than an enforced boundary.
+longer the frontend — it is the still-open backend freeze gates:** unless PREPIO-170's migration has
+been applied out of band (it is still `Todo`, and this run could not re-verify production — see issue
+#1), **Favorite / Needs-work is almost certainly still failing** (last confirmed 2026-09-03) for every
+practising user, and until the production Auth toggles are verified, "invite-only" is a UI claim rather
+than an enforced boundary.
 The one genuinely new frontend gap this run is small: the sole remaining CV-collection surface (the
 `/new-interview` paste box) has strong *value* framing but **no privacy/trust line** — the copy that
 PREPIO-37 added lived on the now-removed Profile page.
 
 ## Top 5 issues
 
-### 1. Favorite / Needs-work flag write still fails in production (migration unapplied)
-- **Severity:** P1 (carried; now the top live user-facing defect)
+### 1. Favorite / Needs-work flag write — last confirmed broken 2026-09-03; re-verify before the deploy
+- **Severity:** P1 (carried; most likely the top live defect — **not re-confirmed live this run**)
 - **Area:** practice
 - **User scenario:** A signed-in user taps Favorite or Needs-work on a practice question.
-- **What happened:** The write targets `ON CONFLICT (user_id, question_id, flag_type)`, but production
-  `user_question_flags` still has the two-column `UNIQUE(user_id, question_id)` key, so the upsert
-  fails `400 / 42P10` (live-observed on 2026-09-03; **not** re-tested live this run — inferred from
-  the migration still being unapplied). The fix migration
-  `supabase/migrations/20260710203000_question_flags_per_type.sql` exists and is reviewed/authorized,
-  but production's last applied migration is `20260515171733` — the per-type migration has not run.
-- **Why it matters:** Favoriting and marking needs-work are core practice-triage actions; both are
-  100% broken in production, so "practice feels like progress" quietly breaks.
+- **What happened (and the evidence boundary):** On 2026-09-03 this failed live — the write targets
+  `ON CONFLICT (user_id, question_id, flag_type)` while production `user_question_flags` had only the
+  two-column `UNIQUE(user_id, question_id)` key, so the upsert returned `400 / 42P10`. **This run did
+  not re-verify production, and the available tooling cannot settle it either way:** `query_logs` reads
+  only the logs stream (not `supabase_migrations.schema_migrations`), and production had near-zero
+  traffic in the last-24h window (11 `postgres_logs` lines, 1 `postgrest_logs`), so no recent
+  flag-write attempt is observable. "Still broken" is therefore an **inference**, not a fresh
+  observation — it rests on the fix migration
+  `supabase/migrations/20260710203000_question_flags_per_type.sql` still being an unmerged-to-prod repo
+  migration, on PREPIO-170 / PREPIO-124 both still being `Todo`, and on the 2026-09-21
+  `FREEZE_RELEASE.md` snapshot recording the two-column key. Out-of-band application before today is
+  unlikely given those open tickets but is **not ruled out**. Treat this as the highest-priority item
+  to *re-verify* (query `schema_migrations` / the live constraint, or attempt one authenticated flag
+  write) rather than a confirmed-live defect.
+- **Why it matters:** Favoriting and marking needs-work are core practice-triage actions; if still
+  unapplied they are fully broken in production, so "practice feels like progress" quietly breaks.
 - **Recommended fix:** Apply the migration as part of the attended freeze deploy. Already tracked as
   **PREPIO-170** (Todo) under PREPIO-124. No new ticket.
-- **Evidence:** `supabase/migrations/20260710203000_question_flags_per_type.sql`;
-  `docs/FREEZE_RELEASE.md` ("`user_question_flags` still has `UNIQUE(user_id, question_id)`");
-  prior live capture in [`2026-09-03`](./2026-09-03-ux-review-routine.md).
+- **Evidence:** `supabase/migrations/20260710203000_question_flags_per_type.sql` (unmerged-to-prod);
+  `docs/FREEZE_RELEASE.md` **2026-09-21 snapshot** ("`user_question_flags` still has
+  `UNIQUE(user_id, question_id)`"); prior live capture in
+  [`2026-09-03`](./2026-09-03-ux-review-routine.md); this run's `query_logs` check (project
+  `vjwrirrqprjzdorignlz`, last 24h) found near-zero DB traffic and cannot read `schema_migrations`.
 
 ### 2. "Invite-only" is enforced in the UI but not yet verified server-side
 - **Severity:** P1 (carried, reframed)
@@ -190,7 +202,7 @@ inferred from source — not visually verified this run.
 | Research entry | 4 | = | Clear form, good value copy; real progress reporting. ⚠ render not re-verified. |
 | Research progress/loading | 4 | = | `ProgressDialog` shows real `progress_pct`, step text, "Usually under a minute", honest connection-problem copy. ⚠ |
 | Generated output clarity | 4 | = | Stage-grouped; question-as-hero carried from PREPIO-178. ⚠ |
-| Practice mode | 3 | = | Question is a true `<h1>` on all three layouts; **but** Favorite/Needs-work still fails in prod (issue #1). |
+| Practice mode | 3 | = | Question is a true `<h1>` on all three layouts; **but** Favorite/Needs-work was last confirmed broken 2026-09-03 and is likely still failing (issue #1; not re-verified this run). |
 | Mobile usability | 3 | = | ⚠ Not re-verified this run; carried from 2026-09-03 (≥44px controls, no horizontal overflow). |
 | Resume/profile trust | 3 | ▼ slight | Upload/profile removed by freeze (honest); but active CV paste now ships **no** privacy copy (issue #3). |
 | Dashboard/history/resume | 4 | = | Strong action-oriented empty states; interview cards with state. ⚠ |
@@ -208,7 +220,9 @@ inferred from source — not visually verified this run.
   removed from the shipped bundle.
 - **RESOLVED (frontend)** — Public signup surface: Auth is invite-only, no signup UI in the live
   chunk. (Server-side verification still open — issue #2, not a regression.)
-- **UNCHANGED** — Favorite/Needs-work `42P10` (issue #1): still blocked on the pending migration.
+- **NOT RE-VERIFIED** — Favorite/Needs-work `42P10` (issue #1): last confirmed broken 2026-09-03;
+  inferred still-unapplied from the pending migration + open PREPIO-170/124, but production was not
+  re-checked this run (near-zero DB traffic; `schema_migrations` not readable via `query_logs`).
 - **Minor new gap (not a regression of a prior fix in the same place):** CV privacy copy absent on the
   active surface because the freeze removed the Profile page where PREPIO-37 had placed it (issue #3).
 
