@@ -72,8 +72,10 @@ went from "actively worse than doing nothing" to a clean, honest, self-consisten
 
 **Important caveat — this is a frontend lock, not a verified production freeze.** Per
 [`docs/FREEZE_RELEASE.md`](../FREEZE_RELEASE.md) the release is still a *candidate*. The server-side
-gates remain open: production Auth "allow new signups / anonymous" must still be turned off and
-*verified* (not just absent from the UI) under PREPIO-27/124; the backend manifest deploy is open and
+gates remain open: production Auth "allow new signups / anonymous" must be *verified* off — and
+disabled if not, since their production values were not inspected this run and the UI's absence of a
+signup form does not prove the server-side setting (see issue #2) — under PREPIO-27/124; the backend
+manifest deploy is open and
 the flag-fix migration is pending re-verification — last confirmed unapplied on 2026-09-21, not
 re-checked this run (PREPIO-124, PREPIO-170; see issue #1); security/PII gates
 (PREPIO-168, PREPIO-145) and the acceptance pass (PREPIO-30) are open. Do not read "the lock is live"
