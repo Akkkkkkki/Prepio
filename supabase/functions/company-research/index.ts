@@ -8,7 +8,11 @@ import { UrlDeduplicationService } from "../_shared/url-deduplication.ts";
 import { authorizeRequest, ensureServiceCaller } from "../_shared/auth.ts";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import { buildResearchFreshness } from "../_shared/research-freshness.ts";
-import { buildSearchPayloads, type SearchPayload } from "./result-aggregation.ts";
+import {
+  buildSearchCompleteLogPayload,
+  buildSearchPayloads,
+  type SearchPayload,
+} from "./result-aggregation.ts";
 import { buildQueryPlanLogPayload, buildResearchQueryPlan, type ResearchLevel } from "./query-planner.ts";
 
 interface CompanyResearchRequest {
@@ -314,7 +318,7 @@ async function searchCompanyInfo(
         total_urls_extracted: interviewUrls.length
       };
 
-      logger?.log('SEARCH_COMPLETE', 'COMPANY_INFO', result);
+      logger?.log('SEARCH_COMPLETE', 'COMPANY_INFO', buildSearchCompleteLogPayload(result));
       return result;
 
     } catch (error) {

@@ -32,7 +32,18 @@ const Auth = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, signIn, resetPassword, resendVerification, updatePassword, passwordSetupRequired, finishPasswordSetup } = useAuthContext();
+  const {
+    user,
+    signIn,
+    resetPassword,
+    resendVerification,
+    updatePassword,
+    passwordSetupRequired,
+    authLinkChecking,
+    authLinkError,
+    clearAuthLinkError,
+    finishPasswordSetup,
+  } = useAuthContext();
   const { isOffline } = useNetworkStatus();
   const authState = location.state as AuthReturnState | undefined;
   const resumeTarget = getAuthResumeLabel(authState);
@@ -40,6 +51,10 @@ const Auth = () => {
     ? `${authState.from.pathname}${authState.from.search || ""}`
     : "/interviews";
   const preferredEmail = signInData.email.trim();
+  // Password setup needs the session a valid invite/recovery link creates. Until
+  // the provider has checked for it, show a status line rather than a form.
+  const checkingAuthLink = Boolean(authLinkChecking);
+  const activeView: AuthView = passwordSetupRequired && user ? "set-new-password" : authView;
 
   // Listen for Supabase PASSWORD_RECOVERY event to enter the set-new-password view
   useEffect(() => {
@@ -53,15 +68,16 @@ const Auth = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Redirect authenticated users away — unless they're resetting their password
+  // Redirect authenticated users away — unless they're resetting their password,
+  // or a failed invite/recovery link needs explaining first.
   useEffect(() => {
-    if (passwordSetupRequired) {
-      setAuthView("set-new-password");
-    }
-    if (user && !isRecoverySession && !passwordSetupRequired) {
+    if (user && !isRecoverySession && !passwordSetupRequired && !authLinkChecking && !authLinkError) {
       navigate(redirectPath, { replace: true });
     }
-  }, [navigate, redirectPath, user, isRecoverySession, passwordSetupRequired]);
+  }, [navigate, redirectPath, user, isRecoverySession, passwordSetupRequired, authLinkChecking, authLinkError]);
+
+  // The link error describes this visit only.
+  useEffect(() => () => clearAuthLinkError?.(), [clearAuthLinkError]);
 
   const clearFeedback = () => {
     setError("");
@@ -217,6 +233,13 @@ const Auth = () => {
         </Alert>
       )}
 
+      {authLinkError && !success && activeView !== "set-new-password" && (
+        <Alert variant="destructive" className="mb-5">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{authLinkError}</AlertDescription>
+        </Alert>
+      )}
+
       {error && (
         <Alert variant="destructive" className="mb-5">
           <AlertCircle className="h-4 w-4" />
@@ -244,6 +267,7 @@ const Auth = () => {
               <Input
                 id="signin-email"
                 type="email"
+                autoComplete="email"
                 placeholder="your@email.com"
                 value={signInData.email}
                 onChange={(e) => setSignInData(prev => ({ ...prev, email: e.target.value }))}
@@ -260,6 +284,7 @@ const Auth = () => {
               <Input
                 id="signin-password"
                 type="password"
+                autoComplete="current-password"
                 placeholder="••••••••"
                 value={signInData.password}
                 onChange={(e) => setSignInData(prev => ({ ...prev, password: e.target.value }))}
@@ -305,6 +330,7 @@ const Auth = () => {
             <Input
               id="reset-email"
               type="email"
+              autoComplete="email"
               placeholder="your@email.com"
               value={resetEmail}
               onChange={(e) => {
@@ -353,6 +379,7 @@ const Auth = () => {
             <Input
               id="verification-email"
               type="email"
+              autoComplete="email"
               placeholder="your@email.com"
               value={verificationEmail}
               onChange={(e) => {
@@ -401,6 +428,7 @@ const Auth = () => {
             <Input
               id="new-password"
               type="password"
+              autoComplete="new-password"
               placeholder="••••••••"
               value={newPassword}
               onChange={(e) => {
@@ -422,6 +450,7 @@ const Auth = () => {
             <Input
               id="confirm-new-password"
               type="password"
+              autoComplete="new-password"
               placeholder="••••••••"
               value={confirmNewPassword}
               onChange={(e) => {
@@ -443,17 +472,17 @@ const Auth = () => {
   );
 
   const cardCopy =
-    authView === "set-new-password"
+    activeView === "set-new-password"
       ? {
           title: "Set a new password",
           description: "Choose a new password for your account.",
         }
-      : authView === "reset-password"
+      : activeView === "reset-password"
         ? {
             title: "Reset your password",
             description: "Send a recovery email without losing your place in the app.",
           }
-        : authView === "resend-verification"
+        : activeView === "resend-verification"
           ? {
               title: "Resend verification email",
               description: "Use the latest verification email so the sign-in flow stays predictable.",
@@ -492,11 +521,15 @@ const Auth = () => {
             <CardContent>
               {renderSharedAlerts()}
 
-              {authView === "set-new-password"
+              {checkingAuthLink ? (
+                <p role="status" className="text-center text-sm text-muted-foreground">
+                  Checking your link…
+                </p>
+              ) : activeView === "set-new-password"
                 ? renderSetNewPassword()
-                : authView === "reset-password"
+                : activeView === "reset-password"
                   ? renderResetPassword()
-                  : authView === "resend-verification"
+                  : activeView === "resend-verification"
                     ? renderResendVerification()
                     : renderSignIn()}
 

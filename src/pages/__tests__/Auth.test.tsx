@@ -189,4 +189,46 @@ describe("Auth page", () => {
     expect(await screen.findByText("Interviews target")).toBeInTheDocument();
   });
 
+  it("waits for the link check instead of showing a password form", () => {
+    mockUseAuthContext.mockReturnValue({
+      user: { id: "stored-account" }, passwordSetupRequired: false, authLinkChecking: true,
+      updatePassword: mockUpdatePassword, finishPasswordSetup: vi.fn(),
+    });
+    renderAuth();
+    expect(screen.getByRole("status")).toHaveTextContent("Checking your link");
+    expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+  });
+
+  it("explains an expired invite or recovery link and keeps sign-in usable", () => {
+    mockUseAuthContext.mockReturnValue({
+      user: null, passwordSetupRequired: false,
+      authLinkError: "This invite or password reset link is invalid or has expired.",
+      signIn: mockSignIn, resetPassword: mockResetPassword,
+    });
+    renderAuth();
+    expect(screen.getByText(/link is invalid or has expired/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Forgot password?" })).toBeInTheDocument();
+  });
+
+  it("explains a failed link to a signed-in browser instead of redirecting or offering setup", () => {
+    mockUseAuthContext.mockReturnValue({
+      user: { id: "stored-account" }, passwordSetupRequired: false,
+      authLinkError: "This invite or password reset link is invalid or has expired.",
+      clearAuthLinkError: vi.fn(), signIn: mockSignIn, resetPassword: mockResetPassword,
+      updatePassword: mockUpdatePassword,
+    });
+    renderAuth();
+    expect(screen.getByText(/link is invalid or has expired/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+    expect(screen.queryByText("Interviews target")).not.toBeInTheDocument();
+    expect(mockUpdatePassword).not.toHaveBeenCalled();
+  });
+
+  it("marks sign-in fields for password managers", () => {
+    renderAuth();
+    expect(screen.getByLabelText("Email")).toHaveAttribute("autocomplete", "email");
+    expect(screen.getByLabelText("Password")).toHaveAttribute("autocomplete", "current-password");
+  });
+
 });

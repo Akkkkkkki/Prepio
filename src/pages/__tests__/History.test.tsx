@@ -72,7 +72,7 @@ describe("History page states", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("Ready to start practicing")).toBeInTheDocument();
+    expect(await screen.findByText("No finished sessions yet")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go to Dashboard" })).toHaveAttribute(
       "href",
       "/dashboard",
