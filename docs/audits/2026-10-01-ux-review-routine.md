@@ -30,7 +30,7 @@ order, or slow-network / offline / runtime loading states. Those findings are ca
 live runs (notably 2026-09-03, which was full-live) and from source; where user impact depends on
 rendering they are marked "inferred from code / needs live-browser confirmation." The authenticated
 flag-write failure was **not** re-tested live this run — its status is inferred from the pending
-migration (see issue #2).
+migration (see issue #1).
 
 Source base for this review: `main` @ `a08ca05` (the review branch is even with `origin/main`).
 
@@ -73,8 +73,9 @@ went from "actively worse than doing nothing" to a clean, honest, self-consisten
 **Important caveat — this is a frontend lock, not a verified production freeze.** Per
 [`docs/FREEZE_RELEASE.md`](../FREEZE_RELEASE.md) the release is still a *candidate*. The server-side
 gates remain open: production Auth "allow new signups / anonymous" must still be turned off and
-*verified* (not just absent from the UI) under PREPIO-27/124; the backend manifest deploy and the
-flag-fix migration are not yet applied (PREPIO-124, PREPIO-170); security/PII gates
+*verified* (not just absent from the UI) under PREPIO-27/124; the backend manifest deploy is open and
+the flag-fix migration is pending re-verification — last confirmed unapplied on 2026-09-21, not
+re-checked this run (PREPIO-124, PREPIO-170; see issue #1); security/PII gates
 (PREPIO-168, PREPIO-145) and the acceptance pass (PREPIO-30) are open. Do not read "the lock is live"
 as "the freeze is done."
 
