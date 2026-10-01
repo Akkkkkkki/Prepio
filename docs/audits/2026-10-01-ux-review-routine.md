@@ -113,18 +113,21 @@ PREPIO-37 added lived on the now-removed Profile page.
   only the logs stream (not `supabase_migrations.schema_migrations`), and production had near-zero
   traffic in the last-24h window (11 `postgres_logs` lines, 1 `postgrest_logs`), so no recent
   flag-write attempt is observable. "Still broken" is therefore an **inference**, not a fresh
-  observation — it rests on the fix migration
-  `supabase/migrations/20260710203000_question_flags_per_type.sql` still being an unmerged-to-prod repo
-  migration, on PREPIO-170 / PREPIO-124 both still being `Todo`, and on the 2026-09-21
-  `FREEZE_RELEASE.md` snapshot recording the two-column key. Out-of-band application before today is
-  unlikely given those open tickets but is **not ruled out**. Treat this as the highest-priority item
+  observation. Its basis is the open tracking state, not the migration file itself: the fix migration
+  `supabase/migrations/20260710203000_question_flags_per_type.sql` is present in the repo with its
+  **production-application status unverified**, while PREPIO-170 / PREPIO-124 are both still `Todo` and
+  the 2026-09-21 `FREEZE_RELEASE.md` snapshot recorded the two-column key. Those open tickets and that
+  dated snapshot are why I expect it is not yet applied; the file's mere presence proves only that a fix
+  exists, not its prod state. Out-of-band application before today is unlikely given the open tickets but
+  is **not ruled out**. Treat this as the highest-priority item
   to *re-verify* (query `schema_migrations` / the live constraint, or attempt one authenticated flag
   write) rather than a confirmed-live defect.
 - **Why it matters:** Favoriting and marking needs-work are core practice-triage actions; if still
   unapplied they are fully broken in production, so "practice feels like progress" quietly breaks.
 - **Recommended fix:** Apply the migration as part of the attended freeze deploy. Already tracked as
   **PREPIO-170** (Todo) under PREPIO-124. No new ticket.
-- **Evidence:** `supabase/migrations/20260710203000_question_flags_per_type.sql` (unmerged-to-prod);
+- **Evidence:** `supabase/migrations/20260710203000_question_flags_per_type.sql` (present in repo;
+  production-application status unverified this run);
   `docs/FREEZE_RELEASE.md` **2026-09-21 snapshot** ("`user_question_flags` still has
   `UNIQUE(user_id, question_id)`"); prior live capture in
   [`2026-09-03`](./2026-09-03-ux-review-routine.md); this run's `query_logs` check (project
