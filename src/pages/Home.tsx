@@ -865,6 +865,9 @@ const Home = () => {
                     rows={7}
                     className="min-h-[180px] resize-none rounded-[20px] border bg-background p-4 text-base"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Your CV text is saved privately with this prep plan and used to personalize your questions.
+                  </p>
                 </AccordionContent>
               </AccordionItem>
 
@@ -1041,6 +1044,9 @@ const Home = () => {
                   rows={6}
                   className="resize-none"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Your CV text is saved privately with this prep plan and used to personalize your questions.
+                </p>
               </AccordionContent>
             </AccordionItem>
 

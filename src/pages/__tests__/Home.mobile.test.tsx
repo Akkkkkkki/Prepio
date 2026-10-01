@@ -501,4 +501,33 @@ describe("Home flow", () => {
     expect(mockCreateProfileImport).not.toHaveBeenCalled();
   });
 
+  it("discloses that pasted CV text is persisted with the prep plan on the desktop form", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+    mockUseIsMobile.mockReturnValue(false);
+    renderHome();
+    await screen.findByLabelText("CV text (optional)");
+    // The copy must be accurate about persistence (the CV is saved as a
+    // search snapshot, not used transiently) and must not promise a
+    // self-serve delete the frozen core does not ship (PREPIO-180).
+    const note = screen.getByText(
+      "Your CV text is saved privately with this prep plan and used to personalize your questions.",
+    );
+    expect(note.tagName).toBe("P");
+  });
+
+  it("discloses that pasted CV text is persisted with the prep plan on the mobile flow", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+    mockUseIsMobile.mockReturnValue(true);
+    renderHome();
+    fireEvent.change(await screen.findByLabelText("Company *"), {
+      target: { value: "OpenAI" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    const note = await screen.findByText(
+      "Your CV text is saved privately with this prep plan and used to personalize your questions.",
+    );
+    expect(note.tagName).toBe("P");
+  });
+
 });
