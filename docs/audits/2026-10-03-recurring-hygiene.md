@@ -41,9 +41,19 @@ regression.** Since the last audit the window landed, in `e3a283b..bccb67c`:
   false` defence-in-depth** on the `getDocument` call
   ([`resumeUpload.ts`](../../src/lib/resumeUpload.ts)) with the rationale that
   pdf.js 6 removed the eval()/Function codepath that flag was guarding — accurate
-  for v6, so not a regression. Worker isolation + text-only extraction remain. PDF
-  upload itself is still live and guest-reachable (surface-lock pending
-  PREPIO-27/PREPIO-140), but the *advisory* is gone.
+  for v6, so not a regression. Worker isolation + text-only extraction remain.
+  **Correction (after Codex review of this PR): the PDF-upload surface is NOT
+  live or guest-reachable on the frozen HEAD** — #354 gates both resume-upload
+  file inputs in [`Home.tsx`](../../src/pages/Home.tsx) behind
+  `FROZEN_PRODUCT.resumeUpload` ([`frozenProduct.ts`](../../src/lib/frozenProduct.ts),
+  `= false`), and those inputs are the only UI path to `extractResumeText` / the
+  pdf.js parser. The second parser call site (Profile's `useProfileWorkspace`) is
+  unreachable too — `/profile` is not a mounted route in
+  [`App.tsx`](../../src/App.tsx). Guests at `/` get only `GuestSample`, and
+  `/new-interview` is protected. So the parser is not reachable through the frozen
+  app, and the advisory is independently cleared by the 5→6 bump. This revises the
+  2026-09-12 note's "still live / guest-reachable" framing, which predated #354's
+  lock.
 - **[PREPIO-172] `Upgrade react-router-dom 6 → 7` (#353, `908b8f4`)** — **clears
   both carried `react-router` advisories** (open-redirect GHSA-wrjc-x8rr-h8h6 +
   SSR-hydration GHSA-337j-9hxr-rhxg). `react-router-dom ^7.18.4`. This upgrade
@@ -329,9 +339,13 @@ Tracked, Dependabot-surfaced, or cap-blocked this run:
 - **npm advisories (12, all dev/build-time)** — Dependabot-carried; local fix
   blocked by the `edgesOut` bug. The Tailwind-3 chain needs a maintainer decision
   (suggested fix is a major downgrade).
-- **PDF surface-lock (PREPIO-27/PREPIO-140)** — the `pdfjs-dist` advisory is now
-  cleared by the 5→6 bump, but PDF upload is still live/guest-reachable; the
-  surface-lock remains the freeze-scope item.
+- **PDF surface-lock (PREPIO-27/PREPIO-140)** — the `pdfjs-dist` advisory is
+  cleared by the 5→6 bump **and** the upload surface is already gated off on the
+  frozen HEAD (`FROZEN_PRODUCT.resumeUpload = false`, #354; `/profile` unrouted),
+  so there is no live or guest-reachable pdf.js exposure. PREPIO-27/PREPIO-140 now
+  cover only removing the now-dead upload code / a fuller lock, not a standing
+  attack surface. *(Corrected after Codex review — the 2026-09-12 "still live"
+  framing predated #354.)*
 - **`react-refresh` lint warnings (×9)** — cosmetic/DX cleanup; not filed.
 - **`npm audit` as a non-blocking CI step** — maintainer process call.
 
