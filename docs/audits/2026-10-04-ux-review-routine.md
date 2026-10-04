@@ -5,6 +5,17 @@ Twenty-first run of the recurring weekly UX-review routine. Immediate baseline:
 [`2026-08-27`](./2026-08-27-ux-review-routine.md),
 [`2026-08-30`](./2026-08-30-ux-review-routine.md).
 
+> **Freeze-scope note.** CLAUDE.md's freeze guidance ("Do not add features, recurring audits or
+> routine dependency PRs" while production is unreconciled) is about **introducing new** scope,
+> not executing the pre-existing, owner-scheduled UX-review routine this run belongs to — the one
+> CLAUDE.md itself institutionalizes under *Working with Linear → Recurring hygiene reviews*. This
+> run is diagnostic-only: it files **no** new issues, adds **no** feature or dependency work, and
+> its findings bear directly on the open release gates (it live-verifies PREPIO-27's surface lock
+> and reaffirms PREPIO-124 / PREPIO-170 status). Precedent: run #20 ([#334](https://github.com/Akkkkkkki/Prepio/pull/334))
+> was committed and merged on 2026-09-03, i.e. **after** the 2026-09-02 freeze decision. If the
+> owner would rather pause the routine entirely until the freeze is reconciled, that is their call
+> to make on the routine's schedule — not a reason to drop this run's evidence.
+
 ## Capability check — PARTIAL LIVE (frontend reachable; backend NOT reachable; styling NOT capturable)
 
 Read the scope of this run narrowly. Three layers, three different outcomes:
@@ -162,20 +173,29 @@ layer (issue #5).
   Progress) — it owns the static guest sample; a comment is added there rather than a new
   issue, to avoid fragmenting the surface work.
 
-### 3. **P2 (carried) — No CV privacy/trust copy on the `/new-interview` paste area**
+### 3. **P2 (carried, scope corrected) — No privacy/confidentiality assurance on the `/new-interview` CV paste area**
 
-- **Severity:** P2 — the freeze keeps *pasted* CV text as the personalization input, but the
-  surface that collects it still doesn't say why the CV improves the output or how it's used.
+- **Severity:** P2 — the freeze keeps *pasted* CV text as the personalization input. The *why*
+  is covered, but **what happens to the CV is not** — there is no line telling the user whether
+  the pasted text is stored, how it's used, or that it stays confidential.
 - **Area:** research / profile-trust
-- **User scenario:** an invited user pastes their CV to tailor questions.
-- **What happened:** not re-verified live this run (protected route; login unavailable). Known
-  gap; `src/pages/Home.tsx` renders the paste area without the privacy line the routine's copy
-  standard calls for (*"Your CV is used to personalize this prep plan."*).
+- **What happened (code-confirmed this run):** the "why" copy already exists on **both**
+  layouts, so the earlier framing of this finding ("doesn't say why the CV improves the output")
+  was wrong and is corrected here — mobile `src/pages/Home.tsx:818-821` *"Paste relevant CV
+  details to tailor this research run."*, desktop `Home.tsx:990-999` *"Optional. Personalizes
+  questions to your background."* + an "Improves relevance" badge. What is **absent** is any
+  privacy/confidentiality assurance: a repo-wide grep of `Home.tsx` finds no
+  privacy/stored/confidential/retention copy, and the only note that might have carried it
+  (`renderProfileResumeNote`, `Home.tsx:637`) is gated off by `FROZEN_PRODUCT.profile=false`, so
+  it renders nothing in the frozen product.
 - **Why it matters:** "any surface that collects ground truth must earn the ask" (CLAUDE.md
-  user-effort budget). Pasting a CV is the single highest-trust ask in the frozen product.
-- **Recommended fix:** add one calm privacy line adjacent to the paste field (per PREPIO-180).
+  user-effort budget). Pasting a CV is the single highest-trust ask in the frozen product;
+  "value now" is explained, but the trust half of the ask (what we do with it) is silent.
+- **Recommended fix:** add one calm confidentiality line adjacent to the paste field (e.g.
+  *"Your CV is used only to tailor this prep plan."*) — a privacy assurance, **not** another
+  "it personalizes" restatement. This is exactly PREPIO-180's scope.
 - **Tracking:** [PREPIO-180](https://linear.app/qiuyue/issue/PREPIO-180) (Medium, **In
-  Progress**).
+  Progress** — titled "Add CV privacy/trust copy").
 
 ### 4. **P3 (NEW, live-confirmed) — `/auth` stacks three near-duplicate sign-in prompts**
 
