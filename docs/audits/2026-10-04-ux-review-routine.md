@@ -107,12 +107,17 @@ by default — a mild first-time-understanding regression introduced by the lock
 highest-value remaining user-facing defect is unchanged and now purely a backend-deploy step:
 the **Favorite / Needs-work flag write was last verified failing with `42P10` in production**
 (2026-09-21/22 baseline; not re-probed this run) because PREPIO-170's one-line migration was
-unapplied. The biggest *process* risk is the frontend/backend split — the locked UI makes the
-app look fully reconciled, while (per the last read-only baseline) the functions are still the
-pre-fix 2026-05-15 versions (PREPIO-124) and even "invite-only" is unverified at the Auth
-layer (issue #5).
+unapplied. The most serious item overall is actually a security one surfaced by that same split:
+the **`interview-research` cross-tenant-write BOLA is fixed in code but, per the last-verified
+baseline, still deployed as the pre-fix version in production** (issue #6, PREPIO-143 code-Done /
+PREPIO-124 deploy-pending). The underlying risk is the frontend/backend split — the locked UI
+makes the app look fully reconciled, while the functions are still the pre-fix 2026-05-15
+versions (PREPIO-124), and even "invite-only" is unverified at the Auth layer (issue #5).
 
-## Top 5 issues
+## Top issues
+
+Ordered by area, not strictly by severity — the two **highest-severity** items are issue #1
+(practice-triage write failing) and issue #6 (a live cross-tenant-write integrity hole).
 
 ### 1. **P1 (carried; last verified failing 2026-09-21/22, not re-probed this run) — Favorite / Needs-work flag write — last-known production state is `400 / 42P10`**
 
@@ -190,10 +195,17 @@ layer (issue #5).
   it renders nothing in the frozen product.
 - **Why it matters:** "any surface that collects ground truth must earn the ask" (CLAUDE.md
   user-effort budget). Pasting a CV is the single highest-trust ask in the frozen product;
-  "value now" is explained, but the trust half of the ask (what we do with it) is silent.
-- **Recommended fix:** add one calm confidentiality line adjacent to the paste field (e.g.
-  *"Your CV is used only to tailor this prep plan."*) — a privacy assurance, **not** another
-  "it personalizes" restatement. This is exactly PREPIO-180's scope.
+  "value now" is explained, but the trust half of the ask (what we do with it) is silent — and
+  the pasted CV is **not** ephemeral: for a signed-in research run `ensureResumeSnapshotForSearch`
+  inserts the raw text into the `resumes` table as a per-search snapshot
+  (`supabase/functions/interview-research/index.ts:214`, called at `:1132`), while the frozen
+  product hides the profile/delete UI (`FROZEN_PRODUCT.profile=false`) and deletion is owner-handled
+  manually (`FREEZE_RELEASE.md:155`).
+- **Recommended fix:** add a **truthful persistence** line, not a vague reassurance — it must say
+  the pasted CV is **saved** with this interview (so a bare *"used to tailor this plan"* would be
+  misleading, implying ephemeral processing) and how removal works given the hidden delete UI
+  (e.g. deletion is handled on request). This is exactly PREPIO-180's scope, and the persistence
+  fact makes it more than a copy nicety.
 - **Tracking:** [PREPIO-180](https://linear.app/qiuyue/issue/PREPIO-180) (Medium, **In
   Progress** — titled "Add CV privacy/trust copy").
 
@@ -233,7 +245,7 @@ layer (issue #5).
 - **Tracking:** [PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27) (In Progress; §2 of the
   freeze gate) + [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124).
 
-> **Resolved since run #20 — dropped from the top-5:** the `/history` empty-state parity
+> **Resolved since run #20 — dropped from the top issues:** the `/history` empty-state parity
 > concern (run #20 P3 #4) is **fixed in code** (`bccb67c` / #360). `src/pages/History.tsx:316`
 > now reads *"No finished sessions yet"* with body *"Finished practice sessions appear here with
 > answers, timing, and notes. Answers you save in an unfinished session stay on that interview
@@ -241,7 +253,33 @@ layer (issue #5).
 > this run (Supabase unreachable), but the copy is merged on the deployed head. See the
 > regression table and scorecard.
 
-## Notable observations (not top-5)
+### 6. **P1 / High integrity (carried from hygiene; last-verified production state) — `interview-research` cross-tenant write (BOLA) is fixed in code but, per the last-verified baseline, not deployed**
+
+- **Severity:** P1 / High — this is co-highest with issue #1 (it is a security/integrity risk, not
+  a UX nit). An authenticated user who knows another user's `searchId` (a UUID) can **overwrite
+  that user's plan, stages, questions, and status** through the service-role (RLS-bypassing)
+  client. User-affecting, not "context."
+- **Area:** research-pipeline / security (backend)
+- **What happened:** the ownership-check fix ([PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143),
+  #337, merged **2026-09-16**) is on `main` and the issue is **Done**, but `FREEZE_RELEASE.md:31`
+  (2026-09-21 baseline) states the **deployed** functions still **predate the merged
+  ownership/privacy fixes** — i.e. production `interview-research` is a pre-fix version. So, on the
+  last verified production state, the BOLA documented in
+  [`2026-08-12-recurring-hygiene.md`](./2026-08-12-recurring-hygiene.md) is **still live**. Not
+  re-probed this run (Supabase unreachable), and PREPIO-124 (the deploy) is still Todo, so there is
+  no evidence of an intervening deploy — same epistemic status as issue #1.
+- **Why it matters:** this is the most serious item in the report — a live cross-tenant integrity
+  hole beats any UX finding. The locked frontend makes the app *look* reconciled while the deployed
+  function is the vulnerable version.
+- **Recommended fix:** deploy the reconciled `interview-research` (with the #337 ownership check) in
+  the PREPIO-124 attended window, and verify in production that B using its own ID against A's
+  search gets a 404 and spoofing A's ID gets 403 (the PREPIO-30 isolation/ownership acceptance
+  rows). Treat as verified only after that probe.
+- **Tracking:** [PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143) (code **Done**) +
+  [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124) (deploy, **Todo**) +
+  [PREPIO-30](https://linear.app/qiuyue/issue/PREPIO-30) (acceptance probe).
+
+## Notable observations (not in the top issues above)
 
 ### Live-verified positives (the frozen frontend is in good shape)
 
@@ -261,12 +299,13 @@ layer (issue #5).
 - **Practice question is still an `<h1>`** across render branches (`Practice.tsx` lines 2127 /
   2807 / 3174) — PREPIO-178 holding in code (live re-verification blocked this run).
 
-### Context, not a user-facing issue
+### Context / carried notes
 
-- **Backend reconciliation gap (PREPIO-124, Todo).** Production functions are the pre-fix
-  2026-05-15 versions per the release doc's 2026-09-21 baseline. Not directly user-visible
-  beyond the flag bug (#1), but it is the standing release blocker and the reason the freeze is
-  still a *candidate*. The locked frontend makes the app *look* reconciled; it is not.
+- **Backend reconciliation gap (PREPIO-124, Todo)** is the standing release blocker and the
+  reason the freeze is still a *candidate* — but it is **not** merely context: on the
+  last-verified baseline it leaves two **user-affecting** defects live in production, the flag
+  write (issue #1) and the `interview-research` BOLA (issue #6). The locked frontend makes the
+  app *look* reconciled; the deployed functions are the pre-fix 2026-05-15 versions.
 - **Sub-44px landing/auth touch targets (carried a11y, P3).** Could not be re-measured this
   run (no styling captured). Carried from run #20; fold into the PREPIO-27 surface pass.
 
@@ -312,6 +351,7 @@ UX *framing* regression (issue #2) is a deliberate side effect of the freeze loc
 | `/history` empty-state parity | **Fixed** ✅ | Now *"No finished sessions yet … stay on that interview in Your interviews"* (`bccb67c`/#360). Was run #20 P3 #4. |
 | Practice question `<h1>` | **Holding** ✅ | Code unchanged (`Practice.tsx`); not re-verified live. |
 | Favorite/Needs-work flag write | **Still failing (last probe)** ❌ | `42P10` at 2026-09-21/22; migration unapplied (PREPIO-170 Todo); not re-probed this run. Was run #20 P1. (Issue #1) |
+| `interview-research` BOLA | **Fixed in code, not deployed (last probe)** ❌ | #337 merged 2026-09-16; deployed function still pre-fix per `FREEZE_RELEASE.md:31`. High integrity risk live in prod until PREPIO-124 deploys. (Issue #6) |
 | Guest landing example visibility | **Regressed (framing)** ⚠️ | Example now collapsed-by-default + genericised by the freeze lock. (Issue #2) |
 
 ## Recommended tickets
@@ -322,8 +362,12 @@ owner, consistent with the freeze posture (CLAUDE.md: "Do not add features, recu
 1. **[P1] Apply the flag migration** so Favorite/Needs-work stops returning `42P10`. →
    [PREPIO-170](https://linear.app/qiuyue/issue/PREPIO-170) (Urgent, Todo), inside
    [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124) (Urgent, Todo).
-2. **[P1] Attended backend reconcile + freeze deploy** (five core functions + reviewed
-   migrations via the guarded manifest). → [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124).
+2. **[P1 / High] Attended backend reconcile + freeze deploy** (five core functions + reviewed
+   migrations via the guarded manifest) — this is also what ships the **`interview-research`
+   ownership fix** (#337 / PREPIO-143), without which the cross-tenant-write BOLA (issue #6) stays
+   live in production; verify the PREPIO-30 isolation/ownership rows (B→A search = 404; spoofed ID
+   = 403) after deploy. → [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124) +
+   [PREPIO-143](https://linear.app/qiuyue/issue/PREPIO-143) + [PREPIO-30](https://linear.app/qiuyue/issue/PREPIO-30).
 3. **[P2] Disable the production Auth signup/anonymous settings and verify a direct non-invited
    signup API request is denied** (issue #5 — invite-only is unverified at the backend). → §2 of
    [PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27) + [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124).
@@ -338,8 +382,8 @@ owner, consistent with the freeze posture (CLAUDE.md: "Do not add features, recu
 ### Deferred items (per CLAUDE.md hygiene convention)
 
 - **No new Linear issues filed this run.** All findings map to existing open issues
-  (PREPIO-170, -124, -27, -180) or are below the >30-min threshold (issue #4, the `/auth`
-  prompt de-duplication, and the carried sub-44px touch-target note). Live-verification / refinement comments added to PREPIO-27 and
+  (PREPIO-170, -124, -27, -180, -143, -30) or are below the >30-min threshold (issue #4, the
+  `/auth` prompt de-duplication, and the carried sub-44px touch-target note). Live-verification / refinement comments added to PREPIO-27 and
   PREPIO-170 this run.
 - [PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123) (`/auth` autocomplete) is **Done**
   and **live-confirmed fixed**; the `/history` empty-state parity concern (run #20 P3 #4) is
