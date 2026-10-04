@@ -347,6 +347,12 @@ owner, consistent with the freeze posture (CLAUDE.md: "Do not add features, recu
 
 ---
 
-Capability: partial live — frontend DOM/network/behaviour verified; backend (Supabase)
-unreachable from this environment; visual styling not captured (proxy strips CSS MIME; MITM
-workaround blocked by sandbox policy). Production CSS confirmed served correctly to real users.
+Scope limitations this run (detailed in the capability check above): the backend (Supabase) was
+unreachable from this environment, so the authenticated loop was not exercised live; and visual
+styling / screenshots were not captured (the proxy serves the CSS as `text/plain`, and the MITM
+workaround was blocked by sandbox policy). Production CSS was confirmed served correctly
+(`text/css`, 200) to real users. Per the routine contract's two-option footer — both capability
+checks (Playwright Chromium ready; the live app loads) passed and the frontend was exercised in a
+real browser, so:
+
+Capability: live browser verified
