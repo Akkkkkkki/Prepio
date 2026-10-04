@@ -5,16 +5,23 @@ Twenty-first run of the recurring weekly UX-review routine. Immediate baseline:
 [`2026-08-27`](./2026-08-27-ux-review-routine.md),
 [`2026-08-30`](./2026-08-30-ux-review-routine.md).
 
-> **Freeze-scope note.** CLAUDE.md's freeze guidance ("Do not add features, recurring audits or
-> routine dependency PRs" while production is unreconciled) is about **introducing new** scope,
-> not executing the pre-existing, owner-scheduled UX-review routine this run belongs to — the one
-> CLAUDE.md itself institutionalizes under *Working with Linear → Recurring hygiene reviews*. This
-> run is diagnostic-only: it files **no** new issues, adds **no** feature or dependency work, and
-> its findings bear directly on the open release gates (it live-verifies PREPIO-27's surface lock
-> and reaffirms PREPIO-124 / PREPIO-170 status). Precedent: run #20 ([#334](https://github.com/Akkkkkkki/Prepio/pull/334))
-> was committed and merged on 2026-09-03, i.e. **after** the 2026-09-02 freeze decision. If the
-> owner would rather pause the routine entirely until the freeze is reconciled, that is their call
-> to make on the routine's schedule — not a reason to drop this run's evidence.
+> **Freeze-policy conflict — owner decision required (this run is held as a draft, not for merge).**
+> CLAUDE.md's freeze guidance says: *"Do not add features, recurring audits or routine dependency
+> PRs"* while production is unreconciled. That line was added in **#354 (2026-09-22)**; it does not
+> say "new", and committing this run — explicitly *run #21 of the recurring weekly UX-review
+> routine* — is a reasonable reading of what it prohibits. An earlier draft of this note argued the
+> prohibition targets only *introducing* a routine and cited run #20 (#334, 2026-09-03) as
+> precedent; that is **withdrawn** — #334 predates the #354 prohibition, so it is not precedent
+> under the current instruction. Codex (PR #366 review) is right on that point. Accordingly: the
+> substantive release-gate evidence from this run is **not** dependent on merging this doc — it is
+> already recorded in the sanctioned tracking (live-verification comments on
+> [PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27) and
+> [PREPIO-170](https://linear.app/qiuyue/issue/PREPIO-170); the BOLA/flag/invite-only gaps tracked
+> in PREPIO-124 / PREPIO-143 / PREPIO-170 / PREPIO-30 and `FREEZE_RELEASE.md`). This PR is therefore
+> **left as a draft pending an owner decision** to either (a) merge it as a diagnostic exception to
+> the freeze, or (b) keep the routine paused until reconciliation and drop/defer this doc. I am not
+> merging it over the freeze instruction, and I did not unilaterally delete the scheduled run's
+> write-up.
 
 ## Capability check — PARTIAL LIVE (frontend reachable; backend NOT reachable; styling NOT capturable)
 
