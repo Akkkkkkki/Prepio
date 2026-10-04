@@ -53,52 +53,72 @@ and PR #360 ("close freeze gaps found by the final audit and UX reviews")** land
 | No company preview form | **Resolved** — no company/role input on the guest landing | `input[company]` count `0` |
 | `/pricing` shows live checkout CTAs | **Resolved** — `/pricing` → **404** ("Oops! Page not found") | live nav |
 | `/profile` reachable | **Resolved** — `/profile` → **404** | live nav |
-| Public Sign Up tab open | **Resolved** — `/auth` is invite-only, **no Sign Up tab/button** | tab+button count `0`; copy *"Prepio is free and invite-only … Ask the person who invited you"* |
+| Public Sign Up tab open | **Frontend entry point removed** — `/auth` has **no Sign Up tab/button**; copy *"Prepio is free and invite-only … Ask the person who invited you"*. **Not fully "invite-only" until verified at the backend** — see the caveat below | tab+button count `0` (DOM) |
 | `/auth` inputs have no `autocomplete` (15-audit-old P2) | **Fixed** — `#signin-email` = `email`, `#signin-password` = `current-password`, each `<label>`-associated | measured live; PREPIO-123 **Done** (#360) |
 
 This is the single most important change in this review's history: the top-of-funnel is no
 longer *actively worse than doing nothing*. The guest surface is now deterministic, honest,
 and self-contained, and makes no paid-provider call — exactly what PREPIO-27 specified.
 
-**But the split is now frontend-only.** The backend half of the freeze is still open:
-`FREEZE_RELEASE.md` records status **"candidate; not a verified production freeze"**, its
-**2026-09-21 read-only baseline** shows the five core functions at pre-fix versions and
-`user_question_flags` still keyed `UNIQUE(user_id, question_id)` (the 2-column key), and
-**PREPIO-124** (reconcile + deploy) and **PREPIO-170** (apply the flag migration) are both
-**Todo/Urgent**. So the Favorite/Needs-work write is still broken in production, and the
-deployed functions predate the merged ownership/privacy fixes.
+**But the split is now frontend-only, and "invite-only" is only verified at the frontend.**
+The backend half of the freeze is still open: `FREEZE_RELEASE.md` records status
+**"candidate; not a verified production freeze"**, its **2026-09-21 read-only baseline** shows
+the five core functions at pre-fix versions and `user_question_flags` still keyed
+`UNIQUE(user_id, question_id)` (the 2-column key), and **PREPIO-124** (reconcile + deploy) and
+**PREPIO-170** (apply the flag migration) are both **Todo/Urgent**. Two caveats, both from the
+same frontend/backend split, apply to the table above:
+
+- **Invite-only is not backend-verified this run.** Removing the Sign Up tab proves only the
+  frontend entry point is gone. `FREEZE_RELEASE.md` §2 (lines 63–66) requires the production
+  Supabase Auth *"Allow new users to sign up"* / anonymous-sign-in settings to be turned off
+  **and** verified by a direct non-invited signup API request failing — committing
+  `supabase/config.toml` does not apply production Auth settings. Because Supabase was
+  unreachable this run, that gate stays **unverified**: public API signup may still be enabled
+  even though the UI tab is absent (issue #5).
+- **The flag-write failure is a last-verified state, not a fresh probe.** The `42P10` evidence
+  is the 2026-09-21/22 baseline plus PREPIO-170 still being Todo and the release being an
+  unverified candidate; this run could not re-probe. So the write was **last verified failing**
+  and there is no evidence of an intervening deploy — but "currently failing" is an inference,
+  not a this-run observation (issue #1).
 
 ## Overall product judgment
 
 The product is meaningfully better this week, and the improvement is structural rather than
 cosmetic: the frozen frontend surface-lock shipped, so a first-time (or invited) visitor no
 longer hits a CTA that fails and erases the page's best content, no longer sees purchase
-buttons that cannot complete, and no longer meets an open public sign-up that contradicts the
-invite-only model — and the long-standing `/auth` autocomplete gap is finally closed. The
-cost of that lock is a quieter top-of-funnel: the guest landing now shows **no example output
-until you click *View sample plan***, and the sample it then reveals is deliberately generic
-and fictional ("Payments company · Product Manager"), so the page *claims* company-and-role
-specificity in prose but no longer *shows* it by default — a mild first-time-understanding
-regression introduced by the lock. The highest-value remaining user-facing defect is
-unchanged and now purely a backend-deploy step: the **Favorite / Needs-work flag write still
-returns `42P10` in production** because PREPIO-170's one-line migration is unapplied. The
-biggest *process* risk is the frontend/backend split — the locked UI makes the app look fully
-reconciled, while the functions are still the pre-fix 2026-05-15 versions (PREPIO-124).
+buttons that cannot complete, and no longer sees a public Sign Up entry point that contradicts
+the invite-only model — and the long-standing `/auth` autocomplete gap and the `/history`
+empty-state copy are both finally fixed. The cost of that lock is a quieter top-of-funnel: the
+guest landing now shows **no example output until you click *View sample plan***, and the
+sample it then reveals is deliberately generic and fictional ("Payments company · Product
+Manager"), so the page *claims* company-and-role specificity in prose but no longer *shows* it
+by default — a mild first-time-understanding regression introduced by the lock. The
+highest-value remaining user-facing defect is unchanged and now purely a backend-deploy step:
+the **Favorite / Needs-work flag write was last verified failing with `42P10` in production**
+(2026-09-21/22 baseline; not re-probed this run) because PREPIO-170's one-line migration was
+unapplied. The biggest *process* risk is the frontend/backend split — the locked UI makes the
+app look fully reconciled, while (per the last read-only baseline) the functions are still the
+pre-fix 2026-05-15 versions (PREPIO-124) and even "invite-only" is unverified at the Auth
+layer (issue #5).
 
 ## Top 5 issues
 
-### 1. **P1 (carried; release-doc + Linear confirmed, not re-testable this run) — Favorite / Needs-work flag write still returns `400 / 42P10` in production**
+### 1. **P1 (carried; last verified failing 2026-09-21/22, not re-probed this run) — Favorite / Needs-work flag write — last-known production state is `400 / 42P10`**
 
-- **Severity:** P1 — a core practice-triage control fails 100% of the time in production.
+- **Severity:** P1 — when last verified, a core practice-triage control failed 100% of the
+  time in production; no evidence of an intervening fix.
 - **Area:** practice
 - **User scenario:** during practice a user taps **Favorite** / **Needs work** (or swipes) to
   mark what to revisit.
-- **What happened:** not exercised live this run (Supabase unreachable), but the production
-  state is documented: `FREEZE_RELEASE.md`'s 2026-09-21 baseline and PREPIO-170's own
-  2026-09-22 evidence both record `user_question_flags` still has `UNIQUE(user_id,
-  question_id)` — **not** the three-column key. The upsert
-  (`src/services/searchService.ts:1762`) uses `onConflict: 'user_id,question_id,flag_type'`,
-  so it will keep hitting `42P10`. Last live-confirmed failing on 2026-09-03 (run #20).
+- **What happened:** not exercised live this run (Supabase unreachable), so this is the
+  **last-verified** state, not a fresh probe. `FREEZE_RELEASE.md`'s 2026-09-21 baseline and
+  PREPIO-170's own 2026-09-22 evidence both record `user_question_flags` still has
+  `UNIQUE(user_id, question_id)` — **not** the three-column key. The upsert
+  (`src/services/searchService.ts:1762`) uses `onConflict: 'user_id,question_id,flag_type'`, so
+  against that schema it returns `42P10`. PREPIO-170 remains **Todo** and the release is still
+  an unverified candidate, so there is no evidence an attended/manual deploy has applied the
+  migration since — but confirm with a fresh schema/write probe before calling it current.
+  Last live-confirmed failing on 2026-09-03 (run #20).
 - **Why it matters:** favorites/needs-work is how a time-pressured candidate decides what to
   practise next; a visible control that never persists erodes trust that *anything* saves.
   (Text-answer save, by contrast, returned `201` live in run #20.)
@@ -173,17 +193,33 @@ reconciled, while the functions are still the pre-fix 2026-05-15 versions (PREPI
   the redundant card description and/or page subhead. Below the >30-min ticket threshold; fold
   into the PREPIO-27 auth-surface pass.
 
-### 5. **P3 (carried, In Progress) — `/history` shows the empty state despite in-progress practice**
+### 5. **P2 (NEW, code-confirmed) — Invite-only is enforced only at the frontend; the production Auth signup setting is unverified**
 
-- **Severity:** P3 — visibility-of-status / returning-user trust.
-- **Area:** history
-- **What happened:** not re-verified live this run (Supabase unreachable). Last live-observed
-  in run #20: `/history` rendered *"Ready to start practicing…"* while `/interviews` showed
-  real in-progress interviews. Defensible if history = *completed* sessions only, but the
-  disconnect reads as a bug.
-- **Recommended fix:** surface in-progress sessions on `/history`, or make the empty-state
-  copy explicit that it lists *completed* sessions and point to `/interviews`.
-- **Tracking:** [PREPIO-107](https://linear.app/qiuyue/issue/PREPIO-107) (In Progress).
+- **Severity:** P2 — a security/correctness gate for the whole freeze premise. Not a UX bug a
+  user sees, but it is the difference between "looks invite-only" and "is invite-only".
+- **Area:** auth
+- **What happened:** the Sign Up tab is gone from `/auth` (verified live), but
+  `FREEZE_RELEASE.md` §2 (lines 63–66) states the production Supabase Auth *"Allow new users to
+  sign up"* and *"Allow anonymous sign-ins"* settings must be turned **off** and verified by a
+  **direct non-invited signup API request failing** — committing `supabase/config.toml` does
+  not apply production Auth settings. Supabase was unreachable this run, so this gate could not
+  be probed and remains **unverified**: the public signup API may still accept new users even
+  though the UI entry point is absent.
+- **Why it matters:** if the API still allows signup, the invite-only model is cosmetic — anyone
+  who hits `POST /auth/v1/signup` directly bypasses the whole freeze premise.
+- **Recommended fix:** in the PREPIO-124 / PREPIO-27 attended window, disable both Auth
+  settings in the production project and verify a direct non-invited signup request is denied
+  (and an anonymous sign-in is rejected), then record the evidence.
+- **Tracking:** [PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27) (In Progress; §2 of the
+  freeze gate) + [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124).
+
+> **Resolved since run #20 — dropped from the top-5:** the `/history` empty-state parity
+> concern (run #20 P3 #4) is **fixed in code** (`bccb67c` / #360). `src/pages/History.tsx:316`
+> now reads *"No finished sessions yet"* with body *"Finished practice sessions appear here with
+> answers, timing, and notes. Answers you save in an unfinished session stay on that interview
+> in Your interviews."* — exactly the clarification run #20 recommended. Not re-rendered live
+> this run (Supabase unreachable), but the copy is merged on the deployed head. See the
+> regression table and scorecard.
 
 ## Notable observations (not top-5)
 
@@ -228,18 +264,19 @@ reconcile) persist.
 | Research entry | 4 | 4 | = | **(carried)** CV-aware form unchanged; privacy copy still pending (issue #3, PREPIO-180). |
 | Research progress/loading | 5 | 5 | = | **(carried)** Async modal unchanged in code; not re-triggered. |
 | Generated output clarity | 5 | 5 | = | **(carried)** Plan/stage/question + answer-guide structure unchanged. |
-| Practice mode | 4 | 4 | = | **(carried)** Question is `<h1>`, save persisted `201` in run #20 — but Favorite/Needs-work still 42P10 in prod (issue #1) holds it at 4. |
+| Practice mode | 4 | 4 | = | **(carried)** Question is `<h1>`, save persisted `201` in run #20 — but Favorite/Needs-work was last verified failing `42P10` in prod (issue #1) holds it at 4. |
 | Mobile usability | 4 | 4 | = | **(carried)** Practice-mobile strong at run #20; not re-measured (no styling captured). |
 | Resume/profile trust | 4 | 4 | = | **(live, partial)** `/profile` now 404 (frozen) — correct for the freeze; CV paste privacy copy still pending (PREPIO-180). |
-| Dashboard/history/resume | 3 | 3 | = | **(carried)** `/history` empty-vs-in-progress parity still open (issue #5, PREPIO-107). |
-| Error/empty states | 4 | 4 | = | **(live)** Guest surface no longer blanks; removed routes 404 honestly; redirect preserves intent. Held at 4 only because the flag-write failure (#1) is still a dishonest "saved" moment in prod. |
+| Dashboard/history/resume | 3 | **4** | **▲** | **(code-confirmed)** `/history` empty-state now honest — *"No finished sessions yet … Answers you save in an unfinished session stay on that interview in Your interviews"* (`bccb67c`/#360), implementing run #20's recommendation. Not re-rendered live (Supabase down). |
+| Error/empty states | 4 | 4 | = | **(live)** Guest surface no longer blanks; removed routes 404 honestly; redirect preserves intent; `/history` empty-state now honest. Held at 4 only because the flag-write failure (#1) remains an unresolved "saved"-vs-actually-failed gap per the last probe. |
 | Accessibility | 4 | 4 | = | **(live, partial)** `/auth` autocomplete now `email`/`current-password` with labels (PREPIO-123 **Done**) — the 15-audit gap is closed. Focus/targets not re-measured this run. |
 | Copy quality | 4 | 4 | = | **(live)** Guest + auth copy honest and invite-aware; minor `/auth` triple-prompt redundancy (issue #4). |
 
-**Composite: flat numerically, up in robustness.** The scores hold, but the top-of-funnel
-moved from *fragile/actively-broken* to *stable/honest*, and one 15-audit-old a11y gap closed.
-The two anchors that keep numbers from rising are both backend-deploy items (PREPIO-124 +
-PREPIO-170), not frontend work.
+**Composite: up one (Dashboard/history 3→4), and up in robustness elsewhere.** The top-of-funnel
+moved from *fragile/actively-broken* to *stable/honest*, a 15-audit-old a11y gap (autocomplete)
+closed, and the `/history` empty-state copy was fixed. The anchors that keep the other numbers
+from rising are the two backend-deploy items (PREPIO-124 + PREPIO-170) plus the
+no-example-by-default framing regression (issue #2), not frontend correctness.
 
 ## Regression check
 
@@ -250,11 +287,11 @@ UX *framing* regression (issue #2) is a deliberate side effect of the freeze loc
 |------|-------|------|
 | Guest preview blanking / CORS failure | **Resolved** ✅ | Static `GuestSample`, zero backend calls (#354/#360 / PREPIO-27). Was run #20 P0. |
 | `/pricing` checkout CTAs, `/profile` | **Resolved** ✅ | Both 404; billing/profile frozen off. Was run #20 P0. |
-| Public Sign Up tab | **Resolved** ✅ | `/auth` invite-only, no Sign Up. Was run #20 P0. |
+| Public Sign Up tab (frontend) | **Resolved (frontend)** ✅ | `/auth` has no Sign Up tab. Backend Auth setting still **unverified** (issue #5). Was run #20 P0. |
 | `/auth` autocomplete (15 audits) | **Fixed** ✅ | `email` / `current-password` + labels (PREPIO-123 Done, #360). Was run #20 P2. |
+| `/history` empty-state parity | **Fixed** ✅ | Now *"No finished sessions yet … stay on that interview in Your interviews"* (`bccb67c`/#360). Was run #20 P3 #4. |
 | Practice question `<h1>` | **Holding** ✅ | Code unchanged (`Practice.tsx`); not re-verified live. |
-| Favorite/Needs-work flag write | **Still broken** ❌ | `42P10`; migration unapplied (PREPIO-170 Todo). Was run #20 P1. (Issue #1) |
-| `/history` vs in-progress parity | **Still open** ⚠️ | PREPIO-107 In Progress. (Issue #5) |
+| Favorite/Needs-work flag write | **Still failing (last probe)** ❌ | `42P10` at 2026-09-21/22; migration unapplied (PREPIO-170 Todo); not re-probed this run. Was run #20 P1. (Issue #1) |
 | Guest landing example visibility | **Regressed (framing)** ⚠️ | Example now collapsed-by-default + genericised by the freeze lock. (Issue #2) |
 
 ## Recommended tickets
@@ -267,22 +304,26 @@ owner, consistent with the freeze posture (CLAUDE.md: "Do not add features, recu
    [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124) (Urgent, Todo).
 2. **[P1] Attended backend reconcile + freeze deploy** (five core functions + reviewed
    migrations via the guarded manifest). → [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124).
-3. **[P2] Show the fictional sample inline by default + restore stage / "why it matters"
+3. **[P2] Disable the production Auth signup/anonymous settings and verify a direct non-invited
+   signup API request is denied** (issue #5 — invite-only is unverified at the backend). → §2 of
+   [PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27) + [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124).
+4. **[P2] Show the fictional sample inline by default + restore stage / "why it matters"
    structure** on the guest landing. → comment on
    [PREPIO-27](https://linear.app/qiuyue/issue/PREPIO-27) (In Progress; owns the guest sample).
-4. **[P2] Add CV privacy/trust copy to the `/new-interview` paste area.** →
+5. **[P2] Add CV privacy/trust copy to the `/new-interview` paste area.** →
    [PREPIO-180](https://linear.app/qiuyue/issue/PREPIO-180) (In Progress).
-5. **[P3] De-duplicate the `/auth` sign-in prompts** (keep the invite-only line once). → fold
+6. **[P3] De-duplicate the `/auth` sign-in prompts** (keep the invite-only line once). → fold
    into the PREPIO-27 auth-surface pass; below the >30-min ticket threshold.
 
 ### Deferred items (per CLAUDE.md hygiene convention)
 
 - **No new Linear issues filed this run.** All findings map to existing open issues
-  (PREPIO-170, -124, -27, -180, -107) or are below the >30-min threshold (issues #4, and the
-  carried sub-44px touch-target note). Live-verification / refinement comments added to
-  PREPIO-27 and PREPIO-170 this run.
+  (PREPIO-170, -124, -27, -180) or are below the >30-min threshold (issue #4, the `/auth`
+  prompt de-duplication, and the carried sub-44px touch-target note). Live-verification / refinement comments added to PREPIO-27 and
+  PREPIO-170 this run.
 - [PREPIO-123](https://linear.app/qiuyue/issue/PREPIO-123) (`/auth` autocomplete) is **Done**
-  and **live-confirmed fixed** — removed from the standing carry list.
+  and **live-confirmed fixed**; the `/history` empty-state parity concern (run #20 P3 #4) is
+  **fixed in code** (`bccb67c`/#360) — both removed from the standing carry list.
 
 ---
 
