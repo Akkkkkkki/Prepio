@@ -4,6 +4,22 @@
 
 Twenty-eighth recurring codebase hygiene & security review for Prepio, measured
 against HEAD `bccb67c` (deltas vs the 2026-09-12 run #27 note at `f9b0454`).
+
+**On the freeze and this review (raised by Codex on this PR).** CLAUDE.md's
+*Current Product Truth* says "Do not add features, recurring audits or routine
+dependency PRs." This note is a **docs-only output of the standing,
+owner-scheduled recurring security review** — not a new recurring-audit process
+and not a product-source change. The review has run and merged *through* the
+freeze (run #26 / #343 and run #27 / #346 both post-date the 2026-09-02 freeze
+decision), so the operative reading of that line is "do not stand up new
+recurring-audit machinery or scope," not "stop the existing scheduled security
+review." Consistent with that and with the freeze's intent, this run makes **no
+product-source change and opens no dependency PR** — it only records what was
+checked and what remains. If the product owner intends the freeze to pause the
+recurring security review itself (not just new audits), say so and I will defer
+future runs until it is reopened; that is an owner call, not one I will make by
+dropping an assigned, owner-scheduled task on my own.
+
 This is the first review window since the **invite-only freeze landed in
 source**: six merges since the last audit note, five of them source-touching
 (`src/` or `supabase/functions/`, excluding tests):
@@ -11,8 +27,14 @@ source**: six merges since the last audit note, five of them source-touching
 - **`security: upgrade pdfjs-dist 5 to 6` (#350)** — **resolves** the carried
   `pdfjs-dist` high advisory (GHSA-hq66-cqwq-w95j). `pdfjs-dist` is now
   `6.3.289` and no longer appears in `npm audit`. The resume PDF-text parser
-  (`src/lib/resumeUpload.ts`) still runs client-side; the worker-isolation +
-  `isEvalSupported: false` hardening is intact.
+  (`src/lib/resumeUpload.ts`) is present in the bundle but **not reachable in
+  the frozen build** — `FROZEN_PRODUCT.resumeUpload = false`
+  (`src/lib/frozenProduct.ts:8`) gates every upload control in `Home.tsx`
+  (lines 827/948/1005), so the file `<input>` that wires `handleFileUpload` →
+  `extractResumeText` never renders, and `App.tsx` drops the Profile route;
+  `docs/FREEZE_RELEASE.md:11–14` records file upload as hidden and unrouted. The
+  worker-isolation + `isEvalSupported: false` hardening is intact for whenever
+  the surface is restored.
 - **`[PREPIO-172] Upgrade react-router-dom 6 → 7` (#353)** — **resolves** both
   carried `react-router` advisories (open-redirect GHSA-wrjc-x8rr-h8h6 and the
   SSR-hydration GHSA-337j-9hxr-rhxg). `react-router-dom` is now `7.18.4` and no
@@ -198,19 +220,25 @@ plus `undici` via `jsdom`, not new runtime exposure.
   - Evidence: `npm audit` reports `sprintf-js *` (moderate, unbounded-precision
     DoS GHSA-hp3w-g68c-fv3c) and `argparse 1.0.0–1.0.10` (moderate), both via
     `mammoth@1.12.0 → argparse@1.x → sprintf-js`. `mammoth` is a **production
-    dependency** — the DOCX branch of the resume-text extractor
-    (`src/lib/resumeUpload.ts`). The only fix `npm audit` offers is `mammoth@0.3.29`,
-    a **downgrade** (major, backwards) — not a real forward fix; `1.12.0` is the
-    current release and newer `mammoth` has not dropped the `argparse@1` chain.
-  - Risk: low-real. `sprintf-js`/`argparse` are used by `mammoth` for CLI arg
-    parsing / message formatting, not reached by the browser DOCX-to-text path
-    in any attacker-controllable way; the advisory is a DoS against a precision
-    specifier, not code execution. No production-exploit path established.
+    dependency by manifest** — the DOCX branch of the resume-text extractor
+    (`src/lib/resumeUpload.ts`) — but in the frozen build that extractor is
+    **not reachable**: the upload controls are gated off by
+    `FROZEN_PRODUCT.resumeUpload = false` (see the #350 bullet above and
+    `docs/FREEZE_RELEASE.md:11–14`), so `mammoth` is a **dormant installed
+    dependency, not a live runtime path**. The only fix `npm audit` offers is
+    `mammoth@0.3.29`, a **downgrade** (major, backwards) — not a real forward
+    fix; `1.12.0` is the current release and newer `mammoth` has not dropped the
+    `argparse@1` chain.
+  - Risk: low-real, and lower still under the freeze. `sprintf-js`/`argparse` are
+    used by `mammoth` for CLI arg parsing / message formatting, not reached by
+    the browser DOCX-to-text path in any attacker-controllable way even when the
+    upload surface is live; the advisory is a DoS against a precision specifier,
+    not code execution; and the DOCX path is unrendered in the frozen build. No
+    production-exploit path established.
   - Recommended fix: do **not** take the downgrade. Leave to Dependabot to carry
-    a `mammoth` release that drops the `argparse@1` chain, or revisit if the
-    PREPIO-27 resume-upload surface-lock lands (which would remove the DOCX path
-    from the guest surface entirely). The freeze's "no routine dependency PRs"
-    rule applies.
+    a `mammoth` release that drops the `argparse@1` chain. The freeze's "no
+    routine dependency PRs" rule applies; the dormant-dependency status means
+    there is no live exposure to remediate in the frozen build.
   - Owner / next step: Deferred — Dependabot-tracked; no actionable forward bump.
 
 ### Low / clean-up
@@ -304,10 +332,15 @@ plus `undici` via `jsdom`, not new runtime exposure.
 - **`#338` `react-refresh` lint warning** (Low, cosmetic/DX) — move
   `hasQuestionInsightsContent` to a helper module; follow-up cleanup, not filed.
 - **`npm audit` as a non-blocking CI step** (Low, process) — maintainer call.
-- **PDF/DOCX resume-upload surface-lock (PREPIO-27/PREPIO-140)** — landing it
-  removes both the `pdfjs-dist` parser surface (even though its advisory is now
-  cleared, the parser is still reachable by guests) and the `mammoth` DOCX path
-  in one move. Already tracked.
+- **PDF/DOCX resume-upload surface-lock (PREPIO-27/PREPIO-140)** — note this is
+  **already achieved for the frozen build** by `FROZEN_PRODUCT.resumeUpload =
+  false` (the upload controls are unrendered and the Profile route is dropped),
+  so the `pdfjs-dist`/`mammoth` parsers are dormant installed dependencies, not
+  reachable guest surfaces, in this candidate. PREPIO-27/PREPIO-140 remains the
+  tracking for the permanent surface decision (and for whenever upload is
+  restored, at which point the parser bumps matter again); it is not the thing
+  that removes a *live* exposure here, because there is none in the frozen
+  build.
 
 ## Questions for product owner
 
