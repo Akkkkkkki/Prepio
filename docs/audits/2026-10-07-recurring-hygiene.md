@@ -32,9 +32,15 @@ source**: six merges since the last audit note, five of them source-touching
   (`src/lib/frozenProduct.ts:8`) gates every upload control in `Home.tsx`
   (lines 827/948/1005), so the file `<input>` that wires `handleFileUpload` →
   `extractResumeText` never renders, and `App.tsx` drops the Profile route;
-  `docs/FREEZE_RELEASE.md:11–14` records file upload as hidden and unrouted. The
-  worker-isolation + `isEvalSupported: false` hardening is intact for whenever
-  the surface is restored.
+  `docs/FREEZE_RELEASE.md:11–14` records file upload as hidden and unrouted. As
+  to the parser's own hardening (relevant whenever upload is restored): #350's
+  `extractPdfText` calls `getDocument({ data, useWorkerFetch: false })` and its
+  comment records that **pdf.js 6 removed the `eval()`/`Function` codepath
+  upstream, so the old `isEvalSupported: false` defense-in-depth was
+  deliberately dropped as no longer needed** (`src/lib/resumeUpload.ts:118–125`).
+  The remediation is the pdf.js 6 upgrade itself, not a retained option — a
+  future upload-restoration review should rely on the version, not look for
+  `isEvalSupported`.
 - **`[PREPIO-172] Upgrade react-router-dom 6 → 7` (#353)** — **resolves** both
   carried `react-router` advisories (open-redirect GHSA-wrjc-x8rr-h8h6 and the
   SSR-hydration GHSA-337j-9hxr-rhxg). `react-router-dom` is now `7.18.4` and no
@@ -44,8 +50,18 @@ source**: six merges since the last audit note, five of them source-touching
   the freeze implementation across `Home.tsx`, `Auth.tsx`, `useAuth.ts`,
   `Practice.tsx`, `Navigation.tsx`, `searchService.ts`, `frozenProduct.ts`.
   **Security-positive, reviewed in full this run:**
-  - Public `signUp` was removed from `useAuth` (`src/hooks/useAuth.ts`); the
-    only account-creation path left is an invited email's invite/recovery link.
+  - Public `signUp` was removed from `useAuth` (`src/hooks/useAuth.ts`), so the
+    **app's public signup UI/client path** is gone and invite/recovery links are
+    the only account-creation entry point *in the application*. This is a
+    source-only observation: closing signup at the server requires the
+    production Supabase Auth toggles ("Allow new users to sign up" and "Allow
+    anonymous sign-ins" off), which `docs/FREEZE_RELEASE.md:62–66` lists as a
+    deploy-gate step (§2) that must be **verified by confirming a direct
+    non-invited signup request fails, not just that the button is absent** —
+    unverified here (and part of the still-unreconciled production per CLAUDE.md).
+    Until that toggle is confirmed, a caller could still hit the public Supabase
+    Auth signup API directly with the client URL/anon key; removing the UI path
+    does not by itself close all account creation.
   - Invite/recovery link handling is the one notable new auth surface, and it is
     written defensively: `useAuth` reads the link token **at module load**
     (before supabase-js clears the hash) and only enables the set-password view
@@ -100,9 +116,20 @@ dev/build-toolchain noise that the freeze's "no routine dependency PRs" rule
 keeps deferred to Dependabot (see Findings).
 
 Baselines (measured against HEAD `bccb67c`; deltas vs 2026-09-12):
-lint **49** problems (**40** errors, **9** warnings; down from 52 — the
-react-router 7 migration and freeze code removals cleared three errors; the
-9 warnings are unchanged, incl. the #338 `react-refresh` one). Typecheck
+lint **49** problems (**40** errors, **9** warnings; down from 52). **Correction
+(Codex on this PR): the 40 errors are not `no-explicit-any` in tests/edge
+functions as an earlier draft claimed.** 33 of the 40 are `react-hooks`
+(React Compiler) rule errors in **application source** —
+"Calling setState synchronously within an effect" ×20
+(`react-hooks/set-state-in-effect`), "Cannot access variable before it is
+declared" ×7, "Cannot call impure function during render" ×6
+(`react-hooks/purity`) — across `src/pages/{Home,Practice,Dashboard,Auth}.tsx`,
+`src/hooks/*`, and `src/components/ui/*`; only 7 are `@typescript-eslint/*`
+(`no-explicit-any` ×4, `no-empty-object-type` ×2, `no-require-imports` ×1).
+The 9 warnings are `react-refresh/only-export-components` (incl. the #338 one).
+**Lint is informational in CI, not a gate**, so none of this blocks — but it is
+a real app-source lint backlog, recorded as a Low finding below rather than
+glossed. Typecheck
 **pass at baseline** (app **61**, down from 62 as freeze removals dropped one
 error from the ratchet; node **0**). Build **pass**, **1242.90 KiB** / 41
 precache entries. Tests **483** passing / **58** files (up from 461/52 — the
@@ -115,11 +142,13 @@ plus `undici` via `jsdom`, not new runtime exposure.
 
 - `npm install`: **pass** (via SessionStart hook; `up to date`, 748 packages).
 - `npm run lint`: **49 problems (40 errors, 9 warnings).** Down from 52 vs
-  2026-09-12 (three errors cleared by the react-router 7 migration + freeze code
-  removals). Errors are the pre-existing `@typescript-eslint/no-explicit-any` in
-  tests/edge functions; the 9 warnings are the prior fast-refresh set incl. the
-  #338 `QuestionInsightsPanel` `react-refresh/only-export-components` one. Lint
-  is informational in CI; this run pushes no source.
+  2026-09-12. Rule breakdown (corrected per Codex — see Summary and the Low
+  finding): **33 of 40 errors are `react-hooks` (React Compiler) errors in app
+  source** (`set-state-in-effect` ×20, "access before declared" ×7,
+  `purity`/impure-call-during-render ×6), **7 are `@typescript-eslint/*`**
+  (`no-explicit-any` ×4, `no-empty-object-type` ×2, `no-require-imports` ×1);
+  the 9 warnings are all `react-refresh/only-export-components` (incl. the #338
+  one). Lint is informational in CI, not a gate; this run pushes no source.
 - `npm run typecheck`
   ([`scripts/check-typecheck-baseline.sh`](../../scripts/check-typecheck-baseline.sh)):
   **pass at baseline.** App **61** (down from 62; freeze removals dropped one),
@@ -280,6 +309,34 @@ plus `undici` via `jsdom`, not new runtime exposure.
     the local `--package-lock-only` crash and the freeze posture leave it to
     Dependabot. Dev/test-only — no production-bundle exposure.
 
+- [ ] **App-source `react-hooks` (React Compiler) lint-error backlog —
+  mischaracterized in an earlier draft of this note.** *(New this run; surfaced
+  by Codex on this PR and code-verified.)*
+  - Evidence: 33 of the 40 `npm run lint` errors are `react-hooks` rule
+    violations in **application source**, not the `@typescript-eslint/no-explicit-any`
+    in tests/edge functions an earlier draft claimed: "Calling setState
+    synchronously within an effect can trigger cascading renders" ×20
+    (`react-hooks/set-state-in-effect`), "Cannot access variable before it is
+    declared" ×7, and "Cannot call impure function during render" ×6
+    (`react-hooks/purity`). They span `src/pages/{Home,Practice,Dashboard,Auth,
+    BillingReturn,History}.tsx`, `src/hooks/{usePracticeSession,useSearchProgress,
+    use-mobile,useMobileFooterHeight}.ts(x)`, and several `src/components/ui/*`
+    primitives. The remaining 7 errors are `@typescript-eslint/*`
+    (`no-explicit-any` ×4, `no-empty-object-type` ×2, `no-require-imports` ×1).
+  - Risk: **informational / maintainability only — lint is not a CI gate** in
+    this repo, so none of this blocks. But the `set-state-in-effect` and
+    `purity` errors are the kind of signal that precedes real render-loop and
+    stale-state bugs, and some sit in live product code (`Practice.tsx`,
+    `usePracticeSession.ts`, `useSearchProgress.ts`), not just vendored UI. Worth
+    tracking so a future React Compiler adoption (or a decision to gate lint)
+    isn't blindsided by a 33-error backlog.
+  - Recommended fix: do **not** mass-fix under the freeze (it would touch core
+    practice/research product code — out of scope and risky). Record the backlog,
+    and when the freeze lifts, triage per-rule (the `ui/*` ones are mostly
+    shadcn-vendored and may be upstream; the `pages`/`hooks` ones are ours).
+    File as `Chore` + the matching Area labels when the Linear cap clears.
+  - Owner / next step: Deferred — maintainability backlog; not a freeze-run fix.
+
 - [ ] **`#338` `react-refresh/only-export-components` lint warning persists.**
   *(Carried; cosmetic/DX.)*
   - Evidence: `npm run lint` still reports the warning at
@@ -329,6 +386,11 @@ plus `undici` via `jsdom`, not new runtime exposure.
   PostCSS / Vite / Vitest chain)** (Low) — the SemVer-compatible subset would
   clear with a plain `npm audit fix`; deferred to Dependabot per the freeze's
   "no routine dependency PRs" rule.
+- **App-source `react-hooks` (React Compiler) lint-error backlog** (Low,
+  maintainability) — 33 of 40 lint errors are `react-hooks` violations in
+  `src/pages`/`src/hooks`/`src/components/ui`; lint is not a CI gate, so not a
+  freeze-run fix. Triage per-rule when the freeze lifts; file as `Chore` when the
+  Linear cap clears.
 - **`#338` `react-refresh` lint warning** (Low, cosmetic/DX) — move
   `hasQuestionInsightsContent` to a helper module; follow-up cleanup, not filed.
 - **`npm audit` as a non-blocking CI step** (Low, process) — maintainer call.
