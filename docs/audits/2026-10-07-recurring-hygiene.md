@@ -275,8 +275,9 @@ plus `undici` via `jsdom`, not new runtime exposure.
 - [ ] **`npm audit` jumped 5 → 18, but the net is newly-disclosed CVEs against
   dev/build tooling, not new runtime exposure.** *(Observation + categorization,
   not a fix candidate this run.)*
-  - Evidence: the 18 break down as —
-    - **Dev/build toolchain (16 of 18), no production-bundle exposure:**
+  - Evidence: the 18 are **package entries** `npm audit` counts (not advisories);
+    they break down as —
+    - **Dev/build toolchain (15 of 18), no production-bundle exposure:**
       `undici` (high, 10 CVEs) via `jsdom@29.1.1` (the Vitest DOM test env);
       `brace-expansion`, `braces`, `chokidar`, `fast-glob`, `micromatch`,
       `fast-uri`, `source-map-js`, `postcss-nested`, `postcss-selector-parser`,
@@ -285,9 +286,12 @@ plus `undici` via `jsdom`, not new runtime exposure.
       dev-only path-traversal advisory, GHSA-82fw-gwwq-j7x9). None of these ship
       in the browser bundle in an attacker-reachable way — they run at build or
       test time.
-    - **Runtime path (2 of 18):** the `mammoth` → `argparse`/`sprintf-js` chain
-      (its own Medium above).
-  - Risk: dev-time only for the 16; low-real for the `mammoth` chain. `npm audit
+    - **Production dependency path (3 of 18 entries, 2 underlying advisories):**
+      `mammoth`, `argparse`, and `sprintf-js` — `mammoth` is itself a
+      metavulnerability entry (hence the audit's offered `mammoth@0.3.29` fix)
+      over the `argparse`→`sprintf-js` chain, which carries two actual advisories
+      (its own Medium above). Dormant in the frozen build (upload disabled).
+  - Risk: dev-time only for the 15; low-real for the `mammoth` chain. `npm audit
     --omit=dev` reports 12 (several of the Tailwind/PostCSS deps are in the
     production dependency tree by package manifest even though they only run at
     build time).
@@ -354,7 +358,7 @@ plus `undici` via `jsdom`, not new runtime exposure.
     Advisory response relies on Dependabot.
   - Recommended fix: optional non-blocking `npm audit --audit-level=high` step. A
     CI-policy call for maintainers; also note it would be noisy right now given
-    the 16 dev-toolchain advisories.
+    the 15 dev-toolchain entries.
 
 ## Small fixes made in this run
 
