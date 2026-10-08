@@ -46,8 +46,13 @@ report.
 Every prior run through #20 carried a **P0** on the logged-out surface: the guest **Preview my prep**
 CTA fired a doomed `research-preview` call, failed with a CORS error, and **blanked** the page's best
 pre-signup asset; `/pricing` showed live checkout CTAs pointing at an undeployed function; and public
-sign-up was open. **All three are now resolved on production**, verified live this run via the
-freeze-lock commits that merged since the last review:
+sign-up was open. **The two frontend-decidable ones (guest preview, `/pricing`) are now resolved on
+production, verified live this run**; the third — public sign-up — has its **frontend control removed
+and verified live (no Sign-Up tab)**, but the actual invite-only gate is a **backend** check
+(`docs/FREEZE_RELEASE.md` requires a direct non-invited signup request to *fail*), and the Supabase
+host was egress-blocked this run, so **whether production Auth rejects non-invited signup is NOT
+verified here** — it rides the attended PREPIO-124 backend gate. These landed via the freeze-lock
+commits that merged since the last review:
 
 - `9d9b711` / **#354** — *"lock Prepio to the invite-only frozen core"* (the PREPIO-27 implementation):
   `GuestSample.tsx`, `frozenProduct.ts`, reworked `Auth`, `Home`, `Practice`, `Navigation`.
@@ -66,7 +71,7 @@ history of this routine.
 | Surface | Prior run (#20) | This run (live) | Status |
 |---|---|---|---|
 | Guest landing | "Preview my prep" → CORS fail, **blanks** the example | Static card + **"View sample plan"** disclosure; clicking it makes **0 network calls** (verified) | **Fixed** ✅ |
-| `/auth` sign-up | Public **Sign Up** tab present | **No Sign-Up tab**; copy: *"free and invite-only … Ask the person who invited you"* | **Fixed** ✅ |
+| `/auth` sign-up **(frontend control)** | Public **Sign Up** tab present | **No Sign-Up tab**; copy: *"free and invite-only … Ask the person who invited you"* | **Frontend fixed** ✅ — backend signup-rejection gate still pending (PREPIO-124) |
 | `/auth` autocomplete | `email`/`password` both `null` (15-audit repeat) | `#signin-email` = `email`, `#signin-password` = `current-password` | **Fixed** ✅ (PREPIO-123) |
 | `/pricing` checkout CTAs | Live "Choose monthly/quarterly" → undeployed fn | `/pricing` → **404** (route removed) | **Fixed** ✅ |
 | `/profile` | Rendered seeded CV (PII risk) | **404** (profile frozen) | **Fixed** ✅ |
@@ -77,9 +82,11 @@ history of this routine.
 **This is the strongest week in the history of this review.** The freeze surface-lock that every prior
 run flagged as the standing P0 is now shipped and **live on production** (verified logged-out): the
 guest path is a deterministic static sample that makes **zero** Edge-Function/OpenAI/Tavily calls, the
-page no longer self-destructs when the primary CTA is clicked, `/auth` is honestly invite-only with
-working autocomplete (closing a 15-audit-old a11y repeat), and the dead `/pricing` and PII-risk
-`/profile` routes are gone. Logged-out accessibility is clean — single `<h1>`, skip-link-first tab
+page no longer self-destructs when the primary CTA is clicked, the `/auth` **frontend** is honestly
+invite-only (no Sign-Up tab) with working autocomplete (closing a 15-audit-old a11y repeat), and the
+dead `/pricing` and PII-risk `/profile` routes are gone. (Whether production Auth actually *rejects*
+non-invited signup is a backend check this run could not reach — it rides the PREPIO-124 gate, not the
+frontend; see Top-5 #2.) Logged-out accessibility is clean — single `<h1>`, skip-link-first tab
 order, visible 2px focus rings, a proper `aria-expanded`/`aria-controls` disclosure, and no horizontal
 overflow at 390px in either state. **The single highest-value remaining action is unchanged and is now
 a pure backend gate: apply the `question_flags_per_type` migration to production (PREPIO-170) so
@@ -261,7 +268,7 @@ found on the live frontend.**
 |------|-------|------|
 | Guest preview (was P0 #1) | **Fixed** ✅ | Static sample, **0 network calls** (live). (#354 / PREPIO-27) |
 | `/pricing` checkout CTAs (was P0 #1) | **Fixed** ✅ | Route removed → 404 (live). |
-| Public Sign-Up tab (was P0 #1) | **Fixed** ✅ | Invite-only; no Sign-Up tab (live). |
+| Public Sign-Up tab (was P0 #1) | **Frontend fixed** ✅ / backend gate pending ⚠️ | No Sign-Up tab (live). Production Auth rejecting non-invited signup is a backend check (FREEZE_RELEASE.md) not verifiable this run (egress-blocked); rides PREPIO-124. |
 | `/auth` autocomplete (was P2 #3, 15-audit repeat) | **Fixed** ✅ | `email` / `current-password` (live). (#360 / PREPIO-123) |
 | `/profile` CV PII-risk surface | **Removed** ✅ | 404 under the freeze (live). |
 | History empty-state vs in-progress (was P3 #4) | **Fixed in code** ✅ | New finished-vs-unfinished copy (#360). Pending live re-check. |
