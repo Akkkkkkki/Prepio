@@ -116,8 +116,10 @@ immediate time-to-value at near-zero cost.
 - **Why it matters:** favorites/needs-work is how a time-pressured user decides what to practice next; a
   visible control that never persists erodes trust in whether anything persists.
 - **Recommended fix:** apply `20260710203000_question_flags_per_type.sql` in the attended PREPIO-124
-  freeze window (pre-dedupe any conflicting rows first — the baseline precheck returned zero, re-run it
-  at deploy), then verify all three flag entry points persist across a reload on desktop and mobile.
+  freeze window. Re-run the `(user_id, question_id, flag_type)` duplicate-group precheck at deploy (the
+  2026-09-21 baseline returned zero); **if it finds conflicts, stop and resolve them data-preservingly —
+  do NOT silently deduplicate user data** (per `docs/FREEZE_RELEASE.md`). Then verify all three flag
+  entry points persist across a reload on desktop and mobile.
 - **Tracking:** [PREPIO-170](https://linear.app/qiuyue/issue/PREPIO-170) (Urgent, Todo) inside
   [PREPIO-124](https://linear.app/qiuyue/issue/PREPIO-124) (Urgent, Todo). **Not live-verified 2026-10-08
   (backend blocked); last live-confirmed broken 2026-09-03.**
@@ -303,8 +305,11 @@ landing finding.
 
 ### Deferred items (per CLAUDE.md hygiene convention)
 
-- **One new issue proposed** this run (landing time-to-value, P2 #3) — filed into the Landing Page
-  Framing project, cross-linked to this report.
+- **One new issue proposed** this run (landing time-to-value, P2 #3) for the Landing Page Framing
+  project — **but it could NOT be filed: the Linear workspace is at its free-issue cap** (issue
+  *creation* is blocked; comment/updates on existing issues still work). It therefore has no PREPIO
+  identifier yet and is recorded only in this report (Top-5 #3) until the cap is lifted or an existing
+  issue absorbs it. The same cap has blocked creation on several prior runs (#9–#12, #16–#18).
 - The sub-44px nav targets (P3 #4) and the 404-vs-redirect polish (P3 #5) remain below the >30-min
   ticketing threshold; flagged into the next landing/`Navigation` pass.
 - Live-confirmation comments added this run to PREPIO-27 (frontend lock deployed + verified) and the
