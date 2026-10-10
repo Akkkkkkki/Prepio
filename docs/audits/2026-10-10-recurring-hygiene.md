@@ -107,10 +107,21 @@ up from 5 — newly-disclosed toolchain CVEs, analysed below).
 
 - `npm install`: **pass** (via SessionStart hook; 748 packages).
 - `npm run lint`: **49 problems (40 errors, 9 warnings).** −3 errors vs run #27 (the
-  freeze deleted source). Errors are all pre-existing `@typescript-eslint/no-explicit-any`
-  in legacy Deno test files; the 9 warnings are the pre-existing `react-refresh/
-  only-export-components` set (incl. the #338 `hasQuestionInsightsContent` one carried as
-  a Low below). Lint is informational in CI, not a gate.
+  freeze deleted source). **Correction after Codex review of this PR:** an earlier draft
+  called every error a legacy Deno-test `@typescript-eslint/no-explicit-any` — that is
+  wrong, and it concealed a real React lint backlog. The accurate breakdown of the 40
+  errors is: **20 `react-hooks/set-state-in-effect`, 7 `react-hooks/immutability`,
+  6 `react-hooks/purity`** (33 `react-hooks` errors, in **application** code —
+  `src/pages/Practice.tsx`, `src/pages/profile/ExperienceList.tsx`,
+  `src/pages/profile/ProjectList.tsx`, etc.), **4 `@typescript-eslint/no-explicit-any`**
+  (the legacy Deno test files), **2 `@typescript-eslint/no-empty-object-type`**, and
+  **1 `@typescript-eslint/no-require-imports`**. The 9 warnings are all
+  `react-refresh/only-export-components` (incl. the #338 `hasQuestionInsightsContent` one
+  carried as a Low below). Lint is **informational in CI, not a gate**, so none of this
+  blocks — but the 33 `react-hooks` errors are a genuine standing backlog (the
+  React-Compiler rule set from `eslint-plugin-react-hooks`), not test-only `any` debt, and
+  are recorded as a Low below for a maintainer. Not remediated here (app-source changes,
+  out of scope for a docs-only hygiene run).
 - `npm run typecheck`
   ([`scripts/check-typecheck-baseline.sh`](../../scripts/check-typecheck-baseline.sh)):
   **pass at baseline.** App **61**, node **0**.
@@ -248,6 +259,27 @@ up from 5 — newly-disclosed toolchain CVEs, analysed below).
     module. Out of scope for a docs-only PR (it would widen the note PR into merged product
     source); recorded for a follow-up cleanup.
 
+- [ ] **A 33-error `react-hooks` lint backlog in application code.** *(Surfaced by Codex on
+  this PR; an earlier draft of this note had mislabeled all errors as test-only `no-explicit-any`
+  — code-verified and corrected this run.)*
+  - Evidence: of the 40 `npm run lint` errors, **33 are `react-hooks` rules** — 20
+    `react-hooks/set-state-in-effect`, 7 `react-hooks/immutability`, 6 `react-hooks/purity`
+    — in application source, incl. [`src/pages/Practice.tsx`](../../src/pages/Practice.tsx),
+    [`src/pages/profile/ExperienceList.tsx`](../../src/pages/profile/ExperienceList.tsx), and
+    [`src/pages/profile/ProjectList.tsx`](../../src/pages/profile/ProjectList.tsx). These are
+    the React-Compiler rule set from `eslint-plugin-react-hooks` (state set directly in an
+    effect, mutation of values treated as immutable, impure render reads). The remaining
+    7 errors are 4 `@typescript-eslint/no-explicit-any` (Deno test files), 2
+    `no-empty-object-type`, 1 `no-require-imports`.
+  - Risk: **informational / DX** — lint is not a CI gate, so none of this blocks, and nothing
+    here is a security or data finding. But `set-state-in-effect` / `purity` violations can be a
+    smell for avoidable re-render loops or render-phase side effects, so the backlog is worth a
+    maintainer's eye rather than being written off as test-only `any` debt.
+  - Recommended fix: a maintainer triages the `react-hooks` errors per file (many
+    `set-state-in-effect` cases are a derive-during-render or `useMemo` refactor). App-source
+    changes across several pages — out of scope for a docs-only hygiene run; recorded here and
+    worth a Linear `Chore` + `area:practice`/`area:profile` once the free-issue cap clears.
+
 - [ ] **`npm audit` is not a CI gate.** *(Observation, unchanged from runs #26/#27 — not filed.)*
   - Evidence: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) gates lint, typecheck,
     typecheck:functions, build, and test — not `npm audit`. Advisory response relies on Dependabot.
@@ -282,6 +314,10 @@ Tracked, Dependabot-surfaced, or owner-attended:
   maintainer with build/resume-parse validation.
 - **`#338` `react-refresh/only-export-components` lint warning** (Low, cosmetic/DX) — move
   `hasQuestionInsightsContent` to a helper module; noted for follow-up, not filed.
+- **33-error `react-hooks` lint backlog in app code** (Low, informational — Codex-surfaced
+  this run) — `set-state-in-effect`/`immutability`/`purity` across `Practice.tsx` and
+  `profile/*`; maintainer triage, file as `Chore` + `area:practice`/`area:profile` once the
+  Linear cap clears.
 - **`npm audit` as a non-blocking CI step** (Low, process) — maintainer call.
 
 ## Questions for product owner
