@@ -6,10 +6,30 @@ Twenty-eighth recurring codebase hygiene & security review for Prepio. First run
 since 2026-09-12 (#27). Measured against HEAD `bccb67c` (deltas vs the `e3a283b`
 base of run #27).
 
-**This was a substantial functional window — six merges landed since run #27's base,
-and they are the freeze lock-down plus the two long-deferred dependency majors. All
-are security-neutral-to-positive; several *close* findings this review series has
-carried for months.** The range (`f9b0454..bccb67c`, excluding the #27 note commit):
+**This was a substantial functional window — nine changes landed since run #27's HEAD
+`e3a283b`, and they are the freeze lock-down plus the two long-deferred dependency
+majors. All are security-neutral-to-positive; several *close* findings this review
+series has carried for months.** The full range is `e3a283b..bccb67c` (ten commits;
+excluding only the run #27 note commit `f9b0454`/#346 leaves nine). **Correction after
+Codex review of this PR:** an earlier draft stated the base as `f9b0454..bccb67c`, which
+silently dropped three in-range commits that land *before* the note commit — #337
+(discussed in full below as the PREPIO-143 fix), and two assessed here so the window has
+no unaudited gap:
+
+- **#345 (`test: cover short-name evidence origin classification`)** — **test-only**
+  (+22 lines in
+  [`evidence-ledger.test.ts`](../../supabase/functions/interview-research/evidence-ledger.test.ts)),
+  regression coverage asserting a short employer name is **not** over-promoted to
+  official/high-trust via hostname guessing. Security-positive, and directly guards the
+  short-name branch of the `official_company` trust map (the carried Medium below); no
+  production source.
+- **#348 (`ci: make Playwright landing smoke a blocking gate`, PREPIO-135)** — **CI/DX**:
+  wires the existing deterministic Playwright landing smoke into `ci.yml` as a blocking
+  gate, removes committed `.playwright-cli` scratch artifacts, and syncs `CLAUDE.md` /
+  `docs/TESTING.md`. Release-readiness hardening; no product source, no data/PII/auth
+  surface.
+
+The six source/dependency merges that land after the note commit:
 
 - **[PREPIO-172] `react-router-dom` 6 → 7 (#353)** — clears the two carried
   `react-router` advisories (open-redirect GHSA-wrjc-x8rr-h8h6 and the SSR-hydration
@@ -98,10 +118,15 @@ up from 5 — newly-disclosed toolchain CVEs, analysed below).
   ([`scripts/check-deno-baseline.sh`](../../scripts/check-deno-baseline.sh)):
   **not runnable in this environment** — the agent proxy blocks `esm.sh`/`deno.land`, so
   Deno cannot resolve the edge functions' remote imports; the script reports
-  `SKIPPED — this is not a pass` (exit 0 locally, `exit 1` under `$CI`). The range's
-  edge-function merges (#337, #351, #354, #360) each passed the real CI `verify` gate at
-  merge time (#351 specifically restored the deno ratchet to baseline after the ownership
-  guard). No new `supabase/functions` source is pushed this run.
+  `SKIPPED — this is not a pass` (exit 0 locally, `exit 1` under `$CI`). **Correction
+  after Codex review of this PR:** an earlier draft claimed each in-range edge-function
+  merge passed the `verify` gate at its own merge time — the repo history contradicts
+  that for #337, whose ownership guard introduced a Deno `TS2589` that the follow-up #351
+  (`restore Edge Function typecheck ratchet after ownership guard`) changed
+  `authorization.ts` specifically to clear. So the accurate statement is: the **final**
+  checked-in `supabase/functions` source is validated by #351's later green `verify` run
+  (and the subsequent #354/#360 runs), not by #337 passing the function check at its own
+  merge. No new `supabase/functions` source is pushed this run.
 - `npm run build`: **pass** (Vite + PWA, **41** precache entries, **1242.90 KiB**).
 - `npm test`: **pass** (**58 files, 483 tests**), incl. the legacy-schema,
   answer-feedback-schema, and design-token checks.
