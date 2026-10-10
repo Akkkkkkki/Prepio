@@ -84,12 +84,16 @@ High is **fixed in-repo** (deploy still pending its reconciliation issue):
   "logs counts without queries, answers, titles, or page text"). The raw-query console
   leak the run #27 Medium confirmed is gone.
 
-**Headline: the window closed four of the six items this series was carrying
+**Headline: the window closed four findings this series had been carrying
 (react-router, pdfjs, the SEARCH_COMPLETE PII leak, and — in repo — the PREPIO-143
 BOLA), introduced no new secret/PII/access regression, and tightened the auth and
-guest surfaces.** Two substantive items remain open (one High, one Medium), both
-unchanged service-source/owner-attended work out of scope for a docs-only hygiene run,
-and `npm audit` rose 5 → 18 — but **every one of the new advisories is in dev/build/test
+guest surfaces.** Three substantive items remain open (two High owner-attended, one
+Medium service-source), all out of scope for a docs-only hygiene run: the PREPIO-145
+CV-PII Git-history exposure (**confirmed still live this run** via a full clone — see the
+High below; an earlier draft wrongly called it "unverifiable"), the distinct PREPIO-168
+exposed-test-credential rotation (Codex-surfaced this run — a compromised password the
+history purge does not fix), and the evidence-ledger `official_company` over-trust.
+`npm audit` rose 5 → 18 — but **every one of the new advisories is in dev/build/test
 tooling or a surface-locked prod dependency; none reaches the production runtime in an
 exploitable path** (detail below). **No product-source change is warranted this run** —
 the FREEZE guardrail is explicit that routine dependency PRs are out of scope, the
@@ -152,27 +156,62 @@ up from 5 — newly-disclosed toolchain CVEs, analysed below).
 
 ### High
 
-- [ ] **Production CV PII may still be recoverable from Git history (PREPIO-145).**
-  *(Carried from run #27; **status could not be confirmed this run** — see evidence.)*
+- [ ] **Production CV PII is confirmed still recoverable from Git history (PREPIO-145).**
+  *(Carried from run #27; **confirmed still exposed this run via a full clone.** An earlier
+  draft of this note called the status "unverifiable from a shallow clone" — corrected after
+  Codex review of this PR, which pointed out the content-addressing proof and prompted a full
+  verification.)*
   - Evidence: PR #342 redacted ten audit screenshots in the working tree (the current
     `docs/audits/assets/2026-07-09/11-d-new-interview.png` is the 23,025-byte placeholder,
-    confirmed this run), but the pre-redaction blobs remained in history as of run #27. **This
-    session's clone is shallow** (`.git/shallow` present, 50 commits deep), so the
-    pre-redaction SHA run #27 cited (`5585fd4`) now reports `invalid object name` — this is
-    **consistent with either** a completed history purge **or** simply the shallow boundary,
-    and is **not** evidence either way. The redaction commit `da47d9e` is present; the parent
-    chain containing the original blobs is below the shallow horizon. *(PII not reproduced here
-    per the review's redaction rule.)*
-  - Risk: if the history rewrite has not been performed, real personal data remains publicly
-    fetchable by commit SHA on this public repo — a freeze-exit release blocker per the issue.
-  - Recommended fix: owner confirms whether the `git filter-repo`/BFG purge + coordinated
-    force-push has been completed; if not, perform it owner-attended (preserve a backup ref off
-    the public remote) plus the PR/comment exposure review the issue calls for. Verify the
-    identified blobs are gone from **all** refs afterward (a full, non-shallow clone is needed
-    to check). Do **not** run a history rewrite unattended.
+    confirmed this run), but the pre-redaction blobs remain in history. This session's clone
+    started shallow (depth 50), so `5585fd4` was initially unresolvable — but that is **not**
+    evidence of a purge: because a Git commit's hash commits to its entire ancestry, removing
+    `5585fd4` would necessarily change every descendant's hash, including the current `main`
+    HEAD `bccb67c`; an **unchanged** `bccb67c` therefore proves no purge occurred. Verified
+    directly this run by unshallowing (`git fetch --unshallow`):
+    `git merge-base --is-ancestor 5585fd4 bccb67c` **succeeds** (`5585fd4` is an ancestor of
+    the current reviewed `main` HEAD), and `git cat-file -s
+    5585fd4:docs/audits/assets/2026-07-09/11-d-new-interview.png` still returns the original
+    **146,389-byte** blob (vs the 23,025-byte redacted blob at `da47d9e`). The nine other paths
+    listed in #342 — and the wider inventory `docs/FREEZE_RELEASE.md` §1 calls for (deleted/
+    renamed images, the two removed in PR #298, every dated audit folder;
+    `docs/security/freeze-pii-paths.txt` is only a starting inventory) — are the same shape.
+    **This is a public repository**, so those blobs are fetchable by anyone with the commit
+    SHA. *(PII not reproduced here per the review's redaction rule.)*
+  - Risk: real personal data is **currently** publicly fetchable by commit SHA on a public
+    remote — a freeze-exit release blocker per the issue, not a contingent one.
+  - Recommended fix: owner-attended `git filter-repo`/BFG purge of the identified blobs across
+    all refs + coordinated force-push (preserve a backup ref off the public remote), plus the
+    PR/comment/fork/cached-view exposure review `FREEZE_RELEASE.md` §1 calls for. Verify the
+    blobs are gone from **all** refs afterward. Do **not** run a history rewrite unattended, and
+    not from this worktree (the doc says so explicitly).
   - Owner / next step: **PREPIO-145** (Urgent). Owner-attended; out of scope for an unattended
-    docs-only hygiene run (force-push history rewrite of a shared public repo). Next review
-    should re-verify against a full clone.
+    docs-only hygiene run (force-push history rewrite of a shared public repo). The exposure is
+    confirmed live — this is the top residual risk.
+
+- [ ] **The historical test-account credential is exposed in Git history and still needs
+  rotation (PREPIO-168).** *(Surfaced by Codex on this PR; a distinct owner action an earlier
+  draft folded into PREPIO-145. Verified against `FREEZE_RELEASE.md` and the prior audit trail.)*
+  - Evidence: run #23 (2026-08-19) found a real test-account email + password hard-coded as
+    `signInWithPassword` fallbacks in seven legacy Deno test files and removed the working-tree
+    fallbacks in-run (#302), but recorded that **the account is still in Git history and needs
+    owner rotation**. [`docs/FREEZE_RELEASE.md` §1](../FREEZE_RELEASE.md) (lines 42–45) makes
+    this an explicit, still-open owner gate — *"Rotate the historical test account's exposed
+    password through the Auth admin flow; revoke its sessions and review access/misuse … Password
+    changes alone do not prove old sessions/tokens are unusable"* — and the doc states
+    production credential rotation was **not verified** by any source change. A PREPIO-145
+    history purge or a generic "credential exposure review" does **not** invalidate an
+    already-compromised password: these are separate actions.
+  - Risk: an exposed, unrotated credential for a real account is directly usable until rotated
+    and its sessions revoked — higher-severity and more time-sensitive than the PII-blob read,
+    and not closed by the history rewrite. Not reproduced here per the redaction rule.
+  - Recommended fix: owner rotates the password via the Auth admin flow, revokes existing
+    sessions/tokens, records the revocation window, verifies access is denied after
+    expiry/revocation, and reviews the account for misuse — all per `FREEZE_RELEASE.md` §1. Keep
+    any evidence private; record only completion status.
+  - Owner / next step: **PREPIO-168** (Owner security/privacy gate). Owner-attended; cannot be
+    verified or performed from this environment (no production Auth access, and it must not be
+    done unattended). Must remain explicitly open until completion is confirmed.
 
 ### Medium
 
@@ -292,17 +331,23 @@ up from 5 — newly-disclosed toolchain CVEs, analysed below).
   (react-router, pdfjs, the SEARCH_COMPLETE PII leak, and — in repo — the PREPIO-143 BOLA)
   and introduced no fix candidate for this docs-only run. The `npm audit` jump is entirely
   dev/build/test tooling or a surface-locked prod dep with no production-exploitable path, and
-  the FREEZE guardrail explicitly excludes routine dependency PRs; the two substantive opens
-  (PREPIO-145 history purge, the `official_company` over-trust) are owner-attended /
-  service-source work. The note + the `docs/audits/README.md` index row are the deliverable.
+  the FREEZE guardrail explicitly excludes routine dependency PRs; the three substantive opens
+  (PREPIO-145 history purge, PREPIO-168 credential rotation, the `official_company` over-trust)
+  are owner-attended / service-source work. The note + the `docs/audits/README.md` index row
+  are the deliverable.
 
 ## Deferred items
 
 Tracked, Dependabot-surfaced, or owner-attended:
 
 - **PREPIO-145** — owner-attended Git-history purge of the production-CV screenshot blobs +
-  PII/credential exposure review (High/Urgent). Working-tree slice done (#342); history status
-  **unverifiable from this shallow clone** — needs owner confirmation / a full-clone re-check.
+  PII exposure review (High/Urgent). Working-tree slice done (#342); **history exposure
+  confirmed still live this run** (original 146,389-byte blob at `5585fd4`, an ancestor of
+  current `main`) — needs the owner-attended `filter-repo`/BFG rewrite + force-push.
+- **PREPIO-168** — owner-attended rotation of the exposed historical test-account credential
+  (High) — password rotation via the Auth admin flow, session/token revocation, misuse review
+  per `FREEZE_RELEASE.md` §1. Distinct from PREPIO-145; a history purge does not invalidate a
+  compromised password. Cannot be verified or done from this environment.
 - **PREPIO-124** — deploy the merged PREPIO-143 ownership fix (and the other merged
   ownership/privacy fixes) to production; the FREEZE live baseline shows deployed function
   versions still predate them. A repo merge does not repair the live functions.
@@ -322,14 +367,16 @@ Tracked, Dependabot-surfaced, or owner-attended:
 
 ## Questions for product owner
 
-- **Has the PREPIO-145 Git-history purge been completed?** It could not be verified from this
-  shallow clone (the run #27 pre-redaction SHA is below the shallow horizon). If not done, it
-  remains the highest-residual-risk open item (real CV PII publicly fetchable on a public repo)
-  and needs the owner-attended rewrite before any freeze-exit tag.
+- **PREPIO-145 and PREPIO-168 both need owner action before any freeze-exit tag.** The
+  PREPIO-145 CV-PII history exposure is **confirmed still live** this run (verified via a full
+  clone — the original blob is an ancestor of current `main`), and PREPIO-168's exposed
+  test-account credential is still unrotated per `FREEZE_RELEASE.md` §1. Neither can be done
+  from this environment (owner-attended history rewrite; production Auth rotation). Please
+  confirm when each is complete so a future review can close them.
 - **Linear free-issue cap** (recorded since 2026-07-29 and in run #27) still blocks filing the
-  one carried Medium (`official_company` over-trust) as a tracked issue — recorded in full here
-  instead. Clearing the cap would let hygiene findings live in Linear rather than only the audit
-  trail. Not otherwise blocking.
+  one carried Medium (`official_company` over-trust) and the Low `react-hooks` backlog as
+  tracked issues — recorded in full here instead. Clearing the cap would let hygiene findings
+  live in Linear rather than only the audit trail. Not otherwise blocking.
 
 ## Next review focus
 
@@ -338,9 +385,11 @@ Tracked, Dependabot-surfaced, or owner-attended:
    deployed versions predating them, so the BOLA is closed in repo but **not yet in
    production**. Re-audit `company-research`, `job-analysis`, and `cv-analysis` for the same
    object-ownership pattern while confirming.
-2. **PREPIO-145 Git-history purge** — re-verify against a **full (non-shallow) clone** whether
-   the pre-redaction CV-PII blobs are gone from all refs; it is the top residual risk and a
-   freeze-exit blocker.
+2. **PREPIO-145 Git-history purge and PREPIO-168 credential rotation** — the CV-PII blobs are
+   **confirmed still reachable from `main`** this run; after the owner-attended rewrite,
+   re-verify against a **full clone** that the blobs are gone from all refs. Separately confirm
+   the PREPIO-168 test-account password has been rotated and its sessions revoked (a purge does
+   not fix a compromised credential). These are the top residual risks and freeze-exit blockers.
 3. **Evidence-ledger `official_company` over-trust** — land the PSL-aware registrable-label fix
    with adversarial `company-token.attacker.example` tests, fold in the deferred `official_job`
    short-name/employer-domain follow-up, and re-audit the whole `classifyRetrievedSource` trust
