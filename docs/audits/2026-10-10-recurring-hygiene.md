@@ -199,12 +199,16 @@ up from 5 — newly-disclosed toolchain CVEs, analysed below).
     this an explicit, still-open owner gate — *"Rotate the historical test account's exposed
     password through the Auth admin flow; revoke its sessions and review access/misuse … Password
     changes alone do not prove old sessions/tokens are unusable"* — and the doc states
-    production credential rotation was **not verified** by any source change. A PREPIO-145
-    history purge or a generic "credential exposure review" does **not** invalidate an
-    already-compromised password: these are separate actions.
-  - Risk: an exposed, unrotated credential for a real account is directly usable until rotated
-    and its sessions revoked — higher-severity and more time-sensitive than the PII-blob read,
-    and not closed by the history rewrite. Not reproduced here per the redaction rule.
+    production credential rotation was **not verified** by any source change. Rotation and
+    session revocation are therefore **unverified from here**, not confirmed to have happened or
+    not: this environment has no production Auth access, so the credential must be **treated as
+    still usable until the owner confirms rotation**. A PREPIO-145 history purge or a generic
+    "credential exposure review" does **not** invalidate an already-compromised password: these
+    are separate actions.
+  - Risk: an exposed credential for a real account, if not yet rotated, is directly usable until
+    rotation and session revocation are done and confirmed — higher-severity and more
+    time-sensitive than the PII-blob read, and not closed by the history rewrite. Not reproduced
+    here per the redaction rule.
   - Recommended fix: owner rotates the password via the Auth admin flow, revokes existing
     sessions/tokens, records the revocation window, verifies access is denied after
     expiry/revocation, and reviews the account for misuse — all per `FREEZE_RELEASE.md` §1. Keep
@@ -346,8 +350,9 @@ Tracked, Dependabot-surfaced, or owner-attended:
   current `main`) — needs the owner-attended `filter-repo`/BFG rewrite + force-push.
 - **PREPIO-168** — owner-attended rotation of the exposed historical test-account credential
   (High) — password rotation via the Auth admin flow, session/token revocation, misuse review
-  per `FREEZE_RELEASE.md` §1. Distinct from PREPIO-145; a history purge does not invalidate a
-  compromised password. Cannot be verified or done from this environment.
+  per `FREEZE_RELEASE.md` §1. Rotation is **unverified from here** (no production Auth access);
+  treat the credential as usable until the owner confirms. Distinct from PREPIO-145; a history
+  purge does not invalidate a compromised password.
 - **PREPIO-124** — deploy the merged PREPIO-143 ownership fix (and the other merged
   ownership/privacy fixes) to production; the FREEZE live baseline shows deployed function
   versions still predate them. A repo merge does not repair the live functions.
@@ -370,9 +375,11 @@ Tracked, Dependabot-surfaced, or owner-attended:
 - **PREPIO-145 and PREPIO-168 both need owner action before any freeze-exit tag.** The
   PREPIO-145 CV-PII history exposure is **confirmed still live** this run (verified via a full
   clone — the original blob is an ancestor of current `main`), and PREPIO-168's exposed
-  test-account credential is still unrotated per `FREEZE_RELEASE.md` §1. Neither can be done
-  from this environment (owner-attended history rewrite; production Auth rotation). Please
-  confirm when each is complete so a future review can close them.
+  test-account credential has **no verified rotation** per `FREEZE_RELEASE.md` §1, so it must be
+  treated as usable until confirmed. Neither can be done or verified from this environment
+  (owner-attended history rewrite; production Auth rotation). Has the PREPIO-168 password been
+  rotated and its sessions revoked? Please confirm when each is complete so a future review can
+  close them.
 - **Linear free-issue cap** (recorded since 2026-07-29 and in run #27) still blocks filing the
   one carried Medium (`official_company` over-trust) and the Low `react-hooks` backlog as
   tracked issues — recorded in full here instead. Clearing the cap would let hygiene findings
