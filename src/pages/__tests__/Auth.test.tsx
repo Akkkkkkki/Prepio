@@ -181,8 +181,12 @@ describe("Auth page", () => {
       updatePassword: mockUpdatePassword, finishPasswordSetup,
     });
     renderAuth();
-    fireEvent.change(await screen.findByLabelText("New password"), { target: { value: "synthetic-new-password" } });
-    fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: "synthetic-new-password" } });
+    const newPasswordInput = await screen.findByLabelText("New password");
+    const confirmPasswordInput = screen.getByLabelText("Confirm new password");
+    expect(newPasswordInput).toHaveAttribute("autocomplete", "new-password");
+    expect(confirmPasswordInput).toHaveAttribute("autocomplete", "new-password");
+    fireEvent.change(newPasswordInput, { target: { value: "synthetic-new-password" } });
+    fireEvent.change(confirmPasswordInput, { target: { value: "synthetic-new-password" } });
     fireEvent.click(screen.getByRole("button", { name: "Set new password" }));
     await waitFor(() => expect(mockUpdatePassword).toHaveBeenCalledWith("synthetic-new-password"));
     expect(finishPasswordSetup).toHaveBeenCalledOnce();
@@ -229,6 +233,16 @@ describe("Auth page", () => {
     renderAuth();
     expect(screen.getByLabelText("Email")).toHaveAttribute("autocomplete", "email");
     expect(screen.getByLabelText("Password")).toHaveAttribute("autocomplete", "current-password");
+  });
+
+  it("marks reset and verification email fields for password managers", async () => {
+    renderAuth();
+
+    fireEvent.click(screen.getByRole("button", { name: "Forgot password?" }));
+    expect(await screen.findByLabelText("Email")).toHaveAttribute("autocomplete", "email");
+
+    fireEvent.click(screen.getByRole("button", { name: "Need another verification email?" }));
+    expect(await screen.findByLabelText("Email")).toHaveAttribute("autocomplete", "email");
   });
 
 });

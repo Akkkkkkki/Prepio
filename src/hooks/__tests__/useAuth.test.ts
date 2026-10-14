@@ -1,14 +1,18 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetSession = vi.fn();
+const mockOnAuthStateChange = vi.fn();
 const mockResetPasswordForEmail = vi.fn();
 const mockResend = vi.fn();
+type AuthTestSession = { access_token: string; user: { id: string } };
+type AuthStateCallback = (event: string, session: AuthTestSession | null) => void;
+let authStateCallback: AuthStateCallback | null = null;
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     auth: {
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: vi.fn() } } }),
+      onAuthStateChange: (...args: unknown[]) => mockOnAuthStateChange(...args),
       getSession: (...args: unknown[]) => mockGetSession(...args),
       resetPasswordForEmail: (...args: unknown[]) => mockResetPasswordForEmail(...args),
       resend: (...args: unknown[]) => mockResend(...args),
@@ -31,6 +35,11 @@ const loadUseAuthAt = async (url: string) => {
 describe("useAuth link handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authStateCallback = null;
+    mockOnAuthStateChange.mockImplementation((callback: AuthStateCallback) => {
+      authStateCallback = callback;
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    });
     mockGetSession.mockResolvedValue({ data: { session: null } });
     mockResetPasswordForEmail.mockResolvedValue({ error: null });
     mockResend.mockResolvedValue({ error: null });
@@ -95,6 +104,22 @@ describe("useAuth link handling", () => {
 
     expect(result.current.passwordSetupRequired).toBe(false);
     expect(result.current.authLinkChecking).toBe(false);
+    expect(result.current.authLinkError).toBeNull();
+  });
+
+  it("enters password setup when Supabase emits a genuine recovery event", async () => {
+    const { result } = await loadUseAuthAt("/auth");
+
+    act(() => {
+      authStateCallback?.("PASSWORD_RECOVERY", {
+        access_token: "recovery-event-token",
+        user: { id: "recovered-account" },
+      });
+    });
+
+    expect(result.current.passwordSetupRequired).toBe(true);
+    expect(result.current.user?.id).toBe("recovered-account");
+    expect(result.current.session?.access_token).toBe("recovery-event-token");
     expect(result.current.authLinkError).toBeNull();
   });
 });
