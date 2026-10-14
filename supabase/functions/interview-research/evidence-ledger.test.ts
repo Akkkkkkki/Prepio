@@ -154,6 +154,176 @@ describe("buildEvidenceLedger", () => {
     });
   });
 
+  it("rejects an attacker subdomain that merely embeds the company name", () => {
+    const ledger = buildEvidenceLedger({
+      company: "Acme",
+      jobRawData: {
+        results: [
+          // acme.attacker.example normalizes to a host containing "acme", but its
+          // registrable domain is attacker.example — an attacker can serve any
+          // subdomain there, so it must not inherit official-company high trust.
+          {
+            title: "Lookalike careers page",
+            url: "https://acme.attacker.example/careers/staff-engineer",
+            raw_content: "A careers-shaped page whose registrable domain is attacker.example.",
+          },
+        ],
+      },
+    });
+
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "acme.attacker.example",
+      trustWeight: "low",
+    });
+  });
+
+  it("matches the company against the registrable label, not any substring or subdomain", () => {
+    const ledger = buildEvidenceLedger({
+      company: "Acme",
+      companyResearchData: {
+        search_results: [
+          {
+            results: [
+              // Root employer domain.
+              {
+                title: "Acme newsroom",
+                url: "https://acme.com/newsroom",
+                content: "Acme announces hiring plans.",
+              },
+              // Employer domain on a multi-label ccTLD suffix — the registrable
+              // label is "acme", read past the co.uk public suffix.
+              {
+                title: "Acme UK careers",
+                url: "https://careers.acme.co.uk/roles",
+                content: "Acme UK is hiring engineers.",
+              },
+              // A different registrable domain that only contains the name as a
+              // substring must not be trusted as the employer.
+              {
+                title: "Unaffiliated fan blog",
+                url: "https://notacme.example/blog/interviews",
+                content: "A commentary site unaffiliated with Acme.",
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(ledger).toHaveLength(3);
+    expect(ledger[0]).toMatchObject({
+      sourceType: "official_company",
+      platform: "acme.com",
+      trustWeight: "high",
+    });
+    expect(ledger[1]).toMatchObject({
+      sourceType: "official_company",
+      platform: "careers.acme.co.uk",
+      trustWeight: "high",
+    });
+    expect(ledger[2]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "notacme.example",
+      trustWeight: "low",
+    });
+  });
+
+  it("matches employer domains that drop a generic word or fold separators", () => {
+    const ledger = buildEvidenceLedger({
+      companyResearchData: {
+        search_results: [
+          {
+            results: [
+              // "The Home Depot" drops the generic "the"; the domain concatenates
+              // only the significant words.
+              {
+                title: "Home Depot careers",
+                url: "https://careers.homedepot.com/roles",
+                content: "The Home Depot is hiring engineers.",
+              },
+            ],
+          },
+        ],
+      },
+      company: "The Home Depot",
+    });
+
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toMatchObject({
+      sourceType: "official_company",
+      platform: "careers.homedepot.com",
+      trustWeight: "high",
+    });
+
+    // A legal suffix the domain omits still resolves to the significant-word fold.
+    const legalName = buildEvidenceLedger({
+      company: "Berkshire Hathaway Inc",
+      jobRawData: {
+        results: [
+          {
+            title: "Investor relations",
+            url: "https://berkshirehathaway.com/news",
+            raw_content: "Berkshire Hathaway annual meeting details.",
+          },
+        ],
+      },
+    });
+    expect(legalName[0]).toMatchObject({
+      sourceType: "official_company",
+      platform: "berkshirehathaway.com",
+      trustWeight: "high",
+    });
+
+    // A hyphenated registrable label folds its separator before comparison.
+    const hyphenated = buildEvidenceLedger({
+      company: "Coca-Cola",
+      jobRawData: {
+        results: [
+          {
+            title: "Coca-Cola careers",
+            url: "https://www.coca-cola.com/careers",
+            raw_content: "Roles across the Coca-Cola system.",
+          },
+        ],
+      },
+    });
+    expect(hyphenated[0]).toMatchObject({
+      sourceType: "official_company",
+      platform: "coca-cola.com",
+      trustWeight: "high",
+    });
+  });
+
+  it("does not trust per-subdomain hosting platforms as official company origins", () => {
+    const ledger = buildEvidenceLedger({
+      company: "Acme",
+      companyResearchData: {
+        search_results: [
+          {
+            results: [
+              // Anyone can publish acme.github.io; the registrable owner is the
+              // platform, not the employer, so it stays market_heuristic.
+              {
+                title: "Community Acme guide",
+                url: "https://acme.github.io/interview-notes",
+                content: "A community-published page, not an official Acme site.",
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "acme.github.io",
+      trustWeight: "low",
+    });
+  });
+
   it("does not guess official origins for short employer names", () => {
     const ledger = buildEvidenceLedger({
       company: "GO",

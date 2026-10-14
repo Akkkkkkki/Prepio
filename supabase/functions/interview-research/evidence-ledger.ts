@@ -130,16 +130,93 @@ function companyWords(company: string): string[] {
     .split(/[^a-z0-9]+/);
 }
 
-function companyTokens(company: string): string[] {
-  const words = companyWords(company).filter(
-    (word) => word.length >= 3 && !COMPANY_SUFFIXES.has(word),
+interface CompanyMatchTargets {
+  // Individual significant words (≥3 chars, excluding generic company suffixes).
+  tokens: string[];
+  // Folded forms matched by exact equality only, so they never widen matching
+  // the way a substring would. Two variants cover how a domain concatenates a
+  // name: every word joined ("L'Oréal" -> "loreal") keeps a short leading word
+  // the domain still carries, and only the significant words joined ("The Home
+  // Depot" -> "homedepot", "Berkshire Hathaway Inc" -> "berkshirehathaway")
+  // drops a generic word the domain omits.
+  compacts: string[];
+}
+
+function companyMatchTargets(company: string): CompanyMatchTargets {
+  const words = companyWords(company).filter(Boolean);
+  const tokens = Array.from(
+    new Set(
+      words.filter((word) => word.length >= 3 && !COMPANY_SUFFIXES.has(word)),
+    ),
   );
-  const compact = words.join("");
-  return Array.from(new Set(compact ? [...words, compact] : words));
+  const compacts = Array.from(
+    new Set(
+      [words.join(""), tokens.join("")].filter((value) => value.length >= 3),
+    ),
+  );
+  return { tokens, compacts };
 }
 
 function isCommunityHost(host: string): boolean {
   return COMMUNITY_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
+// Multi-part public suffixes (eTLD depth 2) we recognize explicitly so the
+// registrable label of a ccTLD domain is read correctly: acme.co.uk -> "acme",
+// not "co". SOUNDNESS INVARIANT: every entry must be a *true* public suffix at
+// its full depth. A missing entry only ever makes us more conservative — we read
+// a shallower suffix, the company name fails to line up with the registrable
+// label, and the row falls through to market_heuristic — whereas a too-shallow
+// entry (e.g. listing "jp" when "go.jp" is the real suffix) would over-trust.
+const MULTIPART_PUBLIC_SUFFIXES = new Set([
+  "co.uk", "org.uk", "ac.uk", "gov.uk",
+  "com.au", "net.au", "org.au",
+  "co.jp", "go.jp", "ne.jp", "or.jp",
+  "co.nz", "co.in", "co.kr", "co.za",
+  "com.br", "com.cn", "com.sg", "com.hk", "com.mx", "com.tr",
+]);
+
+// Suffixes that delegate every subdomain to an arbitrary party (static-site and
+// app-hosting platforms). The label to their left identifies whoever registered
+// the page, not the employer, so a host under one of these carries no
+// official-company signal and falls through to market_heuristic. Listing a
+// suffix here only ever lowers trust, so the set is safe to extend.
+const DELEGATED_HOST_SUFFIXES = [
+  "github.io",
+  "gitlab.io",
+  "pages.dev",
+  "vercel.app",
+  "netlify.app",
+  "web.app",
+  "firebaseapp.com",
+  "herokuapp.com",
+  "wordpress.com",
+  "blogspot.com",
+  "notion.site",
+];
+
+// The registrable (eTLD+1) label of a host, or null when the host carries no
+// employer-ownership signal: a bare label, the public suffix itself, or a
+// per-subdomain delegated platform. This is the ownership boundary — an attacker
+// who controls attacker.example can serve acme.attacker.example, but its
+// registrable label is "attacker", never "acme".
+function registrableLabel(host: string): string | null {
+  if (!host || host === "user" || host === "unknown") return null;
+  if (
+    DELEGATED_HOST_SUFFIXES.some(
+      (suffix) => host === suffix || host.endsWith(`.${suffix}`),
+    )
+  ) {
+    return null;
+  }
+  const labels = host.split(".");
+  if (labels.length < 2) return null;
+  const suffixDepth = MULTIPART_PUBLIC_SUFFIXES.has(labels.slice(-2).join("."))
+    ? 2
+    : 1;
+  const registrableIndex = labels.length - suffixDepth - 1;
+  if (registrableIndex < 0) return null;
+  return labels[registrableIndex];
 }
 
 // Known applicant-tracking-system hosts. A retrieved row on one of these is a
@@ -172,18 +249,24 @@ function classifyRetrievedSource(
   const host = hostFor(url);
   if (isCommunityHost(host)) return "public_report";
 
-  const normalizedHost = host.replace(/[^a-z0-9]/g, "");
-  if (companyTokens(company).some((token) => normalizedHost.includes(token))) {
-    return "official_company";
+  // Grant official-company trust only when the company name matches the host's
+  // *registrable* label, never any label. Matching a substring of the whole host
+  // (the previous behaviour) trusted acme.attacker.example because it contains
+  // "acme"; matching the registrable label trusts acme.com and careers.acme.com
+  // but reads acme.attacker.example as "attacker" and lets it fall through.
+  const registrable = registrableLabel(host);
+  if (registrable) {
+    // Fold the label the same way company names are folded (strip separators, so
+    // coca-cola -> cocacola) so a hyphenated employer domain still lines up.
+    const normalizedLabel = registrable.replace(/[^a-z0-9]/g, "");
+    const { tokens, compacts } = companyMatchTargets(company);
+    // Exact label equality. A short employer name (X, BP) still falls through:
+    // its only token is dropped (<3 chars) and the compacts are guarded to ≥3, so
+    // a two-letter name can't collide with a two-letter registrable label.
+    if (tokens.includes(normalizedLabel) || compacts.includes(normalizedLabel)) {
+      return "official_company";
+    }
   }
-
-  // A short employer name (X, BP, 3M) on its own root domain can't be matched
-  // reliably here: companyTokens drops sub-3-char tokens, and comparing the name
-  // to a host's registrable label needs full Public Suffix List parsing to be
-  // sound — a hand-rolled suffix list mis-reads unlisted multipart suffixes
-  // (e.g. digital.go.jp would read `go`, colliding with company "GO"). Rather
-  // than risk that over-trust, such rows fall through to market_heuristic. PSL-
-  // aware short-name/employer-domain matching is tracked as follow-up work.
 
   if (isJobPosting(url)) return "official_job";
   return "market_heuristic";
