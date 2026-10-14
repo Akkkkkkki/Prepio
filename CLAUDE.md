@@ -36,7 +36,7 @@ npm run dev          # Dev server on port 5173
 npm run build        # Production build
 npm run lint         # ESLint (informational in CI; has pre-existing failures, don't assume yours caused them)
 npm test             # Vitest + schema checks — 427 tests / 49 files green on main
-npm run typecheck    # CI gate: tsc error-count ratchet (app baseline 62, node 0)
+npm run typecheck    # CI gate: tsc error-count ratchet (app baseline 61, node 0)
 npm run typecheck:functions  # CI gate: deno check over supabase/functions (needs egress)
 npm run test:e2e     # Playwright landing smoke — blocking CI gate (PREPIO-135)
 npm run preview      # Preview production build
