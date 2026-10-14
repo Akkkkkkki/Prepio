@@ -115,10 +115,11 @@ removed billing/voice/upload surfaces). Tests **494** passing / **58** files (up
 **No product-source change made.** This run's deliverables are documentation only: this
 note, the `docs/audits/README.md` index row, and one small doc-accuracy fix to
 [`CLAUDE.md`](../../CLAUDE.md) (the typecheck-baseline line said "app baseline 62"; the
-script's real ratchet is `APP_BASELINE=61`). The one new >30-min deferred finding was
-also **filed in Linear as [PREPIO-184](https://linear.app/qiuyue/issue/PREPIO-184)** per
-the hygiene-review intake rule (`CLAUDE.md:238-253`) — prior runs' "free-issue cap" did
-not apply this run. All respect the active freeze (no features, no routine dependency
+script's real ratchet is `APP_BASELINE=61`). The one >30-min deferred finding that still
+lacked a tracking issue (the `official_company` over-trust, **carried** unchanged from
+2026-09-12, not new this run) was **filed in Linear as
+[PREPIO-184](https://linear.app/qiuyue/issue/PREPIO-184)** per the hygiene-review intake
+rule (`CLAUDE.md:238-253`) — prior runs' "free-issue cap" did not apply this run. All respect the active freeze (no features, no routine dependency
 PRs, no schema/auth/flow changes).
 
 ## Commands run
@@ -257,8 +258,8 @@ PRs, no schema/auth/flow changes).
   product behavior.
 - **This note + `docs/audits/README.md` index row.**
 - **Filed [PREPIO-184](https://linear.app/qiuyue/issue/PREPIO-184)** for the
-  evidence-ledger `official_company` over-trust (the one new >30-min deferred finding),
-  per `CLAUDE.md:238-253`.
+  evidence-ledger `official_company` over-trust (carried from 2026-09-12, newly *tracked*
+  this run — the finding is not new), per `CLAUDE.md:238-253`.
 - No product source, dependency manifest, lockfile, migration, config, auth, or flow
   changed — the freeze guardrails (no features, no routine dependency PRs) and the
   blocked `npm audit fix` leave the note as the deliverable.
@@ -299,7 +300,8 @@ PRs, no schema/auth/flow changes).
   owner-attended history purge is the blocker; nothing here can or should rewrite the
   public repo's history unattended.
 - **The "Linear free-issue cap" that prior runs cited was not in force this run.** The
-  one new trackable finding was filed without obstacle as
+  one carried finding still lacking a tracking issue (the `official_company` over-trust,
+  from 2026-09-12) was filed without obstacle as
   [PREPIO-184](https://linear.app/qiuyue/issue/PREPIO-184). Prior notes that recorded
   findings as unfilable "due to the cap" may be worth revisiting — the cap claim looks
   stale.
