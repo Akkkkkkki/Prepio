@@ -289,6 +289,36 @@ describe("Home flow", () => {
     expect(screen.queryByText("How it works")).not.toBeInTheDocument();
   });
 
+  it.each([true, false])(
+    "does not advertise frozen resume uploads in offline guidance (mobile=%s)",
+    async (mobile) => {
+      mockUseIsMobile.mockReturnValue(mobile);
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
+      mockNetworkStatus.isOnline = false;
+      mockNetworkStatus.isOffline = true;
+
+      if (mobile) {
+        window.sessionStorage.setItem(
+          RESEARCH_DRAFT_STORAGE_KEY,
+          JSON.stringify({
+            company: "Stripe",
+            role: "Product Manager",
+            country: "United States",
+            cv: "",
+            roleLinks: "",
+            step: "tailoring",
+            savedAt: "2026-04-03T18:00:00.000Z",
+          }),
+        );
+      }
+
+      renderHome();
+
+      expect(await screen.findByText(/Reconnect.*start research/)).toBeInTheDocument();
+      expect(screen.queryByText(/Resume files.*locally/i)).not.toBeInTheDocument();
+    },
+  );
+
   it("submits the mobile flow for signed-in users and clears any saved draft", async () => {
     mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
     window.sessionStorage.setItem(
