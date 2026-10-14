@@ -115,8 +115,11 @@ removed billing/voice/upload surfaces). Tests **494** passing / **58** files (up
 **No product-source change made.** This run's deliverables are documentation only: this
 note, the `docs/audits/README.md` index row, and one small doc-accuracy fix to
 [`CLAUDE.md`](../../CLAUDE.md) (the typecheck-baseline line said "app baseline 62"; the
-script's real ratchet is `APP_BASELINE=61`). All respect the active freeze (no features,
-no routine dependency PRs, no schema/auth/flow changes).
+script's real ratchet is `APP_BASELINE=61`). The one new >30-min deferred finding was
+also **filed in Linear as [PREPIO-184](https://linear.app/qiuyue/issue/PREPIO-184)** per
+the hygiene-review intake rule (`CLAUDE.md:238-253`) — prior runs' "free-issue cap" did
+not apply this run. All respect the active freeze (no features, no routine dependency
+PRs, no schema/auth/flow changes).
 
 ## Commands run
 
@@ -190,11 +193,13 @@ no routine dependency PRs, no schema/auth/flow changes).
     PSL-aware), mirroring the ATS exact/suffix approach `isJobPosting` already uses; add
     adversarial tests rejecting `company-token.attacker.example` subdomains; fold in the
     deferred `official_job` short-name/employer-domain follow-up.
-  - Owner / next step: file as `Bug` + `area:research-pipeline` (Quality & Maintenance),
-    cross-linked to PREPIO-144 and this audit, **if the Linear free-issue cap allows**
-    (prior runs recorded the cap blocking intake). Recorded here in full regardless.
-    Out of scope for a docs-only hygiene run and not validatable in this proxy-limited
-    environment.
+  - Owner / next step: **filed as [PREPIO-184](https://linear.app/qiuyue/issue/PREPIO-184)**
+    (`Chore` + `area:research-pipeline`, Quality & Maintenance, Medium, related to
+    PREPIO-144, cross-linked to this audit and PR #374). The prior runs' "Linear
+    free-issue cap" was not in force this run — the issue was created without obstacle.
+    The fix itself is a service-source edge-function change, out of scope for a docs-only
+    hygiene run and not validatable in this proxy-limited environment, so it stays in
+    PREPIO-184 for a dedicated PR.
 
 - [ ] **`mammoth` DOCX-parser advisory chain (`argparse` 1.x, `sprintf-js`) — new in
   `npm audit`, but inert behind the freeze upload gate.** *(New this window.)*
@@ -251,15 +256,19 @@ no routine dependency PRs, no schema/auth/flow changes).
   (`scripts/check-typecheck-baseline.sh` → `APP_BASELINE=61`). One-line docs fix; no
   product behavior.
 - **This note + `docs/audits/README.md` index row.**
+- **Filed [PREPIO-184](https://linear.app/qiuyue/issue/PREPIO-184)** for the
+  evidence-ledger `official_company` over-trust (the one new >30-min deferred finding),
+  per `CLAUDE.md:238-253`.
 - No product source, dependency manifest, lockfile, migration, config, auth, or flow
   changed — the freeze guardrails (no features, no routine dependency PRs) and the
   blocked `npm audit fix` leave the note as the deliverable.
 
 ## Deferred items
 
-- **Evidence-ledger `official_company` over-trust** (Medium) — file against Quality &
-  Maintenance (`Bug` + `area:research-pipeline`), cross-linked to PREPIO-144 + this
-  audit, if the Linear free-issue cap allows; recorded in full above regardless.
+- **Evidence-ledger `official_company` over-trust** (Medium) — **filed as
+  [PREPIO-184](https://linear.app/qiuyue/issue/PREPIO-184)** (`Chore` +
+  `area:research-pipeline`, Quality & Maintenance, related to PREPIO-144, cross-linked to
+  this audit and PR #374). Awaiting a dedicated service-source PR.
 - **PREPIO-145** — owner-attended Git-history CV-PII purge; **re-confirmed exposed this
   run** (the un-redacted 146,389-byte blob is still reachable from the PR base). Still
   owed and unattended-out-of-scope.
@@ -289,9 +298,11 @@ no routine dependency PRs, no schema/auth/flow changes).
 - **PREPIO-145 is confirmed still exposed** (not merely owed a check) — the
   owner-attended history purge is the blocker; nothing here can or should rewrite the
   public repo's history unattended.
-- **Linear free-issue cap** (noted by prior runs) — if still in force, the one new
-  trackable finding (evidence-ledger over-trust) stays recorded in this note only.
-  Clearing the cap would let it live in the backlog.
+- **The "Linear free-issue cap" that prior runs cited was not in force this run.** The
+  one new trackable finding was filed without obstacle as
+  [PREPIO-184](https://linear.app/qiuyue/issue/PREPIO-184). Prior notes that recorded
+  findings as unfilable "due to the cap" may be worth revisiting — the cap claim looks
+  stale.
 
 ## Next review focus
 
