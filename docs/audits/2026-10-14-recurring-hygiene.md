@@ -92,13 +92,17 @@ warranted for advisories with no production runtime exposure.
   PSL-aware registrable-label matching as follow-up. Service-source edge-function change,
   out of scope for a docs-only hygiene run and not validatable here (the agent proxy
   blocks the Deno remote-import typecheck).
-- **PREPIO-145 — production CV PII recoverable from Git history (High)** — **could not
-  be verified this run**: the review environment is a **shallow clone (50 commits)**, so
-  the pre-redaction blob SHA (`5585fd4`) the 2026-09-12 run cited is simply absent from
-  this clone (`git rev-parse 5585fd4:…` → "invalid object name"), which proves neither
-  remediation nor continued exposure. The working-tree screenshots are the redacted
-  versions (#342). Status unchanged: owner-attended `git filter-repo`/BFG history purge,
-  tracked under PREPIO-145. A full-clone verification is owed (next-focus item).
+- **PREPIO-145 — production CV PII is CONFIRMED still recoverable from Git history
+  (High).** *(Re-verified exposed this run — corrected after Codex review of this PR;
+  an initial draft understated it as "unverifiable" because the review started on a
+  shallow 50-commit clone.)* After `git fetch --unshallow`, the 2026-09-12 run's claim
+  holds: `git merge-base --is-ancestor 5585fd4 a330939` **succeeds** (the blob's commit
+  is in the PR base's ancestry) and
+  `git rev-parse 5585fd4:docs/audits/assets/2026-07-09/11-d-new-interview.png` resolves
+  to blob `3a6f18c6` at **146,389 bytes** — the original un-redacted CV screenshot (vs
+  the 23,025-byte redacted working-tree version from #342). This is a **public repo**, so
+  the blob is fetchable by anyone with the SHA. A freeze-exit release blocker; the
+  owner-attended `git filter-repo`/BFG history purge is still required and not yet done.
 
 **Baselines (HEAD `a330939`; deltas vs 2026-09-12):** lint **49** problems (40 errors,
 9 warnings; **−3 errors** vs 52 — the freeze deletions in `Home.tsx`/`Practice.tsx`
@@ -143,22 +147,26 @@ no routine dependency PRs, no schema/auth/flow changes).
 
 ### High
 
-- [ ] **Production CV PII may still be recoverable from Git history (PREPIO-145) —
-  unverifiable this run.** *(Carried; could not be re-confirmed in a shallow clone.)*
-  - Evidence: the 2026-09-12 run confirmed the pre-redaction blob resolvable at
-    `git rev-parse 5585fd4:docs/audits/assets/2026-07-09/11-d-new-interview.png`. This
-    environment is a **shallow clone** (`git rev-parse --is-shallow-repository` → `true`;
-    `git rev-list --count HEAD` → 50), so `5585fd4` is absent (`invalid object name`) and
-    the history state cannot be determined either way. The working-tree screenshots are
-    the redacted versions from #342.
-  - Risk: if the history purge has not happened, real personal data remains publicly
-    fetchable by commit SHA on a public repo — a freeze-exit release blocker.
-  - Recommended fix: verify against a **full clone** whether the identified blobs are
-    gone from all refs; if not, owner-attended `git filter-repo`/BFG purge + coordinated
-    force-push, preserving an off-remote backup ref. Do **not** run a history rewrite
-    unattended.
-  - Owner / next step: **PREPIO-145** (owner-attended). No new issue filed; a full-clone
-    verification is the next-review action.
+- [ ] **Production CV PII is CONFIRMED still recoverable from Git history
+  (PREPIO-145).** *(Re-verified exposed this run — initial draft understated this as
+  "unverifiable" on a shallow clone; corrected after Codex review of this PR.)*
+  - Evidence: the review began on a **shallow clone** (50 commits), where `5585fd4` was
+    absent. After `git fetch --unshallow`, the 2026-09-12 claim was re-confirmed against
+    full history: `git merge-base --is-ancestor 5585fd4 a330939` **succeeds** (so the
+    pre-redaction commit is reachable from the PR base `a330939`), and
+    `git rev-parse 5585fd4:docs/audits/assets/2026-07-09/11-d-new-interview.png` resolves
+    to blob `3a6f18c6` at **146,389 bytes** — the original un-redacted CV screenshot, vs
+    the 23,025-byte redacted working-tree version from #342. The nine other paths listed
+    in #342 are the same shape. *(PII not reproduced here per the review's redaction
+    rule.)*
+  - Risk: real personal data remains publicly fetchable by commit SHA on a **public
+    repo** until history is rewritten — a freeze-exit release blocker per the issue.
+  - Recommended fix: owner-attended `git filter-repo`/BFG purge of the identified blobs +
+    coordinated force-push, preserving an off-remote backup ref, plus the PR/comment
+    exposure review the issue calls for. Do **not** run a history rewrite unattended.
+  - Owner / next step: **PREPIO-145** (owner-attended). Already tracked with a full
+    remediation plan; no new issue filed. Out of scope for an unattended hygiene run
+    (force-push history rewrite of a shared public repo).
 
 ### Medium
 
@@ -252,8 +260,9 @@ no routine dependency PRs, no schema/auth/flow changes).
 - **Evidence-ledger `official_company` over-trust** (Medium) — file against Quality &
   Maintenance (`Bug` + `area:research-pipeline`), cross-linked to PREPIO-144 + this
   audit, if the Linear free-issue cap allows; recorded in full above regardless.
-- **PREPIO-145** — owner-attended Git-history CV-PII purge; verify on a full clone
-  (shallow clone here could not confirm state).
+- **PREPIO-145** — owner-attended Git-history CV-PII purge; **re-confirmed exposed this
+  run** (the un-redacted 146,389-byte blob is still reachable from the PR base). Still
+  owed and unattended-out-of-scope.
 - **`mammoth` / dev-build-tooling advisories** — Dependabot-surfaced; no production
   runtime exposure while the freeze gates upload off; `npm audit fix` blocked locally by
   the `edgesOut` bug.
@@ -264,18 +273,32 @@ no routine dependency PRs, no schema/auth/flow changes).
 
 ## Questions for product owner
 
-- **PREPIO-145 history state cannot be verified from this shallow clone.** If the
-  owner-attended purge has already run, say so and the finding closes; otherwise a
-  full-clone verification + purge is still owed. (Not otherwise blocking — tracked.)
+- **Should the recurring hygiene review keep running during the freeze? (policy
+  tension, raised by Codex on this PR.)** `CLAUDE.md` (lines 24-27, added 2026-09-22 by
+  #354 — *after* runs #26/#27 landed, so this is the first hygiene run under it) says
+  "Do not add features, **recurring audits** or routine dependency PRs." Codex reads
+  this as prohibiting this note. The scheduled recurring-review task, by contrast,
+  mandates a dated note each run, and `docs/audits/` holds 27 prior entries as an
+  established security practice. This run was kept because it surfaces a **confirmed
+  High security exposure** (PREPIO-145), which the freeze explicitly wants surfaced
+  ("Fix obvious security issues"), and it is docs-only. **Owner decision needed:** if
+  the freeze means to pause the hygiene *cadence* (deferring routine notes while keeping
+  ad-hoc security surfacing), say so and future runs will post findings only when a
+  confirmed security/reliability issue exists, skipping the routine ceremony; otherwise
+  the established cadence continues. Recorded so the rule is set once, not re-litigated.
+- **PREPIO-145 is confirmed still exposed** (not merely owed a check) — the
+  owner-attended history purge is the blocker; nothing here can or should rewrite the
+  public repo's history unattended.
 - **Linear free-issue cap** (noted by prior runs) — if still in force, the one new
   trackable finding (evidence-ledger over-trust) stays recorded in this note only.
   Clearing the cap would let it live in the backlog.
 
 ## Next review focus
 
-1. **Verify PREPIO-145 on a full (non-shallow) clone** — the highest-residual-risk open
-   item and the one this run could not attest. Confirm whether the pre-redaction CV blobs
-   are gone from all refs; if not, track the owner-attended purge.
+1. **Track the PREPIO-145 history purge to completion** — the highest-residual-risk open
+   item, re-confirmed exposed this run (the un-redacted blob is reachable from the PR
+   base). After the owner-attended `git filter-repo`/BFG purge + force-push, verify the
+   identified blobs are gone from all refs.
 2. **Land the evidence-ledger `official_company` PSL-aware fix** — registrable-label
    match + adversarial `company-token.attacker.example` tests, folding in the deferred
    `official_job` short-name/employer-domain follow-up; then re-audit the whole
