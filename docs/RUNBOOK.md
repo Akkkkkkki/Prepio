@@ -266,14 +266,16 @@ Operational check:
 
 ## Edge Function Auth Posture
 
-All Edge Functions run with `verify_jwt = false` (see [`supabase/config.toml`](../supabase/config.toml)) and enforce their own caller checks via [`supabase/functions/_shared/auth.ts`](../supabase/functions/_shared/auth.ts).
+Authenticated function handlers use [`supabase/functions/_shared/auth.ts`](../supabase/functions/_shared/auth.ts); the Stripe webhook verifies a signature. The legacy `research-preview` handler is an explicit exception: it accepts unauthenticated requests and performs neither shared bearer authorization nor Stripe signature verification. Its gateway JWT verification is also disabled; rate limiting is not authorization.
 
-Three classes of public entry point:
+[`supabase/config.toml`](../supabase/config.toml) disables gateway JWT verification for its listed functions and has no entry for `interview-question-generator`. The read-only production inventory on 2026-10-14 reported gateway verification enabled for that endpoint and disabled for the other four deployed core functions. All five deployed core functions require handler authorization regardless of the gateway setting.
 
-- **Service-only sub-functions.** `company-research`, `job-analysis`, `cv-analysis`, and `interview-question-generator` are invoked by `interview-research` using the service-role bearer. They call `authorizeRequest` and reject anything that isn't `kind: "service"` with a 403. Direct anon invocations are rejected before any OpenAI/Tavily call or service-role DB write.
-- **User-scoped functions.** `interview-research`, `answer-feedback`, `practice-audio-transcribe`, `create-checkout-session`, `create-portal-session`, and `profile-import` require a user JWT.
-- **Genuinely public function.** `research-preview` stays unauthenticated by product design (guest preview). It is rate-limited per fingerprint via `research_preview_rate_limits`. The fingerprint is the gateway-set `x-forwarded-for` first IP only — client-controlled headers like `x-preview-session` and `user-agent` are deliberately excluded from the key, because including any client-controllable signal lets a single attacker rotate the header and land in fresh rate-limit rows (PREPIO-61).
-- **Signed function.** `stripe-webhook` verifies Stripe's signature instead of a JWT.
+The source contains four entry-point classes. Deployment is separately limited by [the freeze manifest](../supabase/freeze-functions.json) and [release runbook](./FREEZE_RELEASE.md); source presence does not mean an endpoint is deployed.
+
+- **Service-only functions.** `company-research` and `job-analysis` are invoked by `interview-research` using the service-role bearer. `interview-question-generator` also calls `authorizeRequest` and `ensureServiceCaller`, rejecting ordinary user callers with 403, but has **no production/application caller**: the live pipeline generates questions inline. The legacy Deno suite, `tests/unit/test_edge_functions/test_06_question_generator.ts`, invokes it directly. It remains a standalone endpoint for potential external/operator use; keep-or-remove is tracked in PREPIO-153/PREPIO-87.
+- **User-scoped functions.** `interview-research`, `cv-analysis`, `answer-feedback`, `practice-audio-transcribe`, `create-checkout-session`, `create-portal-session`, and `profile-import` accept authenticated users through their handler checks. `cv-analysis` also accepts the orchestrator's service-role bearer; for a user caller it requires the body `userId` to match the authenticated user. It is not service-only. Frozen client-service guards disable direct CV import, and only the five manifest functions are approved for deployment.
+- **Legacy public preview.** `research-preview` implements an unauthenticated, fingerprint-rate-limited endpoint. The frozen product uses a deterministic local sample instead; this function is excluded from deployment and the old client method fails closed. If deliberately restored later, its rate-limit key uses the gateway-set `x-forwarded-for` first IP, not rotatable client headers (PREPIO-61).
+- **Signed function.** `stripe-webhook` verifies Stripe's signature instead of a JWT. It is excluded from the frozen deployment.
 
 ### Allowed origins (CORS)
 
