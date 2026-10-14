@@ -133,10 +133,13 @@ function companyWords(company: string): string[] {
 interface CompanyMatchTargets {
   // Individual significant words (≥3 chars, excluding generic company suffixes).
   tokens: string[];
-  // All words folded together, including dropped short words and suffixes
-  // ("L'Oréal" -> "loreal", "Acme Corp" -> "acmecorp"). Matched by exact
-  // equality only, so it never widens matching the way a substring would.
-  compact: string;
+  // Folded forms matched by exact equality only, so they never widen matching
+  // the way a substring would. Two variants cover how a domain concatenates a
+  // name: every word joined ("L'Oréal" -> "loreal") keeps a short leading word
+  // the domain still carries, and only the significant words joined ("The Home
+  // Depot" -> "homedepot", "Berkshire Hathaway Inc" -> "berkshirehathaway")
+  // drops a generic word the domain omits.
+  compacts: string[];
 }
 
 function companyMatchTargets(company: string): CompanyMatchTargets {
@@ -146,7 +149,12 @@ function companyMatchTargets(company: string): CompanyMatchTargets {
       words.filter((word) => word.length >= 3 && !COMPANY_SUFFIXES.has(word)),
     ),
   );
-  return { tokens, compact: words.join("") };
+  const compacts = Array.from(
+    new Set(
+      [words.join(""), tokens.join("")].filter((value) => value.length >= 3),
+    ),
+  );
+  return { tokens, compacts };
 }
 
 function isCommunityHost(host: string): boolean {
@@ -248,11 +256,14 @@ function classifyRetrievedSource(
   // but reads acme.attacker.example as "attacker" and lets it fall through.
   const registrable = registrableLabel(host);
   if (registrable) {
-    const { tokens, compact } = companyMatchTargets(company);
+    // Fold the label the same way company names are folded (strip separators, so
+    // coca-cola -> cocacola) so a hyphenated employer domain still lines up.
+    const normalizedLabel = registrable.replace(/[^a-z0-9]/g, "");
+    const { tokens, compacts } = companyMatchTargets(company);
     // Exact label equality. A short employer name (X, BP) still falls through:
-    // its only token is dropped (<3 chars) and `compact` is guarded to ≥3 so a
-    // two-letter name can't collide with a two-letter registrable label.
-    if (tokens.includes(registrable) || (compact.length >= 3 && compact === registrable)) {
+    // its only token is dropped (<3 chars) and the compacts are guarded to ≥3, so
+    // a two-letter name can't collide with a two-letter registrable label.
+    if (tokens.includes(normalizedLabel) || compacts.includes(normalizedLabel)) {
       return "official_company";
     }
   }

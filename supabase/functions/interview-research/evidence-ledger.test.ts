@@ -230,6 +230,72 @@ describe("buildEvidenceLedger", () => {
     });
   });
 
+  it("matches employer domains that drop a generic word or fold separators", () => {
+    const ledger = buildEvidenceLedger({
+      companyResearchData: {
+        search_results: [
+          {
+            results: [
+              // "The Home Depot" drops the generic "the"; the domain concatenates
+              // only the significant words.
+              {
+                title: "Home Depot careers",
+                url: "https://careers.homedepot.com/roles",
+                content: "The Home Depot is hiring engineers.",
+              },
+            ],
+          },
+        ],
+      },
+      company: "The Home Depot",
+    });
+
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toMatchObject({
+      sourceType: "official_company",
+      platform: "careers.homedepot.com",
+      trustWeight: "high",
+    });
+
+    // A legal suffix the domain omits still resolves to the significant-word fold.
+    const legalName = buildEvidenceLedger({
+      company: "Berkshire Hathaway Inc",
+      jobRawData: {
+        results: [
+          {
+            title: "Investor relations",
+            url: "https://berkshirehathaway.com/news",
+            raw_content: "Berkshire Hathaway annual meeting details.",
+          },
+        ],
+      },
+    });
+    expect(legalName[0]).toMatchObject({
+      sourceType: "official_company",
+      platform: "berkshirehathaway.com",
+      trustWeight: "high",
+    });
+
+    // A hyphenated registrable label folds its separator before comparison.
+    const hyphenated = buildEvidenceLedger({
+      company: "Coca-Cola",
+      jobRawData: {
+        results: [
+          {
+            title: "Coca-Cola careers",
+            url: "https://www.coca-cola.com/careers",
+            raw_content: "Roles across the Coca-Cola system.",
+          },
+        ],
+      },
+    });
+    expect(hyphenated[0]).toMatchObject({
+      sourceType: "official_company",
+      platform: "coca-cola.com",
+      trustWeight: "high",
+    });
+  });
+
   it("does not trust per-subdomain hosting platforms as official company origins", () => {
     const ledger = buildEvidenceLedger({
       company: "Acme",
