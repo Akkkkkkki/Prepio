@@ -266,7 +266,9 @@ Operational check:
 
 ## Edge Function Auth Posture
 
-Edge Function handlers enforce caller checks through [`supabase/functions/_shared/auth.ts`](../supabase/functions/_shared/auth.ts), or a Stripe signature for the webhook. [`supabase/config.toml`](../supabase/config.toml) disables gateway JWT verification for its listed functions; it has no entry for `interview-question-generator`. The read-only production inventory on 2026-10-14 still reported gateway verification enabled for that endpoint and disabled for the other four deployed core functions. Handler authorization is required in either case.
+Authenticated function handlers use [`supabase/functions/_shared/auth.ts`](../supabase/functions/_shared/auth.ts); the Stripe webhook verifies a signature. The legacy `research-preview` handler is an explicit exception: it accepts unauthenticated requests and performs neither shared bearer authorization nor Stripe signature verification. Its gateway JWT verification is also disabled; rate limiting is not authorization.
+
+[`supabase/config.toml`](../supabase/config.toml) disables gateway JWT verification for its listed functions and has no entry for `interview-question-generator`. The read-only production inventory on 2026-10-14 reported gateway verification enabled for that endpoint and disabled for the other four deployed core functions. All five deployed core functions require handler authorization regardless of the gateway setting.
 
 The source contains four entry-point classes. Deployment is separately limited by [the freeze manifest](../supabase/freeze-functions.json) and [release runbook](./FREEZE_RELEASE.md); source presence does not mean an endpoint is deployed.
 
