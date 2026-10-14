@@ -1105,6 +1105,7 @@ export const searchService = {
 
   async uploadPracticeAudio(file: File, path: string) {
     try {
+      if (!FROZEN_PRODUCT.voice) throw new Error("Voice practice is unavailable.");
       const { data, error } = await supabase.storage
         .from(PRACTICE_AUDIO_BUCKET)
         .upload(path, file, {
@@ -1193,6 +1194,7 @@ export const searchService = {
 
   async analyzeCV(cvText: string) {
     try {
+      if (!FROZEN_PRODUCT.resumeUpload) throw new Error("Resume import is unavailable.");
       const user = await getCurrentUser();
       
       const response = await supabase.functions.invoke("cv-analysis", {
@@ -1217,6 +1219,7 @@ export const searchService = {
 
   async uploadResumeFile(file: File, path: string) {
     try {
+      if (!FROZEN_PRODUCT.resumeUpload) throw new Error("Resume upload is unavailable.");
       const { data, error } = await supabase.storage
         .from(RESUME_FILES_BUCKET)
         .upload(path, file, {
