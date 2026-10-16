@@ -60,4 +60,47 @@ describe("parseJsonResponse", () => {
       { contentType: "undefined", contentLength: 0 },
     );
   });
+
+  // PREPIO-132 Part 1: treat the model as a hostile input source. These are
+  // malformed/edge response shapes a real model can emit; each must fall back
+  // safely rather than crash or silently hand a caller a non-object.
+  describe("hostile model response shapes", () => {
+    it("coalesces a literal JSON null to the fallback", () => {
+      // `null` parses successfully, so it bypasses the catch; without the
+      // coalesce it would reach an object-expecting caller (job-analysis,
+      // answer-feedback, …) and crash on the first property access.
+      const fallback = { technical_skills: [] as string[] };
+      expect(parseJsonResponse("null", fallback)).toBe(fallback);
+    });
+
+    it("coalesces a null wrapped in markdown fences to the fallback", () => {
+      const fallback = { items: [] as string[] };
+      expect(parseJsonResponse("```json\nnull\n```", fallback)).toBe(fallback);
+    });
+
+    it("preserves a null fallback for a null response (interview-research contract)", () => {
+      // interview-research passes `null` as its fallback and handles null
+      // downstream, so the coalesce must not change that path.
+      expect(parseJsonResponse<null>("null", null)).toBeNull();
+    });
+
+    it.each([
+      ['truncated mid-object (token limit)', '{"stages":[{"title":"Phone screen"'],
+      ['prose wrapper around the JSON', 'Here is your plan: {"stages":[]}'],
+      ['markdown fence with no JSON body', '```'],
+      ['empty string', ''],
+    ])("returns the fallback for %s", (_label, response) => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const fallback = { stages: [] as unknown[] };
+      expect(parseJsonResponse(response, fallback)).toBe(fallback);
+      expect(consoleErrorSpy).toHaveBeenCalledOnce();
+    });
+
+    it("passes a well-formed object through even with absurdly large values", () => {
+      const huge = "x".repeat(50_000);
+      expect(parseJsonResponse(`{"summary":"${huge}"}`, { summary: "" })).toEqual({
+        summary: huge,
+      });
+    });
+  });
 });

@@ -87,7 +87,14 @@ export function parseJsonResponse<T>(content: string, fallback: T): T {
   try {
     // Strip markdown code blocks if present
     const cleaned = stripMarkdownCodeBlocks(content);
-    return JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned);
+    // A model can emit the literal `null` as perfectly valid JSON. Callers pass
+    // a structured fallback (an empty object/array shape) precisely so they
+    // never have to null-check the result; letting `null` through defeats that
+    // and crashes the caller on its first property access. Coalesce to the
+    // fallback instead. `0`, `false`, and `""` are intentionally left to pass
+    // through, and a `null` fallback (interview-research) still yields `null`.
+    return (parsed ?? fallback) as T;
   } catch {
     // Model output and JSON.parse error messages can contain CVs or answers.
     // Log only structural metadata, never a raw preview or the parse exception.
