@@ -6,6 +6,19 @@ Twenty-eighth recurring codebase hygiene & security review for Prepio. Measured
 against HEAD `a330939`; window is `e3a283b..a330939` (the 2026-09-12 base → now),
 **15 commits**, the first substantial functional window in several runs.
 
+**Scope & freeze note.** `CLAUDE.md` line 26 says "Do not add features, recurring
+audits or routine dependency PRs," while line 236 (`### Recurring hygiene reviews`)
+documents the ongoing operation of *this* established review. This run reads line 26
+as forbidding **new** recurring-audit processes and new scope — not as pausing the
+pre-existing hygiene review that the same file documents as continuing and whose prior
+instance (#346, the 2026-09-12 note) merged *after* the 2026-09-02 freeze decision.
+Accordingly this run stays strictly docs-only: it reviews the window, touches **no**
+product source, config, migration, or dependency, and defers every code/dep candidate
+to its tracked owner (Dependabot or a Linear issue). Whether to pause the recurring
+routine for the remainder of the freeze is an **owner call** — flagged here, not
+decided by the review (surfaced by Codex on PR #379, which read line 26 as forbidding
+this note outright).
+
 **Headline: three of the carried findings closed in this window, no new security
 regression, and the freeze lockdown is security-positive.** Four carried items
 landed as merged fixes, two carried items remain open and tracked, and the one new
@@ -289,13 +302,13 @@ new exposure.
 
 ## Small fixes made in this run
 
-- **None to product source or dependencies.** Consistent with the freeze and the
-  CLAUDE.md guardrail ("Do not add features, recurring audits or routine dependency
-  PRs"): three carried findings were closed by merges *within this window* (#337,
-  #350, #353, plus the #360 `SEARCH_COMPLETE` redaction), the remaining opens are each
-  tracked or Dependabot-surfaced, and the one clean non-breaking dependency candidate
-  (`undici` via `npm audit fix`) is a dev/test-only path best left to Dependabot. The
-  note + the `docs/audits/README.md` index row are the deliverable.
+- **None to product source or dependencies** — deliberately, to honor the freeze's
+  "no routine dependency PRs" and keep this run docs-only (see *Scope & freeze note*
+  above). Three carried findings were already closed by merges *within this window*
+  (#337, #350, #353, plus the #360 `SEARCH_COMPLETE` redaction), the remaining opens
+  are each tracked or Dependabot-surfaced, and the one clean non-breaking dependency
+  candidate (`undici` via `npm audit fix`) is a dev/test-only path best left to
+  Dependabot. The note + the `docs/audits/README.md` index row are the deliverable.
 - **Attempted** to file the `tavily-client` ↔ `ops.tavily_searches` schema-mismatch
   Medium in Linear (Quality & Maintenance, `Chore` + `area:research-pipeline`) — the
   create was rejected: *"exceeded the free issue limit for this workspace."* Recorded
