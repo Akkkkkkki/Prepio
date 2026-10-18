@@ -34,7 +34,8 @@ session's egress policy does not allow the Supabase backend host.
 
 **What IS live-verified this run (frontend):** logged-out landing (desktop 1440×900 + mobile
 iPhone-13 390×844), the *View sample plan* static expansion (**no network calls fire**), `/auth`
-(invite-only; input autocomplete + labels measured directly), `/pricing` (now `404`), protected-route
+(the **frontend** signup surface — no Sign Up tab, invite-only copy — plus input autocomplete + labels
+measured directly; **backend** signup enforcement was **not** verifiable this run), `/pricing` (now `404`), protected-route
 redirect `/practice`→`/auth` (intent banner preserved), `/new-interview` + `/profile` logged-out
 behaviour, and mobile touch-target sizes on the landing chrome. Screenshots (all logged-out,
 PII-free) under [`assets/2026-10-18/`](./assets/2026-10-18/).
@@ -54,11 +55,14 @@ Since run #20 (2026-09-03), the single change every prior review treated as the 
 - **`8696991` / #363 / [PREPIO-180](https://linear.app/qiuyue/issue/PREPIO-180)** (2026-10-14): added
   a quiet CV-persistence disclosure under the `/new-interview` paste box.
 
-**Four findings from run #20 are now fixed and live-verified** (details in Regression check):
-the guest-preview CTA that fired a doomed `research-preview` call and **blanked the page's best
-proof** is gone (static sample, zero network calls); the public **Sign Up** tab is gone (invite-only
-copy); `/auth` inputs now carry `autocomplete="email"` / `current-password` (the P2 that had repeated
-for **15 audits**); and the `/pricing` page with dead checkout CTAs is unrouted (now `404`).
+**Four findings from run #20 are addressed on the frontend and live-verified there** (details in
+Regression check): the guest-preview CTA that fired a doomed `research-preview` call and **blanked the
+page's best proof** is gone (static sample, zero network calls); the public **Sign Up** tab is gone and
+`/auth` shows invite-only copy (**frontend surface only** — whether production Supabase Auth actually
+rejects a direct, non-UI signup request is the PREPIO-30 §2 release gate and was **not** verified this
+run, since the backend was unreachable); `/auth` inputs now carry `autocomplete="email"` /
+`current-password` (the P2 that had repeated for **15 audits**); and the `/pricing` page with dead
+checkout CTAs is unrouted (now `404`).
 
 ## Overall product judgment
 
@@ -189,9 +193,12 @@ still the two-column key. It could not be re-verified live this run.
   fictional example entirely client-side; the request monitor recorded **no** `functions/v1`,
   `supabase.co`, `research-preview`, or any network call, and **zero console errors**, on both desktop
   and mobile. This is exactly the PREPIO-27 intent and the direct fix to run #20's P0.
-- **Invite-only auth, honest copy.** `/auth` has **no Sign Up tab** (`hasSignUpWord: false`): *"Prepio
+- **Invite-only auth, honest copy (frontend surface only).** `/auth` has **no Sign Up tab**
+  (`hasSignUpWord: false`): *"Prepio
   is free and invite-only. Sign in with your invited account. Ask the person who invited you if you
-  need access."* [`02-d-auth.png`](./assets/2026-10-18/02-d-auth.png)
+  need access."* [`02-d-auth.png`](./assets/2026-10-18/02-d-auth.png) **Caveat:** this confirms only
+  that the *frontend* exposes no signup path; verifying production Supabase Auth rejects a direct
+  (non-UI) signup request is the PREPIO-30 §2 gate and remains **unverified** (backend unreachable).
 - **Autocomplete fixed (closes the 15-audit P2).** `#signin-email` → `autocomplete="email"`,
   `#signin-password` → `autocomplete="current-password"`, each with exactly one associated `<label>`.
 - **Protected-route redirect preserves intent.** Logged-out `/practice` → `/auth` with the banner
@@ -246,7 +253,7 @@ infra/test/docs chores. **Net: four user-facing fixes, zero code regressions.**
 | Item | State | Note |
 |------|-------|------|
 | Guest preview (was P0: fired `research-preview`, CORS-failed, blanked the example) | **Fixed** ✅ | Now a static `GuestSample`; **zero** network calls, zero console errors (live). (#354 / PREPIO-27) |
-| Public Sign Up tab (freeze wanted invite-only) | **Fixed** ✅ | No Sign Up tab; invite-only copy (live). (#354) |
+| Public Sign Up tab (freeze wanted invite-only) | **Frontend fixed** ✅ | No Sign Up tab; invite-only copy (live). Backend signup enforcement (PREPIO-30 §2) **not verified** this run. (#354) |
 | `/auth` autocomplete `null` (P2, **15 audits**) | **Fixed** ✅ | `email` / `current-password` now set (live). (PREPIO-123 direction) |
 | `/pricing` dead checkout CTAs | **Fixed** ✅ | `/pricing` unrouted → `404` (live). (#354) |
 | Auth expired/reused link → password form | **Fixed** ✅ | Honest link-error instead (#360). Code-verified. |
