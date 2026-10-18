@@ -76,17 +76,22 @@ broken, which has not been true before. The one real new friction is that the la
 deliberately generic *"Payments company · Product Manager"* fiction — so a first-time (invited)
 visitor gets a flatter "why is this better than ChatGPT" story than the prior build's role-specific
 example. The highest-severity *open* defect is unchanged and outside the frontend's reach: the
-**Favorite / Needs-work flag write still returns `42P10` in production** — the fixing migration is
-written and authorised but unapplied, gated behind the owner-attended freeze deploy (PREPIO-124/170),
-and `FREEZE_RELEASE.md`'s last recorded production baseline (2026-09-21) confirms the constraint is
-still the two-column key. It could not be re-verified live this run.
+**Favorite / Needs-work flag write**, last live-confirmed returning `42P10` in production on
+2026-09-03. The fixing migration is written and authorised but was still unapplied at the last
+recorded production baseline (2026-09-21), gated behind the owner-attended freeze deploy
+(PREPIO-124/170), and no commit since has touched the flag path. **Caveat:** a migration can be
+applied without any frontend commit, so the repo history cannot prove the *current* (2026-10-18)
+production state, and the backend was unreachable this run — this is the **last verified state, not a
+confirmed current failure**, and needs a live schema or write check to settle.
 
 ## Top 5 issues
 
-### 1. **P1 (carried; code/doc, not live this run) — Favorite/Needs-work flag write returns `42P10` in production; the fixing migration is written and authorised but unapplied**
+### 1. **P1 (carried; code/doc, not live this run) — Favorite/Needs-work flag write last verified returning `42P10` in production; the fixing migration is written and authorised but was unapplied at the last baseline**
 
-- **Severity:** P1 — a core practice-triage affordance that fails 100% of the time in production,
-  with a red error toast (last live-confirmed `400 / 42P10` on 2026-09-03).
+- **Severity:** P1 — a core practice-triage affordance that was last live-confirmed failing 100% of
+  the time in production (`400 / 42P10`, 2026-09-03), with a red error toast. **Current (2026-10-18)
+  production status is unverified** (backend unreachable); a migration could have been applied since
+  without any frontend commit, so this severity reflects the last verified state pending a live check.
 - **Area:** practice
 - **User scenario:** during practice a user taps **Favorite** (or **Needs work**) to mark what to
   revisit.
@@ -233,7 +238,7 @@ rows move up on frontend improvements that landed since run #20.
 | Research entry | 4 | 4 | = | **(code; frozen form not reachable live)** CV-paste surface now discloses persistence (#363); form otherwise unchanged + appropriately trimmed for the freeze. |
 | Research progress/loading | 5 | 5 | = | **(carried, code)** Async modal unchanged; not re-triggered (would spend provider budget). |
 | Generated output clarity | 5 | 5 | = | **(carried; not live this run)** Plan/stage/question structure strong; last live-verified run #20. |
-| Practice mode | 4 | 4 | = | **(carried; not live this run)** Question-as-hero + text save carried; held at 4 by the flag-write `42P10` (issue #1), still unfixed in production. |
+| Practice mode | 4 | 4 | = | **(carried; not live this run)** Question-as-hero + text save carried; held at 4 by the flag-write `42P10` (issue #1), last verified broken in production (2026-09-03) — current status unverified this run. |
 | Mobile usability | 4 | 4 | = | **(landing live-clean; practice carried)** Landing-mobile: no overflow, single `<h1>`, primary CTA ≥44px. Sub-44px *Sign in* nav target remains (issue #3). |
 | Resume/profile trust | 4 | 4 | = | **(code)** The one CV surface now has honest persistence copy (+); the standalone profile feature is deliberately frozen out. Net flat. |
 | Dashboard/history/resume | 3 | 3 | = | **(carried; not live this run)** `/history` empty-vs-in-progress parity still open (issue #5, PREPIO-107). |
@@ -259,7 +264,7 @@ infra/test/docs chores. **Net: four user-facing fixes, zero code regressions.**
 | Auth expired/reused link → password form | **Fixed** ✅ | Honest link-error instead (#360). Code-verified. |
 | CV paste surface had no persistence disclosure | **Fixed** ✅ | Honest one-line disclosure added (#363 / PREPIO-180). Code-verified. |
 | Practice question heading structure | **Holding** ✅ | `<h1>` on both breakpoints (carried from #329). |
-| Favorite/Needs-work flag write | **Still broken in prod** ❌ | `42P10`; migration written + authorised, **unapplied** (owner-gated deploy). Not live-verified this run. (Issue #1 / PREPIO-170) |
+| Favorite/Needs-work flag write | **Last verified broken** ❌ | `42P10` last confirmed 2026-09-03; migration written + authorised, **unapplied** at the 2026-09-21 baseline (owner-gated deploy). Current status unverified this run. (Issue #1 / PREPIO-170) |
 | `/history` vs in-progress parity | **Still open** ⚠️ | Carried; not re-verified live. (Issue #5 / PREPIO-107) |
 | Landing proof-point visibility | **New friction** ⚠️ | Role-specific default example replaced by a collapsed, generic fictional sample (issue #2). |
 
