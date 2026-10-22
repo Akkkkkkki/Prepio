@@ -1031,6 +1031,31 @@ describe("practice history answer dedupe helpers", () => {
     expect(deletedTables).toEqual(["resumes", "profile_imports"]);
   });
 
+  it("deleteResume removes each stored resume file path once", async () => {
+    const remove = vi.fn(async () => ({ error: null }));
+    mockSupabase.storage.from.mockReturnValue({ remove });
+    mockSupabase.from
+      .mockReturnValueOnce(
+        createSelectChain({
+          data: [
+            { id: "resume-1", file_path: "user-1/resume.pdf" },
+            { id: "resume-2", file_path: "user-1/resume.pdf" },
+            { id: "resume-3", file_path: null },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(createDeleteChain({ error: null }))
+      .mockReturnValueOnce(createDeleteChain({ error: null }))
+      .mockReturnValueOnce(createUpdateChain({ error: null }));
+
+    const result = await searchService.deleteResume();
+
+    expect(result.success).toBe(true);
+    expect(mockSupabase.storage.from).toHaveBeenCalledWith("resume-files");
+    expect(remove).toHaveBeenCalledWith(["user-1/resume.pdf"]);
+  });
+
   it("deleteResume stops before deleting rows when file cleanup fails", async () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
