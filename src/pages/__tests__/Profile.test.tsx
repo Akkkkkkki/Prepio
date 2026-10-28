@@ -123,7 +123,9 @@ describe("Profile page", () => {
 
     expect(screen.getByRole("heading", { name: "About" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Subscription" })).toBeInTheDocument();
-    expect(screen.getByText("Free plan. Upgrade when you want detailed AI coaching.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Free plan. Upgrade when you want detailed AI coaching."),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Update profile from pasted CV" })).not.toBeInTheDocument();
   });
 
