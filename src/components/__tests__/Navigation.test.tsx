@@ -50,7 +50,7 @@ describe("Navigation component", () => {
     expect(screen.getByText("Prepio")).toBeInTheDocument();
     const homeLinks = screen.getAllByText("Home");
     expect(homeLinks.length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Dashboard").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Plan").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Practice").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Practice History").length).toBeGreaterThan(0);
   });
@@ -67,7 +67,7 @@ describe("Navigation component", () => {
   it("highlights the active route", () => {
     renderNavigation("/dashboard");
 
-    const dashboardLinks = screen.getAllByText("Dashboard");
+    const dashboardLinks = screen.getAllByText("Plan");
     const desktopLink = dashboardLinks.find((el) =>
       el.closest("a")?.classList.contains("bg-primary"),
     );

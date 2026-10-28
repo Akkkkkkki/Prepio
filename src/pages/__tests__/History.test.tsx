@@ -73,7 +73,7 @@ describe("History page states", () => {
     );
 
     expect(await screen.findByText("No finished sessions yet")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Go to Dashboard" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Go to Plan" })).toHaveAttribute(
       "href",
       "/dashboard",
     );
@@ -97,7 +97,7 @@ describe("History page states", () => {
     );
 
     expect(await screen.findByText("Practice history unavailable")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Go to Dashboard" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Go to Plan" })).toHaveAttribute(
       "href",
       "/dashboard",
     );

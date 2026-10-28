@@ -213,7 +213,7 @@ export function PracticeSetupWizard({
         <div className="mb-6 flex items-center justify-between">
           <Button variant="outline" size="sm" onClick={onBack}>
             <ChevronLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
+            Back to Plan
           </Button>
           <div className="text-sm text-muted-foreground">
             {company && `${company}`}

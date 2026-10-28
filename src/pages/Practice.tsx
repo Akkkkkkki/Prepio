@@ -1905,7 +1905,7 @@ const getInterviewerFocus = (
                     size="lg"
                     className="w-full"
                   >
-                    Go to Dashboard
+                    Go to Plan
                   </Button>
                   <Button 
                     variant="outline" 
@@ -2008,7 +2008,7 @@ const getInterviewerFocus = (
                   onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
                   className="w-full"
                 >
-                  Back to Dashboard
+                  Back to Plan
                 </Button>
                 <Button 
                   variant="outline" 
@@ -2080,7 +2080,7 @@ const getInterviewerFocus = (
                   className="w-full"
                 >
                   <ChevronLeft className="h-4 w-4 mr-2" />
-                  Back to Dashboard
+                  Back to Plan
                 </Button>
               </div>
             </CardContent>
@@ -2106,7 +2106,7 @@ const getInterviewerFocus = (
               variant="ghost"
               size="icon"
               onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
-              aria-label="Back to dashboard"
+              aria-label="Back to plan"
             >
               <ChevronLeft className="h-5 w-5" />
             </Button>
@@ -2376,7 +2376,7 @@ const getInterviewerFocus = (
             <div className="flex items-center gap-3">
               <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}>
                 <ChevronLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
+                Back to Plan
               </Button>
               <Button variant="link" size="sm" asChild className="px-0">
                 <Link to={practiceHistoryHref}>View history</Link>
@@ -2729,7 +2729,7 @@ const getInterviewerFocus = (
               variant="ghost"
               size="icon"
               onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
-              aria-label="Back to dashboard"
+              aria-label="Back to plan"
               className="h-11 w-11"
             >
               <ChevronLeft className="h-5 w-5" />
@@ -3000,7 +3000,7 @@ const getInterviewerFocus = (
                 onClick={() => navigate(`/dashboard${searchId ? `?searchId=${searchId}` : ''}`)}
               >
                 <ChevronLeft className="h-4 w-4 mr-2" />
-                Back to dashboard
+                Back to plan
               </Button>
               <Button variant="ghost" size="sm" onClick={handleStartNewSession}>
                 <Settings className="h-4 w-4 mr-2" />
