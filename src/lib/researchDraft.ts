@@ -37,7 +37,7 @@ export const RESEARCH_DRAFT_STORAGE_KEY = "prepio:research-home-draft:v1";
 export const AUTH_RESUME_LABELS: Record<AuthIntent, string> = {
   research: "Research",
   practice: "Practice",
-  dashboard: "Dashboard",
+  dashboard: "Plan",
   profile: "Profile",
   billing: "Pricing",
 };

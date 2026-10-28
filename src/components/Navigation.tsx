@@ -33,7 +33,7 @@ const Navigation = () => {
   // Frozen core navigation; sign-out remains available in the menu.
   const navigationItems = [
     { path: "/", label: "Home", icon: Home },
-    { path: "/dashboard", label: "Dashboard", icon: BarChart3 },
+    { path: "/dashboard", label: "Plan", icon: BarChart3 },
     { path: "/practice", label: "Practice", icon: Play },
     { path: "/history", label: "Practice History", icon: ClipboardList },
   ];

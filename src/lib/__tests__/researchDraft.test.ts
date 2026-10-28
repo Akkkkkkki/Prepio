@@ -110,7 +110,7 @@ describe("getAuthResumeLabel", () => {
   });
 
   it("derives label from pathname", () => {
-    expect(getAuthResumeLabel({ from: { pathname: "/dashboard" } })).toBe("Dashboard");
+    expect(getAuthResumeLabel({ from: { pathname: "/dashboard" } })).toBe("Plan");
   });
 
   it("returns null when no info available", () => {
@@ -127,7 +127,7 @@ describe("createAuthReturnState", () => {
     expect(state.from.pathname).toBe("/dashboard");
     expect(state.from.search).toBe("?searchId=abc");
     expect(state.intent).toBe("dashboard");
-    expect(state.resumeLabel).toBe("Dashboard");
+    expect(state.resumeLabel).toBe("Plan");
   });
 
   it("preserves explicit intent and source", () => {
