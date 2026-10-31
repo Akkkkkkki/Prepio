@@ -205,27 +205,47 @@ production-runtime exposure.
 
 - [ ] **`npm audit` rose 5 → 32 — but every finding is dev/build toolchain with no
   production-runtime exposure.** *(New this window; triaged in full.)*
-  - Evidence: the 32 (3 low / 24 moderate / 5 high) break down as newly-disclosed
-    advisories against **dev/build-only** packages, refreshed by the pdfjs-6 /
-    react-router-7 / Node-22 upgrades:
-    - **Highs:** `vite`, `brace-expansion`, `source-map-js`, `undici` (build/test
-      tooling, not in the browser bundle), and `zod` — the only runtime-*shaped*
-      one, but **unreachable** (see next finding).
-    - **Moderate cluster clearable by one bump each:** ~9 behind
-      `vite-plugin-pwa@1.1.0` (`ejs`, `jake`, `filelist`, `glob`, `workbox-build`,
-      `@trickfilm400/rollup-plugin-off-main-thread`, `@rollup/plugin-node-resolve`,
-      `deepmerge`); ~6 behind `@eslint/js@9.39.5` / `typescript-eslint@8.14.0`
-      (eslint, `@eslint/*`, `@typescript-eslint/*`, `minimatch`); `@tailwindcss/typography@0.5.4`
-      (`postcss-selector-parser`); `vitest`/`@vitest/mocker` (carried, below).
+  - Evidence: the 32 (3 low / 24 moderate / 5 high) are all advisories against
+    **dev/build-only** packages (none in the browser bundle), refreshed by the
+    pdfjs-6 / react-router-7 / Node-22 upgrades. Verified against the committed
+    `package-lock.json` at HEAD `a330939` (correction after Codex review of this PR —
+    an earlier draft of this finding read npm audit's `fixAvailable` *version*
+    numbers as forward upgrade targets; they are not). The findings split into two
+    very different remediation groups:
+    - **Forward fix available (`fixAvailable` semver-compatible):** `vite`
+      (installed 7.3.5, vuln 7.0.0–7.3.6), `undici` (7.29.0, vuln ≤7.30.0),
+      `brace-expansion`, `source-map-js`, and `vitest`/`@vitest/mocker` (4.1.9, fix
+      ≥4.1.11, within the `^4.1.8` manifest range). These are genuinely
+      Dependabot-carryable / would be `npm audit fix`-able but for the local
+      `edgesOut` crash.
+    - **No forward fix — installed version is already current/ahead:**
+      `vite-plugin-pwa` (installed **1.3.0**, vuln range **`>=1.2.0`**),
+      `@eslint/js` (**10.0.1**, vuln `>=10.0.1`), `typescript-eslint` (**8.62.1**,
+      vuln `*`), `@tailwindcss/typography` (**0.5.20**, vuln `>=0.5.5`), and the
+      transitive cluster under them (`workbox-build`, `ejs`, `jake`, `filelist`,
+      `glob`, `@trickfilm400/rollup-plugin-off-main-thread`,
+      `@rollup/plugin-node-resolve`, `deepmerge`, `postcss-selector-parser`,
+      `eslint`, `minimatch`). For every one of these, npm audit's only offered
+      remediation is `isSemVerMajor: true` to an **older** release (e.g.
+      `vite-plugin-pwa@1.1.0`, `@eslint/js@9.39.5`) — i.e. a breaking **downgrade**,
+      not an upgrade. There is no patched release above the installed version yet;
+      the real fix must come from upstream patching the transitive tree.
+    - **`zod`** (the lone runtime-*shaped* high) has a forward major fix
+      (`zod@4.6.7`) but is **unreachable** in production — see the next finding.
   - Risk: **none on the production runtime** — all are build-time or dev/test
     dependencies. The count is a maintenance signal, not a deployment blocker.
-  - Recommended fix: let Dependabot carry the `vite-plugin-pwa`, `@eslint/js`,
-    `typescript-eslint`, and `vitest` bumps (its full-tree resolution is not subject
-    to the local `edgesOut` crash). Re-confirmed this run that `npm audit fix` and
-    `npm update --package-lock-only` both abort locally, so no in-sandbox lockfile
-    surgery. Consider the non-blocking `npm audit --audit-level=high` CI step (below)
-    so the production-vs-tooling split is visible each run.
-  - Owner / next step: Deferred — Dependabot-tracked dev-tooling bumps.
+  - Recommended fix: let Dependabot carry the **forward-fixable** group (`vite`,
+    `undici`, `vitest`); re-confirmed this run that `npm audit fix` and
+    `npm update --package-lock-only` both abort locally with the npm `edgesOut` bug,
+    so no in-sandbox lockfile surgery. For the **no-forward-fix** group, do **not**
+    downgrade dev tooling to satisfy the advisory — wait for upstream patched
+    releases (watch the `vite-plugin-pwa` / `@eslint` / `typescript-eslint` release
+    trees); the installed versions are already current. Consider the non-blocking
+    `npm audit --audit-level=high` CI step (below) so the production-vs-tooling split
+    stays visible each run.
+  - Owner / next step: Deferred — forward-fixable bumps via Dependabot; the
+    no-forward-fix cluster waits on upstream patches (no action warranted now, and
+    no production exposure either way).
 
 - [ ] **`zod` is a direct dependency but unused in app source; its high advisory
   (GHSA-mrhx-c7xc-m3w5) has no production reachability.** *(New this window.)*
@@ -294,9 +314,12 @@ production-runtime exposure.
   Quality & Maintenance when the Linear cap clears.
 - **`zod` unused direct dependency removal** (Low, new) — safe maintainer clean-up
   that also drops the direct `zod` high advisory; evidence recorded above.
-- **Dev/build `npm audit` bumps** (Low, new) — `vite-plugin-pwa@1.1.0`,
-  `@eslint/js`/`typescript-eslint`, `vitest` (clears `@vitest/mocker`); all
-  Dependabot-carryable, none production-runtime.
+- **Dev/build `npm audit` cluster** (Low, new) — the forward-fixable part
+  (`vite`, `undici`, `vitest` which clears `@vitest/mocker`) via Dependabot; the
+  no-forward-fix part (`vite-plugin-pwa` 1.3.0, `@eslint/js` 10.0.1,
+  `typescript-eslint` 8.62.1, `@tailwindcss/typography` 0.5.20 and their transitive
+  tree — installed versions already current, npm only offers a breaking downgrade)
+  waits on upstream patches. None production-runtime.
 - **`#338` `react-refresh/only-export-components` warning** (Low, cosmetic) — helper
   module extraction; follow-up cleanup, not filed.
 - **`npm audit` as a non-blocking `--audit-level=high` CI step** (Low, process) —
@@ -327,10 +350,12 @@ production-runtime exposure.
    clears) — land the registrable-label match with adversarial
    `company-token.attacker.example` tests and fold in the deferred `official_job`
    short-name follow-up; re-audit the whole `classifyRetrievedSource` trust map.
-4. **Dev-tooling `npm audit` drift** — if the count keeps climbing, nudge the
-   Dependabot `vite-plugin-pwa` / `@eslint/js` / `typescript-eslint` / `vitest`
-   bumps through (they clear most of the 32 in a few PRs) and consider the
-   `--audit-level=high` CI step so the production-vs-tooling split is legible. Remove
-   the unused direct `zod` dependency while there.
+4. **Dev-tooling `npm audit` drift** — nudge the forward-fixable Dependabot bumps
+   (`vite`, `undici`, `vitest`) through; the larger no-forward-fix cluster
+   (`vite-plugin-pwa` / `@eslint/js` / `typescript-eslint` / `@tailwindcss/typography`
+   and their transitive tree) is already on current versions and waits on upstream
+   patches — do **not** downgrade to clear the advisory. Add the non-blocking
+   `--audit-level=high` CI step so the production-vs-tooling split is legible, and
+   remove the unused direct `zod` dependency while there.
 5. **Next source-touching merge.** Re-run the full baseline against it and read the
    *merged* code, not commit messages, when assessing any security-relevant change.
