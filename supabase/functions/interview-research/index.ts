@@ -34,6 +34,11 @@ import {
   type ProfilePromptContext,
 } from "./profile-story-linking.ts";
 import { authorizeSearch } from "./authorization.ts";
+import {
+  classifyRoleFamily,
+  type ResearchRoleFamily,
+} from "../company-research/query-planner.ts";
+import { buildResearchYieldEvent } from "./research-yield.ts";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -228,6 +233,7 @@ async function emitResearchYield(
   searchId: string,
   company: string,
   level: string,
+  roleFamily: ResearchRoleFamily,
 ) {
   try {
     const { count: questionsExtracted } = await supabase
@@ -251,18 +257,17 @@ async function emitResearchYield(
       0,
     );
 
-    console.log(
-      `[research_yield] ${JSON.stringify({
-        event: 'research_yield',
-        search_id: searchId,
-        company,
-        level,
-        questions_extracted: questionsExtracted ?? 0,
-        sources_returned: sourcesReturned,
-        tavily_calls: tavilyCalls,
-        tavily_credits: tavilyCredits,
-      })}`,
-    );
+    const event = buildResearchYieldEvent({
+      searchId,
+      company,
+      level,
+      roleFamily,
+      questionsExtracted: questionsExtracted ?? 0,
+      sourcesReturned,
+      tavilyCalls,
+      tavilyCredits,
+    });
+    console.log(`[research_yield] ${JSON.stringify(event)}`);
 
     // Zero-evidence guard: real retrieval must carry every run, so surface the
     // case where a run produced no real sources rather than letting synthesis
@@ -1255,7 +1260,13 @@ async function processInterviewResearch(
     await tracker.updateStep('QUESTION_GENERATION_COMPLETE');
     console.log(`\n✅ Interview research complete for search: ${searchId}`);
     logger?.log("FUNCTION_SUCCESS", "COMPLETE");
-    await emitResearchYield(supabase, searchId, requestData.company, level);
+    await emitResearchYield(
+      supabase,
+      searchId,
+      requestData.company,
+      level,
+      classifyRoleFamily(requestData.role, requestData.userNote),
+    );
     await tracker.markCompleted();
 
   } catch (error) {
