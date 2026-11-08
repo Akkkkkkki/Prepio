@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "fixtureVersion": "phase-a-1",
+  "caseId": "EVAL-AAA-02",
+  "variantId": "phase-a-jd-excerpt-v1",
+  "lineage": {
+    "fixtureId": "opp.openai.applied-ai-architect-large-enterprise.london",
+    "packageVersion": "0.3.0",
+    "upstreamCaseId": "EVAL-AAA-02",
+    "adaptation": "JD-only excerpt demonstration; no candidate CV, company guide or runtime invocation. Original case and source IDs retained; not a replay of the full original case.",
+    "opportunityFixtureSha256": "72beb1f331256b1f12bb77c1735914d10349c20739379a08bb4f8445b9de98bc",
+    "sourceRegisterSha256": "271c3b3444f2f7158bedc11c37d353e08bff8fc19175ea78208240da44b3b419",
+    "rubricSha256": "26ab37cab025eff0220e8915deb7545089f94c5a5743b8e6399dd8f4c87450a6"
+  },
+  "input": {
+    "company": "OpenAI",
+    "role": "Applied AI Architect, Large Enterprise",
+    "country": "United Kingdom",
+    "level": "unknown",
+    "jobDescription": "you will be the senior technical owner for a named portfolio of customers and the primary technical counterpart to their leadership teams. You will act as the “CTO of your book of business”\nDevelop clear Applied AI Architectures spanning models, applications, data, integration, security, privacy, governance, evaluation, and deployment."
+  },
+  "jobDescriptionSha256": "e60b3d79eb9ecf657e1dee9ad81b8cc2ac54ea3b12ab238423155ac7cb584c6b",
+  "sourceRecords": [
+    {
+      "id": "S02",
+      "sourceType": "official_job",
+      "company": "OpenAI",
+      "role": "Applied AI Architect, Large Enterprise",
+      "location": "London, UK",
+      "url": "https://openai.com/careers/applied-ai-architect-large-enterprise-london-uk/",
+      "backingUrl": "https://jobs.ashbyhq.com/openai/557dd2ec-db6c-49b1-a0aa-193007ebd5b6",
+      "capturedAt": "2026-11-08T12:05:00Z",
+      "captureMethod": "Ashby public posting API (job-board listing; 818 jobs returned; record selected by id)",
+      "originalSnapshotSha256": "735ce3af8c6c49d60dc04fedffb88330931555ab76660d072f501fa7adda833b",
+      "sourceReview": {
+        "authoredBy": "Claude Code created v0.2.0 source material; GPT-6 independently audited and refined v0.3.0. Human approval pending.",
+        "authorType": "model",
+        "status": "source recheck reported by supplied package; no new independent human verification"
+      },
+      "passages": [
+        {
+          "id": "S02-C06",
+          "text": "you will be the senior technical owner for a named portfolio of customers and the primary technical counterpart to their leadership teams. You will act as the “CTO of your book of business”",
+          "sha256": "e20bdbb9f19bbd3ef7a1a43bf71819041079d9d75da531d245adce8c11bcaec8"
+        },
+        {
+          "id": "S02-C01",
+          "text": "Develop clear Applied AI Architectures spanning models, applications, data, integration, security, privacy, governance, evaluation, and deployment.",
+          "sha256": "9529a49e253ede2dfe60e5394d6e12d3986b78679f08f2d5a28d5b1d8e7f7a91"
+        }
+      ]
+    }
+  ],
+  "interviewGroundTruth": null,
+  "sha256": "135761b5af28c24c838064a4469065793afc6c1f69913304719badeccff73e59"
+}

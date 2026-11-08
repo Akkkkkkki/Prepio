@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "caseId": "EVAL-AAA-02",
+  "variantId": "phase-a-jd-excerpt-v1",
+  "outputId": "openai-london-illustrative-v1",
+  "outputSha256": "b9cc186967e4692f9ca4e33e377088f06bcb473a8fce154b3da25725fc69560f",
+  "rubricVersion": "evidence-integrity-v1",
+  "owner": {
+    "id": "Codex (model-authored constructed example)",
+    "authorType": "model",
+    "independence": "same_author",
+    "reviewedAt": "2026-11-09"
+  },
+  "judgments": [
+    {
+      "path": "stageRoadmap[0].stageName",
+      "claimType": "suggested_practice",
+      "presentation": "hypothetical",
+      "supportDecision": "not_applicable",
+      "evidenceSourceIds": [],
+      "passageIds": [],
+      "reason": "Constructed illustration of external annotation; not independent human ground truth."
+    },
+    {
+      "path": "stageRoadmap[0].whyLikely",
+      "claimType": "interview_process_claim",
+      "presentation": "factual",
+      "supportDecision": "insufficient_evidence",
+      "evidenceSourceIds": [],
+      "passageIds": [],
+      "reason": "Constructed illustration of external annotation; not independent human ground truth."
+    },
+    {
+      "path": "stageRoadmap[0].lowConfidenceGuidance",
+      "claimType": "suggested_practice",
+      "presentation": "hypothetical",
+      "supportDecision": "not_applicable",
+      "evidenceSourceIds": [],
+      "passageIds": [],
+      "reason": "Constructed illustration of external annotation; not independent human ground truth."
+    },
+    {
+      "path": "prepPriorities[0].label",
+      "claimType": "suggested_practice",
+      "presentation": "hypothetical",
+      "supportDecision": "not_applicable",
+      "evidenceSourceIds": [
+        "S02"
+      ],
+      "passageIds": [
+        "S02-C06"
+      ],
+      "reason": "Constructed illustration of external annotation; not independent human ground truth."
+    },
+    {
+      "path": "prepPriorities[0].whyItMatters",
+      "claimType": "role_requirement",
+      "presentation": "factual",
+      "supportDecision": "supported",
+      "evidenceSourceIds": [
+        "S02"
+      ],
+      "passageIds": [
+        "S02-C06"
+      ],
+      "reason": "Constructed illustration of external annotation; not independent human ground truth."
+    },
+    {
+      "path": "questionPlan.coreMustPractice[0].question",
+      "claimType": "suggested_practice",
+      "presentation": "hypothetical",
+      "supportDecision": "not_applicable",
+      "evidenceSourceIds": [
+        "S02"
+      ],
+      "passageIds": [
+        "S02-C06"
+      ],
+      "reason": "Constructed illustration of external annotation; not independent human ground truth."
+    },
+    {
+      "path": "questionPlan.coreMustPractice[0].reason",
+      "claimType": "suggested_practice",
+      "presentation": "hypothetical",
+      "supportDecision": "not_applicable",
+      "evidenceSourceIds": [
+        "S02"
+      ],
+      "passageIds": [
+        "S02-C06"
+      ],
+      "reason": "Constructed illustration of external annotation; not independent human ground truth."
+    }
+  ],
+  "humanScores": [],
+  "sha256": "de8d63f6e987d4a3707dfeeb45b4726e194706624f401714ce3a03bec83c3ee5"
+}
