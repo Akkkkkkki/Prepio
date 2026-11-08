@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "caseId": "EVAL-AAA-02",
+  "variantId": "phase-a-jd-excerpt-v1",
+  "fixtureVersion": "phase-a-1",
+  "caseSha256": "135761b5af28c24c838064a4469065793afc6c1f69913304719badeccff73e59",
+  "outputId": "openai-london-illustrative-v1",
+  "claimLevel": "illustrative",
+  "authoredBy": "Codex (model-authored constructed example)",
+  "fixtureCompleteness": "illustrative_excerpt",
+  "runMetadata": {
+    "runId": null,
+    "prepioExecuted": false,
+    "sourceCommit": "a33093906c7e3bb1d191f0e769efbadf570b9999",
+    "createdAt": "2026-11-09",
+    "method": "Constructed native-shaped excerpt; no Prepio run or provider call."
+  },
+  "plan": {
+    "summary": {
+      "company": "OpenAI",
+      "roleName": "Applied AI Architect, Large Enterprise",
+      "industryFocus": "tech",
+      "level": "unknown",
+      "overallConfidence": "low",
+      "weakSignalCase": true
+    },
+    "assessmentSignals": [],
+    "stageRoadmap": [
+      {
+        "stageName": "Architecture discussion (hypothesis)",
+        "orderIndex": 1,
+        "evidenceIds": [
+          "ev-1"
+        ],
+        "confidence": "low",
+        "whatItTests": [],
+        "whyLikely": "OpenAI always uses four architecture interview rounds for this London role.",
+        "prepPriority": "high",
+        "questionThemes": [],
+        "prepActions": [],
+        "lowConfidenceGuidance": "The actual process is unknown. Ask the recruiter to confirm the interview format."
+      }
+    ],
+    "prepPriorities": [
+      {
+        "label": "Technical account ownership",
+        "priority": "high",
+        "whyItMatters": "you will be the senior technical owner for a named portfolio of customers and the primary technical counterpart to their leadership teams. You will act as the “CTO of your book of business”",
+        "recommendedActions": []
+      }
+    ],
+    "candidatePositioning": {
+      "strengthsToLeanOn": [],
+      "weakSpotsToAddress": [],
+      "storyCoverageGaps": [],
+      "mismatchRisks": []
+    },
+    "practiceSequence": [],
+    "questionPlan": {
+      "coreMustPractice": [
+        {
+          "question": "As a practice exercise, draft a technical account plan for a fictional enterprise customer.",
+          "stageName": null,
+          "evidenceIds": [
+            "ev-1"
+          ],
+          "linkedPriority": "high",
+          "difficulty": "Medium",
+          "reason": "Suggested practice from the posting; not a reported OpenAI interview question.",
+          "answerGuidanceStatus": "pending",
+          "leveragesStoryId": null
+        }
+      ],
+      "likelyFollowUps": [],
+      "extraDepth": []
+    },
+    "internalEvidenceLog": [
+      {
+        "id": "ev-1",
+        "sourceType": "official_job",
+        "sourceLabel": "Pasted job description",
+        "excerpt": "you will be the senior technical owner for a named portfolio of customers and the primary technical counterpart to their leadership teams. You will act as the “CTO of your book of business” Develop clear Applied AI Architectures spanning models, applications, data, integration, security, privacy, governance, evaluation, and deployment.",
+        "url": null,
+        "relevance": "high",
+        "trustWeight": "high",
+        "contradictionGroup": null,
+        "title": "Pasted job description",
+        "platform": "user",
+        "publishedDate": null,
+        "snippet": "you will be the senior technical owner for a named portfolio of customers and the primary technical counterpart to their leadership teams. You will act as the “CTO of your book of business” Develop clear Applied AI Architectures spanning models, applications, data, integration, security, privacy, governance, evaluation, and deployment."
+      }
+    ]
+  },
+  "sha256": "b9cc186967e4692f9ca4e33e377088f06bcb473a8fce154b3da25725fc69560f"
+}
