@@ -73,7 +73,10 @@ dimension IDs are `roleRelevance`, `evidenceGrounding`, `prioritization`,
 0–4, `raterId`, `authorType:human`, `independence:independent`, `reviewedAt`,
 `rubricVersion:0.3.0` and a nonempty `reason`. Duplicate rater/dimension records
 are errors. Scores have equal weight and report a descriptive mean and rating
-count per dimension; there is no total, pass mark or quality headline.
+count per dimension; there is no total, pass mark or quality headline. Differences greater than one
+point for the same output/dimension require adjudication under the preserved
+rubric: all raw ratings remain, the aggregate is N/A with
+`status:requires_adjudication`, and disputed output IDs are reported.
 
 An annotation owner may be `human` or `model`; independence is `independent`,
 `same_author` or `unknown`. Independent annotations must declare a human owner

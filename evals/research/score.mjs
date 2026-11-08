@@ -84,13 +84,19 @@ function validatePlan(o, c, s) {
   str(o.authoredBy, 'authoredBy'); requireThat(o.fixtureCompleteness === 'illustrative_excerpt', 'Phase A requires illustrative_excerpt');
   shape(o.runMetadata, ['runId', 'prepioExecuted', 'sourceCommit', 'createdAt', 'method'], 'runMetadata');
   requireThat(o.runMetadata.runId === null && o.runMetadata.prepioExecuted === false, 'inconsistent illustrative provenance');
-  requireThat(/^[a-f0-9]{40}$/.test(o.runMetadata.sourceCommit), 'runMetadata.sourceCommit must be full source-context SHA');
+  requireThat(typeof o.runMetadata.sourceCommit === 'string' && /^[a-f0-9]{40}$/.test(o.runMetadata.sourceCommit), 'runMetadata.sourceCommit must be full source-context SHA');
   date(o.runMetadata.createdAt, 'runMetadata.createdAt'); str(o.runMetadata.method, 'runMetadata.method');
   requireThat(o.runMetadata.createdAt.slice(0, 10) >= s.capturedAt.slice(0, 10), 'output predates source capture');
   const targets = new Map(); const allowedUrls = new Set([s.url, s.backingUrl]);
   function scan(v) {
-    if (typeof v === 'string') for (const match of v.matchAll(/https?:\/\/[^\s<>"'\])]+/g)) requireThat(allowedUrls.has(match[0].replace(/[.,;:!?]+$/, '')), `unregistered URL: ${match[0]}`);
-    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) {
+    if (typeof v === 'string') {
+      for (const match of v.matchAll(/https?:\/\/[^\s<>"'\])]+/gi)) {
+        let url;
+        try { url = new globalThis.URL(match[0].replace(/[.,;:!?]+$/, '')).href; }
+        catch { fail(`unregistered URL: ${match[0]}`); }
+        requireThat(allowedUrls.has(url), `unregistered URL: ${match[0]}`);
+      }
+    } else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) {
       requireThat(!['claimType', 'match', 'relevant', 'specific'].includes(k), `self-grading field: ${k}`); scan(x);
     }
   }
@@ -179,7 +185,7 @@ function validateAnnotations(a, o, c, targets, passages) {
     requireThat(new Set(refs).size === refs.length && refs.every(id => passages.has(id)), 'duplicate/unknown passage');
     requireThat(refs.length === 0 || ids.length > 0, 'passage missing source reference');
     if (['supported', 'contradicted'].includes(j.supportDecision)) requireThat(ids.length > 0 && refs.length > 0, 'support decision missing source passages');
-    if (['interview_process_claim', 'reported_interview_question'].includes(j.claimType)) requireThat(j.supportDecision !== 'supported', 'missing interview ground truth: job posting cannot support interview history');
+    if (['interview_process_claim', 'reported_interview_question'].includes(j.claimType)) requireThat(!['supported', 'contradicted'].includes(j.supportDecision), 'missing interview ground truth: job posting cannot establish or refute interview history');
     requireThat(!(j.presentation === 'factual' && j.supportDecision === 'not_applicable'), 'factual claim cannot use not_applicable');
   }
   for (const path of targets.keys()) requireThat(judgments.has(path), `unannotated claim-bearing path: ${path}`);
@@ -196,6 +202,17 @@ function validateAnnotations(a, o, c, targets, passages) {
 }
 
 const na = reason => ({ status: 'N/A', value: null, reason });
+function humanScoreSummary(records) {
+  return Object.fromEntries(DIMENSIONS.map(dimension => {
+    const scores = records.filter(s => s.dimension === dimension);
+    if (!scores.length) return [dimension, { ...na('No independent human ratings supplied.'), count: 0 }];
+    const groups = new Map();
+    for (const s of scores) { const group = groups.get(s.outputId) ?? []; group.push(s.value); groups.set(s.outputId, group); }
+    const disputed = [...groups.entries()].filter(([, values]) => Math.max(...values) - Math.min(...values) > 1).map(([id]) => id).sort(compare);
+    if (disputed.length) return [dimension, { status: 'requires_adjudication', value: null, count: scores.length, disputedOutputs: disputed, reason: 'Human ratings for the same output differ by more than one point; rubric requires adjudication. Raw ratings are retained.' }];
+    return [dimension, { status: 'descriptive_only', count: scores.length, value: scores.reduce((sum, s) => sum + s.value, 0) / scores.length }];
+  }));
+}
 export function evaluate(dataset) {
   const d = normalize(dataset); shape(d, ['cases', 'outputs', 'annotations'], 'dataset');
   const cases = unique(d.cases, 'caseId', 'caseId'); requireThat(cases.size > 0, 'empty evaluation corpus');
@@ -228,7 +245,7 @@ export function evaluate(dataset) {
     counts: { cases: cases.size, outputs: outputs.size, annotatedClaimPaths: judgments.length, annotationSupportedClaims: judgments.filter(j => j.supportDecision === 'supported').length, findings: findings.length },
     findings, judgments,
     metrics: Object.fromEntries(['top5HitRate', 'citationPrecision', 'stageAccuracy', 'degradedRunRate', 'latency', 'tokens', 'estimatedCost', 'tavilyUsage'].map(k => [k, na(metricReason)])),
-    humanReview: { status: allScores.length ? 'declared_human_ratings' : 'N/A', verification: 'Ownership is declared metadata; the evaluator cannot authenticate raters or verify semantic judgments.', scores: Object.fromEntries(DIMENSIONS.map(k => { const scores = allScores.filter(s => s.dimension === k); return [k, scores.length ? { status: 'descriptive_only', count: scores.length, value: scores.reduce((sum, s) => sum + s.value, 0) / scores.length } : { ...na('No independent human ratings supplied.'), count: 0 }]; })), records: allScores.sort((a, b) => compare(canonical(a), canonical(b))) },
+    humanReview: { status: allScores.length ? 'declared_human_ratings' : 'N/A', verification: 'Ownership is declared metadata; the evaluator cannot authenticate raters or verify semantic judgments.', scores: humanScoreSummary(allScores), records: allScores.sort((a, b) => compare(canonical(a), canonical(b))) },
     provenance: {
       cases: sortBy(cases.values(), 'caseId').map(c => ({ caseId: c.caseId, variantId: c.variantId, fixtureVersion: c.fixtureVersion, sha256: c.sha256, jobDescriptionSha256: c.jobDescriptionSha256, lineage: c.lineage, sourceRecords: c.sourceRecords })),
       outputs: sortBy(outputs.values(), 'outputId').map(({ plan: _plan, ...o }) => o),
@@ -240,7 +257,7 @@ export function evaluate(dataset) {
 
 const md = value => String(value).replace(/[|`\\]/g, '\\$&').replace(/\r?\n/g, ' ');
 export function markdown(r) {
-  return `# ${r.reportTitle}\n\nStatus: ${r.status}. All deterministic integrity checks passed.\n\n${r.counts.cases} case; ${r.counts.annotatedClaimPaths} annotated claim paths; ${r.counts.findings} findings. Counts reflect annotations, not verified model quality.\n\n${r.provenance.cases.map(c => `Case: ${md(c.caseId)} / ${md(c.variantId)}; snapshot ${c.sha256}.`).join('\n')}\n\n${r.provenance.outputs.map(o => `Output: ${md(o.outputId)}; authored by ${md(o.authoredBy)}; Prepio executed: false.\n\nSource-context commit: ${o.runMetadata.sourceCommit} (not an execution trace).`).join('\n')}\n\n${r.provenance.annotations.map(a => `Annotation owner: ${md(a.owner.id)}; ${a.owner.authorType}; independence: ${a.owner.independence}; reviewed ${a.owner.reviewedAt}.`).join('\n')}\n\nFindings:\n\n${r.findings.map(f => `- ${md(f.caseId)} / ${md(f.path)}: ${f.type} (${md(f.reason)})`).join('\n') || '- None'}\n\n| Performance metric | Value |\n|---|---|\n${Object.keys(r.metrics).map(k => `| ${k} | N/A |`).join('\n')}\n\nNo actual Prepio run, verified interview ground truth or execution telemetry is supplied.\n\n| Human dimension | Descriptive score (0–4) | Ratings |\n|---|---:|---:|\n${Object.entries(r.humanReview.scores).map(([k, v]) => `| ${k} | ${v.value ?? 'N/A'} | ${v.count} |`).join('\n')}\n\n${r.humanReview.verification}\n\n${r.limitations.map(x => `- ${x}`).join('\n')}\n`;
+  return `# ${r.reportTitle}\n\nStatus: ${r.status}. All deterministic integrity checks passed.\n\n${r.counts.cases} case(s); ${r.counts.annotatedClaimPaths} annotated claim paths; ${r.counts.findings} finding(s). Counts reflect annotations, not verified model quality.\n\n${r.provenance.cases.map(c => `Case: ${md(c.caseId)} / ${md(c.variantId)}; snapshot ${c.sha256}.`).join('\n')}\n\n${r.provenance.outputs.map(o => `Output: ${md(o.outputId)}; authored by ${md(o.authoredBy)}; Prepio executed: false.\n\nSource-context commit: ${o.runMetadata.sourceCommit} (not an execution trace).`).join('\n')}\n\n${r.provenance.annotations.map(a => `Annotation owner: ${md(a.owner.id)}; ${a.owner.authorType}; independence: ${a.owner.independence}; reviewed ${a.owner.reviewedAt}.`).join('\n')}\n\nFindings:\n\n${r.findings.map(f => `- ${md(f.caseId)} / ${md(f.path)}: ${f.type} (${md(f.reason)})`).join('\n') || '- None'}\n\n| Performance metric | Value |\n|---|---|\n${Object.keys(r.metrics).map(k => `| ${k} | N/A |`).join('\n')}\n\nNo actual Prepio run, verified interview ground truth or execution telemetry is supplied.\n\n| Human dimension | Descriptive score (0–4) | Ratings |\n|---|---:|---:|\n${Object.entries(r.humanReview.scores).map(([k, v]) => `| ${k} | ${v.status === 'requires_adjudication' ? 'N/A (requires adjudication)' : v.value ?? 'N/A'} | ${v.count} |`).join('\n')}\n\n${r.humanReview.verification}\n\n${r.limitations.map(x => `- ${x}`).join('\n')}\n`;
 }
 
 async function main(args) {

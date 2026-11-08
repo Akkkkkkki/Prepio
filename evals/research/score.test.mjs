@@ -38,6 +38,11 @@ describe('offline snapshot integrity', () => {
   });
   it('rejects unresolved citation IDs', () => reject(d => { d.outputs[0].plan.stageRoadmap[0].evidenceIds = ['ev-99']; }, /unresolved citation/));
   it('rejects fabricated prose citations', () => reject(d => { d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ' https://glassdoor.example/fake'; }, /unregistered URL/));
+  it('rejects fabricated citations with an uppercase URL scheme', () => reject(d => { d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ' [source](HTTPS://glassdoor.example/fake)'; }, /unregistered URL/));
+  it('resolves a registered citation with case-insensitive scheme and host', async () => {
+    const d = data(); d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ' HTTPS://OPENAI.COM/careers/applied-ai-architect-large-enterprise-london-uk/';
+    expect((await evaluate(bind(d))).checks.planReferenceIntegrity).toBe('pass');
+  });
   it('rejects rewritten official-job URLs', () => reject(d => { d.cases[0].sourceRecords[0].url = 'https://openai.com/careers/other/'; }, /London source identity/));
   it('rejects changed job-description binding', () => reject(d => { d.cases[0].input.jobDescription += ' Extra claim'; }, /job description/));
   it('rejects mismatched inline excerpts', () => reject(d => { d.outputs[0].plan.internalEvidenceLog[0].excerpt = 'Different posting'; }, /ledger.*binding/));
@@ -71,6 +76,9 @@ describe('offline snapshot integrity', () => {
   it('does not accept role evidence as supported interview history', () => reject(d => {
     Object.assign(d.annotations[0].judgments[1], { supportDecision: 'supported', evidenceSourceIds: ['S02'], passageIds: ['S02-C06'] });
   }, /interview ground truth/));
+  it('does not use missing interview ground truth as evidence of nonexistence', () => reject(d => {
+    Object.assign(d.annotations[0].judgments[1], { supportDecision: 'contradicted', evidenceSourceIds: ['S02'], passageIds: ['S02-C06'] });
+  }, /interview ground truth/));
   it('rejects unsupported factual claims mislabeled not applicable', () => reject(d => { d.annotations[0].judgments[1].supportDecision = 'not_applicable'; }, /not_applicable/));
   it('rejects missing annotations on claim-bearing paths', () => reject(d => { d.annotations[0].judgments.pop(); }, /unannotated/));
   it('rejects nonexistent judgment paths', () => reject(d => { d.annotations[0].judgments[0].path = '__proto__.polluted'; }, /unknown judgment path/));
@@ -86,9 +94,19 @@ describe('offline snapshot integrity', () => {
     const r = await evaluate(bind(d)); expect(r.humanReview.scores.roleRelevance.value).toBe(3); expect(r.humanReview.scores.roleRelevance.count).toBe(1); expect(r).not.toHaveProperty('passed');
   });
   it('rejects model-authored human scores', () => reject(d => { d.annotations[0].humanScores = [{ dimension: 'roleRelevance', value: 4, raterId: 'model', authorType: 'model' }]; }, /human score/));
+  it('withholds disputed human aggregates pending adjudication and preserves raw ratings', async () => {
+    const d = data(); d.annotations[0].humanScores = [0, 4].map((value, i) => ({ dimension: 'roleRelevance', value, raterId: `human-${i}`, authorType: 'human', independence: 'independent', reviewedAt: '2026-11-09', rubricVersion: '0.3.0', reason: 'Declared human assessment' }));
+    const r = await evaluate(bind(d)); expect(r.humanReview.scores.roleRelevance).toEqual(expect.objectContaining({ value: null, count: 2, status: 'requires_adjudication' }));
+    expect(r.humanReview.records.map(s => s.value).sort()).toEqual([0, 4]);
+  });
+  it('allows a descriptive mean when human ratings differ by at most one point', async () => {
+    const d = data(); d.annotations[0].humanScores = [3, 4].map((value, i) => ({ dimension: 'roleRelevance', value, raterId: `human-${i}`, authorType: 'human', independence: 'independent', reviewedAt: '2026-11-09', rubricVersion: '0.3.0', reason: 'Declared human assessment' }));
+    expect((await evaluate(bind(d))).humanReview.scores.roleRelevance).toEqual({ value: 3.5, count: 2, status: 'descriptive_only' });
+  });
   it.each(['claimType', 'match', 'relevant', 'specific'])('rejects self-grading field %s', key => reject(d => { d.outputs[0].plan.questionPlan.coreMustPractice[0][key] = true; }, /self-grading|unknown field/));
   it('rejects missing real-run provenance without upgrading illustrative outputs', () => reject(d => { d.outputs[0].claimLevel = 'captured_prepio'; }, /real-run provenance/));
   it('rejects illustrative outputs claiming execution', () => reject(d => { d.outputs[0].runMetadata.prepioExecuted = true; }, /illustrative provenance/));
+  it('rejects non-string source commit values', () => reject(d => { d.outputs[0].runMetadata.sourceCommit = [d.outputs[0].runMetadata.sourceCommit]; }, /sourceCommit/));
   it('rejects malformed native plan enums', () => reject(d => { d.outputs[0].plan.stageRoadmap[0].confidence = 'very high'; }, /confidence/));
   it('rejects prose injected into unannotated summary metadata', () => reject(d => { d.outputs[0].plan.summary.industryFocus = 'OpenAI always asks these questions'; }, /industryFocus/));
   it('rejects reviews predating the constructed output', () => reject(d => { d.annotations[0].owner.reviewedAt = '2026-11-01'; }, /predates/));
