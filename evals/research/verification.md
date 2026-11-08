@@ -39,7 +39,7 @@ Industry is now constrained to this case's `tech` metadata, and chronology is
 checked at the stored dates' day granularity. Missing run metadata and malformed
 record tests also pass. Sorting uses code-unit comparisons, avoiding ICU locale
 variation. Two additional tests verify native long-JD truncation and require explicit `null`
-for unavailable interview ground truth. The final suite contains 54 harness tests.
+for unavailable interview ground truth. The final suite contains 60 harness tests after independent-review regressions.
 
 ## Repository checks
 
@@ -48,8 +48,8 @@ local success does not assert that remote CI ran. No dependencies were added.
 
 | Check | Observed result |
 |---|---|
-| Focused harness tests | 54 passed, included in full run |
-| `npm test` | 548 tests / 59 files passed; legacy-schema, answer-feedback-schema and design-token checks passed |
+| Focused harness tests | 60 passed, included in final full run |
+| `npm test` | 554 tests / 59 files passed after independent-review revisions; legacy-schema, answer-feedback-schema and design-token checks passed |
 | `npm run typecheck` | Passed ratchet: app 61, node 0 existing type errors |
 | `npm run typecheck:functions` | Passed ratchet: 19 existing errors; static checks only, no functions executed |
 | `npm run build` | Passed; existing large-chunk warning remains |
@@ -80,3 +80,30 @@ verified ground truth.
 A Linear sub-issue creation attempt was rejected by automatic approval review
 because sending the scope/approval payload to Linear was not explicitly authorized.
 No Linear issue was created or updated. The branch avoids PREPIO-148 auto-completion.
+
+## Independent review and revisions
+
+A separate read-only reviewer inspected the complete diff at commit
+`729854b9efac56f69deaed02ce52615fa72c53fe` against `a330939`. All 54 tests passed,
+but the reviewer reproduced four P2 findings with resealed snapshots:
+
+1. Uppercase URL schemes bypassed the prose citation scanner. Match schemes
+   case-insensitively and normalize scheme/host via the URL parser.
+2. A JD-only source could be labeled as contradicting interview history despite
+   missing ground truth. Reject both supported and contradicted historical
+   decisions; preserve insufficient evidence rather than inferring absence.
+3. A one-item array was coerced into a matching source SHA by RegExp. Validate
+   the type explicitly before checking the format.
+4. Ratings 0 and 4 were averaged to 2 without adjudication. Preserve raw scores,
+   flag same-output disagreements greater than one point and withhold aggregates
+   as N/A/requires_adjudication, as required by the preserved rubric.
+
+Six regression/control tests were added first: four failed against that commit
+and 56 passed. The implementation was then corrected. Final verification and a
+new independent review target are recorded on the PR/review request. Final
+focused tests: 60 passed. Full `npm test`: 554 tests / 59 files plus all schema
+and design-token checks passed. CLI determinism tests and syntax/diff checks
+passed; the canonical report remains one expected finding with N/A metrics.
+Typecheck, build and local browser smoke results above remain applicable: the
+revisions touch evaluation files only and do not affect their inputs. The reviewer
+did not authenticate sources, human identities or semantic annotation correctness.
