@@ -143,3 +143,60 @@ app build/typecheck/browser results remain applicable.
 The final updated commit is independently re-reviewed and explicitly re-requested
 on GitHub after push. Final review/check receipts live on PR #396, preserving
 this file as an immutable history rather than embedding its own commit hash.
+
+## Trustworthiness revision — 2026-11-09
+
+Implementation commit: `42ec2c268613164bc1301510abea4f19cd659bd9`, based on the
+audited `fc28e139c42c3102539aeddbd576fedc3f69d2be`. This follow-up documentation
+entry records author verification of that exact implementation; it does not
+constitute a new independent audit. The dated PR396 audit is preserved unchanged.
+
+The owner approved retaining optional human ratings and implementing the reviewed
+plan. The revision addresses EV396-01 with dataset-wide exact-ID/type reconciliation
+and output-specific independence checks. It addresses EV396-02 by retaining raw
+scores/findings, emitting structured adjudication issues, and withholding the whole
+grounding dimension when positive ratings conflict with any declared independent
+human unsupported-history finding for the same output. Model annotations alone
+do not trigger that rule. Numerical rating-disagreement handling remains active.
+
+Before changing the scorer, the expanded suite produced 22 failures and 66 passes
+against `fc28e13`, including both audit regressions. These failures demonstrate
+missing safeguards/report features, not 22 distinct product-quality defects.
+The archive tests also exposed silent CLI non-execution through a symlinked entry
+path (including macOS temporary-directory aliases). A dedicated symlink regression
+was added and the CLI now compares resolved real paths. The final suite has 89
+tests, including all original 65 tests.
+
+Environment: Node `v25.8.1`, existing Vitest `4.1.9`; no dependencies installed or
+changed. Vitest used a temporary config that imports the checked-in Vite config,
+disables environment-file loading, sets two workers and places its cache outside
+the repository. The installed Homebrew Node 22 launcher failed before execution
+because `libsimdjson.29.dylib` is missing; this revision was not rerun on Node 22.
+
+| Check | Observed result for the implementation commit |
+|---|---|
+| Focused harness suite | 89 passed |
+| Full Vitest suite | 583 tests / 59 files passed |
+| Legacy-schema, answer-feedback-schema, design-token scripts | All passed |
+| `npm run typecheck` | Passed ratchets: app 61 existing errors, node 0 |
+| `npm run typecheck:functions` | Passed ratchet: 19 existing errors; static checks only |
+| `npm run build` | Passed; existing chunk-size warning remains |
+| `npm run lint` | Exit 1: 40 errors, 9 warnings in unchanged files; informational CI baseline |
+| Scorer/test syntax and `git diff --check` | Passed |
+| Identity regressions | Same-record, cross-case and typed source-review conflicts rejected with contextual errors; reversing input order preserves results/errors; a human author can review another output |
+| Grounding adjudication | EG 1–4 withheld for independent-human unsupported history, including another rater; EG=0 and consistent positive controls remain descriptive; raw ratings and unrelated dimensions preserved |
+| Provenance | Resealed incorrect rubric digest and changed/missing bundled rubric rejected; changed scorer bytes produce their actual fingerprint |
+| Bundle replay | Exact input/scorer/rubric bytes archived, including CRLF array input; relocating the archive and replaying without dependencies yields identical JSON and Markdown |
+| Canonical result | Schema 2; one case, seven annotated paths, one annotation-supported claim, one planted finding; human ratings and all performance metrics remain N/A; CLI exits 0 |
+
+Verified scorer raw-byte SHA-256:
+`a82fe1c49d41818052fe39e04fc40c8dd2b14092361ee8ccc687e078f8225da4`.
+Unchanged rubric raw-byte SHA-256:
+`26ab37cab025eff0220e8915deb7545089f94c5a5743b8e6399dd8f4c87450a6`.
+
+Only evaluation code, tests and documentation changed. No application/prompt,
+orchestration, auth, database, Edge Function or deployment changes were made.
+Browser smoke was not rerun because application inputs are unchanged. No provider
+calls, captured Prepio runs, authenticated human reviews, source authentication,
+measured baseline or release gate are established by these checks. Corpus selection
+and captured-run comparison work remain deferred as specified in the plan.
