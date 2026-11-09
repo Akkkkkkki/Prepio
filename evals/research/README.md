@@ -20,8 +20,15 @@ npx vitest run evals/research/score.test.mjs
 ```
 
 The output directory must not already exist; its parent must exist. Reports are
-`results.json` and `summary.md`. Use an output directory outside the repository.
-The scorer never loads `.env`, imports app code, fetches URLs or invokes providers.
+`results.json` (report schema 2) and `summary.md`. Input snapshot schemas remain 1.
+The directory also contains byte-for-byte copies of the supplied JSON files at
+`inputs/cases.json`, `inputs/outputs.json` and `inputs/annotations.json`, plus
+`score.mjs` and `rubric.v0.3.0.md`. The output snapshot includes the complete
+supplied plan, so reviewers can inspect the text behind each judgment.
+Use an output directory outside the repository and preserve the whole bundle.
+The scorer reads its own bundled code/rubric once at module load; record calculation
+and the synchronous `evaluate(dataset)` API use that captured context. It never
+loads `.env`, imports app code, fetches URLs or invokes providers.
 Existing `npm test` automatically discovers the tests. Two guards in
 `vitest.setup.ts` let Node tests skip browser-only window mocks.
 
@@ -29,6 +36,17 @@ Existing `npm test` automatically discovers the tests. Two guards in
 Errors are one JSON object on stderr. 1 is reserved; no quality gate is active.
 All four options are mandatory; unknown/repeated options fail. Files may contain
 one record or arrays of records, with exactly one output/annotation per case.
+
+Replay a bundle from any location with Node 22+, without installing dependencies:
+
+```sh
+cd /tmp/prepio-eval-new-report
+node score.mjs --case inputs/cases.json --output inputs/outputs.json \
+  --labels inputs/annotations.json --out ../prepio-eval-replayed
+```
+
+The replay destination must also be new. Unchanged bundled artifacts and inputs
+produce byte-identical JSON and Markdown, independently of directory paths.
 
 ## Snapshot contracts
 
@@ -81,10 +99,32 @@ point for the same output/dimension require adjudication under the preserved
 rubric: all raw ratings remain, the aggregate is N/A with
 `status:requires_adjudication`, and disputed output IDs are reported.
 
+A declared independent human `unsupported_interview_history` finding also conflicts
+with every positive evidence-grounding rating (1–4) for that output, whether the
+rater is the annotation owner or another reviewer. EG=0 remains consistent. A
+model-authored or non-independent finding does not trigger this human-review rule.
+Either conflict withholds the entire affected dimension across the dataset; no
+disputed output is silently dropped from its denominator. Other dimensions remain
+descriptive when consistent. `humanReview.adjudicationIssues` identifies the
+`rating_disagreement` or `grounding_finding_conflict`, dimension, output, affected
+`raterIds`, relevant `findingPaths` and reason. Markdown explains the same issues;
+`humanReview.records` retains all original values and rating metadata.
+
 An annotation owner may be `human` or `model`; independence is `independent`,
 `same_author` or `unknown`. Independent annotations must declare a human owner
 whose ID differs from the output author. Metadata is an attestation, not identity
 authentication: aliases and false declarations require human audit.
+After individual record validation, exact identity strings are reconciled across
+all annotation owners, typed source-review attributions and human ratings. An ID
+declared both model and human is rejected, even across cases. An output's author
+or an annotation owner declaring `same_author` cannot rate that output as an
+independent human. Independence is output-specific: a human author may review a
+different output. Unknown independence alone is not treated as a contradictory
+declaration. The evaluator does not infer aliases or split prose attribution strings.
+
+Adjudication requires a new explicitly reviewed, resealed annotation snapshot and
+a new report bundle. Preserve the previous bundle with its original ratings and
+findings. There is no override field or automatic rewriting of ratings to zero.
 
 No human scores are included in the canonical example. Its same-author model
 annotations illustrate mechanics and never become verified ground truth. Human
@@ -101,6 +141,15 @@ change requires resealing dependent snapshots. Passage hashes cover text, not
 JSON. Native pasted-JD compacting collapses whitespace, trims, and for >700 UTF-16
 code units takes 699 units, trims and appends `…`, matching main at `a330939`.
 
+Separately, `provenance.evaluator` records `scorerSha256`, `rubricVersion` and
+`rubricSha256`, hashed from the actual raw file bytes without newline normalization.
+Each case's `lineage.rubricSha256` must equal the bundled rubric's raw-byte hash;
+resealing snapshots cannot bypass a mismatch. The preserved v0.3.0 rubric is
+unchanged. Artifact hashes detect differences and enable replay; they do not
+authenticate an artifact or approve a changed scoring policy. The original
+opportunity/source-register hashes remain declared lineage because their full
+original files are not bundled.
+
 Only two short S02 quotations are redistributed. The source register describes an
 Ashby capture on 2026-11-08 and a separate archived/live official-page recheck.
 Original full snapshot and package hashes are retained as lineage; their original
@@ -116,4 +165,7 @@ validator, exact input and raw/failure output snapshots, real run ID/time, sourc
 commit, prompt/model/configuration, execution environment and trace hashes.
 Quality metrics additionally need independent interview evidence/annotations;
 latency/cost need observed telemetry. A single run still is not representative.
+Before comparisons, also fix the expected corpus independently of selected results,
+record exclusions and all attempted/failed runs, and pin configuration provenance.
+This milestone adds neither comparison mode nor a release gate.
 See [verification.md](verification.md) for test evidence and review limitations.

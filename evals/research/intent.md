@@ -80,3 +80,19 @@ The retried Linear creation was rejected because the workspace has reached its
 free issue limit. No issue or billing change was made; retain the separate Phase A
 branch without a PREPIO-148 completion link. No deployment settings may change,
 and no production deployment, automatic merge or other deployment is authorized.
+
+## Trustworthiness revision — 2026-11-09
+
+The owner explicitly requested implementation of the reviewed improvement plan:
+retain human ratings, reconcile declared identities across the dataset, withhold
+grounding aggregates contradicted by any declared independent human unsupported
+interview-history finding, and preserve raw ratings with adjudication reasons.
+Model annotations alone do not trigger that human-review rule. Independence is
+output-specific; identity authentication and alias inference remain outside scope.
+
+Report schema 2 binds the actual scorer and unchanged rubric bytes and archives
+the supplied snapshots plus both artifacts for offline replay. The evaluator now
+reads those two bundled artifacts as well as explicitly supplied local JSON;
+input snapshot schemas and valid-with-findings exit 0 remain unchanged. Expected
+corpus selection, captured runs, semantic calibration, telemetry and release gates
+remain deferred. The dated audit of `fc28e13` remains a historical record.
