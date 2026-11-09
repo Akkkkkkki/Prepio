@@ -48,8 +48,8 @@ local success does not assert that remote CI ran. No dependencies were added.
 
 | Check | Observed result |
 |---|---|
-| Focused harness tests | 60 passed, included in final full run |
-| `npm test` | 554 tests / 59 files passed after independent-review revisions; legacy-schema, answer-feedback-schema and design-token checks passed |
+| Focused harness tests | 65 passed, included in final full run |
+| `npm test` | 559 tests / 59 files passed after independent-review revisions; legacy-schema, answer-feedback-schema and design-token checks passed |
 | `npm run typecheck` | Passed ratchet: app 61, node 0 existing type errors |
 | `npm run typecheck:functions` | Passed ratchet: 19 existing errors; static checks only, no functions executed |
 | `npm run build` | Passed; existing large-chunk warning remains |
@@ -122,3 +122,24 @@ re-reviewed: no remaining actionable findings; all 60 focused tests and original
 review probes passed. This publication follow-up changes evaluation documentation
 only. Request independent review again on the final publication commit. Keep the
 PR draft and unmerged; do not change deployment configuration or deploy production.
+
+## GitHub review follow-up
+
+GitHub CI passed on `de1b5ef56f44266999a13cec3e181821ac96755e` under Node 22,
+including type checks, build, repository tests and browser smoke. The independent
+GitHub review of that commit found one further P2 issue:
+[ledger source metadata was not bound](https://github.com/Akkkkkkki/Prepio/pull/396#discussion_r4508592927).
+A resealed ledger could rename its source label/title/platform to fabricated
+interview-source metadata without adding judgment paths.
+
+Five tests were added before fixing the issue: forged sourceLabel, title,
+platform, relevance and trustWeight all failed meaningfully (60 passed).
+The validator now requires the native pasted-JD builder's fixed label/title,
+platform and high/high weights, checked against main's addInlineEntry and
+trustWeightFor implementation. All 65 focused tests and 559 repository tests
+plus schema/design-token checks pass. The changes are evaluation-only; previous
+app build/typecheck/browser results remain applicable.
+
+The final updated commit is independently re-reviewed and explicitly re-requested
+on GitHub after push. Final review/check receipts live on PR #396, preserving
+this file as an immutable history rather than embedding its own commit hash.

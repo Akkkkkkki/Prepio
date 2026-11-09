@@ -54,7 +54,10 @@ Paths are relative to `plan`, for example `stageRoadmap[0].whyLikely` and
 `questionPlan.coreMustPractice[0].question`. Paths are looked up in a generated
 allow-list, never evaluated as code. Classification belongs only in annotations.
 A resolved `ev-*` reference establishes ledger membership and frozen-text binding;
-it does **not** establish that a claim is semantically supported.
+it does **not** establish that a claim is semantically supported. Pasted-JD
+ledger metadata is fixed to the native builder: source label/title are
+`Pasted job description`, platform is `user`, and relevance/trust weight are
+both `high`. Resealing cannot turn that entry into a different source attribution.
 
 Judgment types: `role_requirement`, `suggested_practice`,
 `reported_interview_question`, `interview_process_claim`, `other`. Presentations:
