@@ -113,8 +113,7 @@ function validatePlan(o, c, s) {
     shape(e, ['id', 'sourceType', 'sourceLabel', 'excerpt', 'url', 'relevance', 'trustWeight', 'contradictionGroup', 'title', 'platform', 'publishedDate', 'snippet'], 'ledger');
     requireThat(/^ev-[1-9]\d*$/.test(e.id), 'invalid ledger id');
     requireThat(e.sourceType === 'official_job' && (e.url === null || e.url === s.url || e.url === s.backingUrl) && e.excerpt === compact(c.input.jobDescription) && e.snippet === e.excerpt, 'ledger source/content binding mismatch');
-    for (const k of ['sourceLabel', 'title', 'platform']) str(e[k], `ledger.${k}`);
-    member(e.relevance, PRIORITY, 'ledger.relevance'); member(e.trustWeight, PRIORITY, 'ledger.trustWeight');
+    requireThat(e.sourceLabel === 'Pasted job description' && e.title === 'Pasted job description' && e.platform === 'user' && e.relevance === 'high' && e.trustWeight === 'high', 'ledger metadata binding mismatch: expected native pasted-JD source identity and weights');
     requireThat(e.contradictionGroup === null && e.publishedDate === null, 'unexpected ledger date/contradiction metadata');
   }
   function citations(ids, name) {

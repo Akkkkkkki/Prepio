@@ -46,6 +46,13 @@ describe('offline snapshot integrity', () => {
   it('rejects rewritten official-job URLs', () => reject(d => { d.cases[0].sourceRecords[0].url = 'https://openai.com/careers/other/'; }, /London source identity/));
   it('rejects changed job-description binding', () => reject(d => { d.cases[0].input.jobDescription += ' Extra claim'; }, /job description/));
   it('rejects mismatched inline excerpts', () => reject(d => { d.outputs[0].plan.internalEvidenceLog[0].excerpt = 'Different posting'; }, /ledger.*binding/));
+  it.each([
+    ['sourceLabel', 'Glassdoor London interview report'],
+    ['title', 'OpenAI confirms four interview rounds'],
+    ['platform', 'Glassdoor'],
+    ['relevance', 'low'],
+    ['trustWeight', 'low'],
+  ])('rejects changed native pasted-JD metadata: %s', (key, value) => reject(d => { d.outputs[0].plan.internalEvidenceLog[0][key] = value; }, /ledger metadata binding/));
   it('binds long pasted text with the native 699-code-unit ellipsis rule', async () => {
     const d = data(); const c = d.cases[0]; const passage = { id: 'test-long', text: 'An architecture practice topic. '.repeat(35) }; passage.sha256 = hash(passage.text);
     c.sourceRecords[0].passages.push(passage); c.input.jobDescription = c.sourceRecords[0].passages.map(p => p.text).join('\n'); c.jobDescriptionSha256 = hash(c.input.jobDescription);
