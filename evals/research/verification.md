@@ -107,3 +107,18 @@ passed; the canonical report remains one expected finding with N/A metrics.
 Typecheck, build and local browser smoke results above remain applicable: the
 revisions touch evaluation files only and do not affect their inputs. The reviewer
 did not authenticate sources, human identities or semantic annotation correctness.
+
+## Publication authorization update
+
+On 2026-11-09 the owner explicitly approved this draft PR's automatic Vercel
+preview only and creation of the Phase A issue in the stated Linear destination
+with scope/validation/approval context. The retried issue creation returned
+“exceeded the free issue limit”; no issue, status or billing change was made.
+The branch remains separate from PREPIO-148. The earlier approval rejection above
+is historical, not an outstanding permission request.
+
+Code commit `92fa3b96605cc66db49f40d00063269e0d2a16ce` was independently
+re-reviewed: no remaining actionable findings; all 60 focused tests and original
+review probes passed. This publication follow-up changes evaluation documentation
+only. Request independent review again on the final publication commit. Keep the
+PR draft and unmerged; do not change deployment configuration or deploy production.
