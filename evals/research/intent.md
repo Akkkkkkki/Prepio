@@ -73,3 +73,10 @@ The separate Phase A Linear sub-issue could not be created: automatic approval
 review rejected exporting its scope/approval payload without explicit Linear
 destination authorization. Use a branch without PREPIO-148 rather than linking
 that deferred issue to completion. No issue status was changed.
+
+Publication authorization update, 2026-11-09: the owner explicitly approved the
+Linear destination/payload and this draft PR's automatic Vercel preview only.
+The retried Linear creation was rejected because the workspace has reached its
+free issue limit. No issue or billing change was made; retain the separate Phase A
+branch without a PREPIO-148 completion link. No deployment settings may change,
+and no production deployment, automatic merge or other deployment is authorized.
