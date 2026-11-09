@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readFileSync, realpathSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +11,7 @@ const DIMENSIONS = ['roleRelevance', 'evidenceGrounding', 'prioritization', 'han
 const TIERS = ['coreMustPractice', 'likelyFollowUps', 'extraDepth'];
 const POSITIONING = ['strengthsToLeanOn', 'weakSpotsToAddress', 'storyCoverageGaps', 'mismatchRisks'];
 const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+const sortedUnique = values => [...new Set(values)].sort(compare);
 const fail = message => { throw new Error(message); };
 const requireThat = (condition, message) => { if (!condition) fail(message); };
 const str = (v, name) => requireThat(typeof v === 'string' && v.trim().length > 0, `${name}: expected nonempty string`);
@@ -39,6 +41,24 @@ function normalize(v) {
 }
 export const canonical = v => JSON.stringify(normalize(v));
 export const sha256 = s => createHash('sha256').update(s.replace(/\r\n?/g, '\n'), 'utf8').digest('hex');
+const byteSha256 = bytes => createHash('sha256').update(bytes).digest('hex');
+
+// Capture the exact artifacts once, separately from record calculation. Retain
+// load errors so the CLI can report them with its usual JSON/exit-2 contract.
+function loadBundledArtifacts() {
+  try {
+    const scorer = readFileSync(fileURLToPath(import.meta.url));
+    const rubric = readFileSync(new globalThis.URL('rubric.v0.3.0.md', import.meta.url));
+    return { scorer, rubric, provenance: { scorerSha256: byteSha256(scorer), rubricVersion: '0.3.0', rubricSha256: byteSha256(rubric) } };
+  } catch (error) {
+    return { error: `Cannot read bundled scorer/rubric: ${error.code ?? error.message}` };
+  }
+}
+const bundledArtifacts = loadBundledArtifacts();
+function requireBundledArtifacts() {
+  requireThat(!bundledArtifacts.error, bundledArtifacts.error);
+  return bundledArtifacts;
+}
 function checkHash(record, name) {
   digest(record.sha256, name);
   const { sha256: expected, ...body } = record;
@@ -48,12 +68,13 @@ function checkHash(record, name) {
 // Exact compactText semantics from main's evidence-ledger.ts; no application import.
 function compact(text) { const s = text.replace(/\s+/g, ' ').trim(); return s.length <= 700 ? s : `${s.slice(0, 699).trim()}…`; }
 
-function validateCase(c) {
+function validateCase(c, evaluator) {
   shape(c, ['schemaVersion', 'fixtureVersion', 'caseId', 'variantId', 'lineage', 'input', 'jobDescriptionSha256', 'sourceRecords', 'interviewGroundTruth', 'sha256'], 'case');
   str(c.fixtureVersion, 'fixtureVersion'); str(c.variantId, 'variantId');
   shape(c.lineage, ['fixtureId', 'packageVersion', 'upstreamCaseId', 'adaptation', 'opportunityFixtureSha256', 'sourceRegisterSha256', 'rubricSha256'], 'lineage');
   for (const [key, value] of Object.entries(c.lineage)) str(value, `lineage.${key}`);
   for (const key of ['opportunityFixtureSha256', 'sourceRegisterSha256', 'rubricSha256']) digest(c.lineage[key], key);
+  requireThat(c.lineage.rubricSha256 === evaluator.rubricSha256, `case ${c.caseId}: rubric lineage hash mismatch with bundled rubric`);
   requireThat(c.lineage.upstreamCaseId === c.caseId, 'caseId does not match preserved upstreamCaseId');
   requireThat(c.lineage.packageVersion === '0.3.0', 'unsupported source package version');
   shape(c.input, ['company', 'role', 'country', 'level', 'jobDescription'], 'input');
@@ -194,25 +215,80 @@ function validateAnnotations(a, o, c, targets, passages) {
     member(score.dimension, DIMENSIONS, 'human score dimension'); requireThat(Number.isInteger(score.value) && score.value >= 0 && score.value <= 4, 'human score must be an integer in 0–4');
     str(score.raterId, 'human score raterId'); date(score.reviewedAt, 'human score reviewedAt'); str(score.reason, 'human score reason');
     requireThat(score.reviewedAt.slice(0, 10) >= o.runMetadata.createdAt.slice(0, 10), 'human score review predates output');
-    requireThat(score.authorType === 'human' && score.independence === 'independent' && score.raterId !== o.authoredBy && score.rubricVersion === '0.3.0', 'human score needs declared independent human ownership and rubric 0.3.0');
+    requireThat(score.authorType === 'human' && score.independence === 'independent' && score.rubricVersion === '0.3.0', 'human score needs declared independent human ownership and rubric 0.3.0');
     const key = `${score.dimension}:${score.raterId}`; requireThat(!scores.has(key), 'duplicate human score'); scores.add(key);
   }
   return [...judgments.values()].map(j => ({ caseId: c.caseId, outputId: o.outputId, annotationOwner: a.owner, ...j }));
 }
 
 const na = reason => ({ status: 'N/A', value: null, reason });
-function humanScoreSummary(records) {
+function validateReviewerIdentities(cases, outputs, annotations) {
+  const declarations = [];
+  for (const c of cases.values()) for (const s of c.sourceRecords) {
+    declarations.push({ id: s.sourceReview.authoredBy, type: s.sourceReview.authorType, record: `case ${c.caseId} source ${s.id} review` });
+  }
+  for (const a of annotations.values()) {
+    declarations.push({ id: a.owner.id, type: a.owner.authorType, record: `output ${a.outputId} annotation owner` });
+    for (const score of a.humanScores) declarations.push({ id: score.raterId, type: score.authorType, record: `output ${a.outputId} ${score.dimension} rating` });
+  }
+  const identities = new Map();
+  declarations.sort((a, b) => compare(canonical(a), canonical(b)));
+  for (const declaration of declarations) {
+    const known = identities.get(declaration.id);
+    requireThat(!known || known.type === declaration.type, `identity ${declaration.id}: conflicting model/human declarations: ${known?.record} (${known?.type}); ${declaration.record} (${declaration.type})`);
+    if (!known) identities.set(declaration.id, declaration);
+  }
+  for (const a of [...annotations.values()].sort((a, b) => compare(a.outputId, b.outputId))) {
+    const o = outputs.get(a.outputId);
+    for (const score of [...a.humanScores].sort((a, b) => compare(canonical(a), canonical(b)))) {
+      requireThat(score.raterId !== o.authoredBy, `independence conflict: rater ${score.raterId} authored output ${o.outputId}`);
+      requireThat(!(score.raterId === a.owner.id && a.owner.independence === 'same_author'), `independence conflict: rater ${score.raterId} declares same_author for output ${o.outputId}`);
+    }
+  }
+}
+
+function humanAdjudicationIssues(records, findings) {
+  const groups = new Map();
+  for (const score of records) {
+    const key = canonical([score.outputId, score.dimension]);
+    const group = groups.get(key) ?? []; group.push(score); groups.set(key, group);
+  }
+  const issues = [];
+  for (const scores of groups.values()) {
+    const { outputId, dimension } = scores[0];
+    const values = scores.map(s => s.value);
+    if (Math.max(...values) - Math.min(...values) > 1) issues.push({
+      type: 'rating_disagreement', dimension, outputId,
+      raterIds: sortedUnique(scores.map(s => s.raterId)), findingPaths: [],
+      reason: 'Human ratings for the same output differ by more than one point; rubric requires adjudication. Raw ratings are retained.',
+    });
+    if (dimension !== 'evidenceGrounding') continue;
+    const conflictingFindings = findings.filter(f => f.outputId === outputId && f.type === 'unsupported_interview_history' && f.annotationOwner.authorType === 'human' && f.annotationOwner.independence === 'independent');
+    const positiveScores = scores.filter(s => s.value > 0);
+    if (conflictingFindings.length && positiveScores.length) issues.push({
+      type: 'grounding_finding_conflict', dimension, outputId,
+      raterIds: sortedUnique(positiveScores.map(s => s.raterId)), findingPaths: sortedUnique(conflictingFindings.map(f => f.path)),
+      reason: 'Positive evidence-grounding ratings conflict with a declared independent human finding of unsupported factual interview history; rubric requires adjudication. Raw ratings and findings are retained.',
+    });
+  }
+  return issues.sort((a, b) => compare(canonical(a), canonical(b)));
+}
+
+function humanScoreSummary(records, issues) {
   return Object.fromEntries(DIMENSIONS.map(dimension => {
     const scores = records.filter(s => s.dimension === dimension);
     if (!scores.length) return [dimension, { ...na('No independent human ratings supplied.'), count: 0 }];
-    const groups = new Map();
-    for (const s of scores) { const group = groups.get(s.outputId) ?? []; group.push(s.value); groups.set(s.outputId, group); }
-    const disputed = [...groups.entries()].filter(([, values]) => Math.max(...values) - Math.min(...values) > 1).map(([id]) => id).sort(compare);
-    if (disputed.length) return [dimension, { status: 'requires_adjudication', value: null, count: scores.length, disputedOutputs: disputed, reason: 'Human ratings for the same output differ by more than one point; rubric requires adjudication. Raw ratings are retained.' }];
+    const dimensionIssues = issues.filter(issue => issue.dimension === dimension);
+    const disputed = sortedUnique(dimensionIssues.map(issue => issue.outputId));
+    if (disputed.length) return [dimension, { status: 'requires_adjudication', value: null, count: scores.length, disputedOutputs: disputed, reason: sortedUnique(dimensionIssues.map(issue => issue.reason)).join(' ') }];
     return [dimension, { status: 'descriptive_only', count: scores.length, value: scores.reduce((sum, s) => sum + s.value, 0) / scores.length }];
   }));
 }
 export function evaluate(dataset) {
+  return evaluateRecords(dataset, requireBundledArtifacts().provenance);
+}
+
+function evaluateRecords(dataset, evaluator) {
   const d = normalize(dataset); shape(d, ['cases', 'outputs', 'annotations'], 'dataset');
   const cases = unique(d.cases, 'caseId', 'caseId'); requireThat(cases.size > 0, 'empty evaluation corpus');
   const outputs = unique(d.outputs, 'outputId', 'outputId'); const annotations = unique(d.annotations, 'outputId', 'annotation outputId');
@@ -222,13 +298,14 @@ export function evaluate(dataset) {
   for (const a of annotations.values()) requireThat(outputs.has(a.outputId), `unknown output: ${a.outputId}`);
   const judgments = []; const findings = []; const allScores = [];
   for (const c of [...cases.values()].sort((a, b) => compare(a.caseId, b.caseId))) {
-    checkHash(c, 'case'); const { source, passages } = validateCase(c);
+    checkHash(c, 'case'); const { source, passages } = validateCase(c, evaluator);
     const o = byCase.get(c.caseId); requireThat(o, `missing output for ${c.caseId}`); checkHash(o, 'output');
     const targets = validatePlan(o, c, source);
     const a = annotations.get(o.outputId); requireThat(a, `missing annotations for ${o.outputId}`); checkHash(a, 'annotations');
     judgments.push(...validateAnnotations(a, o, c, targets, passages));
     allScores.push(...a.humanScores.map(score => ({ caseId: c.caseId, outputId: o.outputId, ...score })));
   }
+  validateReviewerIdentities(cases, outputs, annotations);
   judgments.sort((a, b) => compare(canonical([a.caseId, a.path]), canonical([b.caseId, b.path])));
   for (const j of judgments) {
     let type;
@@ -237,15 +314,17 @@ export function evaluate(dataset) {
     if (type) findings.push({ caseId: j.caseId, outputId: j.outputId, path: j.path, type, annotationOwner: j.annotationOwner, reason: j.reason });
   }
   const metricReason = 'Phase A is illustrative; no actual Prepio execution, verified interview ground truth, or execution telemetry.';
+  const adjudicationIssues = humanAdjudicationIssues(allScores, findings);
   const sortBy = (values, field) => [...values].sort((a, b) => compare(a[field], b[field]));
   return normalize({
-    schemaVersion: 1, status: 'evaluated', claimLevel: 'illustrative', reportTitle: 'Illustrative OpenAI evidence-integrity report — DEMONSTRATION_ONLY',
+    schemaVersion: 2, status: 'evaluated', claimLevel: 'illustrative', reportTitle: 'Illustrative OpenAI evidence-integrity report — DEMONSTRATION_ONLY',
     checks: { sourceCaptureHashes: 'pass', planReferenceIntegrity: 'pass', labelTargetIntegrity: 'pass', hashAndCaseIdentity: 'pass' },
     counts: { cases: cases.size, outputs: outputs.size, annotatedClaimPaths: judgments.length, annotationSupportedClaims: judgments.filter(j => j.supportDecision === 'supported').length, findings: findings.length },
     findings, judgments,
     metrics: Object.fromEntries(['top5HitRate', 'citationPrecision', 'stageAccuracy', 'degradedRunRate', 'latency', 'tokens', 'estimatedCost', 'tavilyUsage'].map(k => [k, na(metricReason)])),
-    humanReview: { status: allScores.length ? 'declared_human_ratings' : 'N/A', verification: 'Ownership is declared metadata; the evaluator cannot authenticate raters or verify semantic judgments.', scores: humanScoreSummary(allScores), records: allScores.sort((a, b) => compare(canonical(a), canonical(b))) },
+    humanReview: { status: allScores.length ? 'declared_human_ratings' : 'N/A', verification: 'Ownership is declared metadata; the evaluator cannot authenticate raters or verify semantic judgments.', scores: humanScoreSummary(allScores, adjudicationIssues), adjudicationIssues, records: allScores.sort((a, b) => compare(canonical(a), canonical(b))) },
     provenance: {
+      evaluator,
       cases: sortBy(cases.values(), 'caseId').map(c => ({ caseId: c.caseId, variantId: c.variantId, fixtureVersion: c.fixtureVersion, sha256: c.sha256, jobDescriptionSha256: c.jobDescriptionSha256, lineage: c.lineage, sourceRecords: c.sourceRecords })),
       outputs: sortBy(outputs.values(), 'outputId').map(({ plan: _plan, ...o }) => o),
       annotations: sortBy(annotations.values(), 'outputId').map(({ judgments: _judgments, humanScores: _scores, ...a }) => a),
@@ -256,7 +335,44 @@ export function evaluate(dataset) {
 
 const md = value => String(value).replace(/[|`\\]/g, '\\$&').replace(/\r?\n/g, ' ');
 export function markdown(r) {
-  return `# ${r.reportTitle}\n\nStatus: ${r.status}. All deterministic integrity checks passed.\n\n${r.counts.cases} case(s); ${r.counts.annotatedClaimPaths} annotated claim paths; ${r.counts.findings} finding(s). Counts reflect annotations, not verified model quality.\n\n${r.provenance.cases.map(c => `Case: ${md(c.caseId)} / ${md(c.variantId)}; snapshot ${c.sha256}.`).join('\n')}\n\n${r.provenance.outputs.map(o => `Output: ${md(o.outputId)}; authored by ${md(o.authoredBy)}; Prepio executed: false.\n\nSource-context commit: ${o.runMetadata.sourceCommit} (not an execution trace).`).join('\n')}\n\n${r.provenance.annotations.map(a => `Annotation owner: ${md(a.owner.id)}; ${a.owner.authorType}; independence: ${a.owner.independence}; reviewed ${a.owner.reviewedAt}.`).join('\n')}\n\nFindings:\n\n${r.findings.map(f => `- ${md(f.caseId)} / ${md(f.path)}: ${f.type} (${md(f.reason)})`).join('\n') || '- None'}\n\n| Performance metric | Value |\n|---|---|\n${Object.keys(r.metrics).map(k => `| ${k} | N/A |`).join('\n')}\n\nNo actual Prepio run, verified interview ground truth or execution telemetry is supplied.\n\n| Human dimension | Descriptive score (0–4) | Ratings |\n|---|---:|---:|\n${Object.entries(r.humanReview.scores).map(([k, v]) => `| ${k} | ${v.status === 'requires_adjudication' ? 'N/A (requires adjudication)' : v.value ?? 'N/A'} | ${v.count} |`).join('\n')}\n\n${r.humanReview.verification}\n\n${r.limitations.map(x => `- ${x}`).join('\n')}\n`;
+  return `# ${r.reportTitle}
+
+Status: ${r.status}. All deterministic integrity checks passed.
+
+${r.counts.cases} case(s); ${r.counts.annotatedClaimPaths} annotated claim paths; ${r.counts.findings} finding(s). Counts reflect annotations, not verified model quality.
+
+${r.provenance.cases.map(c => `Case: ${md(c.caseId)} / ${md(c.variantId)}; snapshot ${c.sha256}.`).join('\n')}
+
+${r.provenance.outputs.map(o => `Output: ${md(o.outputId)}; authored by ${md(o.authoredBy)}; Prepio executed: false.\n\nSource-context commit: ${o.runMetadata.sourceCommit} (not an execution trace).`).join('\n')}
+
+${r.provenance.annotations.map(a => `Annotation owner: ${md(a.owner.id)}; ${a.owner.authorType}; independence: ${a.owner.independence}; reviewed ${a.owner.reviewedAt}.`).join('\n')}
+
+Scorer SHA-256 (raw bytes): ${r.provenance.evaluator.scorerSha256}.
+
+Rubric ${r.provenance.evaluator.rubricVersion} SHA-256 (raw bytes): ${r.provenance.evaluator.rubricSha256}.
+
+Findings:
+
+${r.findings.map(f => `- ${md(f.caseId)} / ${md(f.path)}: ${f.type} (${md(f.reason)})`).join('\n') || '- None'}
+
+| Performance metric | Value |
+|---|---|
+${Object.keys(r.metrics).map(k => `| ${k} | N/A |`).join('\n')}
+
+No actual Prepio run, verified interview ground truth or execution telemetry is supplied.
+
+| Human dimension | Descriptive score (0–4) | Ratings |
+|---|---:|---:|
+${Object.entries(r.humanReview.scores).map(([k, v]) => `| ${k} | ${v.status === 'requires_adjudication' ? 'N/A (requires adjudication)' : v.value ?? 'N/A'} | ${v.count} |`).join('\n')}
+
+Adjudication issues:
+
+${r.humanReview.adjudicationIssues.map(issue => `- ${md(issue.outputId)} / ${issue.dimension}; raters: ${issue.raterIds.map(md).join(', ')}; finding paths: ${issue.findingPaths.map(md).join(', ') || 'none'}. ${md(issue.reason)}`).join('\n') || '- None'}
+
+${r.humanReview.verification}
+
+${r.limitations.map(x => `- ${x}`).join('\n')}
+`;
 }
 
 async function main(args) {
@@ -267,16 +383,31 @@ async function main(args) {
     requireThat(!args[i + 1].startsWith('--'), `Missing value for ${key}`); options[key] = resolve(args[i + 1]);
   }
   requireThat(Object.keys(options).length === 4, 'Usage: node score.mjs --case CASE.json --output OUTPUT.json --labels LABELS.json --out NEW_DIRECTORY');
-  const load = async path => { let parsed; try { parsed = JSON.parse(await readFile(path, 'utf8')); } catch (e) { fail(`Cannot read JSON ${basename(path)}: ${e.code ?? 'invalid JSON'}`); } return Array.isArray(parsed) ? parsed : [parsed]; };
+  const load = async path => {
+    try {
+      const bytes = await readFile(path); const parsed = JSON.parse(bytes.toString('utf8'));
+      return { bytes, records: Array.isArray(parsed) ? parsed : [parsed] };
+    } catch (e) { fail(`Cannot read JSON ${basename(path)}: ${e.code ?? 'invalid JSON'}`); }
+  };
   const [cases, outputs, annotations] = await Promise.all([load(options['--case']), load(options['--output']), load(options['--labels'])]);
-  const result = evaluate({ cases, outputs, annotations }); const json = `${JSON.stringify(result, null, 2)}\n`; const summary = markdown(result);
+  const result = evaluate({ cases: cases.records, outputs: outputs.records, annotations: annotations.records });
+  const json = `${JSON.stringify(result, null, 2)}\n`; const summary = markdown(result);
+  const bundle = requireBundledArtifacts();
   // A new directory and exclusive files prevent overwrite through aliases/symlinks.
   await mkdir(options['--out']);
+  await mkdir(resolve(options['--out'], 'inputs'));
+  for (const [name, bytes] of [['inputs/cases.json', cases.bytes], ['inputs/outputs.json', outputs.bytes], ['inputs/annotations.json', annotations.bytes], ['score.mjs', bundle.scorer], ['rubric.v0.3.0.md', bundle.rubric]]) {
+    await writeFile(resolve(options['--out'], name), bytes, { flag: 'wx' });
+  }
   await writeFile(resolve(options['--out'], 'results.json'), json, { flag: 'wx' });
   await writeFile(resolve(options['--out'], 'summary.md'), summary, { flag: 'wx' });
   process.stdout.write(summary);
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+function isDirectInvocation() {
+  try { return !!process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url); }
+  catch { return false; } // Imported modules may run under virtual entry points.
+}
+if (isDirectInvocation()) {
   try { await main(process.argv.slice(2)); }
   catch (error) { process.stderr.write(`${JSON.stringify({ status: 'error', message: error.message })}\n`); process.exitCode = 2; }
 }

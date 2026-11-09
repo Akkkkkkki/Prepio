@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it } from 'vitest';
-import { readFile, mkdtemp, rm, writeFile, symlink } from 'node:fs/promises';
+import { readFile, mkdtemp, rm, writeFile, symlink, rename } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,11 +15,21 @@ const hash = s => createHash('sha256').update(s).digest('hex');
 function seal(x) { delete x.sha256; x.sha256 = hash(canonical(x)); }
 function bind(d) {
   d.cases.forEach(seal);
-  d.outputs.forEach(o => { o.caseSha256 = d.cases[0].sha256; seal(o); });
-  d.annotations.forEach(a => { if (d.outputs[0]) a.outputSha256 = d.outputs[0].sha256; seal(a); });
+  d.outputs.forEach(o => { const c = d.cases.find(c => c.caseId === o.caseId); if (c) o.caseSha256 = c.sha256; seal(o); });
+  d.annotations.forEach(a => { const o = d.outputs.find(o => o.outputId === a.outputId); if (o) a.outputSha256 = o.sha256; seal(a); });
   return d;
 }
 function data() { const [c, o, a] = structuredClone(originals); return { cases: [c], outputs: [o], annotations: [a] }; }
+function twoCases() {
+  const d = data(); const second = data();
+  second.cases[0].caseId = second.cases[0].lineage.upstreamCaseId = 'EVAL-AAA-secondary';
+  second.outputs[0].caseId = second.annotations[0].caseId = second.cases[0].caseId;
+  second.outputs[0].outputId = second.annotations[0].outputId = 'secondary-output';
+  for (const key of ['cases', 'outputs', 'annotations']) d[key].push(second[key][0]);
+  return d;
+}
+const rating = (value, raterId = 'reviewer-human', dimension = 'evidenceGrounding') => ({ dimension, value, raterId, authorType: 'human', independence: 'independent', reviewedAt: '2026-11-09', rubricVersion: '0.3.0', reason: 'Declared human assessment' });
+const humanOwner = (id = 'reviewer-human', independence = 'independent') => ({ id, authorType: 'human', independence, reviewedAt: '2026-11-09' });
 // Dynamic import keeps the pre-implementation run observable as missing behavior.
 const evaluate = async d => (await import('./score.mjs')).evaluate(d);
 const reject = async (mutate, message) => { const { evaluate: score } = await import('./score.mjs'); const d = data(); mutate(d); expect(() => score(bind(d))).toThrow(message); };
@@ -129,6 +139,126 @@ describe('offline snapshot integrity', () => {
   });
 });
 
+describe('human review consistency', () => {
+  it('rejects the audit regression: a known model redeclared as a human rater', () => reject(d => {
+    d.annotations[0].owner.id = 'known-model';
+    d.annotations[0].humanScores = [rating(4, 'known-model')];
+  }, /identity.*known-model.*model.*human/i));
+
+  it('rejects cross-case type conflicts identically regardless of input order', async () => {
+    const { evaluate: score } = await import('./score.mjs'); const d = twoCases();
+    d.annotations[1].owner.id = 'cross-case-model';
+    d.annotations[0].humanScores = [rating(4, 'cross-case-model')]; bind(d);
+    const message = x => { try { score(x); } catch (e) { return e.message; } throw new Error('Expected an identity validation error'); };
+    const error = message(d);
+    expect(error).toMatch(/identity.*cross-case-model/i);
+    expect(error).toContain(d.outputs[0].outputId); expect(error).toContain(d.outputs[1].outputId);
+    for (const key of ['cases', 'outputs', 'annotations']) d[key].reverse();
+    expect(message(d)).toBe(error);
+  });
+
+  it('includes typed source-review identities in consistency checks', () => reject(d => {
+    d.cases[0].sourceRecords[0].sourceReview.authoredBy = 'source-model';
+    d.annotations[0].humanScores = [rating(4, 'source-model')];
+  }, /identity.*source-model/i));
+
+  it('reconciles contradictory types even when no human score is supplied', async () => {
+    const { evaluate: score } = await import('./score.mjs'); const d = twoCases();
+    d.cases[0].sourceRecords[0].sourceReview.authoredBy = 'contradictory-reviewer';
+    d.annotations[1].owner = humanOwner('contradictory-reviewer');
+    expect(() => score(bind(d))).toThrow(/identity.*contradictory-reviewer/i);
+  });
+
+  it('rejects a same-author human rating even with a different output-author label', () => reject(d => {
+    d.annotations[0].owner = humanOwner('human-author-alias', 'same_author');
+    d.annotations[0].humanScores = [rating(3, 'human-author-alias', 'roleRelevance')];
+  }, /human-author-alias.*same_author.*openai-london-illustrative-v1/i));
+
+  it('identifies a self-rating by its rater and output', () => reject(d => {
+    d.annotations[0].owner = humanOwner(d.outputs[0].authoredBy, 'same_author');
+    d.annotations[0].humanScores = [rating(3, d.outputs[0].authoredBy, 'roleRelevance')];
+  }, /independence.*Codex.*openai-london-illustrative-v1/i));
+
+  it('allows a human author to independently review a different output', async () => {
+    const d = twoCases(); d.outputs[0].authoredBy = 'human-author';
+    d.annotations[0].owner = humanOwner('human-author', 'same_author');
+    d.annotations[1].owner = humanOwner('human-author');
+    d.annotations[1].humanScores = [rating(3, 'human-author', 'roleRelevance')];
+    const result = await evaluate(bind(d));
+    expect(result.humanReview.scores.roleRelevance).toEqual({ status: 'descriptive_only', value: 3, count: 1 });
+    for (const key of ['cases', 'outputs', 'annotations']) d[key].reverse();
+    expect(await evaluate(d)).toEqual(result);
+  });
+
+  it.each([1, 2, 3, 4])('withholds EG=%s contradicted by the same independent human review', async value => {
+    const d = data(); d.annotations[0].owner = humanOwner();
+    d.outputs[0].plan.stageRoadmap[0].whyLikely = 'According to the Glassdoor London 2026 interview report, OpenAI always uses four architecture interview rounds for this London role.';
+    d.annotations[0].humanScores = [rating(value), rating(3, 'reviewer-human', 'roleRelevance')];
+    const r = await evaluate(bind(d));
+    expect(r.findings[0].type).toBe('unsupported_interview_history');
+    expect(r.humanReview.scores.evidenceGrounding).toEqual(expect.objectContaining({ status: 'requires_adjudication', value: null, count: 1, disputedOutputs: [d.outputs[0].outputId] }));
+    expect(r.humanReview.records).toContainEqual(expect.objectContaining(rating(value)));
+    expect(r.humanReview.scores.roleRelevance.value).toBe(3);
+    expect(r.humanReview.adjudicationIssues).toEqual([expect.objectContaining({ type: 'grounding_finding_conflict', dimension: 'evidenceGrounding', outputId: d.outputs[0].outputId, raterIds: ['reviewer-human'], findingPaths: ['stageRoadmap[0].whyLikely'], reason: expect.any(String) })]);
+    const { markdown } = await import('./score.mjs');
+    expect(markdown(r)).toContain(r.humanReview.adjudicationIssues[0].reason);
+    expect(markdown(r)).toContain('N/A (requires adjudication)');
+  });
+
+  it('withholds the whole dimension across cases when another human reviewer disagrees', async () => {
+    const d = twoCases(); d.annotations[0].owner = humanOwner('finding-reviewer');
+    d.annotations[0].humanScores = [rating(4, 'other-rater')];
+    d.annotations[1].humanScores = [rating(3, 'control-rater')];
+    const r = await evaluate(bind(d));
+    expect(r.humanReview.scores.evidenceGrounding).toEqual(expect.objectContaining({ status: 'requires_adjudication', value: null, count: 2, disputedOutputs: [d.outputs[0].outputId] }));
+    expect(r.humanReview.adjudicationIssues[0].raterIds).toEqual(['other-rater']);
+  });
+
+  it('allows EG=0 with an independent human unsupported-history finding', async () => {
+    const d = data(); d.annotations[0].owner = humanOwner(); d.annotations[0].humanScores = [rating(0)];
+    const r = await evaluate(bind(d));
+    expect(r.humanReview.scores.evidenceGrounding).toEqual({ status: 'descriptive_only', value: 0, count: 1 });
+    expect(r.humanReview.adjudicationIssues).toEqual([]);
+  });
+
+  it.each(['model', 'human'])('does not upgrade a non-independent %s annotation into a human grounding conflict', async authorType => {
+    const d = data(); d.annotations[0].owner = { ...humanOwner('non-independent', 'unknown'), authorType };
+    d.annotations[0].humanScores = [rating(4)];
+    const r = await evaluate(bind(d));
+    expect(r.humanReview.scores.evidenceGrounding.value).toBe(4);
+    expect(r.humanReview.adjudicationIssues).toEqual([]);
+    expect(r.findings).toHaveLength(1);
+  });
+
+  it('keeps a consistent positive grounding control descriptive', async () => {
+    const d = data(); d.annotations[0].owner = humanOwner();
+    d.outputs[0].plan.stageRoadmap[0].whyLikely = 'Suggested architecture practice; the actual interview process is unknown.';
+    Object.assign(d.annotations[0].judgments[1], { claimType: 'suggested_practice', presentation: 'hypothetical', supportDecision: 'not_applicable' });
+    d.annotations[0].humanScores = [rating(4)];
+    const r = await evaluate(bind(d));
+    expect(r.humanReview.scores.evidenceGrounding.value).toBe(4); expect(r.humanReview.adjudicationIssues).toEqual([]);
+  });
+
+  it('explains numeric disputes without treating model findings as human confirmations', async () => {
+    const d = data(); d.annotations[0].humanScores = [rating(0, 'human-a'), rating(4, 'human-b')];
+    const r = await evaluate(bind(d));
+    expect(r.humanReview.adjudicationIssues).toEqual([expect.objectContaining({ type: 'rating_disagreement', dimension: 'evidenceGrounding', outputId: d.outputs[0].outputId, raterIds: ['human-a', 'human-b'], findingPaths: [] })]);
+  });
+});
+
+describe('evaluator provenance', () => {
+  it('reports schema v2 with fingerprints of actual scorer and rubric bytes', async () => {
+    const r = await evaluate(data());
+    expect(r.schemaVersion).toBe(2);
+    expect(r.provenance.evaluator).toEqual({ scorerSha256: hash(await readFile(join(root, 'score.mjs'))), rubricVersion: '0.3.0', rubricSha256: hash(await readFile(join(root, 'rubric.v0.3.0.md'))) });
+    expect(r.counts).toEqual(expect.objectContaining({ annotatedClaimPaths: 7, findings: 1 }));
+    expect(r.humanReview.adjudicationIssues).toEqual([]);
+  });
+  it('rejects the audit lineage probe even after resealing the snapshots', () => reject(d => {
+    d.cases[0].lineage.rubricSha256 = 'a'.repeat(64);
+  }, /rubric.*hash mismatch/i));
+});
+
 describe('CLI', () => {
   const run = args => spawnSync(process.execPath, [join(root, 'score.mjs'), ...args], { encoding: 'utf8' });
   const args = out => paths.flatMap((p, i) => [['--case', '--output', '--labels'][i], join(root, p)]).concat('--out', out);
@@ -140,6 +270,47 @@ describe('CLI', () => {
     for (const name of ['a', 'b']) { const result = run(args(join(p, name))); expect(result.stderr).toBe(''); expect(result.status).toBe(0); }
     for (const name of ['results.json', 'summary.md']) expect(await readFile(join(p, 'a', name), 'utf8')).toBe(await readFile(join(p, 'b', name), 'utf8'));
     const report = await readFile(join(p, 'a', 'summary.md'), 'utf8'); expect(report).toContain('DEMONSTRATION_ONLY'); expect(report).toContain('N/A'); expect(report).not.toContain('%');
+  });
+  it('archives exact input bytes and replays from a relocated self-contained bundle', async () => {
+    const p = await mkdtemp(join(tmpdir(), 'prepio-eval-test-')); temp.push(p);
+    const caseBytes = Buffer.from(JSON.stringify([originals[0]], null, 4).replace(/\n/g, '\r\n') + '\r\n');
+    await writeFile(join(p, 'case.json'), caseBytes);
+    const a = args(join(p, 'original')); a[1] = join(p, 'case.json');
+    const first = run(a); expect(first.stderr).toBe(''); expect(first.status).toBe(0);
+    await rename(join(p, 'original'), join(p, 'relocated'));
+    const bundle = join(p, 'relocated');
+    expect(await readFile(join(bundle, 'inputs/cases.json'))).toEqual(caseBytes);
+    for (const [archived, original] of [['inputs/outputs.json', paths[1]], ['inputs/annotations.json', paths[2]], ['score.mjs', 'score.mjs'], ['rubric.v0.3.0.md', 'rubric.v0.3.0.md']]) {
+      expect(await readFile(join(bundle, archived))).toEqual(await readFile(join(root, original)));
+    }
+    const replay = spawnSync(process.execPath, ['score.mjs', '--case', 'inputs/cases.json', '--output', 'inputs/outputs.json', '--labels', 'inputs/annotations.json', '--out', '../replayed'], { cwd: bundle, encoding: 'utf8' });
+    expect(replay.stderr).toBe(''); expect(replay.status).toBe(0);
+    for (const name of ['results.json', 'summary.md']) expect(await readFile(join(bundle, name))).toEqual(await readFile(join(p, 'replayed', name)));
+  });
+  it('runs when the scorer is invoked through a symlink', async () => {
+    const p = await mkdtemp(join(tmpdir(), 'prepio-eval-test-')); temp.push(p);
+    await symlink(join(root, 'score.mjs'), join(p, 'alias.mjs'));
+    const result = spawnSync(process.execPath, [join(p, 'alias.mjs'), ...args(join(p, 'report'))], { encoding: 'utf8' });
+    expect(result.stderr).toBe(''); expect(result.status).toBe(0);
+    expect(JSON.parse(await readFile(join(p, 'report/results.json'), 'utf8')).counts.findings).toBe(1);
+  });
+  it.each(['changed', 'missing'])('rejects a %s bundled rubric with a structured error', async state => {
+    const p = await mkdtemp(join(tmpdir(), 'prepio-eval-test-')); temp.push(p);
+    await writeFile(join(p, 'score.mjs'), await readFile(join(root, 'score.mjs')));
+    if (state === 'changed') await writeFile(join(p, 'rubric.v0.3.0.md'), Buffer.concat([await readFile(join(root, 'rubric.v0.3.0.md')), Buffer.from('\nModified rubric.\n')]));
+    const result = spawnSync(process.execPath, [join(p, 'score.mjs'), ...args(join(p, 'report'))], { encoding: 'utf8' });
+    expect(result.status).toBe(2);
+    expect(JSON.parse(result.stderr)).toEqual(expect.objectContaining({ status: 'error', message: expect.stringMatching(state === 'changed' ? /rubric.*hash mismatch/i : /bundled.*rubric/i) }));
+    await expect(readFile(join(p, 'report/results.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+  it('fingerprints a changed scorer from its actual bytes', async () => {
+    const p = await mkdtemp(join(tmpdir(), 'prepio-eval-test-')); temp.push(p);
+    const bytes = Buffer.concat([await readFile(join(root, 'score.mjs')), Buffer.from('\n// Distinct implementation artifact.\n')]);
+    await writeFile(join(p, 'score.mjs'), bytes);
+    await writeFile(join(p, 'rubric.v0.3.0.md'), await readFile(join(root, 'rubric.v0.3.0.md')));
+    const result = spawnSync(process.execPath, [join(p, 'score.mjs'), ...args(join(p, 'report'))], { encoding: 'utf8' });
+    expect(result.stderr).toBe(''); expect(result.status).toBe(0);
+    expect(JSON.parse(await readFile(join(p, 'report/results.json'), 'utf8')).provenance.evaluator.scorerSha256).toBe(hash(bytes));
   });
   it('rejects existing output destinations, including symlinks to inputs', async () => {
     const p = await mkdtemp(join(tmpdir(), 'prepio-eval-test-')); temp.push(p);
