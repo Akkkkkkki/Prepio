@@ -14,13 +14,14 @@ node evals/research/score.mjs \
   --case evals/research/cases/openai-london.v1.json \
   --output evals/research/examples/openai-london-illustrative.v1.json \
   --labels evals/research/labels/openai-london-illustrative.v1.json \
-  --out /tmp/prepio-eval-new-report
+  --out /tmp/prepio-eval-new-report \
+  --as-of 2026-11-13T00:00:00Z
 
-npx vitest run evals/research/score.test.mjs
+npx vitest run evals/research/
 ```
 
 The output directory must not already exist; its parent must exist. Reports are
-`results.json` (report schema 2) and `summary.md`. Input snapshot schemas remain 1.
+`results.json` (report schema 3) and `summary.md`. Input snapshot schemas remain 1.
 The directory also contains byte-for-byte copies of the supplied JSON files at
 `inputs/cases.json`, `inputs/outputs.json` and `inputs/annotations.json`, plus
 `score.mjs` and `rubric.v0.3.0.md`. The output snapshot includes the complete
@@ -34,8 +35,13 @@ Existing `npm test` automatically discovers the tests. Two guards in
 
 0 = structurally valid evaluation, including findings; 2 = input/config/I/O error.
 Errors are one JSON object on stderr. 1 is reserved; no quality gate is active.
-All four options are mandatory; unknown/repeated options fail. Files may contain
+The four path options are mandatory; unknown/repeated options fail. Files may contain
 one record or arrays of records, with exactly one output/annotation per case.
+
+`--as-of` is optional and takes a full UTC timestamp (`YYYY-MM-DDTHH:MM:SSZ`).
+The scorer never reads the clock: with `--as-of`, any record dated later is
+rejected and the value is stored in `provenance.evaluation.asOf`; without it,
+`checks.futureDates` is `not_evaluated`. Pass the same value to replay a bundle.
 
 Replay a bundle from any location with Node 22+, without installing dependencies:
 
@@ -46,7 +52,8 @@ node score.mjs --case inputs/cases.json --output inputs/outputs.json \
 ```
 
 The replay destination must also be new. Unchanged bundled artifacts and inputs
-produce byte-identical JSON and Markdown, independently of directory paths.
+(and the same `--as-of`, when one was used) produce byte-identical JSON and
+Markdown, independently of directory paths.
 
 ## Snapshot contracts
 
@@ -83,8 +90,63 @@ Judgment types: `role_requirement`, `suggested_practice`,
 `insufficient_evidence`, `not_applicable`. Supported/contradicted decisions require
 registered source and passage IDs. A factual claim cannot be `not_applicable`.
 Supported interview history is invalid because this contract has no interview
-source. Unsupported factual claims and contradictions become annotated findings.
-A lexicon or citation resolution must never substitute for semantic review.
+source. That rule is enforced on the plan path as well as the label: judgments on
+`stageRoadmap[i].stageName`, `.whyLikely`, `.whatItTests[j]` and
+`.questionThemes[j]` can never be `supported` or `contradicted`, and a factual,
+unsupported judgment there is always `unsupported_interview_history`, whatever
+`claimType` the annotation supplies. Unsupported factual claims and
+contradictions become annotated findings. A lexicon or citation resolution must
+never substitute for semantic review.
+
+## What each result establishes
+
+The report keeps three things apart that are easy to conflate:
+
+| Layer | Report field | What it means | What it does not mean |
+|---|---|---|---|
+| Reference existence | `checks.planReferenceIntegrity`, `counts.resolvedCitations` | Every cited evidence, passage and plan-path ID resolves to a supplied record | That the source supports the claim |
+| Source hash internal consistency | `checks.sourceHashInternalConsistency` | Supplied records match the hashes stored beside them | Source authenticity: an edited record can be resealed. `checks.sourceAuthenticity` is always `not_evaluated` |
+| Semantic claim support | `checks.semanticClaimSupport` (always `not_evaluated`), `semanticReview`, `judgments[].supportBasis` | Support decisions come from annotations; their basis is reported | Verified support. The only check the scorer performs is `verbatim_passage_match`: a claim of four or more words that appears verbatim in a cited frozen passage. Everything else is `annotation_only` |
+
+`semanticReview.basis` and each finding's `annotationBasis` are one of
+`unverified_model_annotation`, `unverified_non_independent_annotation` or
+`declared_independent_human_annotation` (`mixed` across a dataset). "Declared"
+is deliberate: identities are self-declared and unauthenticated.
+
+**Findings from annotations** (`findings`) carry a `severity`. *Critical*
+factual-grounding findings are `unsupported_interview_history` (rubric CF2/CF3)
+and `contradicted_claim`; `unsupported_claim` is *minor*.
+`counts.unresolvedClaimPaths` counts judgments left `ambiguous`.
+
+**Stage predictions** (`stagePredictions`). With `interviewGroundTruth:null`,
+every stage is a `role_informed_prediction`; `externallyVerifiedInterviewStages`
+is always 0 in this version.
+
+**Deterministic rubric findings** (`deterministicFindings`) apply the preserved
+rubric's posting-only rules without annotation. They are reported, not rejected,
+and exit 0 is unchanged:
+
+| Type | Path | Rubric | Caps |
+|---|---|---|---|
+| `posting_cited_as_stage_evidence` | `stageRoadmap[i].evidenceIds` | D4, D5 | grounding ≤ 1, uncertainty ≤ 1 |
+| `stage_confidence_exceeds_evidence` | `stageRoadmap[i].confidence` above `low` | D4, D5 | grounding ≤ 1, uncertainty ≤ 1 |
+| `overall_confidence_exceeds_evidence` | `summary.overallConfidence` above `low` | D5 | uncertainty ≤ 1 |
+| `weak_signal_not_declared` | `summary.weakSignalCase` not `true` | D5 | uncertainty ≤ 1 |
+
+The canonical example's stage cites the posting, so it reports one of these in
+addition to its planted annotation finding. The run-02 confidence caps are taken
+from the rubric's WE-3a checker output, because the upstream corpus file that
+holds them is not bundled.
+
+**Screening warnings** (`screeningWarnings`) are keyword matches over
+claim-bearing text: `interview_history_wording`, `candidate_report_wording`,
+`unregistered_source_reference` (other URL schemes, protocol-relative links,
+`www.` hosts and bare domains on common TLDs that are not the registered
+posting) and `unverified_quotation` (a quoted span of six or more words that is
+not verbatim in the frozen posting). Unregistered `http(s)` URLs are still
+rejected outright. Each warning has a `review` value: `covered_by_finding`,
+`reviewed_by_declared_independent_human` or `unreviewed`. A warning is a prompt
+for human review, never a finding; a miss is not evidence of support.
 
 ## Human ratings and unavailable metrics
 
@@ -93,34 +155,58 @@ dimension IDs are `roleRelevance`, `evidenceGrounding`, `prioritization`,
 `handlingUncertainty`, `practicalUsefulness`. Each score needs integer `value`
 0–4, `raterId`, `authorType:human`, `independence:independent`, `reviewedAt`,
 `rubricVersion:0.3.0` and a nonempty `reason`. Duplicate rater/dimension records
-are errors. Scores have equal weight and report a descriptive mean and rating
-count per dimension; there is no total, pass mark or quality headline. Differences greater than one
-point for the same output/dimension require adjudication under the preserved
-rubric: all raw ratings remain, the aggregate is N/A with
-`status:requires_adjudication`, and disputed output IDs are reported.
+are errors. There is no total, pass mark or quality headline. Every raw rating is
+kept in `humanReview.records`, whatever happens to the aggregate.
 
-A declared independent human `unsupported_interview_history` finding also conflicts
-with every positive evidence-grounding rating (1–4) for that output, whether the
-rater is the annotation owner or another reviewer. EG=0 remains consistent. A
-model-authored or non-independent finding does not trigger this human-review rule.
-Either conflict withholds the entire affected dimension across the dataset; no
-disputed output is silently dropped from its denominator. Other dimensions remain
-descriptive when consistent. `humanReview.adjudicationIssues` identifies the
-`rating_disagreement` or `grounding_finding_conflict`, dimension, output, affected
-`raterIds`, relevant `findingPaths` and reason. Markdown explains the same issues;
-`humanReview.records` retains all original values and rating metadata.
+An aggregate is reported for a dimension only when all of these hold:
+
+1. **Two raters, every output.** Each output in the dataset has at least two
+   distinct declared independent human raters for that dimension (rubric §4.3).
+   Otherwise the dimension is `status:N/A`, `value:null`, with `count`,
+   `eligibleOutputs`, `coveredOutputs` and a `missing` list of
+   `{caseId, outputId, eligibleRaters}`. `humanReview.coverage` lists unrated
+   outputs and dimensions; `humanReview.status` is `incomplete_coverage`.
+2. **Human custody.** Ratings carried in an annotation snapshot whose owner is a
+   model are kept (`custody:model_owned_snapshot`) but not counted: a
+   model-owned record cannot vouch for human ratings.
+3. **No open adjudication issue** for that dimension on any output. Otherwise it
+   is `status:requires_adjudication`, `value:null`, with disputed output IDs.
+
+A reported value is the mean of per-output means, so an output with more raters
+does not outweigh another; `humanReview.perOutput` shows each cell. Ratings
+describe an illustrative excerpt (`humanReview.scope`), not a full Prepio plan.
+
+`humanReview.adjudicationIssues` identifies each issue with its dimension,
+output, `raterIds`, `findingPaths` and reason:
+
+| Type | Raised when |
+|---|---|
+| `rating_disagreement` | Ratings for one output and dimension differ by more than one point |
+| `grounding_finding_conflict`, `severity:critical` | Grounding above 0 beside `unsupported_interview_history`, or grounding 3–4 beside `contradicted_claim` |
+| `grounding_finding_conflict`, `severity:minor` | Grounding 3–4 beside `unsupported_claim` |
+| `rating_exceeds_rubric_cap` | A rating exceeds the cap from a deterministic rubric finding |
+| `unreviewed_screening_signal` | Grounding 3–4 beside a screening warning no declared independent human has judged |
+
+A grounding conflict is raised whoever owns the annotation. `findingBasis` says
+whether the finding comes from a declared independent human or an unverified
+annotation; an unverified finding is an unresolved conflict, never a human
+confirmation. Any issue withholds the entire affected dimension across the
+dataset; no disputed output is silently dropped from its denominator. Other
+dimensions remain descriptive when consistent. Markdown explains the same issues.
 
 An annotation owner may be `human` or `model`; independence is `independent`,
 `same_author` or `unknown`. Independent annotations must declare a human owner
 whose ID differs from the output author. Metadata is an attestation, not identity
 authentication: aliases and false declarations require human audit.
-After individual record validation, exact identity strings are reconciled across
-all annotation owners, typed source-review attributions and human ratings. An ID
+After individual record validation, identity strings are reconciled across all
+annotation owners, typed source-review attributions and human ratings. They are
+compared after Unicode normalisation, trimming, whitespace collapsing and
+case-folding, so `rater-a`, `Rater-A` and `rater-a ` are one identity. An ID
 declared both model and human is rejected, even across cases. An output's author
-or an annotation owner declaring `same_author` cannot rate that output as an
-independent human. Independence is output-specific: a human author may review a
-different output. Unknown independence alone is not treated as a contradictory
-declaration. The evaluator does not infer aliases or split prose attribution strings.
+cannot rate that output, and an annotation owner who declares `same_author` or
+`unknown` cannot also rate that output as an independent human. Independence is
+output-specific: a human author may review a different output. The evaluator
+does not infer other aliases or split prose attribution strings.
 
 Adjudication requires a new explicitly reviewed, resealed annotation snapshot and
 a new report bundle. Preserve the previous bundle with its original ratings and
@@ -131,6 +217,30 @@ annotations illustrate mechanics and never become verified ground truth. Human
 scores with zero ratings and every performance metric return `status:N/A`,
 `value:null`, and a reason. A nonexistent observation is not a measured zero.
 Source hashes prove frozen bytes, not source authenticity, currentness or review.
+
+## Chronology
+
+Dates are `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SSZ`. Source capture, output
+creation, annotation review and each rating are compared at full precision: a
+same-day inversion between two timestamps is rejected. A date-only value covers
+its whole UTC day, so a certain inversion is still rejected, but a same-day
+order it leaves undecidable is accepted and recorded: `checks.chronology`
+becomes `date_precision_only` and `chronologyNotes` lists each comparison. The
+canonical fixtures use date-only output and review dates and report exactly
+that. Millisecond and offset timestamps are rejected rather than truncated.
+
+## Explicitly unsupported
+
+The harness does not, and does not claim to:
+
+- authenticate sources, annotators or raters, or detect a fabricated passage
+  that has been resealed into a case;
+- verify that evidence supports a claim, beyond verbatim passage matches;
+- detect fabricated claims that avoid the screening lexicons, obfuscated links
+  (homoglyphs, "dot com"), or non-English wording;
+- detect duplicate or cherry-picked cases: corpus selection is not enforced;
+- score captured Prepio runs, unscorable outputs or attempt accounting;
+- measure Prepio research quality, establish a baseline, or act as a gate.
 
 ## Reproducibility and lineage
 

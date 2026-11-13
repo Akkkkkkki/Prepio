@@ -30,6 +30,8 @@ function twoCases() {
 }
 const rating = (value, raterId = 'reviewer-human', dimension = 'evidenceGrounding') => ({ dimension, value, raterId, authorType: 'human', independence: 'independent', reviewedAt: '2026-11-09', rubricVersion: '0.3.0', reason: 'Declared human assessment' });
 const humanOwner = (id = 'reviewer-human', independence = 'independent') => ({ id, authorType: 'human', independence, reviewedAt: '2026-11-09' });
+// The canonical stage cites the posting, which caps grounding at 1 (rubric D4). Tests about other rules remove that citation.
+const uncite = (d, i = 0) => { d.outputs[i].plan.stageRoadmap[0].evidenceIds = []; return d; };
 // Dynamic import keeps the pre-implementation run observable as missing behavior.
 const evaluate = async d => (await import('./score.mjs')).evaluate(d);
 const reject = async (mutate, message) => { const { evaluate: score } = await import('./score.mjs'); const d = data(); mutate(d); expect(() => score(bind(d))).toThrow(message); };
@@ -107,8 +109,9 @@ describe('offline snapshot integrity', () => {
     d.annotations[0].humanScores = [{ dimension: 'roleRelevance', value, raterId: 'independent-human-1', authorType: 'human', independence: 'independent', reviewedAt: '2026-11-09', rubricVersion: '0.3.0', reason: 'Human rationale' }];
   }, /score/));
   it('accepts declared independent human scores descriptively, with no gate', async () => {
-    const d = data(); d.annotations[0].humanScores = [{ dimension: 'roleRelevance', value: 3, raterId: 'independent-human-1', authorType: 'human', independence: 'independent', reviewedAt: '2026-11-09', rubricVersion: '0.3.0', reason: 'Explicit human assessment' }];
-    const r = await evaluate(bind(d)); expect(r.humanReview.scores.roleRelevance.value).toBe(3); expect(r.humanReview.scores.roleRelevance.count).toBe(1); expect(r).not.toHaveProperty('passed');
+    const d = data(); d.annotations[0].owner = humanOwner('annotator-human');
+    d.annotations[0].humanScores = ['independent-human-1', 'independent-human-2'].map(raterId => ({ dimension: 'roleRelevance', value: 3, raterId, authorType: 'human', independence: 'independent', reviewedAt: '2026-11-09', rubricVersion: '0.3.0', reason: 'Explicit human assessment' }));
+    const r = await evaluate(bind(d)); expect(r.humanReview.scores.roleRelevance.value).toBe(3); expect(r.humanReview.scores.roleRelevance.count).toBe(2); expect(r).not.toHaveProperty('passed');
   });
   it('rejects model-authored human scores', () => reject(d => { d.annotations[0].humanScores = [{ dimension: 'roleRelevance', value: 4, raterId: 'model', authorType: 'model' }]; }, /human score/));
   it('withholds disputed human aggregates pending adjudication and preserves raw ratings', async () => {
@@ -117,7 +120,7 @@ describe('offline snapshot integrity', () => {
     expect(r.humanReview.records.map(s => s.value).sort()).toEqual([0, 4]);
   });
   it('allows a descriptive mean when human ratings differ by at most one point', async () => {
-    const d = data(); d.annotations[0].humanScores = [3, 4].map((value, i) => ({ dimension: 'roleRelevance', value, raterId: `human-${i}`, authorType: 'human', independence: 'independent', reviewedAt: '2026-11-09', rubricVersion: '0.3.0', reason: 'Declared human assessment' }));
+    const d = data(); d.annotations[0].owner = humanOwner('annotator-human'); d.annotations[0].humanScores = [3, 4].map((value, i) => ({ dimension: 'roleRelevance', value, raterId: `human-${i}`, authorType: 'human', independence: 'independent', reviewedAt: '2026-11-09', rubricVersion: '0.3.0', reason: 'Declared human assessment' }));
     expect((await evaluate(bind(d))).humanReview.scores.roleRelevance).toEqual({ value: 3.5, count: 2, status: 'descriptive_only' });
   });
   it.each(['claimType', 'match', 'relevant', 'specific'])('rejects self-grading field %s', key => reject(d => { d.outputs[0].plan.questionPlan.coreMustPractice[0][key] = true; }, /self-grading|unknown field/));
@@ -182,18 +185,19 @@ describe('human review consistency', () => {
   it('allows a human author to independently review a different output', async () => {
     const d = twoCases(); d.outputs[0].authoredBy = 'human-author';
     d.annotations[0].owner = humanOwner('human-author', 'same_author');
+    d.annotations[0].humanScores = [rating(3, 'peer-a', 'roleRelevance'), rating(3, 'peer-b', 'roleRelevance')];
     d.annotations[1].owner = humanOwner('human-author');
-    d.annotations[1].humanScores = [rating(3, 'human-author', 'roleRelevance')];
+    d.annotations[1].humanScores = [rating(3, 'human-author', 'roleRelevance'), rating(3, 'peer-a', 'roleRelevance')];
     const result = await evaluate(bind(d));
-    expect(result.humanReview.scores.roleRelevance).toEqual({ status: 'descriptive_only', value: 3, count: 1 });
+    expect(result.humanReview.scores.roleRelevance).toEqual({ status: 'descriptive_only', value: 3, count: 4 });
     for (const key of ['cases', 'outputs', 'annotations']) d[key].reverse();
     expect(await evaluate(d)).toEqual(result);
   });
 
   it.each([1, 2, 3, 4])('withholds EG=%s contradicted by the same independent human review', async value => {
-    const d = data(); d.annotations[0].owner = humanOwner();
+    const d = uncite(data()); d.annotations[0].owner = humanOwner();
     d.outputs[0].plan.stageRoadmap[0].whyLikely = 'According to the Glassdoor London 2026 interview report, OpenAI always uses four architecture interview rounds for this London role.';
-    d.annotations[0].humanScores = [rating(value), rating(3, 'reviewer-human', 'roleRelevance')];
+    d.annotations[0].humanScores = [rating(value), rating(3, 'reviewer-human', 'roleRelevance'), rating(3, 'second-reviewer', 'roleRelevance')];
     const r = await evaluate(bind(d));
     expect(r.findings[0].type).toBe('unsupported_interview_history');
     expect(r.humanReview.scores.evidenceGrounding).toEqual(expect.objectContaining({ status: 'requires_adjudication', value: null, count: 1, disputedOutputs: [d.outputs[0].outputId] }));
@@ -206,8 +210,12 @@ describe('human review consistency', () => {
   });
 
   it('withholds the whole dimension across cases when another human reviewer disagrees', async () => {
-    const d = twoCases(); d.annotations[0].owner = humanOwner('finding-reviewer');
+    const d = uncite(uncite(twoCases(), 0), 1); d.annotations[0].owner = humanOwner('finding-reviewer');
     d.annotations[0].humanScores = [rating(4, 'other-rater')];
+    // The second output is a clean control: no planted claim, so only the first output is disputed.
+    d.outputs[1].plan.stageRoadmap[0].whyLikely = 'Suggested architecture practice; the actual interview process is unknown.';
+    Object.assign(d.annotations[1].judgments[1], { claimType: 'suggested_practice', presentation: 'hypothetical', supportDecision: 'not_applicable' });
+    d.annotations[1].owner = humanOwner('control-annotator');
     d.annotations[1].humanScores = [rating(3, 'control-rater')];
     const r = await evaluate(bind(d));
     expect(r.humanReview.scores.evidenceGrounding).toEqual(expect.objectContaining({ status: 'requires_adjudication', value: null, count: 2, disputedOutputs: [d.outputs[0].outputId] }));
@@ -215,41 +223,46 @@ describe('human review consistency', () => {
   });
 
   it('allows EG=0 with an independent human unsupported-history finding', async () => {
-    const d = data(); d.annotations[0].owner = humanOwner(); d.annotations[0].humanScores = [rating(0)];
+    const d = data(); d.annotations[0].owner = humanOwner(); d.annotations[0].humanScores = [rating(0), rating(0, 'second-reviewer')];
     const r = await evaluate(bind(d));
-    expect(r.humanReview.scores.evidenceGrounding).toEqual({ status: 'descriptive_only', value: 0, count: 1 });
+    expect(r.humanReview.scores.evidenceGrounding).toEqual({ status: 'descriptive_only', value: 0, count: 2 });
     expect(r.humanReview.adjudicationIssues).toEqual([]);
   });
 
-  it.each(['model', 'human'])('does not upgrade a non-independent %s annotation into a human grounding conflict', async authorType => {
-    const d = data(); d.annotations[0].owner = { ...humanOwner('non-independent', 'unknown'), authorType };
-    d.annotations[0].humanScores = [rating(4)];
+  // Policy reversed on 2026-11-13 (owner-approved): an unverified finding now withholds the
+  // aggregate as an unresolved conflict. It is still never presented as a human confirmation.
+  it.each(['model', 'human'])('withholds grounding beside a non-independent %s finding without upgrading it to a human confirmation', async authorType => {
+    const d = uncite(data()); d.annotations[0].owner = { ...humanOwner('non-independent', 'unknown'), authorType };
+    d.annotations[0].humanScores = [rating(4), rating(4, 'second-reviewer')];
     const r = await evaluate(bind(d));
-    expect(r.humanReview.scores.evidenceGrounding.value).toBe(4);
-    expect(r.humanReview.adjudicationIssues).toEqual([]);
+    expect(r.humanReview.scores.evidenceGrounding).toEqual(expect.objectContaining({ status: 'requires_adjudication', value: null, count: 2 }));
+    expect(r.humanReview.adjudicationIssues).toEqual([expect.objectContaining({ type: 'grounding_finding_conflict', findingBasis: [authorType === 'model' ? 'unverified_model_annotation' : 'unverified_non_independent_annotation'], reason: expect.stringMatching(/not a human confirmation/) })]);
+    expect(r.humanReview.records.map(s => s.value)).toEqual([4, 4]);
     expect(r.findings).toHaveLength(1);
   });
 
   it('keeps a consistent positive grounding control descriptive', async () => {
-    const d = data(); d.annotations[0].owner = humanOwner();
+    const d = uncite(data()); d.annotations[0].owner = humanOwner();
     d.outputs[0].plan.stageRoadmap[0].whyLikely = 'Suggested architecture practice; the actual interview process is unknown.';
     Object.assign(d.annotations[0].judgments[1], { claimType: 'suggested_practice', presentation: 'hypothetical', supportDecision: 'not_applicable' });
-    d.annotations[0].humanScores = [rating(4)];
+    d.annotations[0].humanScores = [rating(4), rating(4, 'second-reviewer')];
     const r = await evaluate(bind(d));
     expect(r.humanReview.scores.evidenceGrounding.value).toBe(4); expect(r.humanReview.adjudicationIssues).toEqual([]);
   });
 
   it('explains numeric disputes without treating model findings as human confirmations', async () => {
-    const d = data(); d.annotations[0].humanScores = [rating(0, 'human-a'), rating(4, 'human-b')];
+    const d = uncite(data()); d.annotations[0].humanScores = [rating(0, 'human-a'), rating(4, 'human-b')];
     const r = await evaluate(bind(d));
-    expect(r.humanReview.adjudicationIssues).toEqual([expect.objectContaining({ type: 'rating_disagreement', dimension: 'evidenceGrounding', outputId: d.outputs[0].outputId, raterIds: ['human-a', 'human-b'], findingPaths: [] })]);
+    expect(r.humanReview.adjudicationIssues).toHaveLength(2);
+    expect(r.humanReview.adjudicationIssues).toContainEqual(expect.objectContaining({ type: 'rating_disagreement', dimension: 'evidenceGrounding', outputId: d.outputs[0].outputId, raterIds: ['human-a', 'human-b'], findingPaths: [] }));
+    expect(r.humanReview.adjudicationIssues).toContainEqual(expect.objectContaining({ type: 'grounding_finding_conflict', findingBasis: ['unverified_model_annotation'], raterIds: ['human-b'], reason: expect.stringMatching(/not a human confirmation/) }));
   });
 });
 
 describe('evaluator provenance', () => {
-  it('reports schema v2 with fingerprints of actual scorer and rubric bytes', async () => {
+  it('reports schema v3 with fingerprints of actual scorer and rubric bytes', async () => {
     const r = await evaluate(data());
-    expect(r.schemaVersion).toBe(2);
+    expect(r.schemaVersion).toBe(3);
     expect(r.provenance.evaluator).toEqual({ scorerSha256: hash(await readFile(join(root, 'score.mjs'))), rubricVersion: '0.3.0', rubricSha256: hash(await readFile(join(root, 'rubric.v0.3.0.md'))) });
     expect(r.counts).toEqual(expect.objectContaining({ annotatedClaimPaths: 7, findings: 1 }));
     expect(r.humanReview.adjudicationIssues).toEqual([]);

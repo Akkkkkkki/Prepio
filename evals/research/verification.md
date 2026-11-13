@@ -200,3 +200,125 @@ Browser smoke was not rerun because application inputs are unchanged. No provide
 calls, captured Prepio runs, authenticated human reviews, source authentication,
 measured baseline or release gate are established by these checks. Corpus selection
 and captured-run comparison work remain deferred as specified in the plan.
+
+## Validity revision — 2026-11-13
+
+Scope: evaluation files only (`score.mjs`, both test files, `README.md`,
+`intent.md`, this record). The three fixture JSON files and the rubric are
+byte-identical to `4eb7b2f`. This entry is the implementing author's own
+verification. It is not an independent audit and establishes no measured Prepio
+quality, human validation or source authentication.
+
+### State found before work
+
+- Head was `4eb7b2f642f73b06ae9b3846447a2ca4aa3a900f`, unchanged since review.
+- GitHub reported the PR as ready for review although this record, `intent.md`
+  and the PR body say to keep it draft. It was returned to draft before any push.
+- Codex's P2 thread on day-granularity chronology was open and is addressed here.
+- The "dated PR396 audit" cited above for EV396-01/02 is not a file in this PR.
+- The text supplied as the adversarial report was the upstream package's build
+  narrative, with no probe list. Probes were derived from the owner's seven
+  focus areas, the preserved rubric, `intent.md` and the open review thread.
+
+### Red, then green
+
+Tests were written and run before the scorer changed.
+
+| Run | New regression file | Existing `score.test.mjs` |
+|---|---|---|
+| Red, committed as `15cdf16` against the `4eb7b2f` scorer | 71 tests: 61 failed, 10 passed | 89 passed |
+| Final regression file against the `4eb7b2f` scorer | 72 tests: 62 failed, 10 passed | n/a |
+| Green, final scorer | 72 passed | 89 passed |
+
+The 10 that passed before the fix are controls and one documented limit:
+grounding 2 beside a contradicted or unsupported role claim, grounding 0 beside
+an independent-human finding, six malformed-date rejections, and
+millisecond-timestamp rejection. Every other test was red for its stated reason:
+the old scorer returned `status: evaluated` in each case rather than failing for
+an unrelated cause. One test was added after the first red run
+(`whatItTests` as a stage-claim path); it is also red against the old scorer.
+
+Before the fix, the compound case rendered through the CLI as "0 finding(s)",
+"All deterministic integrity checks passed" and 4 on every human dimension,
+exit 0. It was: interview history attributed to a named review site, stated at
+high stage and overall confidence, relabelled by a same-author model annotation,
+with ten "independent human" ratings of 4 carried in that model-owned record.
+The same input now yields four deterministic rubric findings, two unreviewed
+screening warnings, no aggregate on any dimension and all ten raw ratings
+retained.
+
+### Existing tests changed
+
+No test was deleted and no assertion was loosened to hide a failure. Fourteen
+existing tests changed because the approved specification changes the behaviour
+they pinned:
+
+| Tests | Change | Why |
+|---|---|---|
+| "accepts declared independent human scores…", "allows a descriptive mean…", "allows EG=0…", "keeps a consistent positive grounding control…", "allows a human author to independently review a different output" | Second rater and a human-owned snapshot added; expected counts updated | Aggregates need two raters per output and human custody |
+| "withholds EG=1–4 contradicted by the same independent human review" (4) | Second rater for the unrelated dimension; stage citation removed | Same, and the canonical stage citation now caps grounding at 1 |
+| "withholds the whole dimension across cases…" | Second output made a clean control | A model finding now conflicts, so the uncontrolled second output was disputed too |
+| "does not upgrade a non-independent model/human annotation…" (2) | Retitled; now expects the aggregate withheld with an unverified `findingBasis` | Owner-approved reversal: an unverified finding is an unresolved conflict, still never a human confirmation |
+| "explains numeric disputes…" | Expects the disagreement and the unverified conflict | Same reversal |
+| "reports schema v2…" | Schema 3 | Report schema changed |
+
+### Checks run on the final tree
+
+Environment: Node v22.23.4, Vitest 4.1.9, lockfile dependencies, no installs.
+
+| Check | Observed result |
+|---|---|
+| Harness tests (`npx vitest run evals/research/`) | 161 passed, 2 files |
+| `npm test` | 655 tests / 60 files passed; legacy-schema, answer-feedback-schema and design-token checks passed |
+| `npm run typecheck` | Passed ratchets: app 61, node 0 existing errors |
+| `npm run typecheck:functions` | Passed ratchet: 19 existing errors |
+| `npm run build` | Passed |
+| ESLint on the three changed code files | No findings |
+| `node --check`, `git diff --check` | Passed |
+| Canonical CLI run with `--as-of 2026-11-13T00:00:00Z` | Exit 0; 1 critical annotation finding (unverified model annotation), 1 deterministic finding, 1 screening warning covered by the finding, chronology `date_precision_only`, all human scores and metrics N/A |
+| Replay | Existing relocated-bundle test and the new `--as-of` test produce byte-identical JSON and Markdown |
+
+Browser smoke was not run: no application input changed. GitHub CI and the
+independent review of the pushed commit are recorded on the PR, not here.
+
+Scorer raw-byte SHA-256:
+`bcc0c247412df61f0658d7904507a48fd27af5a8c0a75daa2251be2bbeed7a38`.
+Rubric raw-byte SHA-256, unchanged:
+`26ab37cab025eff0220e8915deb7545089f94c5a5743b8e6399dd8f4c87450a6`.
+
+### Reproduction matrix after the fix
+
+| Probe | Before | After |
+|---|---|---|
+| FC1 source link without an http(s) scheme | Evaluated silently | `unregistered_source_reference` warning; unregistered http(s) still rejected |
+| FC2/FC3 same-author model labels hide a claim | "0 finding(s)", unqualified | Basis reported as unverified; wording flagged; ambiguous paths counted |
+| FC4 interview claim relabelled as a supported role requirement | Evaluated, 2 supported claims | Rejected on the stage path; unsupported is always critical |
+| FC5 fabricated quotation | Evaluated | `unverified_quotation` warning |
+| CS1–3, HS4–5 confidence and stage citation beyond posting-only evidence | No finding; ratings of 4 reported | Deterministic D4/D5 findings; ratings above the cap withheld |
+| CS4 hypothetical counted as supported | Counted | Only factual claims counted; verbatim matches separated |
+| HS1 grounding 4 beside a model-authored finding | 4 reported | Withheld as an unresolved, unverified conflict |
+| HS2/HS3 grounding 3–4 beside contradicted or unsupported claims | 4 reported | Withheld; critical and minor distinguished |
+| EP6 one person as `unknown` owner and `independent` rater | 4 reported | Rejected |
+| EP3, RC7 whitespace or case alias | Accepted | Rejected |
+| EP4 ratings in a model-owned snapshot | Mean reported | Kept raw, not counted, reason given |
+| RC1–RC5 single rater, omitted dissenter, unrated output or dimension | Mean reported | N/A with counts and missing case/output IDs |
+| RC6 unequal rater counts | Pooled mean 2.67 | Mean of per-output means, with per-output values |
+| TP1–TP4 same-day inversions | Evaluated | Rejected |
+| TP5 date-only same-day order | Passed silently | `date_precision_only` with notes |
+| TP6 future-dated record | Accepted | Rejected when `--as-of` is supplied; otherwise `futureDates: not_evaluated` |
+| EP2 unverifiable capture hash shown as `sourceCaptureHashes: pass` | Shown as pass | Renamed `sourceHashInternalConsistency`; `sourceAuthenticity: not_evaluated` |
+
+### Not fixed, by design
+
+Pinned as "documented limit" tests so the behaviour cannot change unnoticed:
+a fabricated passage resealed into a case is not detected (EP1); duplicate case
+content under a second ID is counted (EP5); millisecond timestamps are rejected
+rather than truncated; a claim that avoids the screening lexicons raises nothing.
+Also unchanged: identities are self-declared, so a model can declare itself a
+human owner or invent two rater names; the harness reports that it cannot tell.
+Rubric lexicon check D7, captured runs, unscorable-output accounting and the
+upstream package's predictions about Prepio's own pipeline are out of scope.
+
+One strictness choice to review: the preserved rubric lists D4 as capping
+handling-uncertainty at 2 and D5 at 1. A stage citing the posting is treated as
+both, following the rubric's WE-3a checker output, so it caps uncertainty at 1.
