@@ -396,6 +396,21 @@ describe('temporal integrity', () => {
     d.annotations[0].humanScores = [rating(3, 'rater-a', 'roleRelevance', '2026-11-09T06:00:00Z')];
     rejects(d, /human score review predates output/);
   });
+  it('TP7 (Codex P2) rejects a certain inversion hidden behind a date-only intermediate record', () => {
+    // Each adjacent pair is undecidable, but the output cannot be both after 23:00 and before 01:00.
+    const d = data(); d.cases[0].sourceRecords[0].capturedAt = '2026-11-09T23:00:00Z';
+    d.outputs[0].runMetadata.createdAt = '2026-11-09'; d.annotations[0].owner.reviewedAt = '2026-11-09T01:00:00Z';
+    rejects(d, /annotation review predates output/);
+    const rated = wellFormed(); rated.cases[0].sourceRecords[0].capturedAt = '2026-11-09T23:00:00Z';
+    rated.annotations[0].humanScores = [rating(3, 'rater-a', 'roleRelevance', '2026-11-09T01:00:00Z')];
+    rejects(rated, /human score review predates output/);
+  });
+  it('control: a date-only intermediate record that leaves a feasible order is accepted with notes', () => {
+    const d = data(); d.cases[0].sourceRecords[0].capturedAt = '2026-11-09T08:00:00Z';
+    d.outputs[0].runMetadata.createdAt = '2026-11-09'; d.annotations[0].owner.reviewedAt = '2026-11-09T21:00:00Z';
+    const r = report(d);
+    expect(r.checks.chronology).toBe('date_precision_only'); expect(r.chronologyNotes).toHaveLength(2);
+  });
   it('TP5 reports date-only precision instead of passing an undecidable same-day order', () => {
     const d = data(); d.outputs[0].runMetadata.createdAt = '2026-11-08'; // capture is 2026-11-08T12:05:00Z
     const r = report(d);

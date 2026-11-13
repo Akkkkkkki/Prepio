@@ -64,10 +64,12 @@ function notAfterAsOf(v, name, ctx) {
   if (latest > limit) ctx.chronologyNotes.push({ comparison: `${name} <= evaluation as-of`, value: v, precision: 'date_only', reason: 'Date-only value on the as-of day; whether it precedes the as-of time cannot be verified.' });
 }
 // Rejects a certain inversion at full precision. An order that a date-only value leaves undecidable is recorded, not passed silently.
-function ordered(earlier, later, message, note, ctx) {
-  const [earliest, earlierEnd] = span(earlier); const [laterStart, latest] = span(later);
+// Takes [earliest, latest] bounds and returns the later record's bounds tightened by the earlier one, so a
+// date-only record in the middle of a chain cannot hide an inversion between the records either side of it.
+function ordered([earliest, earlierEnd], [laterStart, latest], message, note, ctx) {
   requireThat(earliest <= latest, message);
   if (earlierEnd > laterStart) ctx.chronologyNotes.push({ ...note, precision: 'date_only', reason: 'Same UTC day with a date-only value; order within the day cannot be verified.' });
+  return [Math.max(earliest, laterStart), latest];
 }
 function asOfOption(options) {
   requireThat(options !== null && typeof options === 'object' && !Array.isArray(options) && Object.keys(options).every(k => k === 'asOf'), 'options: expected { asOf }');
@@ -151,7 +153,7 @@ function validatePlan(o, c, s, ctx) {
   requireThat(typeof o.runMetadata.sourceCommit === 'string' && /^[a-f0-9]{40}$/.test(o.runMetadata.sourceCommit), 'runMetadata.sourceCommit must be full source-context SHA');
   date(o.runMetadata.createdAt, 'runMetadata.createdAt'); str(o.runMetadata.method, 'runMetadata.method');
   notAfterAsOf(o.runMetadata.createdAt, 'runMetadata.createdAt', ctx);
-  ordered(s.capturedAt, o.runMetadata.createdAt, 'output predates source capture', { comparison: 'output createdAt >= source capturedAt', caseId: c.caseId, outputId: o.outputId }, ctx);
+  const createdBounds = ordered(span(s.capturedAt), span(o.runMetadata.createdAt), 'output predates source capture', { comparison: 'output createdAt >= source capturedAt', caseId: c.caseId, outputId: o.outputId }, ctx);
   const targets = new Map(); const allowedUrls = new Set([s.url, s.backingUrl]);
   function scan(v) {
     if (typeof v === 'string') {
@@ -237,7 +239,7 @@ function validatePlan(o, c, s, ctx) {
     member(v.linkedPriority, PRIORITY, 'linkedPriority'); member(v.difficulty, ['Easy', 'Medium', 'Hard'], 'difficulty'); member(v.answerGuidanceStatus, ['pending', 'generated'], 'answerGuidanceStatus');
     requireThat(v.leveragesStoryId === null, 'Phase A has no candidate story ground truth');
   });
-  return { targets, deterministic, stagePredictions, resolvedCitations, registeredUrls: allowedUrls };
+  return { targets, deterministic, stagePredictions, resolvedCitations, registeredUrls: allowedUrls, createdBounds };
 }
 
 // Keyword screening over claim-bearing text. A hit asks for human review; a miss proves nothing.
@@ -261,13 +263,13 @@ function screen(targets, registeredUrls, jobDescription) {
 
 const annotationBasis = owner => owner.authorType === 'model' ? 'unverified_model_annotation' : owner.independence === 'independent' ? 'declared_independent_human_annotation' : 'unverified_non_independent_annotation';
 
-function validateAnnotations(a, o, c, targets, passages, ctx) {
+function validateAnnotations(a, o, c, targets, passages, createdBounds, ctx) {
   shape(a, ['schemaVersion', 'caseId', 'variantId', 'outputId', 'outputSha256', 'rubricVersion', 'owner', 'judgments', 'humanScores', 'sha256'], 'annotations');
   requireThat(a.caseId === c.caseId && a.variantId === c.variantId && a.outputSha256 === o.sha256, 'annotation case/output hash binding mismatch');
   requireThat(a.rubricVersion === 'evidence-integrity-v1', 'unsupported annotation rubricVersion');
   shape(a.owner, ['id', 'authorType', 'independence', 'reviewedAt'], 'owner'); str(a.owner.id, 'owner.id'); date(a.owner.reviewedAt, 'owner.reviewedAt');
   notAfterAsOf(a.owner.reviewedAt, 'owner.reviewedAt', ctx);
-  ordered(o.runMetadata.createdAt, a.owner.reviewedAt, 'annotation review predates output', { comparison: 'annotation reviewedAt >= output createdAt', caseId: c.caseId, outputId: o.outputId }, ctx);
+  ordered(createdBounds, span(a.owner.reviewedAt), 'annotation review predates output', { comparison: 'annotation reviewedAt >= output createdAt', caseId: c.caseId, outputId: o.outputId }, ctx);
   member(a.owner.authorType, ['human', 'model'], 'owner.authorType'); member(a.owner.independence, ['independent', 'same_author', 'unknown'], 'owner.independence');
   requireThat(a.owner.independence !== 'independent' || (a.owner.authorType === 'human' && idKey(a.owner.id) !== idKey(o.authoredBy)), 'invalid independence assertion');
   const judgments = unique(a.judgments, 'path', 'judgment path');
@@ -293,7 +295,7 @@ function validateAnnotations(a, o, c, targets, passages, ctx) {
     member(score.dimension, DIMENSIONS, 'human score dimension'); requireThat(Number.isInteger(score.value) && score.value >= 0 && score.value <= 4, 'human score must be an integer in 0–4');
     str(score.raterId, 'human score raterId'); date(score.reviewedAt, 'human score reviewedAt'); str(score.reason, 'human score reason');
     notAfterAsOf(score.reviewedAt, 'human score reviewedAt', ctx);
-    ordered(o.runMetadata.createdAt, score.reviewedAt, 'human score review predates output', { comparison: 'human score reviewedAt >= output createdAt', caseId: c.caseId, outputId: o.outputId, raterId: score.raterId, dimension: score.dimension }, ctx);
+    ordered(createdBounds, span(score.reviewedAt), 'human score review predates output', { comparison: 'human score reviewedAt >= output createdAt', caseId: c.caseId, outputId: o.outputId, raterId: score.raterId, dimension: score.dimension }, ctx);
     requireThat(score.authorType === 'human' && score.independence === 'independent' && score.rubricVersion === '0.3.0', 'human score needs declared independent human ownership and rubric 0.3.0');
     const key = `${score.dimension}:${idKey(score.raterId)}`; requireThat(!scores.has(key), 'duplicate human score'); scores.add(key);
   }
@@ -434,7 +436,7 @@ function evaluateRecords(dataset, evaluator, asOf) {
     const o = byCase.get(c.caseId); requireThat(o, `missing output for ${c.caseId}`); checkHash(o, 'output');
     const plan = validatePlan(o, c, source, ctx);
     const a = annotations.get(o.outputId); requireThat(a, `missing annotations for ${o.outputId}`); checkHash(a, 'annotations');
-    judgments.push(...validateAnnotations(a, o, c, plan.targets, passages, ctx));
+    judgments.push(...validateAnnotations(a, o, c, plan.targets, passages, plan.createdBounds, ctx));
     deterministicFindings.push(...plan.deterministic); stagePredictions.push(...plan.stagePredictions); resolvedCitations += plan.resolvedCitations;
     screeningWarnings.push(...screen(plan.targets, plan.registeredUrls, c.input.jobDescription).map(hit => ({ caseId: c.caseId, outputId: o.outputId, ...hit })));
     // Custody is the snapshot owner's declared type: a model-owned record cannot vouch for human ratings.

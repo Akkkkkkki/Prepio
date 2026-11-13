@@ -223,8 +223,10 @@ Source hashes prove frozen bytes, not source authenticity, currentness or review
 Dates are `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SSZ`. Source capture, output
 creation, annotation review and each rating are compared at full precision: a
 same-day inversion between two timestamps is rejected. A date-only value covers
-its whole UTC day, so a certain inversion is still rejected, but a same-day
-order it leaves undecidable is accepted and recorded: `checks.chronology`
+its whole UTC day, so a certain inversion is still rejected, including one
+across a chain: an output dated only by day is bounded below by its source
+capture, and reviews and ratings are compared against that bound. A same-day
+order that remains undecidable is accepted and recorded: `checks.chronology`
 becomes `date_precision_only` and `chronologyNotes` lists each comparison. The
 canonical fixtures use date-only output and review dates and report exactly
 that. Millisecond and offset timestamps are rejected rather than truncated.

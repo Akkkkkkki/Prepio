@@ -322,3 +322,27 @@ upstream package's predictions about Prepio's own pipeline are out of scope.
 One strictness choice to review: the preserved rubric lists D4 as capping
 handling-uncertainty at 2 and D5 at 1. A stage citing the posting is treated as
 both, following the rubric's WE-3a checker output, so it caps uncertainty at 1.
+
+### Review follow-up on `ee35d87`
+
+GitHub CI passed on `ee35d8762335bdab1bd9d05e16778106d2a285f7` under Node 22
+(`verify`, including type checks, build, repository tests and browser smoke).
+The independent review of that commit found one P2 issue in the new date-only
+handling:
+[a date-only intermediate record could hide a certain inversion](https://github.com/Akkkkkkki/Prepio/pull/396#discussion_r4563674120).
+With capture at 23:00, an output dated only by day and a review at 01:00 on the
+same day, each adjacent comparison was undecidable, so the chain was accepted as
+`date_precision_only` although no output time satisfies both.
+
+A regression test (TP7, with a rating variant) and a feasible-chain control were
+added first: TP7 failed against `ee35d87` and the control passed. The scorer now
+returns the output's bounds tightened by its source capture and compares reviews
+and ratings against those bounds. Chronology in this contract is a chain from
+capture to output, then a star from output to each review and rating, so forward
+propagation of the lower bound is sufficient.
+
+After the fix: 163 harness tests and 657 repository tests pass, with the schema
+and design-token checks; ESLint and `git diff --check` are clean on the changed
+files. The typecheck and build results above still apply: only evaluation files
+changed. Scorer raw-byte SHA-256 after this follow-up:
+`e38b4ce3a77798958841a86e8335be4931fa095152cee25b751f050ea61f9736`.
