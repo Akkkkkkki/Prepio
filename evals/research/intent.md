@@ -96,3 +96,32 @@ reads those two bundled artifacts as well as explicitly supplied local JSON;
 input snapshot schemas and valid-with-findings exit 0 remain unchanged. Expected
 corpus selection, captured runs, semantic calibration, telemetry and release gates
 remain deferred. The dated audit of `fc28e13` remains a historical record.
+
+## Validity revision — 2026-11-13
+
+An adversarial review of `4eb7b2f` reproduced validity failures: a plan stating
+fabricated interview history at high confidence could be reported with zero
+findings, every check passed and 4/4 human ratings. The owner approved the
+reproduction matrix and the corrections below; this section supersedes earlier
+text where they conflict.
+
+- **Reversed:** "Model annotations alone do not trigger that human-review rule."
+  Any annotated finding now conflicts with a grounding rating above its rubric
+  ceiling, whoever owns the annotation. An unverified finding is reported as an
+  unresolved conflict, never as a human confirmation.
+- **Changed:** human aggregates need two declared independent human raters for
+  every output, carried in a snapshot that is not model-owned. Otherwise the
+  aggregate is N/A with counts and missing case/output IDs. Raw ratings stay.
+- **Added:** the preserved rubric's posting-only checks (D4, D5) as deterministic
+  findings with their caps; keyword screening warnings; a stage-path rule so the
+  interview-history guard no longer depends on the annotation's `claimType`.
+  The earlier "a lexicon must never substitute for semantic review" still holds:
+  screening hits ask for review and create no findings.
+- **Changed:** chronology compares full timestamps; future dates are checked
+  only against an explicit `--as-of`; the source-hash check is named for what it
+  verifies (internal consistency). Report schema is 3. Input snapshot schemas,
+  the three fixture files, the rubric bytes and exit codes are unchanged.
+
+Still out of scope: authentication of sources or people, semantic verification,
+captured runs, corpus selection, calibration, thresholds and release gates. This
+remains an illustrative demonstration with no measured Prepio quality.

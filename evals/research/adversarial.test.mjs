@@ -107,6 +107,16 @@ describe('grounding conflicts and unsupported claims', () => {
     rejects(d, /interview ground truth/);
   });
 
+  it('FC4 applies the same rule to what a stage is said to test', () => {
+    const d = data(); const j = d.annotations[0].judgments;
+    d.outputs[0].plan.stageRoadmap[0].whatItTests = ['OpenAI tests account ownership in a dedicated panel round.'];
+    j.push({ path: 'stageRoadmap[0].whatItTests[0]', claimType: 'role_requirement', presentation: 'factual', supportDecision: 'supported', evidenceSourceIds: ['S02'], passageIds: ['S02-C06'], reason: 'Probe' });
+    rejects(d, /interview ground truth/);
+    const unsupported = data(); unsupported.outputs[0].plan.stageRoadmap[0].whatItTests = ['OpenAI tests account ownership in a dedicated panel round.'];
+    unsupported.annotations[0].judgments.push({ path: 'stageRoadmap[0].whatItTests[0]', claimType: 'role_requirement', presentation: 'factual', supportDecision: 'insufficient_evidence', evidenceSourceIds: [], passageIds: [], reason: 'Probe' });
+    expect(report(unsupported).findings.map(f => `${f.type}@${f.path}`)).toContain('unsupported_interview_history@stageRoadmap[0].whatItTests[0]');
+  });
+
   it('FC4 keeps a factual stage-claim finding critical whatever claimType the annotation supplies', () => {
     const d = data(); d.annotations[0].judgments[1].claimType = 'role_requirement';
     expect(report(d).findings).toEqual([expect.objectContaining({ path: 'stageRoadmap[0].whyLikely', type: 'unsupported_interview_history', severity: 'critical' })]);
@@ -130,6 +140,8 @@ describe('grounding conflicts and unsupported claims', () => {
     const paraphrased = report(d);
     expect(paraphrased.judgments.find(j => j.path === 'prepPriorities[0].whyItMatters').supportBasis).toBe('annotation_only');
     expect(paraphrased.counts).toEqual(expect.objectContaining({ annotationSupportedClaims: 1, verbatimCheckedSupportedClaims: 0 }));
+    const fragment = data(); fragment.outputs[0].plan.prepPriorities[0].whyItMatters = 'named portfolio'; // too short to count as checked support
+    expect(report(fragment).counts.verbatimCheckedSupportedClaims).toBe(0);
   });
 
   it('FC2 qualifies a zero-finding report that rests on same-author model annotations', () => {
@@ -409,6 +421,8 @@ describe('temporal integrity', () => {
     rejects(data(), /later than the evaluation as-of/, { asOf: '2026-11-08T12:00:00Z' }); // before the 12:05 capture
     const sameDay = data(); sameDay.annotations[0].owner.reviewedAt = '2026-11-13T09:00:00Z';
     rejects(sameDay, /owner.reviewedAt.*later than the evaluation as-of/, { asOf: AS_OF });
+    const dateOnly = report(data(), { asOf: '2026-11-09T10:00:00Z' }); // canonical output and review are dated 2026-11-09 without a time
+    expect(dateOnly.chronologyNotes).toContainEqual(expect.objectContaining({ comparison: 'runMetadata.createdAt <= evaluation as-of', precision: 'date_only' }));
   });
   it.each(['2026-11-13', 'yesterday', '2026-11-13T25:00:00Z', 20261113])('rejects malformed as-of value %s', asOf => rejects(data(), /as-of/, { asOf }));
   it.each(['2026-02-30', '2026-13-01', '2026-11-09T24:00:00Z', '2026-11-09T23:59:60Z', '2026-11-09T12:00:00+01:00', '2026-11-09 12:00:00'])('control: malformed or non-UTC date %s is rejected', value => {
