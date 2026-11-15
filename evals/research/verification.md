@@ -355,8 +355,10 @@ supplied, so this follow-up maps to F1–F8, not to those probes.
 
 ### Red, then green
 
-`audit-followup.test.mjs` was committed first (`cacd681`; `04874bd` after the
-branches were rebased on GitHub, when `e8bcf14` became `b82ae67`). Against the
+`audit-followup.test.mjs` was committed first, in the commit titled "test(eval):
+reproduce audit findings F1-F8 before the fix". The branches have since been
+rebased on GitHub several times, so commits are named here by title, not SHA;
+`e8bcf14` is the audited head as it was then. Against the
 `e8bcf14` scorer all 31 tests fail, because the old scorer rejects the new
 `manifest` option. With that option stripped, 29 fail and 2 controls pass. After
 the fix all 31 pass, and the harness total is 194.
@@ -398,7 +400,7 @@ Seven, where the approved behaviour changes; none removed.
   expects same-author snapshot ratings to be uncounted; schema version is 4.
 - Both files' helpers pin a manifest by default.
 
-### Review follow-up on `4e39e69`
+### Review follow-up
 
 Codex raised two P2 findings on the first push; both were confirmed.
 
@@ -413,7 +415,7 @@ Codex raised two P2 findings on the first push; both were confirmed.
 
 Three tests were added failing first, and one earlier test was replaced.
 
-A third P2 followed on `745b111`: a `contradicted_claim` finding (ceiling 2)
+A third P2 followed on the commit that fixed those two: a `contradicted_claim` finding (ceiling 2)
 marked warnings on its path as covered, so a fabricated quotation and URL could
 sit beside a grounding aggregate of 2 with no decision. Only a finding whose
 ceiling is 0 now covers a warning. One test was added failing first.

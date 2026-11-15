@@ -131,6 +131,9 @@ remains an illustrative demonstration with no measured Prepio quality.
 An independent audit of `e8bcf14` rated the harness acceptable for structural
 testing only (findings F1–F8). The owner approved the fix plan in the Claude Code
 session on 2026-11-15; this section supersedes earlier text where they conflict.
+The owner then reviewed the four intent changes below (annotation schema 2, URL
+flag, corpus manifest, `uncertainty_disclosure`) in the same session and
+confirmed each.
 
 - **Changed, input schema:** annotations may be `schemaVersion: 2`, adding
   `screeningDecisions`. A screening warning now needs its own recorded decision
