@@ -77,6 +77,20 @@ describe("useAuth link handling", () => {
     expect(result.current.authLinkError).toBeNull();
   });
 
+  it("rejects password setup when an invite link resolves to a different stored session", async () => {
+    mockGetSession.mockResolvedValue({ data: { session: storedSession } });
+
+    const { result, expiredMessage } = await loadUseAuthAt(
+      "/auth?flow=invite#access_token=invite-token&type=invite",
+    );
+
+    expect(result.current.passwordSetupRequired).toBe(false);
+    expect(result.current.authLinkChecking).toBe(false);
+    expect(result.current.authLinkError).toBe(expiredMessage);
+    expect(result.current.session?.access_token).toBe("stored-token");
+    expect(result.current.user?.id).toBe("signed-in-account");
+  });
+
   it("replaces a session-less recovery link with an expired-link error", async () => {
     const { result, expiredMessage } = await loadUseAuthAt("/auth?flow=recovery");
 
