@@ -413,9 +413,14 @@ Codex raised two P2 findings on the first push; both were confirmed.
 
 Three tests were added failing first, and one earlier test was replaced.
 
+A third P2 followed on `745b111`: a `contradicted_claim` finding (ceiling 2)
+marked warnings on its path as covered, so a fabricated quotation and URL could
+sit beside a grounding aggregate of 2 with no decision. Only a finding whose
+ceiling is 0 now covers a warning. One test was added failing first.
+
 ### Checks run on the final tree
 
-Local, Node 22: 197 harness tests and the full repository suite pass with the schema
+Local, Node 22: 198 harness tests and the full repository suite pass with the schema
 and design-token checks; typecheck ratchets at 61/0; build passed; ESLint clean on
 the changed files. Browser smoke was not run: no application input changed. The
 canonical CLI run exits 0 with and without a manifest. This is author

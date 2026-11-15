@@ -517,11 +517,12 @@ function evaluateRecords(dataset, evaluator, asOf, manifest) {
     if (x.decision === 'confirmed') findings.push({ caseId: x.caseId, outputId: x.outputId, path: x.path, type: 'confirmed_screening_failure', severity: 'critical', signal: x.signal, annotationBasis: annotationBasis(x.owner), annotationOwner: x.owner, reason: x.reason });
   }
   findings.sort(byPath);
-  // Each warning needs its own recorded decision (rubric H6). Owning the annotation does not review it, and only a critical finding covers it.
+  // Each warning needs its own recorded decision (rubric H6). Owning the annotation does not review it. Only a finding whose
+  // grounding ceiling is already 0 covers it: a confirmed flag could not lower the ceiling further.
   for (const w of screeningWarnings) {
     const decided = decisions.get(canonical([w.outputId, w.path, w.signal]));
     if (decided) { w.review = `decided_${decided.decision}`; w.decisionReason = decided.reason; }
-    else w.review = findings.some(f => f.outputId === w.outputId && f.path === w.path && f.severity === 'critical') ? 'covered_by_finding' : 'unreviewed';
+    else w.review = findings.some(f => f.outputId === w.outputId && f.path === w.path && FINDING_POLICY[f.type].maxGrounding === 0) ? 'covered_by_finding' : 'unreviewed';
   }
   screeningWarnings.sort(byPath);
   const metricReason = 'Phase A is illustrative; no actual Prepio execution, verified interview ground truth, or execution telemetry.';

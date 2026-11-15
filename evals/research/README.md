@@ -178,7 +178,9 @@ Each warning has a `review` value:
   field `screeningDecisions: [{ path, signal, decision, reason }]`. One entry
   covers every match of that signal on that path. A decision that matches no
   warning, a duplicate, or one under any other owner is rejected.
-- `covered_by_finding`: the path already has a critical finding.
+- `covered_by_finding`: the path already has a finding whose grounding ceiling
+  is 0, so confirming the flag could not lower it. A `contradicted_claim`
+  (ceiling 2) or a minor finding does not cover a warning.
 
 `confirmed` creates a critical finding, `confirmed_screening_failure` (grounding
 ceiling 0), whatever claim type or path the judgment carries. `acceptable` and

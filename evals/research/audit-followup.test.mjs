@@ -195,6 +195,17 @@ describe('F5 unregistered URLs and corpus omissions', () => {
     expect(issuesOf(r, 'grounding_finding_conflict')).toHaveLength(1);
   });
 
+  it('(Codex P2) a contradicted-claim finding, whose ceiling is 2, does not cover undecided warnings on its path', () => {
+    const d = wellFormed(); d.annotations[0].humanScores = pair(2);
+    d.outputs[0].plan.prepPriorities[0].whyItMatters = 'The posting says "candidates must pass four architecture interview rounds in London first", see https://fabricated.example/report';
+    Object.assign(d.annotations[0].judgments[4], { supportDecision: 'contradicted' });
+    const r = report(d);
+    expect(r.findings).toEqual([expect.objectContaining({ path: WHY, type: 'contradicted_claim' })]);
+    expect(r.screeningWarnings.filter(w => w.path === WHY).map(w => w.review)).toEqual(expect.arrayContaining(['unreviewed']));
+    expect(r.screeningWarnings.some(w => w.path === WHY && w.review === 'covered_by_finding')).toBe(false);
+    expect(grounding(r)).toEqual(expect.objectContaining({ status: 'requires_adjudication', value: null }));
+  });
+
   it('control: the registered posting URL is not flagged', () => {
     const d = wellFormed(); d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ` See ${originals[0].sourceRecords[0].url}.`;
     expect(report(d).screeningWarnings.filter(w => w.path === REASON)).toEqual([]);
