@@ -33,7 +33,9 @@ const humanOwner = (id = 'reviewer-human', independence = 'independent') => ({ i
 // The canonical stage cites the posting, which caps grounding at 1 (rubric D4). Tests about other rules remove that citation.
 const uncite = (d, i = 0) => { d.outputs[i].plan.stageRoadmap[0].evidenceIds = []; return d; };
 // Dynamic import keeps the pre-implementation run observable as missing behavior.
-const evaluate = async d => (await import('./score.mjs')).evaluate(d);
+// Pins the corpus to the supplied outputs; aggregates need a pinned corpus.
+const manifestOf = d => Array.isArray(d?.outputs) ? d.outputs.map(o => ({ caseId: o.caseId, outputId: o.outputId, outputSha256: o.sha256 })) : undefined;
+const evaluate = async d => (await import('./score.mjs')).evaluate(d, { manifest: manifestOf(d) });
 const reject = async (mutate, message) => { const { evaluate: score } = await import('./score.mjs'); const d = data(); mutate(d); expect(() => score(bind(d))).toThrow(message); };
 const temp = [];
 afterEach(async () => { for (const p of temp.splice(0)) await rm(p, { recursive: true, force: true }); });
@@ -49,8 +51,11 @@ describe('offline snapshot integrity', () => {
     expect(r.humanReview.status).toBe('N/A');
   });
   it('rejects unresolved citation IDs', () => reject(d => { d.outputs[0].plan.stageRoadmap[0].evidenceIds = ['ev-99']; }, /unresolved citation/));
-  it('rejects fabricated prose citations', () => reject(d => { d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ' https://glassdoor.example/fake'; }, /unregistered URL/));
-  it('rejects fabricated citations with an uppercase URL scheme', () => reject(d => { d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ' [source](HTTPS://glassdoor.example/fake)'; }, /unregistered URL/));
+  it.each([['lowercase', ' https://glassdoor.example/fake'], ['uppercase scheme', ' [source](HTTPS://glassdoor.example/fake)']])('scores a fabricated prose citation as a flag instead of aborting: %s', async (_name, suffix) => {
+    const d = data(); d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += suffix;
+    const r = await evaluate(bind(d)); const path = 'questionPlan.coreMustPractice[0].reason';
+    expect(r.screeningWarnings).toContainEqual(expect.objectContaining({ path, signal: 'unregistered_source_reference', review: 'unreviewed' }));
+  });
   it('resolves a registered citation with case-insensitive scheme and host', async () => {
     const d = data(); d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ' HTTPS://OPENAI.COM/careers/applied-ai-architect-large-enterprise-london-uk/';
     expect((await evaluate(bind(d))).checks.planReferenceIntegrity).toBe('pass');
@@ -189,7 +194,8 @@ describe('human review consistency', () => {
     d.annotations[1].owner = humanOwner('human-author');
     d.annotations[1].humanScores = [rating(3, 'human-author', 'roleRelevance'), rating(3, 'peer-a', 'roleRelevance')];
     const result = await evaluate(bind(d));
-    expect(result.humanReview.scores.roleRelevance).toEqual({ status: 'descriptive_only', value: 3, count: 4 });
+    // The author may rate the other output. Ratings carried in their own same-author snapshot are kept but not counted.
+    expect(result.humanReview.scores.roleRelevance).toEqual(expect.objectContaining({ status: 'N/A', value: null, count: 4, coveredOutputs: 1, missing: [expect.objectContaining({ outputId: d.outputs[0].outputId, eligibleRaters: 0 })] }));
     for (const key of ['cases', 'outputs', 'annotations']) d[key].reverse();
     expect(await evaluate(d)).toEqual(result);
   });
@@ -260,9 +266,9 @@ describe('human review consistency', () => {
 });
 
 describe('evaluator provenance', () => {
-  it('reports schema v3 with fingerprints of actual scorer and rubric bytes', async () => {
+  it('reports schema v4 with fingerprints of actual scorer and rubric bytes', async () => {
     const r = await evaluate(data());
-    expect(r.schemaVersion).toBe(3);
+    expect(r.schemaVersion).toBe(4);
     expect(r.provenance.evaluator).toEqual({ scorerSha256: hash(await readFile(join(root, 'score.mjs'))), rubricVersion: '0.3.0', rubricSha256: hash(await readFile(join(root, 'rubric.v0.3.0.md'))) });
     expect(r.counts).toEqual(expect.objectContaining({ annotatedClaimPaths: 7, findings: 1 }));
     expect(r.humanReview.adjudicationIssues).toEqual([]);

@@ -125,3 +125,37 @@ text where they conflict.
 Still out of scope: authentication of sources or people, semantic verification,
 captured runs, corpus selection, calibration, thresholds and release gates. This
 remains an illustrative demonstration with no measured Prepio quality.
+
+## Audit follow-up — 2026-11-15
+
+An independent audit of `e8bcf14` rated the harness acceptable for structural
+testing only (findings F1–F8). The owner approved the fix plan in the Claude Code
+session on 2026-11-15; this section supersedes earlier text where they conflict.
+The owner then reviewed the four intent changes below (annotation schema 2, URL
+flag, corpus manifest, `uncertainty_disclosure`) in the same session and
+confirmed each.
+
+- **Changed, input schema:** annotations may be `schemaVersion: 2`, adding
+  `screeningDecisions`. A screening warning now needs its own recorded decision
+  from a declared independent human (rubric H6); owning the annotation no longer
+  reviews it. A `confirmed` decision is a critical finding on any path. "A lexicon
+  must never substitute for semantic review" still holds: a hit alone creates no
+  finding. Schema 1 annotations and the three fixtures are unchanged.
+- **Changed, rejection to report:** an unregistered `http(s)` URL is a screening
+  warning (rubric D3), not exit 2. It is decided by a human like any other
+  flag, so a URL the plan only warns against can be recorded as acceptable.
+- **Added, corpus:** an optional manifest of expected outputs. Human aggregates
+  need a pinned, complete corpus. This is omission visibility only; corpus
+  selection and unscorable-run accounting stay deferred.
+- **Added:** claim type `uncertainty_disclosure`; verbatim posting text may be a
+  supported `role_requirement` on a stage path.
+- **Changed, ratings:** counted only under a declared independent human
+  annotation; grounding 0 against 1, a 0 with no recorded critical finding, and an
+  `ambiguous` label beside grounding 3–4 need adjudication.
+- **Added, hygiene:** approved rubric bytes pinned in the scorer; zero-width
+  aliases normalised; model-named human identities rejected. Report schema is 4.
+
+Still out of scope: authentication of sources or people, semantic verification,
+scorer pinning, annotation history, captured runs, calibration, thresholds and
+release gates. This remains an illustrative demonstration with no measured
+Prepio quality.

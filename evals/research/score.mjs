@@ -11,6 +11,11 @@ const DIMENSIONS = ['roleRelevance', 'evidenceGrounding', 'prioritization', 'han
 const TIERS = ['coreMustPractice', 'likelyFollowUps', 'extraDepth'];
 const POSITIONING = ['strengthsToLeanOn', 'weakSpotsToAddress', 'storyCoverageGaps', 'mismatchRisks'];
 const INTERVIEW_CLAIM_TYPES = ['interview_process_claim', 'reported_interview_question'];
+const DECISIONS = ['confirmed', 'acceptable', 'false_positive']; // rubric H6 flag adjudication
+// Approved rubric v0.3.0 bytes. An edited rubric cannot run under the 0.3.0 label by resealing a case's lineage hash.
+const RUBRIC_SHA256 = '26ab37cab025eff0220e8915deb7545089f94c5a5743b8e6399dd8f4c87450a6';
+// Catches a model or grader entered as a human by mistake. Identity is still self-declared; this proves nothing about a clean name.
+const MODEL_ID = /\b(?:gpt|codex|llm|model|bot)\b/i;
 // These paths assert that an interview stage exists, is likely or covers given content, whatever label an annotation gives them.
 const STAGE_CLAIM_PATH = /^stageRoadmap\[\d+\]\.(?:stageName|whyLikely|(?:whatItTests|questionThemes)\[\d+\])$/;
 // Preserved rubric v0.3.0 ceilings for evidence grounding. Critical: an unsupported
@@ -20,11 +25,13 @@ const FINDING_POLICY = {
   unsupported_interview_history: { severity: 'critical', maxGrounding: 0 },
   contradicted_claim: { severity: 'critical', maxGrounding: 2 },
   unsupported_claim: { severity: 'minor', maxGrounding: 2 },
+  // A declared independent human confirmed a screening flag as a critical failure (rubric H6: CF1–CF5, CF7).
+  confirmed_screening_failure: { severity: 'critical', maxGrounding: 0 },
 };
 const REQUIRED_RATERS = 2; // rubric §4.3: two human raters score each run independently
 // Screening lexicons are review prompts, never semantic proof (rubric §4.1, D3/D6/D8).
 const SCREENS = [
-  ['interview_history_wording', /\b(?:always|typically|usually|normally|generally)\s+(?:asks?|uses?|runs?|includes?|involves?|requires?|has|have|lasts?|consists?)\b|\b(?:\d+|two|three|four|five|six|seven|eight)[\s-]+(?:[\w-]+\s+){0,3}(?:rounds?|interviews?|interviewers?|stages?|loops?)\b|\bthere (?:will be|is|are) (?:an? |the )?(?:[\w-]+\s+){0,4}(?:rounds?|interviews?|stages?|panels?|loops?)\b|\byou will (?:meet|face|be interviewed|be asked)\b|\bthe (?:exact|real|actual) (?:interview )?questions?\b|\b(?:final|onsite|on-site) (?:round|interview|loop)s?\b/i],
+  ['interview_history_wording', /\b(?:always|typically|usually|normally|generally)\s+(?:asks?|uses?|runs?|includes?|involves?|requires?|lasts?|consists?)\b|\b(?:1?\d|two|three|four|five|six|seven|eight)[\s-]+(?:[\w-]+\s+){0,3}(?:rounds?|interviews?|interviewers?|stages?|loops?)\b|\bthere (?:will be|is|are) (?:an? |the )?(?:[\w-]+\s+){0,4}(?:rounds?|interviews?|stages?|panels?|loops?)\b|\byou will (?:meet|face|be interviewed|be asked)\b|\bthe (?:exact|real|actual) (?:interview )?questions?\b|\b(?:final|onsite|on-site) (?:round|interview|loop)s?\b/i],
   ['candidate_report_wording', /\bcandidates? (?:reports?|reported|say|said|mention(?:ed)?|describe[sd]?|shared?)\b|\b(?:according to|as reported (?:on|by)|reported (?:on|by)|reviews? (?:on|from)|posts? on|threads? on)\s+(?:the\s+)?(?:glassdoor|blind|teamblind|reddit|indeed|linkedin|leetcode|comparably|fishbowl)\b|\b(?:glassdoor|teamblind|leetcode)\b|\binterview (?:reports?|reviews?|experiences?)\b|\b(?:a|my|one) (?:friend|colleague|recruiter|contact|former employee) (?:said|says|told|mentioned|reports?)\b/i],
 ];
 const HTTP_URL = /https?:\/\/[^\s<>"'\])]+/gi;
@@ -52,7 +59,7 @@ function unique(items, key, name) {
   return map;
 }
 // Exact-string identity checks are trivially aliased; compare a normalised key and keep the declared text.
-const idKey = v => v.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+const idKey = v => v.normalize('NFKC').replace(/\p{Cf}/gu, '').trim().replace(/\s+/g, ' ').toLowerCase();
 const flat = text => text.replace(/\s+/g, ' ').trim();
 function date(v, name) { str(v, name); requireThat(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}Z)?$/.test(v) && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().startsWith(v.slice(0, 10)), `${name}: invalid date`); }
 // A date-only value covers its whole UTC day; a timestamp is a single instant.
@@ -72,10 +79,18 @@ function ordered([earliest, earlierEnd], [laterStart, latest], message, note, ct
   return [Math.max(earliest, laterStart), latest];
 }
 function asOfOption(options) {
-  requireThat(options !== null && typeof options === 'object' && !Array.isArray(options) && Object.keys(options).every(k => k === 'asOf'), 'options: expected { asOf }');
+  requireThat(options !== null && typeof options === 'object' && !Array.isArray(options) && Object.keys(options).every(k => ['asOf', 'manifest'].includes(k)), 'options: expected { asOf, manifest }');
   if (options.asOf === undefined || options.asOf === null) return null;
   requireThat(typeof options.asOf === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(options.asOf), 'as-of: expected a full UTC timestamp YYYY-MM-DDTHH:MM:SSZ');
   date(options.asOf, 'as-of'); return options.asOf;
+}
+// The expected corpus, fixed before scoring. Without it an omitted output is invisible, so no aggregate is produced.
+function manifestOption(options) {
+  if (options.manifest === undefined || options.manifest === null) return null;
+  const entries = normalize(arr(options.manifest, 'manifest'));
+  for (const e of entries) { shape(e, ['caseId', 'outputId', 'outputSha256'], 'manifest entry'); str(e.caseId, 'manifest caseId'); digest(e.outputSha256, 'manifest outputSha256'); }
+  unique(entries, 'outputId', 'manifest outputId');
+  return entries;
 }
 function digest(v, name) { requireThat(typeof v === 'string' && /^[a-f0-9]{64}$/.test(v), `${name}: invalid SHA-256`); }
 function normalize(v) {
@@ -94,6 +109,7 @@ function loadBundledArtifacts() {
   try {
     const scorer = readFileSync(fileURLToPath(import.meta.url));
     const rubric = readFileSync(new globalThis.URL('rubric.v0.3.0.md', import.meta.url));
+    if (byteSha256(rubric) !== RUBRIC_SHA256) return { error: 'Bundled rubric hash mismatch: not the approved rubric 0.3.0 bytes' };
     return { scorer, rubric, provenance: { scorerSha256: byteSha256(scorer), rubricVersion: '0.3.0', rubricSha256: byteSha256(rubric) } };
   } catch (error) {
     return { error: `Cannot read bundled scorer/rubric: ${error.code ?? error.message}` };
@@ -104,11 +120,11 @@ function requireBundledArtifacts() {
   requireThat(!bundledArtifacts.error, bundledArtifacts.error);
   return bundledArtifacts;
 }
-function checkHash(record, name) {
+function checkHash(record, name, versions = [1]) {
   digest(record.sha256, name);
   const { sha256: expected, ...body } = record;
   requireThat(expected === sha256(canonical(body)), `${name}: hash mismatch`);
-  requireThat(record.schemaVersion === 1, `${name}: unsupported schemaVersion`);
+  requireThat(versions.includes(record.schemaVersion), `${name}: unsupported schemaVersion`);
 }
 // Exact compactText semantics from main's evidence-ledger.ts; no application import.
 function compact(text) { const s = text.replace(/\s+/g, ' ').trim(); return s.length <= 700 ? s : `${s.slice(0, 699).trim()}…`; }
@@ -156,14 +172,7 @@ function validatePlan(o, c, s, ctx) {
   const createdBounds = ordered(span(s.capturedAt), span(o.runMetadata.createdAt), 'output predates source capture', { comparison: 'output createdAt >= source capturedAt', caseId: c.caseId, outputId: o.outputId }, ctx);
   const targets = new Map(); const allowedUrls = new Set([s.url, s.backingUrl]);
   function scan(v) {
-    if (typeof v === 'string') {
-      for (const match of v.matchAll(/https?:\/\/[^\s<>"'\])]+/gi)) {
-        let url;
-        try { url = new globalThis.URL(match[0].replace(/[.,;:!?]+$/, '')).href; }
-        catch { fail(`unregistered URL: ${match[0]}`); }
-        requireThat(allowedUrls.has(url), `unregistered URL: ${match[0]}`);
-      }
-    } else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) {
+    if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) {
       requireThat(!['claimType', 'match', 'relevant', 'specific'].includes(k), `self-grading field: ${k}`); scan(x);
     }
   }
@@ -242,19 +251,27 @@ function validatePlan(o, c, s, ctx) {
   return { targets, deterministic, stagePredictions, resolvedCitations, registeredUrls: allowedUrls, createdBounds };
 }
 
+function httpUrls(text) {
+  return [...text.matchAll(HTTP_URL)].map(m => {
+    const match = m[0].replace(/[.,;:!?]+$/, '');
+    try { const u = new globalThis.URL(match); return { match, href: u.href, host: u.hostname }; } catch { return { match, href: null, host: '' }; }
+  });
+}
 // Keyword screening over claim-bearing text. A hit asks for human review; a miss proves nothing.
 function screen(targets, registeredUrls, jobDescription) {
   const registered = new Set([...registeredUrls].flatMap(u => { const x = new globalThis.URL(u); return [x.host, x.host + x.pathname, (x.host + x.pathname).replace(/\/$/, '')]; }));
   const frozen = flat(jobDescription); const hits = [];
   for (const [path, text] of targets) {
-    const withoutHttp = text.replace(HTTP_URL, ' '); // http(s) URLs are already checked against the registry
+    for (const match of sortedUnique(httpUrls(text).filter(u => !registeredUrls.has(u.href)).map(u => u.match))) hits.push({ path, signal: 'unregistered_source_reference', match });
+    const withoutHttp = text.replace(HTTP_URL, ' ');
     for (const reference of sortedUnique([...withoutHttp.matchAll(OTHER_REFERENCE)].map(m => m[0].replace(/[.,;:!?]+$/, '')))) {
       if (!registered.has(reference.toLowerCase())) hits.push({ path, signal: 'unregistered_source_reference', match: reference });
     }
     const prose = withoutHttp.replace(OTHER_REFERENCE, ' ');
     for (const [signal, pattern] of SCREENS) { const m = prose.match(pattern); if (m) hits.push({ path, signal, match: flat(m[0]) }); }
-    for (const m of text.matchAll(/["“]([^"“”]+)["”]/g)) {
-      const quoted = flat(m[1]);
+    // Double quotes may contain apostrophes; a curly single-quoted span ends at the first ’.
+    for (const m of text.matchAll(/["“]([^"“”]+)["”]|‘([^‘’]+)’/g)) {
+      const quoted = flat(m[1] ?? m[2]);
       if (quoted.split(' ').length >= 6 && !frozen.includes(quoted)) { hits.push({ path, signal: 'unverified_quotation', match: quoted }); break; }
     }
   }
@@ -264,7 +281,8 @@ function screen(targets, registeredUrls, jobDescription) {
 const annotationBasis = owner => owner.authorType === 'model' ? 'unverified_model_annotation' : owner.independence === 'independent' ? 'declared_independent_human_annotation' : 'unverified_non_independent_annotation';
 
 function validateAnnotations(a, o, c, targets, passages, createdBounds, ctx) {
-  shape(a, ['schemaVersion', 'caseId', 'variantId', 'outputId', 'outputSha256', 'rubricVersion', 'owner', 'judgments', 'humanScores', 'sha256'], 'annotations');
+  // Schema 2 adds per-warning screening decisions; schema 1 records stay valid and carry none.
+  shape(a, ['schemaVersion', 'caseId', 'variantId', 'outputId', 'outputSha256', 'rubricVersion', 'owner', 'judgments', 'humanScores', ...(a.schemaVersion === 2 ? ['screeningDecisions'] : []), 'sha256'], 'annotations');
   requireThat(a.caseId === c.caseId && a.variantId === c.variantId && a.outputSha256 === o.sha256, 'annotation case/output hash binding mismatch');
   requireThat(a.rubricVersion === 'evidence-integrity-v1', 'unsupported annotation rubricVersion');
   shape(a.owner, ['id', 'authorType', 'independence', 'reviewedAt'], 'owner'); str(a.owner.id, 'owner.id'); date(a.owner.reviewedAt, 'owner.reviewedAt');
@@ -272,11 +290,20 @@ function validateAnnotations(a, o, c, targets, passages, createdBounds, ctx) {
   ordered(createdBounds, span(a.owner.reviewedAt), 'annotation review predates output', { comparison: 'annotation reviewedAt >= output createdAt', caseId: c.caseId, outputId: o.outputId }, ctx);
   member(a.owner.authorType, ['human', 'model'], 'owner.authorType'); member(a.owner.independence, ['independent', 'same_author', 'unknown'], 'owner.independence');
   requireThat(a.owner.independence !== 'independent' || (a.owner.authorType === 'human' && idKey(a.owner.id) !== idKey(o.authoredBy)), 'invalid independence assertion');
+  const decisionKeys = new Set();
+  for (const x of arr(a.screeningDecisions ?? [], 'screeningDecisions')) {
+    shape(x, ['path', 'signal', 'decision', 'reason'], 'screening decision'); str(x.path, 'screening decision path'); str(x.signal, 'screening decision signal');
+    member(x.decision, DECISIONS, 'screening decision'); str(x.reason, 'screening decision reason');
+    requireThat(annotationBasis(a.owner) === 'declared_independent_human_annotation', 'screening decisions need a declared independent human annotation owner');
+    const key = canonical([x.path, x.signal]); requireThat(!decisionKeys.has(key), `duplicate screening decision: ${x.path} ${x.signal}`); decisionKeys.add(key);
+  }
+  // "Checked" support is limited to a claim of four or more words that appears verbatim in a cited frozen passage; everything else is the annotator's word.
+  const verbatim = j => { const text = flat(targets.get(j.path)); return text.split(' ').length >= 4 && j.passageIds.some(id => flat(passages.get(id).text).includes(text)); };
   const judgments = unique(a.judgments, 'path', 'judgment path');
   for (const j of judgments.values()) {
     shape(j, ['path', 'claimType', 'presentation', 'supportDecision', 'evidenceSourceIds', 'passageIds', 'reason'], 'judgment');
     requireThat(targets.has(j.path), `unknown judgment path: ${j.path}`);
-    member(j.claimType, ['role_requirement', 'suggested_practice', 'reported_interview_question', 'interview_process_claim', 'other'], 'claimType');
+    member(j.claimType, ['role_requirement', 'suggested_practice', 'reported_interview_question', 'interview_process_claim', 'uncertainty_disclosure', 'other'], 'claimType');
     member(j.presentation, ['factual', 'hypothetical', 'ambiguous'], 'presentation');
     member(j.supportDecision, ['supported', 'contradicted', 'insufficient_evidence', 'not_applicable'], 'supportDecision'); str(j.reason, 'judgment.reason');
     const ids = arr(j.evidenceSourceIds, 'evidenceSourceIds'); const refs = arr(j.passageIds, 'passageIds');
@@ -285,8 +312,12 @@ function validateAnnotations(a, o, c, targets, passages, createdBounds, ctx) {
     requireThat(refs.length === 0 || ids.length > 0, 'passage missing source reference');
     if (['supported', 'contradicted'].includes(j.supportDecision)) requireThat(ids.length > 0 && refs.length > 0, 'support decision missing source passages');
     // Enforced on the plan path as well as the label, so relabelling a stage claim cannot make the posting support it.
-    if (STAGE_CLAIM_PATH.test(j.path) || INTERVIEW_CLAIM_TYPES.includes(j.claimType)) requireThat(!['supported', 'contradicted'].includes(j.supportDecision), 'missing interview ground truth: job posting cannot establish or refute interview history');
-    requireThat(!(j.presentation === 'factual' && j.supportDecision === 'not_applicable'), 'factual claim cannot use not_applicable');
+    // One exit: a role requirement that is verbatim posting text. It says what the job needs; the stage stays a prediction.
+    const verbatimRequirement = j.claimType === 'role_requirement' && j.supportDecision === 'supported' && verbatim(j);
+    if ((STAGE_CLAIM_PATH.test(j.path) || INTERVIEW_CLAIM_TYPES.includes(j.claimType)) && !verbatimRequirement) requireThat(!['supported', 'contradicted'].includes(j.supportDecision), 'missing interview ground truth: job posting cannot establish or refute interview history');
+    // A statement that evidence is missing asserts nothing about the employer, so it needs no support and raises no finding.
+    if (j.claimType === 'uncertainty_disclosure') requireThat(j.supportDecision === 'not_applicable', 'uncertainty_disclosure must use not_applicable');
+    else requireThat(!(j.presentation === 'factual' && j.supportDecision === 'not_applicable'), 'factual claim cannot use not_applicable');
   }
   for (const path of targets.keys()) requireThat(judgments.has(path), `unannotated claim-bearing path: ${path}`);
   const scores = new Set();
@@ -299,8 +330,6 @@ function validateAnnotations(a, o, c, targets, passages, createdBounds, ctx) {
     requireThat(score.authorType === 'human' && score.independence === 'independent' && score.rubricVersion === '0.3.0', 'human score needs declared independent human ownership and rubric 0.3.0');
     const key = `${score.dimension}:${idKey(score.raterId)}`; requireThat(!scores.has(key), 'duplicate human score'); scores.add(key);
   }
-  // "Checked" support is limited to a claim of four or more words that appears verbatim in a cited frozen passage; everything else is the annotator's word.
-  const verbatim = j => { const text = flat(targets.get(j.path)); return text.split(' ').length >= 4 && j.passageIds.some(id => flat(passages.get(id).text).includes(text)); };
   const supportBasis = j => !['supported', 'contradicted'].includes(j.supportDecision) ? 'not_claimed' : j.supportDecision === 'supported' && verbatim(j) ? 'verbatim_passage_match' : 'annotation_only';
   return [...judgments.values()].map(j => ({ caseId: c.caseId, outputId: o.outputId, annotationOwner: a.owner, annotationBasis: annotationBasis(a.owner), supportBasis: supportBasis(j), ...j }));
 }
@@ -329,9 +358,14 @@ function validateReviewerIdentities(cases, outputs, annotations) {
       requireThat(!(idKey(score.raterId) === idKey(a.owner.id) && a.owner.independence !== 'independent'), `independence conflict: rater ${score.raterId} is the annotation owner declaring ${a.owner.independence} for output ${o.outputId}`);
     }
   }
+  rejectModelNamedHumans(declarations);
 }
 
-function humanAdjudicationIssues(records, findings, deterministic, warnings) {
+function rejectModelNamedHumans(declarations) {
+  for (const d of declarations) requireThat(d.type !== 'human' || !MODEL_ID.test(d.id), `identity ${d.id}: declared human but names a model (${d.record})`);
+}
+
+function humanAdjudicationIssues(records, findings, deterministic, warnings, judgments) {
   const groups = new Map();
   for (const score of records) {
     const key = canonical([score.outputId, score.dimension]);
@@ -370,10 +404,27 @@ function humanAdjudicationIssues(records, findings, deterministic, warnings) {
           : 'Finding basis includes an unverified annotation: this is an unresolved conflict, not a human confirmation.'}`,
       });
     }
-    const unreviewed = warnings.filter(w => w.outputId === outputId && w.review === 'unreviewed'); const high = scores.filter(s => s.value >= 3);
-    if (unreviewed.length && high.length) issues.push({
-      type: 'unreviewed_screening_signal', dimension, outputId, raterIds: raters(high), findingPaths: sortedUnique(unreviewed.map(w => w.path)),
-      reason: 'Evidence-grounding ratings of 3 or 4 coexist with a screening signal that no declared independent human has judged. A screening signal is a keyword match, not semantic proof; it needs human adjudication. Raw ratings are retained.',
+    // If a human confirmed the flag, the ceiling would be 0, so any rating above 0 waits for the decision.
+    const unreviewed = warnings.filter(w => w.outputId === outputId && w.review === 'unreviewed'); const positive = scores.filter(s => s.value > 0);
+    if (unreviewed.length && positive.length) issues.push({
+      type: 'unreviewed_screening_signal', dimension, outputId, raterIds: raters(positive), findingPaths: sortedUnique(unreviewed.map(w => w.path)),
+      reason: 'Evidence-grounding ratings above 0 coexist with a screening signal that no declared independent human has decided. A screening signal is a keyword match, not semantic proof; it needs a recorded decision. Raw ratings are retained.',
+    });
+    const ambiguous = judgments.filter(j => j.outputId === outputId && j.presentation === 'ambiguous'); const high = scores.filter(s => s.value >= 3);
+    if (ambiguous.length && high.length) issues.push({
+      type: 'unresolved_claim_label', dimension, outputId, raterIds: raters(high), findingPaths: sortedUnique(ambiguous.map(j => j.path)),
+      reason: 'Evidence-grounding ratings of 3 or 4 coexist with a claim whose presentation is labelled ambiguous. The label must be resolved first. Raw ratings are retained.',
+    });
+    // Rubric §4.3: raters who disagree about a critical failure are adjudicated, not averaged. A wider split is already a rating_disagreement.
+    const zero = scores.filter(s => s.value === 0);
+    if (zero.length && positive.length && Math.max(...values) <= 1) issues.push({
+      type: 'critical_failure_disagreement', dimension, outputId, raterIds: raters(scores), findingPaths: [],
+      reason: 'Raters disagree on whether a critical grounding failure exists (0 against a rating above 0); rubric requires adjudication. Raw ratings are retained.',
+    });
+    const recorded = findings.some(f => f.outputId === outputId && f.severity === 'critical') || deterministic.some(f => f.outputId === outputId && f.caps.evidenceGrounding === 0);
+    if (zero.length && !recorded) issues.push({
+      type: 'rating_implies_unrecorded_critical_failure', dimension, outputId, raterIds: raters(zero), findingPaths: [],
+      reason: 'An evidence-grounding rating of 0 asserts a critical failure, but no critical finding is recorded for this output. Record the finding or correct the rating. Raw ratings are retained.',
     });
   }
   return issues.sort((a, b) => compare(canonical(a), canonical(b)));
@@ -382,7 +433,7 @@ function humanAdjudicationIssues(records, findings, deterministic, warnings) {
 const mean = values => values.reduce((sum, v) => sum + v, 0) / values.length;
 // A trusted aggregate needs two declared independent human raters for every eligible output.
 // Ratings carried in a model-owned snapshot are kept as raw records but are not counted.
-function humanCoverage(records, issues, outputs) {
+function humanCoverage(records, issues, outputs, corpus) {
   const eligible = records.filter(s => s.custody === 'human_owned_snapshot');
   const cell = (o, dimension) => {
     const all = records.filter(s => s.outputId === o.outputId && s.dimension === dimension); const counted = eligible.filter(s => all.includes(s));
@@ -394,13 +445,16 @@ function humanCoverage(records, issues, outputs) {
   const scores = Object.fromEntries(DIMENSIONS.map(dimension => {
     const count = records.filter(s => s.dimension === dimension).length;
     if (!count) return [dimension, { ...na('No independent human ratings supplied.'), count: 0 }];
+    if (corpus.status !== 'pass') return [dimension, { ...na(corpus.status === 'not_evaluated'
+      ? 'Corpus not pinned: without a manifest an omitted output is invisible, so no aggregate is produced.'
+      : 'Corpus incomplete: the supplied outputs do not match the manifest, so no aggregate is produced.'), count }];
     const dimensionIssues = issues.filter(issue => issue.dimension === dimension);
     const disputed = sortedUnique(dimensionIssues.map(issue => issue.outputId));
-    if (disputed.length) return [dimension, { status: 'requires_adjudication', value: null, count, disputedOutputs: disputed, reason: sortedUnique(dimensionIssues.map(issue => issue.reason)).join(' ') }];
     const cells = outputs.map(o => cell(o, dimension));
     const missing = cells.filter(c => c.eligibleRaters < REQUIRED_RATERS).map(({ caseId, outputId, eligibleRaters }) => ({ caseId, outputId, eligibleRaters }));
+    if (disputed.length) return [dimension, { status: 'requires_adjudication', value: null, count, disputedOutputs: disputed, missing, reason: sortedUnique(dimensionIssues.map(issue => issue.reason)).join(' ') }];
     if (missing.length) return [dimension, {
-      ...na(`Incomplete coverage: a trusted aggregate needs two declared independent human raters for every eligible output.${records.some(s => s.dimension === dimension && s.custody === 'model_owned_snapshot') ? ' Ratings carried in a model-owned snapshot are retained but not counted as human ratings.' : ''}`),
+      ...na(`Incomplete coverage: a trusted aggregate needs two declared independent human raters for every eligible output.${records.some(s => s.dimension === dimension && s.custody === 'model_owned_snapshot') ? ' Ratings carried in a model-owned snapshot are retained but not counted as human ratings.' : ''}${records.some(s => s.dimension === dimension && s.custody === 'non_independent_human_snapshot') ? ' Ratings carried in a snapshot whose owner is not a declared independent human are retained but not counted.' : ''}`),
       count, eligibleOutputs: outputs.length, coveredOutputs: outputs.length - missing.length, missing,
     }];
     // Outputs weigh equally, so an output with more raters cannot dominate the mean.
@@ -413,14 +467,14 @@ function humanCoverage(records, issues, outputs) {
     unratedOutputs: outputs.filter(o => !eligible.some(s => s.outputId === o.outputId)).map(o => ({ caseId: o.caseId, outputId: o.outputId })),
     unratedDimensions: DIMENSIONS.filter(dimension => !eligible.some(s => s.dimension === dimension)).sort(compare),
   };
-  const status = !records.length ? 'N/A' : issues.length ? 'requires_adjudication' : Object.values(scores).some(s => s.status !== 'descriptive_only') ? 'incomplete_coverage' : 'declared_human_ratings';
+  const status = !records.length ? 'N/A' : corpus.status === 'not_evaluated' ? 'corpus_not_pinned' : corpus.status !== 'pass' ? 'corpus_incomplete' : issues.length ? 'requires_adjudication' : Object.values(scores).some(s => s.status !== 'descriptive_only') ? 'incomplete_coverage' : 'declared_human_ratings';
   return { status, scores, coverage, perOutput };
 }
 export function evaluate(dataset, options = {}) {
-  return evaluateRecords(dataset, requireBundledArtifacts().provenance, asOfOption(options));
+  return evaluateRecords(dataset, requireBundledArtifacts().provenance, asOfOption(options), manifestOption(options));
 }
 
-function evaluateRecords(dataset, evaluator, asOf) {
+function evaluateRecords(dataset, evaluator, asOf, manifest) {
   const d = normalize(dataset); shape(d, ['cases', 'outputs', 'annotations'], 'dataset');
   const cases = unique(d.cases, 'caseId', 'caseId'); requireThat(cases.size > 0, 'empty evaluation corpus');
   const outputs = unique(d.outputs, 'outputId', 'outputId'); const annotations = unique(d.annotations, 'outputId', 'annotation outputId');
@@ -430,17 +484,24 @@ function evaluateRecords(dataset, evaluator, asOf) {
   for (const a of annotations.values()) requireThat(outputs.has(a.outputId), `unknown output: ${a.outputId}`);
   const ctx = { asOf, chronologyNotes: [] };
   const judgments = []; const findings = []; const allScores = []; const deterministicFindings = []; const stagePredictions = []; const screeningWarnings = [];
-  let resolvedCitations = 0;
+  let resolvedCitations = 0; const decisions = new Map();
   for (const c of [...cases.values()].sort((a, b) => compare(a.caseId, b.caseId))) {
     checkHash(c, 'case'); const { source, passages } = validateCase(c, evaluator, ctx);
     const o = byCase.get(c.caseId); requireThat(o, `missing output for ${c.caseId}`); checkHash(o, 'output');
     const plan = validatePlan(o, c, source, ctx);
-    const a = annotations.get(o.outputId); requireThat(a, `missing annotations for ${o.outputId}`); checkHash(a, 'annotations');
+    const a = annotations.get(o.outputId); requireThat(a, `missing annotations for ${o.outputId}`); checkHash(a, 'annotations', [1, 2]);
     judgments.push(...validateAnnotations(a, o, c, plan.targets, passages, plan.createdBounds, ctx));
     deterministicFindings.push(...plan.deterministic); stagePredictions.push(...plan.stagePredictions); resolvedCitations += plan.resolvedCitations;
-    screeningWarnings.push(...screen(plan.targets, plan.registeredUrls, c.input.jobDescription).map(hit => ({ caseId: c.caseId, outputId: o.outputId, ...hit })));
-    // Custody is the snapshot owner's declared type: a model-owned record cannot vouch for human ratings.
-    allScores.push(...a.humanScores.map(score => ({ caseId: c.caseId, outputId: o.outputId, custody: a.owner.authorType === 'model' ? 'model_owned_snapshot' : 'human_owned_snapshot', ...score })));
+    const hits = screen(plan.targets, plan.registeredUrls, c.input.jobDescription);
+    for (const x of a.screeningDecisions ?? []) {
+      requireThat(hits.some(h => h.path === x.path && h.signal === x.signal), `screening decision without a matching warning: ${x.path} ${x.signal}`);
+      decisions.set(canonical([o.outputId, x.path, x.signal]), { ...x, caseId: c.caseId, outputId: o.outputId, owner: a.owner });
+    }
+    screeningWarnings.push(...hits.map(hit => ({ caseId: c.caseId, outputId: o.outputId, ...hit })));
+    // Custody follows the snapshot owner: only a declared independent human annotation can carry counted ratings.
+    const basis = annotationBasis(a.owner);
+    const custody = basis === 'declared_independent_human_annotation' ? 'human_owned_snapshot' : basis === 'unverified_model_annotation' ? 'model_owned_snapshot' : 'non_independent_human_snapshot';
+    allScores.push(...a.humanScores.map(score => ({ caseId: c.caseId, outputId: o.outputId, custody, ...score })));
   }
   validateReviewerIdentities(cases, outputs, annotations);
   const byPath = (a, b) => compare(canonical([a.caseId, a.path, a.type ?? a.signal ?? '']), canonical([b.caseId, b.path, b.type ?? b.signal ?? '']));
@@ -451,24 +512,37 @@ function evaluateRecords(dataset, evaluator, asOf) {
     else if (j.presentation === 'factual' && j.supportDecision === 'insufficient_evidence') type = STAGE_CLAIM_PATH.test(j.path) || INTERVIEW_CLAIM_TYPES.includes(j.claimType) ? 'unsupported_interview_history' : 'unsupported_claim';
     if (type) findings.push({ caseId: j.caseId, outputId: j.outputId, path: j.path, type, severity: FINDING_POLICY[type].severity, annotationBasis: j.annotationBasis, annotationOwner: j.annotationOwner, reason: j.reason });
   }
+  // A confirmed decision is a critical finding whatever claim type or path the judgment carries.
+  for (const x of decisions.values()) {
+    if (x.decision === 'confirmed') findings.push({ caseId: x.caseId, outputId: x.outputId, path: x.path, type: 'confirmed_screening_failure', severity: 'critical', signal: x.signal, annotationBasis: annotationBasis(x.owner), annotationOwner: x.owner, reason: x.reason });
+  }
+  findings.sort(byPath);
+  // Each warning needs its own recorded decision (rubric H6). Owning the annotation does not review it. Only a finding whose
+  // grounding ceiling is already 0 covers it: a confirmed flag could not lower the ceiling further.
   for (const w of screeningWarnings) {
-    const judgment = judgments.find(j => j.outputId === w.outputId && j.path === w.path);
-    w.review = findings.some(f => f.outputId === w.outputId && f.path === w.path) ? 'covered_by_finding'
-      : judgment.annotationBasis === 'declared_independent_human_annotation' ? 'reviewed_by_declared_independent_human' : 'unreviewed';
+    const decided = decisions.get(canonical([w.outputId, w.path, w.signal]));
+    if (decided) { w.review = `decided_${decided.decision}`; w.decisionReason = decided.reason; }
+    else w.review = findings.some(f => f.outputId === w.outputId && f.path === w.path && FINDING_POLICY[f.type].maxGrounding === 0) ? 'covered_by_finding' : 'unreviewed';
   }
   screeningWarnings.sort(byPath);
   const metricReason = 'Phase A is illustrative; no actual Prepio execution, verified interview ground truth, or execution telemetry.';
-  const adjudicationIssues = humanAdjudicationIssues(allScores, findings, deterministicFindings, screeningWarnings);
+  const adjudicationIssues = humanAdjudicationIssues(allScores, findings, deterministicFindings, screeningWarnings, judgments);
   const sortBy = (values, field) => [...values].sort((a, b) => compare(a[field], b[field]));
-  const human = humanCoverage(allScores, adjudicationIssues, sortBy(outputs.values(), 'outputId'));
+  const pinned = e => { const o = outputs.get(e.outputId); return !!o && o.caseId === e.caseId && o.sha256 === e.outputSha256; };
+  const missing = manifest ? sortBy(manifest.filter(e => !pinned(e)), 'outputId') : [];
+  const unexpected = manifest ? sortBy(outputs.values(), 'outputId').filter(o => !manifest.some(e => e.outputId === o.outputId && pinned(e))).map(o => ({ caseId: o.caseId, outputId: o.outputId, outputSha256: o.sha256 })) : [];
+  const corpus = { status: !manifest ? 'not_evaluated' : missing.length || unexpected.length ? 'incomplete' : 'pass', expected: manifest ? manifest.length : null, evaluated: outputs.size, missing, unexpected };
+  const human = humanCoverage(allScores, adjudicationIssues, sortBy(outputs.values(), 'outputId'), corpus);
+  const ratedOutputs = new Set(allScores.map(s => s.outputId));
   const bases = sortedUnique([...annotations.values()].map(a => annotationBasis(a.owner)));
   const supported = judgments.filter(j => j.presentation === 'factual' && j.supportDecision === 'supported');
   return normalize({
-    schemaVersion: 3, status: 'evaluated', claimLevel: 'illustrative', reportTitle: 'Illustrative OpenAI evidence-integrity report — DEMONSTRATION_ONLY',
+    schemaVersion: 4, status: 'evaluated', claimLevel: 'illustrative', reportTitle: 'Illustrative OpenAI evidence-integrity report — DEMONSTRATION_ONLY',
     checks: {
       hashAndCaseIdentity: 'pass', planReferenceIntegrity: 'pass', labelTargetIntegrity: 'pass', sourceHashInternalConsistency: 'pass',
       sourceAuthenticity: 'not_evaluated', semanticClaimSupport: 'not_evaluated',
       chronology: ctx.chronologyNotes.length ? 'date_precision_only' : 'pass', futureDates: asOf === null ? 'not_evaluated' : 'pass',
+      corpusCompleteness: corpus.status,
     },
     checkScope: {
       planReferenceIntegrity: 'Reference existence: every cited evidence, passage and plan-path ID resolves to a supplied record. A resolved reference does not establish that the source supports the claim.',
@@ -477,7 +551,9 @@ function evaluateRecords(dataset, evaluator, asOf) {
       semanticClaimSupport: 'Not evaluated by the scorer: whether evidence supports a claim comes only from annotations, whose basis is reported under semanticReview.',
       chronology: 'Timestamps are compared at full precision. date_precision_only means a date-only value left a same-day order unverifiable; see chronologyNotes.',
       futureDates: 'Record dates are checked against the supplied as-of timestamp only; the scorer never reads the clock.',
+      corpusCompleteness: 'Supplied outputs are compared with the manifest by case, output ID and hash. not_evaluated means no manifest was supplied. The manifest is only as independent as the process that fixed it before scoring.',
     },
+    corpus,
     chronologyNotes: ctx.chronologyNotes.sort((a, b) => compare(canonical(a), canonical(b))),
     semanticReview: {
       basis: bases.length === 1 ? bases[0] : 'mixed',
@@ -487,9 +563,9 @@ function evaluateRecords(dataset, evaluator, asOf) {
     counts: {
       cases: cases.size, outputs: outputs.size, annotatedClaimPaths: judgments.length,
       annotationSupportedClaims: supported.length, verbatimCheckedSupportedClaims: supported.filter(j => j.supportBasis === 'verbatim_passage_match').length,
-      unresolvedClaimPaths: judgments.filter(j => j.presentation === 'ambiguous').length,
+      unresolvedClaimPaths: judgments.filter(j => j.presentation === 'ambiguous').length, uncertaintyDisclosures: judgments.filter(j => j.claimType === 'uncertainty_disclosure').length,
       findings: findings.length, criticalFindings: findings.filter(f => f.severity === 'critical').length, minorFindings: findings.filter(f => f.severity === 'minor').length,
-      deterministicFindings: deterministicFindings.length, screeningWarnings: screeningWarnings.length, unreviewedScreeningWarnings: screeningWarnings.filter(w => w.review === 'unreviewed').length,
+      deterministicFindings: deterministicFindings.length, screeningWarnings: screeningWarnings.length, unreviewedScreeningWarnings: screeningWarnings.filter(w => w.review === 'unreviewed').length, decidedScreeningWarnings: screeningWarnings.filter(w => w.review.startsWith('decided_')).length,
       resolvedCitations, roleInformedPredictedStages: stagePredictions.length, externallyVerifiedInterviewStages: 0,
     },
     findings, deterministicFindings, screeningWarnings, stagePredictions, judgments,
@@ -497,6 +573,7 @@ function evaluateRecords(dataset, evaluator, asOf) {
     humanReview: {
       status: human.status, verification: 'Ownership is declared metadata; the evaluator cannot authenticate raters or verify semantic judgments.',
       identityVerification: 'self_declared_unauthenticated', requiredIndependentRatersPerOutput: REQUIRED_RATERS, scope: 'illustrative_excerpt_only',
+      criticalFindingsOnRatedOutputs: findings.filter(f => f.severity === 'critical' && ratedOutputs.has(f.outputId)).length,
       scores: human.scores, coverage: human.coverage, perOutput: human.perOutput, adjudicationIssues, records: allScores.sort((a, b) => compare(canonical(a), canonical(b))),
     },
     provenance: {
@@ -510,8 +587,9 @@ function evaluateRecords(dataset, evaluator, asOf) {
       'Source hashes establish internal consistency of the frozen excerpt, not source authenticity or currentness. A fabricated passage that is resealed into a case is not detected. Original capture hashes are lineage only; original full captures are not bundled.',
       'No independent human source verification, reviewer calibration, real Prepio run, baseline, quality gate, or production measurement is established.',
       'Annotator and rater identities are self-declared and unauthenticated; "declared independent human" is provenance metadata, not proof. Exact-match aliases are normalised; other aliases are not detected.',
-      'Screening warnings are keyword heuristics over English prose. A hit is a prompt for human review; a miss is not evidence that a claim is supported.',
-      'Corpus selection is not enforced: duplicate or cherry-picked cases are counted as supplied. Human ratings describe an illustrative excerpt only.',
+      'Screening warnings are keyword heuristics over English prose. A hit needs a recorded human decision; a miss is not evidence that a claim is supported. A claim worded to avoid the lexicons raises nothing.',
+      'Screening decisions are the declared reviewer\'s unverified word. A false_positive or acceptable decision is reported with its reason, not checked.',
+      'Corpus selection is not enforced: duplicate or cherry-picked cases are counted as supplied. A manifest shows outputs omitted after it was fixed; it cannot show a case that was never listed. Human ratings describe an illustrative excerpt only.',
       'Phase A accepts this London JD-only excerpt contract; full captured plans and the broader seven-run suite are outside this harness.',
     ],
   });
@@ -548,8 +626,17 @@ Rubric ${r.provenance.evaluator.rubricVersion} SHA-256 (raw bytes): ${r.provenan
 | Semantic claim support | ${r.checks.semanticClaimSupport} |
 | Chronology | ${r.checks.chronology} |
 | Future dates | ${r.checks.futureDates} |
+| Corpus completeness (${r.corpus.expected ?? 'no manifest'} expected, ${r.corpus.evaluated} evaluated) | ${r.checks.corpusCompleteness} |
 
 A resolved reference shows that the cited record exists; it does not establish that the source supports the claim. Source hashes show internal consistency of the supplied records, not authenticity. Of ${c.annotationSupportedClaims} factual claim(s) annotated as supported, ${c.verbatimCheckedSupportedClaims} appear verbatim in a cited passage; any others depend on the annotation alone.
+
+Missing from the pinned corpus:
+
+${list(r.corpus.missing, m => `- ${md(m.caseId)} / ${md(m.outputId)}`)}
+
+Outputs the manifest does not expect:
+
+${list(r.corpus.unexpected, m => `- ${md(m.caseId)} / ${md(m.outputId)}`)}
 
 Chronology notes (orders a date-only value leaves unverifiable):
 
@@ -563,9 +650,9 @@ Deterministic rubric findings:
 
 ${list(r.deterministicFindings, f => `- ${md(f.caseId)} / ${md(f.path)}: ${f.type}; rubric ${f.rubricChecks.join(', ')}; caps ${Object.entries(f.caps).map(([k, v]) => `${k} at most ${v}`).join(', ')}. ${md(f.reason)}`)}
 
-Screening warnings (keyword matches for human review, not semantic proof):
+Screening warnings (keyword matches needing a recorded human decision, not semantic proof):
 
-${list(r.screeningWarnings, w => `- ${md(w.caseId)} / ${md(w.path)}: ${w.signal} on "${md(w.match)}"; ${w.review}`)}
+${list(r.screeningWarnings, w => `- ${md(w.caseId)} / ${md(w.path)}: ${w.signal} on "${md(w.match)}"; ${w.review}${w.decisionReason ? ` (${md(w.decisionReason)})` : ''}`)}
 
 Stages: ${c.roleInformedPredictedStages} role-informed predicted stage(s); ${c.externallyVerifiedInterviewStages} externally verified interview-history stage(s). No interview ground truth is supplied, so no stage is verified history.
 
@@ -579,11 +666,17 @@ No actual Prepio run, verified interview ground truth or execution telemetry is 
 |---|---:|---:|
 ${Object.entries(h.scores).map(([k, v]) => `| ${k} | ${scoreCell(v)} | ${v.count} |`).join('\n')}
 
-Human review status: ${h.status}. An aggregate needs ${h.requiredIndependentRatersPerOutput} declared independent human raters for every eligible output; rater identity is self-declared and unauthenticated.
+Human review status: ${h.status}.${h.criticalFindingsOnRatedOutputs ? ` ${h.criticalFindingsOnRatedOutputs} critical finding(s) are on record for the rated outputs; read every score beside them.` : ''} An aggregate needs a pinned, complete corpus and ${h.requiredIndependentRatersPerOutput} declared independent human raters for every eligible output; rater identity is self-declared and unauthenticated.
 
 Missing coverage:
 
 ${list(Object.entries(h.scores).flatMap(([k, v]) => (v.missing ?? []).map(m => `- ${k}: ${md(m.caseId)} / ${md(m.outputId)} has ${m.eligibleRaters} eligible rater(s)`)), x => x)}
+
+Unrated outputs:
+
+${list(h.coverage.unratedOutputs, o => `- ${md(o.caseId)} / ${md(o.outputId)}`)}
+
+Unrated dimensions: ${h.coverage.unratedDimensions.join(', ') || 'None'}.
 
 Adjudication issues:
 
@@ -598,11 +691,11 @@ ${r.limitations.map(x => `- ${x}`).join('\n')}
 async function main(args) {
   const options = {};
   for (let i = 0; i < args.length; i += 2) {
-    const key = args[i]; requireThat(['--case', '--output', '--labels', '--out', '--as-of'].includes(key), `Unknown option ${key}`);
+    const key = args[i]; requireThat(['--case', '--output', '--labels', '--out', '--as-of', '--manifest'].includes(key), `Unknown option ${key}`);
     requireThat(!Object.hasOwn(options, key), `Repeated option ${key}`); str(args[i + 1], key);
     requireThat(!args[i + 1].startsWith('--'), `Missing value for ${key}`); options[key] = key === '--as-of' ? args[i + 1] : resolve(args[i + 1]);
   }
-  requireThat(['--case', '--output', '--labels', '--out'].every(key => Object.hasOwn(options, key)), 'Usage: node score.mjs --case CASE.json --output OUTPUT.json --labels LABELS.json --out NEW_DIRECTORY [--as-of YYYY-MM-DDTHH:MM:SSZ]');
+  requireThat(['--case', '--output', '--labels', '--out'].every(key => Object.hasOwn(options, key)), 'Usage: node score.mjs --case CASE.json --output OUTPUT.json --labels LABELS.json --out NEW_DIRECTORY [--as-of YYYY-MM-DDTHH:MM:SSZ] [--manifest MANIFEST.json]');
   const load = async path => {
     try {
       const bytes = await readFile(path); const parsed = JSON.parse(bytes.toString('utf8'));
@@ -610,13 +703,14 @@ async function main(args) {
     } catch (e) { fail(`Cannot read JSON ${basename(path)}: ${e.code ?? 'invalid JSON'}`); }
   };
   const [cases, outputs, annotations] = await Promise.all([load(options['--case']), load(options['--output']), load(options['--labels'])]);
-  const result = evaluate({ cases: cases.records, outputs: outputs.records, annotations: annotations.records }, { asOf: options['--as-of'] });
+  const manifest = options['--manifest'] ? await load(options['--manifest']) : null;
+  const result = evaluate({ cases: cases.records, outputs: outputs.records, annotations: annotations.records }, { asOf: options['--as-of'], manifest: manifest?.records });
   const json = `${JSON.stringify(result, null, 2)}\n`; const summary = markdown(result);
   const bundle = requireBundledArtifacts();
   // A new directory and exclusive files prevent overwrite through aliases/symlinks.
   await mkdir(options['--out']);
   await mkdir(resolve(options['--out'], 'inputs'));
-  for (const [name, bytes] of [['inputs/cases.json', cases.bytes], ['inputs/outputs.json', outputs.bytes], ['inputs/annotations.json', annotations.bytes], ['score.mjs', bundle.scorer], ['rubric.v0.3.0.md', bundle.rubric]]) {
+  for (const [name, bytes] of [['inputs/cases.json', cases.bytes], ['inputs/outputs.json', outputs.bytes], ['inputs/annotations.json', annotations.bytes], ...(manifest ? [['inputs/manifest.json', manifest.bytes]] : []), ['score.mjs', bundle.scorer], ['rubric.v0.3.0.md', bundle.rubric]]) {
     await writeFile(resolve(options['--out'], name), bytes, { flag: 'wx' });
   }
   await writeFile(resolve(options['--out'], 'results.json'), json, { flag: 'wx' });

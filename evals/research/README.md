@@ -15,15 +15,18 @@ node evals/research/score.mjs \
   --output evals/research/examples/openai-london-illustrative.v1.json \
   --labels evals/research/labels/openai-london-illustrative.v1.json \
   --out /tmp/prepio-eval-new-report \
-  --as-of 2026-11-13T00:00:00Z
+  --as-of 2026-11-13T00:00:00Z \
+  --manifest /path/to/manifest.json   # optional; needed for any human aggregate
 
 npx vitest run evals/research/
 ```
 
 The output directory must not already exist; its parent must exist. Reports are
-`results.json` (report schema 3) and `summary.md`. Input snapshot schemas remain 1.
+`results.json` (report schema 4) and `summary.md`. Case and output snapshots are
+schema 1; annotations are schema 1, or schema 2 when they carry screening decisions.
 The directory also contains byte-for-byte copies of the supplied JSON files at
-`inputs/cases.json`, `inputs/outputs.json` and `inputs/annotations.json`, plus
+`inputs/cases.json`, `inputs/outputs.json` and `inputs/annotations.json` (and
+`inputs/manifest.json` when one was supplied), plus
 `score.mjs` and `rubric.v0.3.0.md`. The output snapshot includes the complete
 supplied plan, so reviewers can inspect the text behind each judgment.
 Use an output directory outside the repository and preserve the whole bundle.
@@ -42,6 +45,15 @@ one record or arrays of records, with exactly one output/annotation per case.
 The scorer never reads the clock: with `--as-of`, any record dated later is
 rejected and the value is stored in `provenance.evaluation.asOf`; without it,
 `checks.futureDates` is `not_evaluated`. Pass the same value to replay a bundle.
+
+`--manifest` is optional. It names a JSON array of
+`{ "caseId", "outputId", "outputSha256" }`: the outputs that were expected,
+fixed before scoring. The report compares it with what was supplied
+(`corpus.missing`, `corpus.unexpected`, `checks.corpusCompleteness`). Without a
+manifest the check is `not_evaluated`. A human aggregate is produced only when
+the check is `pass`, so an output that was dropped cannot disappear silently.
+Commit the manifest before the outputs are scored; it cannot show a case that
+was never listed.
 
 Replay a bundle from any location with Node 22+, without installing dependencies:
 
@@ -66,7 +78,8 @@ Markdown, independently of directory paths.
   context for the schema, not proof of any execution. Captured runs are rejected.
 - **Annotations:** output hash/ID and case/variant binding, `rubricVersion`, owner
   identity/type/independence/date, one judgment per native claim-bearing path,
-  and an optional `humanScores` array. Unknown fields and paths are errors.
+  and an optional `humanScores` array. Schema 2 adds `screeningDecisions`
+  (below). Unknown fields and paths are errors.
 
 The fixtures are executable examples of these strict contracts. They deliberately
 use a subset of the native `PrepPlanOutput` fields and require each listed field;
@@ -85,16 +98,23 @@ ledger metadata is fixed to the native builder: source label/title are
 both `high`. Resealing cannot turn that entry into a different source attribution.
 
 Judgment types: `role_requirement`, `suggested_practice`,
-`reported_interview_question`, `interview_process_claim`, `other`. Presentations:
+`reported_interview_question`, `interview_process_claim`,
+`uncertainty_disclosure`, `other`. Presentations:
 `factual`, `hypothetical`, `ambiguous`. Decisions: `supported`, `contradicted`,
 `insufficient_evidence`, `not_applicable`. Supported/contradicted decisions require
-registered source and passage IDs. A factual claim cannot be `not_applicable`.
+registered source and passage IDs. A factual claim cannot be `not_applicable`,
+except an `uncertainty_disclosure` ("no verified source describes the interview
+process"), which must be `not_applicable` and raises no finding: it says evidence
+is missing and asserts nothing about the employer.
 Supported interview history is invalid because this contract has no interview
 source. That rule is enforced on the plan path as well as the label: judgments on
 `stageRoadmap[i].stageName`, `.whyLikely`, `.whatItTests[j]` and
 `.questionThemes[j]` can never be `supported` or `contradicted`, and a factual,
 unsupported judgment there is always `unsupported_interview_history`, whatever
-`claimType` the annotation supplies. Unsupported factual claims and
+`claimType` the annotation supplies. The one exception is a `role_requirement`
+that is verbatim posting text: it may be `supported`, because it states what the
+job needs while the stage itself stays a reported prediction. Interview-history
+wording on any other path is handled by screening decisions, not by path. Unsupported factual claims and
 contradictions become annotated findings. A lexicon or citation resolution must
 never substitute for semantic review.
 
@@ -143,10 +163,30 @@ claim-bearing text: `interview_history_wording`, `candidate_report_wording`,
 `unregistered_source_reference` (other URL schemes, protocol-relative links,
 `www.` hosts and bare domains on common TLDs that are not the registered
 posting) and `unverified_quotation` (a quoted span of six or more words that is
-not verbatim in the frozen posting). Unregistered `http(s)` URLs are still
-rejected outright. Each warning has a `review` value: `covered_by_finding`,
-`reviewed_by_declared_independent_human` or `unreviewed`. A warning is a prompt
-for human review, never a finding; a miss is not evidence of support.
+not verbatim in the frozen posting; straight double, curly double and curly
+single quotes; a curly single-quoted span ends at its first apostrophe). Unregistered `http(s)` URLs are flagged the same way and no
+longer abort the run (rubric D3). No URL fails automatically, reserved test
+domains included: a plan may repeat an invented URL to warn the user away from
+it, so the flag is decided by a human like any other.
+
+Each warning has a `review` value:
+
+- `unreviewed`: no decision is recorded. Owning the annotation does not review a
+  warning.
+- `decided_confirmed`, `decided_acceptable`, `decided_false_positive`: a
+  declared independent human recorded a decision (rubric H6) in the schema 2
+  field `screeningDecisions: [{ path, signal, decision, reason }]`. One entry
+  covers every match of that signal on that path. A decision that matches no
+  warning, a duplicate, or one under any other owner is rejected.
+- `covered_by_finding`: the path already has a finding whose grounding ceiling
+  is 0, so confirming the flag could not lower it. A `contradicted_claim`
+  (ceiling 2) or a minor finding does not cover a warning.
+
+`confirmed` creates a critical finding, `confirmed_screening_failure` (grounding
+ceiling 0), whatever claim type or path the judgment carries. `acceptable` and
+`false_positive` are the reviewer's unverified word; the Markdown prints each
+with its reason. A lexicon alone still never creates a finding, and a miss is
+not evidence of support.
 
 ## Human ratings and unavailable metrics
 
@@ -160,15 +200,19 @@ kept in `humanReview.records`, whatever happens to the aggregate.
 
 An aggregate is reported for a dimension only when all of these hold:
 
+0. **Pinned, complete corpus.** A manifest was supplied and matches the outputs.
+   Otherwise every rated dimension is `N/A` and `humanReview.status` is
+   `corpus_not_pinned` or `corpus_incomplete`.
 1. **Two raters, every output.** Each output in the dataset has at least two
    distinct declared independent human raters for that dimension (rubric §4.3).
    Otherwise the dimension is `status:N/A`, `value:null`, with `count`,
    `eligibleOutputs`, `coveredOutputs` and a `missing` list of
    `{caseId, outputId, eligibleRaters}`. `humanReview.coverage` lists unrated
    outputs and dimensions; `humanReview.status` is `incomplete_coverage`.
-2. **Human custody.** Ratings carried in an annotation snapshot whose owner is a
-   model are kept (`custody:model_owned_snapshot`) but not counted: a
-   model-owned record cannot vouch for human ratings.
+2. **Independent human custody.** Ratings count only when the annotation
+   snapshot's owner is a declared independent human. Ratings in a model-owned
+   (`custody:model_owned_snapshot`) or same-author/unknown human snapshot
+   (`custody:non_independent_human_snapshot`) are kept but not counted.
 3. **No open adjudication issue** for that dimension on any output. Otherwise it
    is `status:requires_adjudication`, `value:null`, with disputed output IDs.
 
@@ -185,7 +229,15 @@ output, `raterIds`, `findingPaths` and reason:
 | `grounding_finding_conflict`, `severity:critical` | Grounding above 0 beside `unsupported_interview_history`, or grounding 3–4 beside `contradicted_claim` |
 | `grounding_finding_conflict`, `severity:minor` | Grounding 3–4 beside `unsupported_claim` |
 | `rating_exceeds_rubric_cap` | A rating exceeds the cap from a deterministic rubric finding |
-| `unreviewed_screening_signal` | Grounding 3–4 beside a screening warning no declared independent human has judged |
+| `unreviewed_screening_signal` | Grounding above 0 beside a screening warning with no recorded decision (a confirmed flag would cap grounding at 0) |
+| `unresolved_claim_label` | Grounding 3–4 while any claim on the output is labelled `ambiguous` |
+| `critical_failure_disagreement` | Grounding ratings of 0 and 1 for one output: raters disagree on whether a critical failure exists (rubric §4.3) |
+| `rating_implies_unrecorded_critical_failure` | A grounding 0 with no critical finding recorded for the output |
+
+A dimension that needs adjudication still lists its `missing` outputs, and the
+Markdown always prints unrated outputs and dimensions. When rated outputs carry
+critical findings, the Markdown status line says how many; the harness sets no
+caps on the other four dimensions.
 
 A grounding conflict is raised whoever owns the annotation. `findingBasis` says
 whether the finding comes from a declared independent human or an unverified
@@ -240,7 +292,16 @@ The harness does not, and does not claim to:
 - verify that evidence supports a claim, beyond verbatim passage matches;
 - detect fabricated claims that avoid the screening lexicons, obfuscated links
   (homoglyphs, "dot com"), or non-English wording;
-- detect duplicate or cherry-picked cases: corpus selection is not enforced;
+- detect duplicate or cherry-picked cases: a manifest shows outputs dropped
+  after it was fixed, not a case that was never listed or a manifest edited later;
+- check a screening decision: `false_positive` and `acceptable` are reported,
+  not verified;
+- keep a trace when an annotation is replaced by another owner's;
+- detect look-alike rater names (homoglyphs). Zero-width and soft-hyphen aliases
+  are normalised, and a declared human whose ID names a model (`gpt`, `codex`,
+  `llm`, `model`, `bot`) is rejected, which catches mistakes, not intent;
+- pin the scorer: the rubric bytes are pinned in `score.mjs`, the scorer hash is
+  only reported;
 - score captured Prepio runs, unscorable outputs or attempt accounting;
 - measure Prepio research quality, establish a baseline, or act as a gate.
 
