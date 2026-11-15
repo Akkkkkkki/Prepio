@@ -24,6 +24,18 @@ const stateLabels: Record<InterviewSummaryState, string> = {
   failed: "Research needs attention",
 };
 
+// Use UTC calendar dates so the same run has the same label in every timezone.
+const formatStartDate = (createdAt: unknown): string | null => {
+  // Only accept timestamps with an explicit timezone, never browser-local dates.
+  if (typeof createdAt !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i.test(createdAt)) return null;
+  const date = new Date(createdAt);
+  const calendarDate = new Date(`${createdAt.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(date.getTime()) || Number.isNaN(calendarDate.getTime()) ||
+      calendarDate.toISOString().slice(0, 10) !== createdAt.slice(0, 10)) return null;
+  return date.toISOString().slice(0, 10);
+};
+
 const InterviewsSkeleton = () => (
   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
     {Array.from({ length: 3 }).map((_, index) => (
@@ -45,6 +57,7 @@ const InterviewCard = ({ interview }: { interview: InterviewSummary }) => {
   const primaryHref = isReady
     ? `/practice?searchId=${interview.id}`
     : `/dashboard?searchId=${interview.id}`;
+  const startDate = formatStartDate(interview.createdAt);
   const identity = [interview.company, interview.role].filter(Boolean).join(" · ");
 
   return (
@@ -57,6 +70,9 @@ const InterviewCard = ({ interview }: { interview: InterviewSummary }) => {
           <Badge className={badgeToneClassName.neutral}>{stateLabels[interview.state]}</Badge>
         </div>
         <CardTitle className="text-xl leading-7">{identity}</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          {startDate ? `Started ${startDate} (UTC)` : "Start date unavailable"}
+        </p>
       </CardHeader>
       <CardContent className="flex-1 space-y-4">
         {isReady ? (

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
@@ -29,6 +29,80 @@ const renderInterviews = () =>
 describe("Interviews home", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  // Synthetic opportunities only; no applicant or account data.
+  const summary = (id: string, createdAt: unknown) => ({
+    id,
+    company: "OpenAI",
+    role: "Applied AI Architect / Solutions Architect",
+    createdAt,
+    status: "completed",
+    state: "plan_ready",
+    totalQuestions: 8,
+    practicedQuestions: 0,
+    progressPercent: 0,
+    needsWorkCount: 0,
+  });
+
+  it("distinguishes duplicate company/role cards by their own UTC start date", async () => {
+    mockGetInterviewSummaries.mockResolvedValue({
+      success: true,
+      interviews: [
+        summary("synthetic-first", "2026-06-20T10:00:00Z"),
+        summary("synthetic-second", "2026-06-22T10:00:00Z"),
+      ],
+    });
+
+    renderInterviews();
+
+    const titles = await screen.findAllByText("OpenAI · Applied AI Architect / Solutions Architect");
+    expect(titles).toHaveLength(2);
+    for (const [index, date] of ["2026-06-20", "2026-06-22"].entries()) {
+      const card = within(titles[index].closest(".flex.h-full") as HTMLElement);
+      expect(card.getByText(`Started ${date} (UTC)`)).toBeInTheDocument();
+      expect(card.getByRole("link", { name: "Start practice" })).toHaveAttribute(
+        "href", `/practice?searchId=synthetic-${index === 0 ? "first" : "second"}`,
+      );
+      expect(card.getByText("Plan ready")).toBeInTheDocument();
+      expect(card.getByText("0 of 8 answered · 0%")).toBeInTheDocument();
+    }
+  });
+
+  it.each([
+    null, undefined, "", "not-a-date", "2026-99-99T00:00:00Z",
+    "2026-02-30T00:00:00Z", "2026-06-21T00:30:00", 0, {},
+  ])(
+    "shows an honest fallback for invalid createdAt %s",
+    async (createdAt) => {
+      mockGetInterviewSummaries.mockResolvedValue({
+        success: true,
+        interviews: [summary("synthetic-invalid", createdAt)],
+      });
+
+      renderInterviews();
+
+      expect(await screen.findByText("Start date unavailable")).toBeInTheDocument();
+      expect(screen.queryByText(/Invalid Date/)).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Start practice" })).toHaveAttribute(
+        "href", "/practice?searchId=synthetic-invalid",
+      );
+    },
+  );
+
+  it.each([
+    ["2026-06-21T00:30:00+09:00", "2026-06-20"],
+    ["2026-06-20T23:30:00-07:00", "2026-06-21"],
+    ["2026-01-01T00:30:00+14:00", "2025-12-31"],
+  ])("uses the UTC calendar date for %s", async (createdAt, expectedDate) => {
+    mockGetInterviewSummaries.mockResolvedValue({
+      success: true,
+      interviews: [summary("synthetic-boundary", createdAt)],
+    });
+
+    renderInterviews();
+
+    expect(await screen.findByText(`Started ${expectedDate} (UTC)`)).toBeInTheDocument();
   });
 
   it("gives first-time users one clear path to prep a new interview", async () => {
