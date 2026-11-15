@@ -11,7 +11,7 @@ configure({ asyncUtilTimeout: 5000 });
 vi.stubEnv("VITE_SUPABASE_URL", "https://example.supabase.co");
 vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY", "test-publishable-key");
 
-Object.defineProperty(window, "matchMedia", {
+if (typeof window !== "undefined") Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: vi.fn().mockImplementation((query: string) => ({
     matches: query === "(prefers-reduced-motion: reduce)" ? false : false,
@@ -44,7 +44,7 @@ const localStorageMock = {
   },
 };
 
-Object.defineProperty(window, "localStorage", {
+if (typeof window !== "undefined") Object.defineProperty(window, "localStorage", {
   configurable: true,
   value: localStorageMock,
 });
