@@ -346,3 +346,62 @@ and design-token checks; ESLint and `git diff --check` are clean on the changed
 files. The typecheck and build results above still apply: only evaluation files
 changed. Scorer raw-byte SHA-256 after this follow-up:
 `e38b4ce3a77798958841a86e8335be4931fa095152cee25b751f050ea61f9736`.
+
+## Audit follow-up — 2026-11-15
+
+An independent audit of `e8bcf14` reported findings F1–F8 and rated the harness
+acceptable for structural testing only. The audit's P1–P18 probe list was never
+supplied, so this follow-up maps to F1–F8, not to those probes.
+
+### Red, then green
+
+`audit-followup.test.mjs` was committed first as `cacd681`. Against the
+`e8bcf14` scorer all 31 tests fail, because the old scorer rejects the new
+`manifest` option. With that option stripped, 29 fail and 2 controls pass. After
+the fix all 31 pass, and the harness total is 194.
+
+### Result per finding
+
+| Finding | After the fix |
+|---|---|
+| F1 fabricated claim off the stage paths, labelled a supported role requirement | Lexicon hit stays `unreviewed` until a human records a decision; no grounding aggregate. `confirmed` gives a critical finding and ceiling 0. |
+| F2 ratings under a non-independent annotation; `ambiguous` label | Ratings kept, not counted. `ambiguous` blocks grounding 3–4. |
+| F3 claim type downgrading severity | A minor finding no longer covers the warning; grounding above 0 waits for the decision. |
+| F4 honest labels rejected on stage paths | Verbatim posting text is a supported role requirement; `uncertainty_disclosure` raises no finding. A non-verbatim stage claim is still rejected. |
+| F5 unregistered URL aborts the run; omissions invisible | URL is a warning, exit 0; reserved test domains are a deterministic finding. A manifest shows dropped outputs; no aggregate without a complete pinned corpus. |
+| F6 rater conflicts | 0 against 1, and a 0 with no recorded critical finding, need adjudication. Critical findings are stated beside the status. |
+| F7 Markdown coverage | Unrated outputs and dimensions always printed; `missing` listed for disputed dimensions. |
+| F8 hygiene | Zero-width aliases normalised; model-named humans rejected; rubric bytes pinned; year and "typically have" noise removed; curly single quotes screened. |
+
+### Not fixed, by design
+
+- F2's main input still reaches 4/4: wording that avoids the lexicons, an invented
+  independent owner and invented raters. That needs semantic review and
+  authenticated identity.
+- Screening decisions are not checked. A reviewer can record `false_positive`
+  on a fabricated claim; the report prints the decision and reason.
+- Homoglyph aliases, scorer pinning, annotation history, as-of sanity and
+  staleness, and citations that resolve but do not support the claim.
+- F4b: verbatim posting text labelled `factual / insufficient_evidence` on a
+  stage path is still a critical finding. The correct label is now available.
+
+### Existing tests changed
+
+Seven, where the approved behaviour changes; none removed.
+
+- `adversarial.test.mjs`: RC6 uses ratings of 1 where it used 0 (a 0 now needs a
+  recorded critical finding); the unregistered-URL control expects a warning; the
+  screening control records decisions instead of relying on ownership.
+- `score.test.mjs`: the two fabricated-URL rejection tests are one parameterised
+  test expecting a warning and a reserved-domain finding; the human-author test
+  expects same-author snapshot ratings to be uncounted; schema version is 4.
+- Both files' helpers pin a manifest by default.
+
+### Checks run on the final tree
+
+Local, Node 22: 194 harness tests and 688 repository tests pass with the schema
+and design-token checks; typecheck ratchets at 61/0; build passed; ESLint clean on
+the changed files. Browser smoke was not run: no application input changed. The
+canonical CLI run exits 0 with and without a manifest. This is author
+verification, not independent review. Scorer raw-byte SHA-256:
+`b9ef0c7ee5933370e09b6026bc08f3f83eb7b57934b886d931c78d786d13525f`.

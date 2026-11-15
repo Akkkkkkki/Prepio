@@ -48,7 +48,9 @@ function wellFormed(d = data(), i = 0) {
   neutralise(d, i); d.outputs[i].plan.stageRoadmap[0].evidenceIds = []; d.annotations[i].owner = humanOwner();
   return d;
 }
-const run = (d, options) => { try { return { threw: false, report: score(bind(d), options) }; } catch (error) { return { threw: true, message: error.message }; } };
+// Every evaluation pins its corpus unless a test passes its own manifest; aggregates need a pinned corpus.
+const manifestOf = d => d.outputs.map(o => ({ caseId: o.caseId, outputId: o.outputId, outputSha256: o.sha256 }));
+const run = (d, options = {}) => { try { bind(d); return { threw: false, report: score(d, { manifest: manifestOf(d), ...options }) }; } catch (error) { return { threw: true, message: error.message }; } };
 const report = (d, options) => { const outcome = run(d, options); if (outcome.threw) throw new Error(`unexpected rejection: ${outcome.message}`); return outcome.report; };
 const rejects = (d, pattern, options) => { const outcome = run(d, options); expect(outcome.threw ? outcome.message : 'evaluated').toMatch(pattern); };
 const issuesOf = (r, type) => r.humanReview.adjudicationIssues.filter(issue => issue.type === type);
@@ -207,12 +209,12 @@ describe('rating coverage', () => {
   it('RC6 weights outputs equally and reports per-output values', () => {
     const d = twoCases(); wellFormed(d, 0); wellFormed(d, 1);
     d.annotations[0].humanScores = ['rater-a', 'rater-b', 'rater-c', 'rater-d'].map(r => rating(4, r));
-    d.annotations[1].humanScores = pair(0);
+    d.annotations[1].humanScores = pair(1); // a 0 would assert a critical failure that no finding records
     const r = report(d);
-    expect(r.humanReview.scores.evidenceGrounding).toEqual({ status: 'descriptive_only', value: 2, count: 6 });
+    expect(r.humanReview.scores.evidenceGrounding).toEqual({ status: 'descriptive_only', value: 2.5, count: 6 });
     expect(r.humanReview.perOutput).toEqual([
       expect.objectContaining({ outputId: OUTPUT, dimension: 'evidenceGrounding', eligibleRaters: 4, value: 4 }),
-      expect.objectContaining({ outputId: 'secondary-output', dimension: 'evidenceGrounding', eligibleRaters: 2, value: 0 }),
+      expect.objectContaining({ outputId: 'secondary-output', dimension: 'evidenceGrounding', eligibleRaters: 2, value: 1 }),
     ]);
   });
 
@@ -331,8 +333,9 @@ describe('screening signals', () => {
     expect(r.counts.unreviewedScreeningWarnings).toBe(1);
   });
 
-  it('control: an unregistered http(s) URL is still rejected and the registered posting in bare form is not flagged', () => {
-    const fake = data(); fake.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ' https://glassdoor.example/fake'; rejects(fake, /unregistered URL/);
+  it('an unregistered http(s) URL is flagged like any other reference, and the registered posting in bare form is not', () => {
+    const fake = data(); fake.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ' https://glassdoor.com/fake';
+    expect(report(fake).screeningWarnings).toContainEqual(expect.objectContaining({ path: REASON, signal: 'unregistered_source_reference', match: 'https://glassdoor.com/fake', review: 'unreviewed' }));
     const bare = data(); bare.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ' See openai.com/careers/applied-ai-architect-large-enterprise-london-uk/ and openai.com.';
     expect(report(bare).screeningWarnings.filter(w => w.path === REASON)).toEqual([]);
   });
@@ -355,12 +358,16 @@ describe('screening signals', () => {
     expect(r.humanReview.adjudicationIssues).toEqual([expect.objectContaining({ type: 'unreviewed_screening_signal', dimension: 'evidenceGrounding', findingPaths: ['stageRoadmap[0].whyLikely'], reason: expect.stringMatching(/screening signal.*not semantic proof/i) })]);
   });
 
-  it('control: a declared independent human judgment resolves a screening signal without creating a finding', () => {
+  it('control: recorded decisions by a declared independent human resolve screening signals without creating a finding', () => {
     const d = wellFormed(); d.outputs[0].plan.stageRoadmap[0].whyLikely = 'A friend said there are four interview rounds; no supplied source confirms that, so treat it as unverified.';
     d.annotations[0].humanScores = pair(4);
+    const undecided = report(structuredClone(d));
+    expect(undecided.screeningWarnings.length).toBeGreaterThan(0);
+    expect(undecided.humanReview.scores.evidenceGrounding.status).toBe('requires_adjudication');
+    d.annotations[0].schemaVersion = 2;
+    d.annotations[0].screeningDecisions = undecided.screeningWarnings.map(w => ({ path: w.path, signal: w.signal, decision: 'acceptable', reason: 'Attributed hearsay that the plan itself rejects.' }));
     const r = report(d);
-    expect(r.screeningWarnings.length).toBeGreaterThan(0);
-    expect(r.screeningWarnings.every(w => w.review === 'reviewed_by_declared_independent_human')).toBe(true);
+    expect(r.screeningWarnings.every(w => w.review === 'decided_acceptable')).toBe(true);
     expect(r.findings).toEqual([]);
     expect(r.humanReview.scores.evidenceGrounding).toEqual({ status: 'descriptive_only', value: 4, count: 2 });
   });

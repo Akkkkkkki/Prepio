@@ -249,7 +249,7 @@ describe('F8 identity and screening hygiene', () => {
     rejects(d, /duplicate human score/);
   });
 
-  it.each(['gpt-6', 'claude-fable-5-2 (LLM grader)', 'Codex (model-authored constructed example)'])('rejects a human declaration under a model-like identity: %s', id => {
+  it.each(['gpt-6', 'claude-fable-5-2 (LLM grader)', 'codex-reviewer'])('rejects a human declaration under a model-like identity: %s', id => {
     const d = wellFormed(); d.annotations[0].humanScores = [rating(4, 'rater-a'), rating(4, id)];
     rejects(d, /names a model/);
   });
