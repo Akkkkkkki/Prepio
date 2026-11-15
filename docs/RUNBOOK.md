@@ -71,10 +71,60 @@ Check function logs for Tavily 402/429 responses and the configured credit cap i
 
 Quality counterpart to the Tavily cost query above. Use this to spot regressions where retrieval is paid for but synthesis produces little — e.g. throttled extraction or upstream prompt drift.
 
-`interview-research` emits one `[research_yield]` JSON log per completed run with `questions_extracted`, `sources_returned`, `tavily_calls`, and `tavily_credits`. Grep Edge Function logs for live alerting — the body is JSON, so match the literal tag plus the JSON-encoded field:
+`interview-research` emits one `[research_yield]` JSON log per completed run with
+`questions_extracted`, `sources_returned`, `tavily_calls`, `tavily_credits`, and the
+PII-safe `role_family`. Outcome fields are always present: `top_5_question_count`,
+`top_5_hit_count`, `top_5_hit_rate`, and `recall_miss_count`. They are `null` when no
+round debrief is attached, so runs without outcome data do not count as misses and the
+existing yield queries continue to work unchanged.
+
+Grep Edge Function logs for live alerting — the body is JSON, so match the literal tag
+plus the JSON-encoded field:
 
 ```
 [research_yield] "questions_extracted":0
+```
+
+Top-5 hit-rate trend by role family (run in Supabase Explorer with **Logs** selected as
+the query source and an explicit time range). The `HAVING` clause excludes days that
+only contain pre-debrief `null` outcomes:
+
+```sql
+select
+  toDate(timestamp) as day,
+  JSONExtractString(
+    replaceOne(event_message, '[research_yield] ', ''),
+    'role_family'
+  ) as role_family,
+  countIf(isNotNull(JSONExtract(
+    replaceOne(event_message, '[research_yield] ', ''),
+    'top_5_hit_rate',
+    'Nullable(Float64)'
+  ))) as runs_with_outcomes,
+  round(
+    sum(JSONExtract(
+      replaceOne(event_message, '[research_yield] ', ''),
+      'top_5_hit_count',
+      'Nullable(UInt64)'
+    )) / nullIf(sum(JSONExtract(
+      replaceOne(event_message, '[research_yield] ', ''),
+      'top_5_question_count',
+      'Nullable(UInt64)'
+    )), 0),
+    3
+  ) as top_5_hit_rate,
+  sum(JSONExtract(
+    replaceOne(event_message, '[research_yield] ', ''),
+    'recall_miss_count',
+    'Nullable(UInt64)'
+  )) as recall_miss_count
+from logs
+where source = 'function_logs'
+  and position(event_message, '[research_yield] ') > 0
+group by day, role_family
+having runs_with_outcomes > 0
+order by day desc, role_family
+limit 200;
 ```
 
 Daily yield-per-credit (last 14 days):
