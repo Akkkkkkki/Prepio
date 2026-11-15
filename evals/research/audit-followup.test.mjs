@@ -168,12 +168,31 @@ describe('F5 unregistered URLs and corpus omissions', () => {
     expect(grounding(r).status).toBe('requires_adjudication');
   });
 
-  it('reports a reserved .example URL as a deterministic critical finding capping grounding at 0', () => {
-    const d = wellFormed(); d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ' https://glassdoor.example/fake';
-    d.annotations[0].humanScores = pair(1);
-    const r = report(d);
-    expect(r.deterministicFindings).toContainEqual(expect.objectContaining({ path: REASON, type: 'reserved_test_url_cited', rubricChecks: ['D3'], caps: { evidenceGrounding: 0 } }));
-    expect(issuesOf(r, 'rating_exceeds_rubric_cap')).toHaveLength(1);
+  // Rubric D3 carve-out: repeating an invented URL to warn the user away from it is not CF1; the flag is adjudicated.
+  const WARN_AWAY = ' Do not rely on https://fabricated.example/fake: it is an invented URL, not a source.';
+  const urlDecision = value => [{ path: REASON, signal: 'unregistered_source_reference', decision: value, reason: `Declared reviewer decision: ${value}` }];
+  function warnAway(decisions) {
+    const d = wellFormed(); d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += WARN_AWAY; d.annotations[0].humanScores = pair(4);
+    if (decisions) { d.annotations[0].schemaVersion = 2; d.annotations[0].screeningDecisions = decisions; }
+    return d;
+  }
+  it('an undecided reserved-domain URL blocks grounding above 0 without an automatic finding', () => {
+    const r = report(warnAway());
+    expect(r.deterministicFindings).toEqual([]);
+    expect(issuesOf(r, 'unreviewed_screening_signal')).toHaveLength(1);
+    expect(grounding(r).status).toBe('requires_adjudication');
+  });
+
+  it('(Codex P2) an acceptable decision resolves a URL the plan only warns against', () => {
+    const r = report(warnAway(urlDecision('acceptable')));
+    expect(r.humanReview.adjudicationIssues).toEqual([]);
+    expect(grounding(r)).toEqual(expect.objectContaining({ status: 'descriptive_only', value: 4 }));
+  });
+
+  it('a confirmed decision on a fabricated URL is a critical finding with ceiling 0', () => {
+    const r = report(warnAway(urlDecision('confirmed')));
+    expect(r.findings).toEqual([expect.objectContaining({ path: REASON, type: 'confirmed_screening_failure', severity: 'critical' })]);
+    expect(issuesOf(r, 'grounding_finding_conflict')).toHaveLength(1);
   });
 
   it('control: the registered posting URL is not flagged', () => {
@@ -263,6 +282,11 @@ describe('F8 identity and screening hygiene', () => {
   it('flags a fabricated quotation in curly single quotes', () => {
     const d = wellFormed(); d.outputs[0].plan.prepPriorities[0].whyItMatters = 'The posting says ‘candidates must pass four architecture interview rounds in London first’.';
     expect(report(d).screeningWarnings).toContainEqual(expect.objectContaining({ path: WHY, signal: 'unverified_quotation' }));
+  });
+
+  it('(Codex P2) still flags a fabricated double-quoted quotation that contains an apostrophe', () => {
+    const d = wellFormed(); d.outputs[0].plan.prepPriorities[0].whyItMatters = 'The posting says "You’ll design secure systems across multiple cloud providers".';
+    expect(report(d).screeningWarnings).toContainEqual(expect.objectContaining({ path: WHY, signal: 'unverified_quotation', match: 'You’ll design secure systems across multiple cloud providers' }));
   });
 
   it('reports schema 4 and pins the approved rubric bytes', () => {

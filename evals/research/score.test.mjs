@@ -51,11 +51,10 @@ describe('offline snapshot integrity', () => {
     expect(r.humanReview.status).toBe('N/A');
   });
   it('rejects unresolved citation IDs', () => reject(d => { d.outputs[0].plan.stageRoadmap[0].evidenceIds = ['ev-99']; }, /unresolved citation/));
-  it.each([['lowercase', ' https://glassdoor.example/fake'], ['uppercase scheme', ' [source](HTTPS://glassdoor.example/fake)']])('scores a fabricated prose citation as a flag and a reserved-domain finding instead of aborting: %s', async (_name, suffix) => {
+  it.each([['lowercase', ' https://glassdoor.example/fake'], ['uppercase scheme', ' [source](HTTPS://glassdoor.example/fake)']])('scores a fabricated prose citation as a flag instead of aborting: %s', async (_name, suffix) => {
     const d = data(); d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += suffix;
     const r = await evaluate(bind(d)); const path = 'questionPlan.coreMustPractice[0].reason';
     expect(r.screeningWarnings).toContainEqual(expect.objectContaining({ path, signal: 'unregistered_source_reference', review: 'unreviewed' }));
-    expect(r.deterministicFindings).toContainEqual(expect.objectContaining({ path, type: 'reserved_test_url_cited', caps: { evidenceGrounding: 0 } }));
   });
   it('resolves a registered citation with case-insensitive scheme and host', async () => {
     const d = data(); d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ' HTTPS://OPENAI.COM/careers/applied-ai-architect-large-enterprise-london-uk/';

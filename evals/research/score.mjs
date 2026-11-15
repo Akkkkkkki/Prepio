@@ -248,10 +248,6 @@ function validatePlan(o, c, s, ctx) {
     member(v.linkedPriority, PRIORITY, 'linkedPriority'); member(v.difficulty, ['Easy', 'Medium', 'Hard'], 'difficulty'); member(v.answerGuidanceStatus, ['pending', 'generated'], 'answerGuidanceStatus');
     requireThat(v.leveragesStoryId === null, 'Phase A has no candidate story ground truth');
   });
-  // Rubric D3: an unregistered URL is a flag for a human (see screen); only a reserved test host fails automatically (CF1).
-  for (const [path, text] of targets) {
-    if (httpUrls(text).some(u => /\.(?:example|test|invalid)$/i.test(u.host))) flag(path, 'reserved_test_url_cited', ['D3'], { evidenceGrounding: 0 }, 'A reserved test-domain URL is cited in the plan; a known synthetic source presented in an output is an automatic failure (rubric D3, CF1).');
-  }
   return { targets, deterministic, stagePredictions, resolvedCitations, registeredUrls: allowedUrls, createdBounds };
 }
 
@@ -273,8 +269,9 @@ function screen(targets, registeredUrls, jobDescription) {
     }
     const prose = withoutHttp.replace(OTHER_REFERENCE, ' ');
     for (const [signal, pattern] of SCREENS) { const m = prose.match(pattern); if (m) hits.push({ path, signal, match: flat(m[0]) }); }
-    for (const m of text.matchAll(/["“‘]([^"“”‘’]+)["”’]/g)) {
-      const quoted = flat(m[1]);
+    // Double quotes may contain apostrophes; a curly single-quoted span ends at the first ’.
+    for (const m of text.matchAll(/["“]([^"“”]+)["”]|‘([^‘’]+)’/g)) {
+      const quoted = flat(m[1] ?? m[2]);
       if (quoted.split(' ').length >= 6 && !frozen.includes(quoted)) { hits.push({ path, signal: 'unverified_quotation', match: quoted }); break; }
     }
   }

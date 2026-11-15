@@ -355,7 +355,8 @@ supplied, so this follow-up maps to F1–F8, not to those probes.
 
 ### Red, then green
 
-`audit-followup.test.mjs` was committed first as `cacd681`. Against the
+`audit-followup.test.mjs` was committed first (`cacd681`; `04874bd` after the
+branches were rebased on GitHub, when `e8bcf14` became `b82ae67`). Against the
 `e8bcf14` scorer all 31 tests fail, because the old scorer rejects the new
 `manifest` option. With that option stripped, 29 fail and 2 controls pass. After
 the fix all 31 pass, and the harness total is 194.
@@ -368,7 +369,7 @@ the fix all 31 pass, and the harness total is 194.
 | F2 ratings under a non-independent annotation; `ambiguous` label | Ratings kept, not counted. `ambiguous` blocks grounding 3–4. |
 | F3 claim type downgrading severity | A minor finding no longer covers the warning; grounding above 0 waits for the decision. |
 | F4 honest labels rejected on stage paths | Verbatim posting text is a supported role requirement; `uncertainty_disclosure` raises no finding. A non-verbatim stage claim is still rejected. |
-| F5 unregistered URL aborts the run; omissions invisible | URL is a warning, exit 0; reserved test domains are a deterministic finding. A manifest shows dropped outputs; no aggregate without a complete pinned corpus. |
+| F5 unregistered URL aborts the run; omissions invisible | URL is a warning, exit 0, decided by a human. A manifest shows dropped outputs; no aggregate without a complete pinned corpus. |
 | F6 rater conflicts | 0 against 1, and a 0 with no recorded critical finding, need adjudication. Critical findings are stated beside the status. |
 | F7 Markdown coverage | Unrated outputs and dimensions always printed; `missing` listed for disputed dimensions. |
 | F8 hygiene | Zero-width aliases normalised; model-named humans rejected; rubric bytes pinned; year and "typically have" noise removed; curly single quotes screened. |
@@ -397,11 +398,26 @@ Seven, where the approved behaviour changes; none removed.
   expects same-author snapshot ratings to be uncounted; schema version is 4.
 - Both files' helpers pin a manifest by default.
 
+### Review follow-up on `4e39e69`
+
+Codex raised two P2 findings on the first push; both were confirmed.
+
+- A reserved test-domain URL was an automatic finding capping grounding at 0,
+  even when the plan repeated it only to warn the user away and an independent
+  human recorded `acceptable`. The rubric's D3 carve-out excludes that case.
+  The automatic finding is removed. The URL still raises a warning that blocks
+  grounding above 0 until decided, and `confirmed` still gives ceiling 0.
+- Adding curly single quotes to the quotation screen made an apostrophe end a
+  double-quoted span, so `"You’ll design …"` was no longer flagged. Double and
+  single quotes are now matched separately.
+
+Three tests were added failing first, and one earlier test was replaced.
+
 ### Checks run on the final tree
 
-Local, Node 22: 194 harness tests and 688 repository tests pass with the schema
+Local, Node 22: 197 harness tests and the full repository suite pass with the schema
 and design-token checks; typecheck ratchets at 61/0; build passed; ESLint clean on
 the changed files. Browser smoke was not run: no application input changed. The
 canonical CLI run exits 0 with and without a manifest. This is author
-verification, not independent review. Scorer raw-byte SHA-256:
-`b9ef0c7ee5933370e09b6026bc08f3f83eb7b57934b886d931c78d786d13525f`.
+verification, not independent review. The scorer's raw-byte SHA-256 is printed in
+every report.

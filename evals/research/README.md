@@ -164,10 +164,10 @@ claim-bearing text: `interview_history_wording`, `candidate_report_wording`,
 `www.` hosts and bare domains on common TLDs that are not the registered
 posting) and `unverified_quotation` (a quoted span of six or more words that is
 not verbatim in the frozen posting; straight double, curly double and curly
-single quotes). Unregistered `http(s)` URLs are flagged the same way and no
-longer abort the run (rubric D3). A URL on a reserved test domain (`.example`,
-`.test`, `.invalid`) is also a deterministic finding, `reserved_test_url_cited`,
-capping grounding at 0.
+single quotes; a curly single-quoted span ends at its first apostrophe). Unregistered `http(s)` URLs are flagged the same way and no
+longer abort the run (rubric D3). No URL fails automatically, reserved test
+domains included: a plan may repeat an invented URL to warn the user away from
+it, so the flag is decided by a human like any other.
 
 Each warning has a `review` value:
 

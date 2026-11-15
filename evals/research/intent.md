@@ -139,8 +139,8 @@ session on 2026-11-15; this section supersedes earlier text where they conflict.
   must never substitute for semantic review" still holds: a hit alone creates no
   finding. Schema 1 annotations and the three fixtures are unchanged.
 - **Changed, rejection to report:** an unregistered `http(s)` URL is a screening
-  warning (rubric D3), not exit 2. A reserved test-domain URL is a deterministic
-  finding capping grounding at 0.
+  warning (rubric D3), not exit 2. It is decided by a human like any other
+  flag, so a URL the plan only warns against can be recorded as acceptable.
 - **Added, corpus:** an optional manifest of expected outputs. Human aggregates
   need a pinned, complete corpus. This is omission visibility only; corpus
   selection and unscorable-run accounting stay deferred.
