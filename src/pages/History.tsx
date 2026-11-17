@@ -221,13 +221,13 @@ const History = () => {
     : "/dashboard";
   const practiceEntryLabel = selectedSearchId !== HISTORY_FILTER_ALL
     ? "Start practice for this research"
-    : "Go to Dashboard";
+    : "Go to Plan";
   const primaryEmptyHref = selectedSearchId !== HISTORY_FILTER_ALL
     ? `/dashboard?searchId=${selectedSearchId}`
     : "/dashboard";
   const primaryEmptyLabel = selectedSearchId !== HISTORY_FILTER_ALL
-    ? "Open research dashboard"
-    : "Go to Dashboard";
+    ? "Open research plan"
+    : "Go to Plan";
   const secondaryEmptyHref = selectedSearchId !== HISTORY_FILTER_ALL ? practiceEntryHref : "/new-interview";
   const secondaryEmptyLabel = selectedSearchId !== HISTORY_FILTER_ALL
     ? "Start practice"
