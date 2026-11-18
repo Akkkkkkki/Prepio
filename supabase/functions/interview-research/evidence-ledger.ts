@@ -113,7 +113,13 @@ function normalizeHttpUrl(value: unknown): string | null {
 function hostFor(url: string | null): string {
   if (!url) return "user";
   try {
-    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+    // Drop a fully-qualified trailing dot ("acme.com." is acme.com). Left in, it
+    // becomes an empty last label, so registrableLabel would read the TLD as the
+    // registrable label: attacker.monster. -> "monster", trusted for "Monster".
+    return new URL(url).hostname
+      .toLowerCase()
+      .replace(/\.+$/, "")
+      .replace(/^www\./, "");
   } catch {
     return "unknown";
   }

@@ -179,6 +179,56 @@ describe("buildEvidenceLedger", () => {
     });
   });
 
+  it("ignores a fully-qualified trailing dot when reading the registrable label", () => {
+    // Left in, the trailing dot makes the TLD the registrable label, so anyone
+    // registering under .monster could pose as the employer "Monster".
+    const spoofed = buildEvidenceLedger({
+      company: "Monster",
+      companyResearchData: {
+        search_results: [
+          {
+            results: [
+              {
+                title: "Trailing-dot lookalike",
+                url: "https://attacker.monster./careers",
+                content: "A page whose registrable domain is attacker.monster.",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(spoofed).toHaveLength(1);
+    expect(spoofed[0]).toMatchObject({
+      sourceType: "market_heuristic",
+      platform: "attacker.monster",
+      trustWeight: "low",
+    });
+
+    // The same normalization keeps a genuine employer FQDN trusted.
+    const genuine = buildEvidenceLedger({
+      company: "Acme",
+      companyResearchData: {
+        search_results: [
+          {
+            results: [
+              {
+                title: "Acme careers",
+                url: "https://careers.acme.com./roles",
+                content: "Acme is hiring engineers.",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(genuine[0]).toMatchObject({
+      sourceType: "official_company",
+      platform: "careers.acme.com",
+      trustWeight: "high",
+    });
+  });
+
   it("matches the company against the registrable label, not any substring or subdomain", () => {
     const ledger = buildEvidenceLedger({
       company: "Acme",
