@@ -296,18 +296,24 @@ describe("buildEvidenceLedger", () => {
     });
   });
 
-  it("does not trust per-subdomain hosting platforms as official company origins", () => {
+  it.each([
+    "acme.github.io",
+    "acme.pages.dev",
+    "acme.vercel.app",
+    "acme.netlify.app",
+    "acme.notion.site",
+  ])("does not trust delegated platform host %s as an official company origin", (host) => {
     const ledger = buildEvidenceLedger({
       company: "Acme",
       companyResearchData: {
         search_results: [
           {
             results: [
-              // Anyone can publish acme.github.io; the registrable owner is the
-              // platform, not the employer, so it stays market_heuristic.
+              // Anyone can publish these per-subdomain sites; the registrable
+              // owner is the platform, not the employer, so they stay low trust.
               {
                 title: "Community Acme guide",
-                url: "https://acme.github.io/interview-notes",
+                url: `https://${host}/interview-notes`,
                 content: "A community-published page, not an official Acme site.",
               },
             ],
@@ -319,7 +325,7 @@ describe("buildEvidenceLedger", () => {
     expect(ledger).toHaveLength(1);
     expect(ledger[0]).toMatchObject({
       sourceType: "market_heuristic",
-      platform: "acme.github.io",
+      platform: host,
       trustWeight: "low",
     });
   });
