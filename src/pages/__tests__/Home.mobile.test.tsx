@@ -341,20 +341,29 @@ describe("Home flow", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.change(await screen.findByLabelText("CV text (optional)"), {
+      target: {
+        value:
+          "  Led platform launches across payments reliability, experimentation, and interviewer training.  ",
+      },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Start research" }));
 
+    const expectedPayload = {
+      company: "OpenAI",
+      role: undefined,
+      country: undefined,
+      roleLinks: [],
+      cv: "Led platform launches across payments reliability, experimentation, and interviewer training.",
+      level: undefined,
+      userNote: undefined,
+      jobDescription: undefined,
+    };
+
     await waitFor(() => {
-      expect(mockCreateSearchRecord).toHaveBeenCalledWith({
-        company: "OpenAI",
-        role: undefined,
-        country: undefined,
-        roleLinks: [],
-        cv: undefined,
-        level: undefined,
-        userNote: undefined,
-        jobDescription: undefined,
-      });
+      expect(mockCreateSearchRecord).toHaveBeenCalledWith(expectedPayload);
     });
+    expect(mockStartProcessing).toHaveBeenCalledWith("search-1", expectedPayload);
 
     expect(await screen.findByText("Progress dialog for OpenAI")).toBeInTheDocument();
     await waitFor(() => {
