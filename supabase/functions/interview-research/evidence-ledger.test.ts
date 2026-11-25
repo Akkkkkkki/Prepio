@@ -229,6 +229,43 @@ describe("buildEvidenceLedger", () => {
     });
   });
 
+  it.each([
+    {
+      expected: {
+        sourceType: "official_job",
+        platform: "boards.greenhouse.io",
+        trustWeight: "high",
+      },
+      result: {
+        title: "Staff Engineer posting",
+        url: "https://boards.greenhouse.io./acme/jobs/4012",
+        raw_content: "The role requires API design and mentoring.",
+      },
+    },
+    {
+      expected: {
+        sourceType: "public_report",
+        platform: "glassdoor.com",
+        trustWeight: "medium",
+      },
+      result: {
+        title: "Acme interview report",
+        url: "https://www.glassdoor.com./Interview/acme-interview.htm",
+        content: "Candidates report a technical screen and onsite loop.",
+      },
+    },
+  ])("normalizes a trailing dot before classifying $expected.platform", ({ expected, result }) => {
+    const ledger = buildEvidenceLedger({
+      company: "Acme",
+      jobRawData: {
+        results: [result],
+      },
+    });
+
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toMatchObject(expected);
+  });
+
   it("matches the company against the registrable label, not any substring or subdomain", () => {
     const ledger = buildEvidenceLedger({
       company: "Acme",
