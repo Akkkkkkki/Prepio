@@ -60,6 +60,13 @@ describe('offline snapshot integrity', () => {
     const d = data(); d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ' HTTPS://OPENAI.COM/careers/applied-ai-architect-large-enterprise-london-uk/';
     expect((await evaluate(bind(d))).checks.planReferenceIntegrity).toBe('pass');
   });
+  it('does not flag a registered citation that omits the trailing slash', async () => {
+    const d = data(); const url = 'https://openai.com/careers/applied-ai-architect-large-enterprise-london-uk';
+    d.outputs[0].plan.questionPlan.coreMustPractice[0].reason += ` ${url}`;
+    const r = await evaluate(bind(d));
+    expect(r.checks.planReferenceIntegrity).toBe('pass');
+    expect(r.screeningWarnings).not.toContainEqual(expect.objectContaining({ signal: 'unregistered_source_reference', match: url }));
+  });
   it('rejects rewritten official-job URLs', () => reject(d => { d.cases[0].sourceRecords[0].url = 'https://openai.com/careers/other/'; }, /London source identity/));
   it('rejects changed job-description binding', () => reject(d => { d.cases[0].input.jobDescription += ' Extra claim'; }, /job description/));
   it('rejects mismatched inline excerpts', () => reject(d => { d.outputs[0].plan.internalEvidenceLog[0].excerpt = 'Different posting'; }, /ledger.*binding/));
