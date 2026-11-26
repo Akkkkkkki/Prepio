@@ -324,6 +324,68 @@ describe("buildEvidenceLedger", () => {
     });
   });
 
+  it("does not trust user content published on a company-owned platform", () => {
+    const cases = [
+      ["Google", "https://sites.google.com/view/anyone/interview-notes"],
+      ["Google", "https://docs.google.com/document/d/anyone/edit"],
+      ["Google", "https://groups.google.com/g/anyone/c/interviews"],
+      ["GitHub", "https://github.com/anyone/interview-notes"],
+      ["GitHub", "https://gist.github.com/anyone/123"],
+      ["Medium", "https://medium.com/@anyone/interview-notes"],
+    ] as const;
+
+    for (const [company, url] of cases) {
+      const ledger = buildEvidenceLedger({
+        company,
+        companyResearchData: {
+          search_results: [
+            {
+              results: [
+                {
+                  title: `${company} interview notes`,
+                  url,
+                  content: "A user-published interview report.",
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      expect(ledger).toHaveLength(1);
+      expect(ledger[0], url).toMatchObject({
+        sourceType: "market_heuristic",
+        trustWeight: "low",
+      });
+    }
+  });
+
+  it("keeps a company-owned platform root eligible as an official origin", () => {
+    const ledger = buildEvidenceLedger({
+      company: "GitHub",
+      companyResearchData: {
+        search_results: [
+          {
+            results: [
+              {
+                title: "GitHub",
+                url: "https://github.com/",
+                content: "GitHub's company homepage.",
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toMatchObject({
+      sourceType: "official_company",
+      platform: "github.com",
+      trustWeight: "high",
+    });
+  });
+
   it("does not guess official origins for short employer names", () => {
     const ledger = buildEvidenceLedger({
       company: "GO",

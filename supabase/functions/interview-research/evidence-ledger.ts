@@ -195,6 +195,40 @@ const DELEGATED_HOST_SUFFIXES = [
   "notion.site",
 ];
 
+// Company-owned platforms where arbitrary users can publish content. Ownership
+// of the registrable domain is not enough to make a page official employer
+// evidence when the URL points into one of these user-controlled surfaces.
+// Entries only lower trust, so keep this list intentionally small and extend it
+// when a new platform-shaped false positive is demonstrated.
+const USER_CONTENT_HOSTS = [
+  "sites.google.com",
+  "docs.google.com",
+  "groups.google.com",
+  "gist.github.com",
+];
+
+function isUserContentUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    if (
+      USER_CONTENT_HOSTS.some(
+        (domain) => host === domain || host.endsWith(`.${domain}`),
+      )
+    ) {
+      return true;
+    }
+
+    // Every non-root github.com path can identify a user or organization, and
+    // Medium's @-prefixed paths are user publications. Keep the bare platform
+    // roots eligible for normal company-domain classification.
+    if (host === "github.com" && parsed.pathname !== "/") return true;
+    return host === "medium.com" && parsed.pathname.startsWith("/@");
+  } catch {
+    return false;
+  }
+}
+
 // The registrable (eTLD+1) label of a host, or null when the host carries no
 // employer-ownership signal: a bare label, the public suffix itself, or a
 // per-subdomain delegated platform. This is the ownership boundary — an attacker
@@ -248,6 +282,7 @@ function classifyRetrievedSource(
 ): EvidenceSourceType {
   const host = hostFor(url);
   if (isCommunityHost(host)) return "public_report";
+  if (isUserContentUrl(url)) return "market_heuristic";
 
   // Grant official-company trust only when the company name matches the host's
   // *registrable* label, never any label. Matching a substring of the whole host
