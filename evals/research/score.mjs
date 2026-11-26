@@ -257,12 +257,17 @@ function httpUrls(text) {
     try { const u = new globalThis.URL(match); return { match, href: u.href, host: u.hostname }; } catch { return { match, href: null, host: '' }; }
   });
 }
+function hrefVariants(value) {
+  const href = new globalThis.URL(value).href;
+  return href.endsWith('/') ? [href, href.slice(0, -1)] : [href, `${href}/`];
+}
 // Keyword screening over claim-bearing text. A hit asks for human review; a miss proves nothing.
 function screen(targets, registeredUrls, jobDescription) {
+  const registeredHttp = new Set([...registeredUrls].flatMap(hrefVariants));
   const registered = new Set([...registeredUrls].flatMap(u => { const x = new globalThis.URL(u); return [x.host, x.host + x.pathname, (x.host + x.pathname).replace(/\/$/, '')]; }));
   const frozen = flat(jobDescription); const hits = [];
   for (const [path, text] of targets) {
-    for (const match of sortedUnique(httpUrls(text).filter(u => !registeredUrls.has(u.href)).map(u => u.match))) hits.push({ path, signal: 'unregistered_source_reference', match });
+    for (const match of sortedUnique(httpUrls(text).filter(u => !registeredHttp.has(u.href)).map(u => u.match))) hits.push({ path, signal: 'unregistered_source_reference', match });
     const withoutHttp = text.replace(HTTP_URL, ' ');
     for (const reference of sortedUnique([...withoutHttp.matchAll(OTHER_REFERENCE)].map(m => m[0].replace(/[.,;:!?]+$/, '')))) {
       if (!registered.has(reference.toLowerCase())) hits.push({ path, signal: 'unregistered_source_reference', match: reference });
