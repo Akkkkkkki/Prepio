@@ -4,6 +4,7 @@ import {
   countQuestions,
   normalizeStageName,
   QUESTION_MINIMUMS,
+  requireQuestionStageId,
   validatePrepPlan,
 } from "./prep-plan-validation.ts";
 
@@ -38,7 +39,7 @@ function makeValidPlan() {
         makeQuestion(),
       ),
       likelyFollowUps: Array.from({ length: QUESTION_MINIMUMS.likelyFollowUps }, () =>
-        makeQuestion({ stageName: null, linkedPriority: "medium", difficulty: "Easy" }),
+        makeQuestion({ stageName: "Onsite", linkedPriority: "medium", difficulty: "Easy" }),
       ),
       extraDepth: Array.from({ length: QUESTION_MINIMUMS.extraDepth }, () =>
         makeQuestion({ stageName: "Onsite", linkedPriority: "low", difficulty: "Hard" }),
@@ -79,10 +80,14 @@ describe("validatePrepPlan", () => {
     expect(result.unresolvedStageLinks).toContain("Ghost Round");
   });
 
-  it("allows null stageName (not stage-specific)", () => {
+  it("rejects null and empty stage names so questions cannot be orphaned", () => {
     const plan = makeValidPlan();
     plan.questionPlan.coreMustPractice[0] = makeQuestion({ stageName: null });
-    expect(validatePrepPlan(plan).valid).toBe(true);
+    plan.questionPlan.coreMustPractice[1] = makeQuestion({ stageName: "   " });
+    const result = validatePrepPlan(plan);
+    expect(result.valid).toBe(false);
+    expect(result.unresolvedStageLinks).toEqual(["<missing>", "<missing>"]);
+    expect(result.errors.filter((error) => error.includes("stageName is missing"))).toHaveLength(2);
   });
 
   it("matches stage names case-insensitively and trimming whitespace", () => {
@@ -137,5 +142,23 @@ describe("buildRepairInstructions", () => {
     expect(text).toContain("Phone Screen");
     expect(text).toContain("extraDepth has 1");
     expect(text).toContain("VALIDATION ERRORS TO FIX");
+    expect(text).toContain("every question's stageName must be exactly one of these");
+    expect(text).not.toContain("or null");
+  });
+});
+
+describe("requireQuestionStageId", () => {
+  const stageIds = {
+    "phone screen": "stage-phone",
+    onsite: "stage-onsite",
+  };
+
+  it("uses the same normalized matching as validation", () => {
+    expect(requireQuestionStageId("  PHONE SCREEN ", stageIds)).toBe("stage-phone");
+  });
+
+  it("refuses missing and unresolved stages", () => {
+    expect(() => requireQuestionStageId(null, stageIds)).toThrow(/<missing>/);
+    expect(() => requireQuestionStageId("Ghost Round", stageIds)).toThrow(/Ghost Round/);
   });
 });
