@@ -147,16 +147,20 @@ export function validatePrepPlan(plan: any): PrepPlanValidationResult {
           `${where}.difficulty "${q.difficulty}" is not one of ${DIFFICULTY_VALUES.join("/")}.`,
         );
       }
-      // Stage links: null/empty means "not stage-specific" and is allowed. A
-      // non-empty stageName must resolve to a generated roadmap stage, or the
-      // question is orphaned from the practice flow once persisted.
-      if (isNonEmptyString(q?.stageName)) {
-        if (!roadmapNames.has(normalizeStageName(q.stageName))) {
-          unresolvedStageLinks.push(q.stageName);
-          errors.push(
-            `${where}.stageName "${q.stageName}" does not match any stageRoadmap stage.`,
-          );
-        }
+      // Every persisted question must belong to a roadmap stage. Plan and
+      // Practice load questions through stage IDs, so accepting null/empty
+      // values silently hides those questions while aggregate counts include
+      // them.
+      if (!isNonEmptyString(q?.stageName)) {
+        unresolvedStageLinks.push("<missing>");
+        errors.push(
+          `${where}.stageName is missing; it must match a stageRoadmap stage.`,
+        );
+      } else if (!roadmapNames.has(normalizeStageName(q.stageName))) {
+        unresolvedStageLinks.push(q.stageName);
+        errors.push(
+          `${where}.stageName "${q.stageName}" does not match any stageRoadmap stage.`,
+        );
       }
     });
   });
@@ -186,10 +190,30 @@ export function buildRepairInstructions(
       "the minimums and fix every listed problem. Do not add commentary.",
   );
   lines.push("");
-  lines.push("VALID STAGE NAMES (a question's stageName must be one of these or null):");
+  lines.push("VALID STAGE NAMES (every question's stageName must be exactly one of these):");
   roadmapStageNames.forEach((name) => lines.push(`  - ${name}`));
   lines.push("");
   lines.push("VALIDATION ERRORS TO FIX:");
   validation.errors.forEach((err) => lines.push(`  - ${err}`));
   return lines.join("\n");
+}
+
+/**
+ * Resolves the foreign key used by the persistence path. Throwing here is a
+ * final guard against inserting an unreachable question if validation is ever
+ * bypassed or validation and persistence drift apart again.
+ */
+export function requireQuestionStageId(
+  stageName: unknown,
+  stageIdByName: Record<string, string>,
+): string {
+  const normalizedName = normalizeStageName(stageName);
+  const stageId = normalizedName ? stageIdByName[normalizedName] : undefined;
+  if (!stageId) {
+    const displayName = isNonEmptyString(stageName) ? stageName : "<missing>";
+    throw new Error(
+      `Cannot persist question with unresolved stageName "${displayName}".`,
+    );
+  }
+  return stageId;
 }

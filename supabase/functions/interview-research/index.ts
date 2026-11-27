@@ -10,6 +10,7 @@ import {
   buildRepairInstructions,
   DIFFICULTY_VALUES,
   normalizeStageName,
+  requireQuestionStageId,
   validatePrepPlan,
   type PrepPlanValidationResult,
 } from "./prep-plan-validation.ts";
@@ -129,7 +130,7 @@ interface PrepPlanOutput {
 
 interface QuestionItem {
   question: string;
-  stageName: string | null;
+  stageName: string;
   evidenceIds?: string[];
   linkedPriority: string;
   // Difficulty is assigned per question by the model within an enum, reflecting
@@ -480,7 +481,7 @@ QUESTION GENERATION — MINIMUM 40 QUESTIONS TOTAL:
 - A candidate cannot be fully prepared with only a handful of questions. Cover every stage, every assessment dimension, and every weak spot.
 - Weight questions using stage hypotheses, prep priorities, and candidate weak spots.
 - Questions must feel downstream of the research, not generic.
-- Every question's stageName MUST exactly match one of the stageRoadmap stageName values, or be null if not stage-specific. Never invent a stage name.
+- Every question's stageName MUST exactly match one of the stageRoadmap stageName values. Never use null and never invent a stage name.
 - Assign each question a "difficulty" of "Easy", "Medium", or "Hard" reflecting the actual difficulty of THAT question — do not derive it from the tier (a coreMustPractice question can be Easy; an extraDepth question can be Hard).
 - Set answerGuidanceStatus to "pending" for all questions.
 
@@ -686,20 +687,20 @@ function getPrepPlanSchema(): any {
     questionPlan: {
       coreMustPractice: [
         { question: "Core question 1 — tailored to stage and candidate", stageName: "Phone Screen", evidenceIds: ["ev-1"], linkedPriority: "high", difficulty: "Medium", reason: "Why this matters", answerGuidanceStatus: "pending", leveragesStoryId: "S1 | null" },
-        { question: "Core question 2 — different dimension", stageName: "Technical Round", evidenceIds: ["ev-2"], linkedPriority: "high", difficulty: "Hard", reason: "Why this matters", answerGuidanceStatus: "pending", leveragesStoryId: "S2 | null" },
-        { question: "Core question 3 — covers weak spot", stageName: "Behavioral Round", evidenceIds: [], linkedPriority: "high", difficulty: "Easy", reason: "Why this matters", answerGuidanceStatus: "pending", leveragesStoryId: "S3 | null" },
-        "... MUST generate ≥ 15 items in this array (stageName must match a stageRoadmap stage or be null)"
+        { question: "Core question 2 — different dimension", stageName: "Phone Screen", evidenceIds: ["ev-2"], linkedPriority: "high", difficulty: "Hard", reason: "Why this matters", answerGuidanceStatus: "pending", leveragesStoryId: "S2 | null" },
+        { question: "Core question 3 — covers weak spot", stageName: "Phone Screen", evidenceIds: [], linkedPriority: "high", difficulty: "Easy", reason: "Why this matters", answerGuidanceStatus: "pending", leveragesStoryId: "S3 | null" },
+        "... MUST generate ≥ 15 items in this array (stageName must match a stageRoadmap stage)"
       ],
       likelyFollowUps: [
-        { question: "Follow-up question 1", stageName: null, evidenceIds: [], linkedPriority: "medium", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: null },
+        { question: "Follow-up question 1", stageName: "Phone Screen", evidenceIds: [], linkedPriority: "medium", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: null },
         { question: "Follow-up question 2", stageName: "Phone Screen", evidenceIds: ["ev-1"], linkedPriority: "medium", difficulty: "Easy", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: "S1 | null" },
-        { question: "Follow-up question 3", stageName: null, evidenceIds: [], linkedPriority: "medium", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: null },
-        "... MUST generate ≥ 15 items in this array (stageName must match a stageRoadmap stage or be null)"
+        { question: "Follow-up question 3", stageName: "Phone Screen", evidenceIds: [], linkedPriority: "medium", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: null },
+        "... MUST generate ≥ 15 items in this array (stageName must match a stageRoadmap stage)"
       ],
       extraDepth: [
-        { question: "Depth question 1", stageName: null, evidenceIds: [], linkedPriority: "low", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: null },
-        { question: "Depth question 2", stageName: "Final Round", evidenceIds: ["ev-2"], linkedPriority: "low", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: "S1 | null" },
-        "... MUST generate ≥ 10 items in this array (stageName must match a stageRoadmap stage or be null)"
+        { question: "Depth question 1", stageName: "Phone Screen", evidenceIds: [], linkedPriority: "low", difficulty: "Hard", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: null },
+        { question: "Depth question 2", stageName: "Phone Screen", evidenceIds: ["ev-2"], linkedPriority: "low", difficulty: "Medium", reason: "Why", answerGuidanceStatus: "pending", leveragesStoryId: "S1 | null" },
+        "... MUST generate ≥ 10 items in this array (stageName must match a stageRoadmap stage)"
       ],
     },
     // Code replaces this with the verified ledger after synthesis. The model
@@ -874,13 +875,31 @@ async function synthesizePrepPlan(
         const repairedValidation = validatePrepPlan(repaired);
         // Keep the repaired plan when it fully passes, or when it is at least
         // not worse than the original on total question coverage.
-        if (repairedValidation.valid || repairedValidation.counts.total >= validation.counts.total) {
+        const repairedStageLinks =
+          validation.unresolvedStageLinks.length > 0 &&
+          repairedValidation.unresolvedStageLinks.length === 0;
+        if (
+          repairedValidation.valid ||
+          repairedStageLinks ||
+          repairedValidation.counts.total >= validation.counts.total
+        ) {
           plan = repaired;
           validation = repairedValidation;
         }
       } else {
         console.warn("⚠️ Repair pass returned no usable plan; keeping original output");
       }
+    }
+
+    // Other validation failures may still persist with an honest degraded
+    // marker, but an unresolved stage makes questions unreachable from both
+    // Plan and Practice. Fail the run after the one repair attempt instead of
+    // silently completing with hidden questions.
+    if (validation.unresolvedStageLinks.length > 0) {
+      console.error(
+        `❌ PrepPlan still has ${validation.unresolvedStageLinks.length} unresolved question stage link(s) after repair`,
+      );
+      return null;
     }
 
     // Persist an honest quality marker rather than silently completing a run
@@ -932,6 +951,16 @@ async function savePrepPlanToDatabase(
 ) {
   try {
     console.log("💾 Saving PrepPlan to database...");
+
+    // Check the stage-link invariant again at the persistence boundary before
+    // any table is written. Synthesis normally enforces this, but the save path
+    // must stay safe if another caller or future refactor bypasses it.
+    const persistenceValidation = validatePrepPlan(plan);
+    if (persistenceValidation.unresolvedStageLinks.length > 0) {
+      throw new Error(
+        `Refusing to persist PrepPlan with ${persistenceValidation.unresolvedStageLinks.length} unresolved question stage link(s).`,
+      );
+    }
 
     // 1. Save PrepPlan to prep_plans table
     console.log("  → Saving PrepPlan...");
@@ -1016,7 +1045,7 @@ async function savePrepPlanToDatabase(
 
       const addQuestions = (items: QuestionItem[], tier: string) => {
         (items || []).forEach((q) => {
-          const stageId = q.stageName ? (stageIdByName[normalizeStageName(q.stageName)] ?? null) : null;
+          const stageId = requireQuestionStageId(q.stageName, stageIdByName);
           const linkedStory = resolveStoryForQuestion(
             q,
             profileContext,
